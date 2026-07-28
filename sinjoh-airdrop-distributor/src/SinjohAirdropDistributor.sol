@@ -138,6 +138,7 @@ contract SinjohAirdropDistributor {
         commitments;
     mapping(bytes32 accountId => mapping(address holder => bool excluded)) public isExcluded;
     mapping(bytes32 accountId => mapping(address holder => uint256 amount)) public paid;
+    mapping(address asset => uint16 remainder) public protocolFeeRemainder;
     mapping(address asset => uint256 amount) public protocolOwed;
     mapping(address asset => uint256 amount) public totalLiability;
 
@@ -211,7 +212,9 @@ contract SinjohAirdropDistributor {
             }
         }
 
-        uint256 fee = received * PROTOCOL_FEE_BPS / BPS;
+        (uint256 fee, uint16 nextFeeRemainder) =
+            _accrueProtocolFee(received, protocolFeeRemainder[asset]);
+        protocolFeeRemainder[asset] = nextFeeRemainder;
         uint256 net = received - fee;
         account.totalFunded += net;
         protocolOwed[asset] += fee;
@@ -219,6 +222,20 @@ contract SinjohAirdropDistributor {
         _assertSolvent(asset);
         emit ProtocolFeeAccrued(id, asset, received, fee);
         emit Funded(id, msg.sender, asset, net, account.totalFunded);
+    }
+
+    function _accrueProtocolFee(uint256 amount, uint16 remainder)
+        private
+        pure
+        returns (uint256 fee, uint16 nextRemainder)
+    {
+        uint256 scaledRemainder = (amount % BPS) * PROTOCOL_FEE_BPS + remainder;
+        // Quotient/remainder decomposition avoids overflow without losing precision.
+        // forge-lint: disable-next-line(divide-before-multiply)
+        fee = (amount / BPS) * PROTOCOL_FEE_BPS + scaledRemainder / BPS;
+        // The modulo result is strictly below BPS and therefore fits uint16.
+        // forge-lint: disable-next-line(unsafe-typecast)
+        nextRemainder = uint16(scaledRemainder % BPS);
     }
 
     function sendProtocolFee(address asset, uint256 amount) external nonReentrant {

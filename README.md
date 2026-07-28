@@ -2,7 +2,7 @@
 
 Sinjoh is immutable launchpad infrastructure for Robinhood Chain, beginning with
 Pons v1. This monorepo contains five independently deployable and auditable
-Solidity packages:
+Solidity packages plus the offchain automation package:
 
 | Package | Purpose |
 |---|---|
@@ -11,6 +11,7 @@ Solidity packages:
 | [`sinjoh-liquidity-manager`](./sinjoh-liquidity-manager) | Converts one quote asset as needed, creates permanent full-range Uniswap v3/v4 liquidity, and charges 1% of LP fees collected. |
 | [`sinjoh-pons-v1-adapter`](./sinjoh-pons-v1-adapter) | Collects or receives Pons v1 fees and forwards the subject token and WETH to a fixed fee router. |
 | [`sinjoh-revenue-collector`](./sinjoh-revenue-collector) | Provides a stable protocol-revenue endpoint and forwards assets to a governance-selected downstream processor without charging again. |
+| [`sinjoh-keeper`](./sinjoh-keeper) | Automates permissionless routing and provides the isolated deterministic airdrop snapshot, attestation, and push workflow. |
 
 The packages do not import one another's implementations. Composition uses copied
 interfaces and ordinary asset transfers. Each package has its own Foundry
@@ -43,6 +44,16 @@ done
 
 Live fork tests require the relevant Robinhood RPC environment variables.
 
+The keeper has its own strict TypeScript suite:
+
+```sh
+cd sinjoh-keeper
+npm ci
+npm run typecheck
+npm test
+npm run build
+```
+
 ## Documentation
 
 - [`STRATEGY.md`](./STRATEGY.md): protocol boundaries and design principles
@@ -54,8 +65,9 @@ Live fork tests require the relevant Robinhood RPC environment variables.
 
 ## Release state
 
-The final Robinhood testnet sweep, including the revenue collector and all three
-1% fee paths, is complete. Mainnet has not been deployed. Mainnet
-activation remains gated on final immutable configuration approval, exact-state
-fork rehearsal, dependency code-hash verification, independent external review,
-production infrastructure, and a small-value post-deployment smoke test.
+The earlier Robinhood testnet sweep, including the revenue collector and all three
+1% fee paths, completed successfully. The source now includes cumulative
+fee/allocation accounting and deterministic router tranches; because the contracts
+are immutable, that hardened revision must receive fresh testnet deployments and a
+new end-to-end sweep before it becomes the release candidate. Mainnet has not been
+deployed.

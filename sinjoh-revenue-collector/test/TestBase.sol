@@ -8,6 +8,7 @@ interface Vm {
     function expectPartialRevert(bytes4 selector) external;
     function prank(address sender) external;
 }
+
 abstract contract TestBase {
     Vm internal constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 

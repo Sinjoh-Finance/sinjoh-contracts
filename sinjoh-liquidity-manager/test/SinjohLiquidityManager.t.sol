@@ -207,6 +207,60 @@ contract SinjohLiquidityManagerTest is TestBase {
         assertTrue(configured && lastMint != 0);
     }
 
+    function testSplitFeeCollectionsCarryProtocolFeeRemaindersPerAsset() public {
+        _fundV3(10_000, SinjohLiquidityManager.FeeMode.TREASURY);
+        (uint256 tokenId,) = manager.mint(address(this), address(subject), 10_000, 5_000, "");
+
+        address token0 = v3PositionManager.token0(tokenId);
+        address token1 = v3PositionManager.token1(tokenId);
+        MockERC20(token0).mint(address(v3PositionManager), 50);
+        MockERC20(token1).mint(address(v3PositionManager), 50);
+        v3PositionManager.setFees(tokenId, 50, 50);
+        manager.collect(address(this), address(subject));
+
+        assertEq(manager.protocolOwed(address(quote)), 0);
+        assertEq(manager.protocolOwed(address(subject)), 0);
+        assertEq(manager.protocolFeeRemainder(address(quote)), 5_000);
+        assertEq(manager.protocolFeeRemainder(address(subject)), 5_000);
+
+        MockERC20(token0).mint(address(v3PositionManager), 50);
+        MockERC20(token1).mint(address(v3PositionManager), 50);
+        v3PositionManager.setFees(tokenId, 50, 50);
+        manager.collect(address(this), address(subject));
+
+        assertEq(manager.feeOwed(TREASURY, address(quote)), 99);
+        assertEq(manager.feeOwed(TREASURY, address(subject)), 99);
+        assertEq(manager.protocolOwed(address(quote)), 1);
+        assertEq(manager.protocolOwed(address(subject)), 1);
+        assertEq(manager.protocolFeeRemainder(address(quote)), 0);
+        assertEq(manager.protocolFeeRemainder(address(subject)), 0);
+    }
+
+    function testProtocolFeeCannotBeAvoidedBySplittingAcrossAccounts() public {
+        _fundV3(10_000, SinjohLiquidityManager.FeeMode.TREASURY);
+        (uint256 firstTokenId,) = manager.mint(address(this), address(subject), 10_000, 5_000, "");
+
+        MockERC20 secondSubject = new MockERC20("Second Subject", "SUB2");
+        secondSubject.mint(address(adapter), 10_000);
+        SinjohLiquidityManager.Config memory config = _v3Config();
+        config.feeMode = SinjohLiquidityManager.FeeMode.TREASURY;
+        config.feeRecipient = TREASURY;
+        manager.fund(address(secondSubject), address(quote), 10_000, abi.encode(config));
+        (uint256 secondTokenId,) =
+            manager.mint(address(this), address(secondSubject), 10_000, 5_000, "");
+
+        _setQuoteFees(firstTokenId, 50);
+        manager.collect(address(this), address(subject));
+        assertEq(manager.protocolOwed(address(quote)), 0);
+        assertEq(manager.protocolFeeRemainder(address(quote)), 5_000);
+
+        _setQuoteFees(secondTokenId, 50);
+        manager.collect(address(this), address(secondSubject));
+        assertEq(manager.protocolOwed(address(quote)), 1);
+        assertEq(manager.protocolFeeRemainder(address(quote)), 0);
+        assertEq(manager.feeOwed(TREASURY, address(quote)), 99);
+    }
+
     function testV4HookRejectionLeavesAllCreditsUnchanged() public {
         bytes32 id = _fundV4Token(10_000);
         v4PositionManager.setRejectHook(true);
@@ -273,6 +327,15 @@ contract SinjohLiquidityManagerTest is TestBase {
             mode == SinjohLiquidityManager.FeeMode.TREASURY ? TREASURY : address(0);
         manager.fund(address(subject), address(quote), amount, abi.encode(config));
         id = manager.accountId(address(this), address(subject));
+    }
+
+    function _setQuoteFees(uint256 tokenId, uint256 amount) internal {
+        quote.mint(address(v3PositionManager), amount);
+        if (v3PositionManager.token0(tokenId) == address(quote)) {
+            v3PositionManager.setFees(tokenId, amount, 0);
+        } else {
+            v3PositionManager.setFees(tokenId, 0, amount);
+        }
     }
 
     function _fundV4Token(uint256 amount) internal returns (bytes32 id) {

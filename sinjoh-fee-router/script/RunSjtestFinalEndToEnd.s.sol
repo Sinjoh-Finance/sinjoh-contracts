@@ -144,10 +144,10 @@ contract RunSjtestFinalEndToEnd {
         address forwardAdapter = vm.envAddress("FORWARD_ADAPTER");
         address reverseAdapter = vm.envAddress("REVERSE_ADAPTER");
         address bidirectionalGuard = vm.envAddress("BIDIRECTIONAL_GUARD");
-        address routerAddress = vm.envAddress("ROUTER");
+        address routerAddress = vm.envAddress("FEE_ROUTER");
         address ponsAdapter = vm.envAddress("PONS_ADAPTER");
         address airdropDistributor = vm.envAddress("AIRDROP_DISTRIBUTOR");
-        address v3Manager = vm.envAddress("V3_MANAGER");
+        address v3Manager = vm.envAddress("LIQUIDITY_MANAGER");
         address revenueCollector = vm.envAddress("REVENUE_COLLECTOR");
         if (block.chainid != 46_630 || vm.addr(deployerKey) != EXPECTED_DEPLOYER) {
             revert WrongEnvironment();
@@ -257,13 +257,18 @@ contract RunSjtestFinalEndToEnd {
         if (
             IERC20Final(PONS_WETH).balanceOf(GOVERNANCE) - governanceWethBefore != collectorWeth
                 || IERC20Final(SJTEST).balanceOf(GOVERNANCE) - governanceSubjectBefore
-                    != collectorSubject
+                    != collectorSubject || IERC20Final(PONS_WETH).balanceOf(revenueCollector) != 0
+                || IERC20Final(SJTEST).balanceOf(revenueCollector) != 0
         ) revert InvariantViolation();
         vm.stopBroadcast();
 
         if (
             positionId == 0 || liquidity == 0 || router.totalLiability(SJTEST) != 0
-                || router.totalLiability(PONS_WETH) != 0
+                || router.totalLiability(PONS_WETH) != 0 || router.protocolOwed(SJTEST) != 0
+                || router.protocolOwed(PONS_WETH) != 0 || distributor.protocolOwed(PONS_WETH) != 0
+                || manager.protocolOwed(PONS_WETH) != 0 || manager.protocolOwed(SJTEST) != 0
+                || IERC20Final(PONS_WETH).balanceOf(ponsAdapter) != 0
+                || IERC20Final(SJTEST).balanceOf(ponsAdapter) != 0
         ) revert InvariantViolation();
     }
 }

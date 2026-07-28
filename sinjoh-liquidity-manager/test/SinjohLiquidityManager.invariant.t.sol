@@ -19,19 +19,24 @@ contract LiquidityHandler {
     MockERC20 public immutable subject;
     MockERC20 public immutable quote;
     SinjohLiquidityManager public immutable manager;
+    MockV3PositionManager public immutable v3PositionManager;
     bytes32 public immutable id;
+    uint256 public totalQuoteFeesCollected;
+    uint256 public totalSubjectFeesCollected;
     bytes internal _config;
 
     constructor(
         MockERC20 subject_,
         MockERC20 quote_,
         SinjohLiquidityManager manager_,
+        MockV3PositionManager v3PositionManager_,
         MockSwapAdapter adapter,
         MockPriceGuard guard
     ) {
         subject = subject_;
         quote = quote_;
         manager = manager_;
+        v3PositionManager = v3PositionManager_;
         id = manager.accountId(address(this), address(subject));
         quote.approve(address(manager), type(uint256).max);
         _config = abi.encode(
@@ -67,6 +72,22 @@ contract LiquidityHandler {
         uint256 notional = uint256(rawNotional) % (pendingQuote - 99) + 100;
         manager.mint(address(this), address(subject), notional, 1, "");
     }
+
+    function collectFees(uint96 rawQuoteAmount, uint96 rawSubjectAmount) external {
+        (,, uint256 tokenId,,) = manager.accountFinancials(id);
+        if (tokenId == 0) return;
+        uint256 quoteAmount = uint256(rawQuoteAmount) % 1e18 + 1;
+        uint256 subjectAmount = uint256(rawSubjectAmount) % 1e18 + 1;
+        address token0 = v3PositionManager.token0(tokenId);
+        uint256 amount0 = token0 == address(quote) ? quoteAmount : subjectAmount;
+        uint256 amount1 = token0 == address(quote) ? subjectAmount : quoteAmount;
+        MockERC20(token0).mint(address(v3PositionManager), amount0);
+        MockERC20(v3PositionManager.token1(tokenId)).mint(address(v3PositionManager), amount1);
+        v3PositionManager.setFees(tokenId, uint128(amount0), uint128(amount1));
+        manager.collect(address(this), address(subject));
+        totalQuoteFeesCollected += quoteAmount;
+        totalSubjectFeesCollected += subjectAmount;
+    }
 }
 
 contract SinjohLiquidityManagerInvariantTest is InvariantTestBase {
@@ -96,7 +117,7 @@ contract SinjohLiquidityManagerInvariantTest is InvariantTestBase {
             address(permit2),
             address(0xFEE1)
         );
-        handler = new LiquidityHandler(subject, quote, manager, adapter, guard);
+        handler = new LiquidityHandler(subject, quote, manager, v3PositionManager, adapter, guard);
         subject.mint(address(adapter), type(uint128).max);
         id = handler.id();
         _targetedContracts.push(address(handler));
@@ -116,6 +137,17 @@ contract SinjohLiquidityManagerInvariantTest is InvariantTestBase {
         assertEq(
             manager.totalLiability(address(subject)),
             pendingSubject + manager.protocolOwed(address(subject))
+        );
+    }
+
+    function invariantProtocolFeesEqualOnePercentOfCumulativeCollections() public view {
+        assertEq(
+            manager.protocolOwed(address(quote)),
+            handler.totalQuoteFeesCollected() * manager.PROTOCOL_FEE_BPS() / manager.BPS()
+        );
+        assertEq(
+            manager.protocolOwed(address(subject)),
+            handler.totalSubjectFeesCollected() * manager.PROTOCOL_FEE_BPS() / manager.BPS()
         );
     }
 }

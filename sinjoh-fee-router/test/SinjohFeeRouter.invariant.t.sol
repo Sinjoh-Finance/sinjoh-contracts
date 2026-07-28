@@ -17,6 +17,10 @@ contract FeeRouterHandler {
     MockSwapAdapter public immutable adapter;
     MockSink public immutable sink;
     address public immutable wallet;
+    uint256 public totalSubjectGross;
+    uint256 public totalQuoteGross;
+    uint256 public subjectProtocolSent;
+    uint256 public quoteProtocolSent;
 
     constructor(
         SinjohFeeRouter router_,
@@ -38,39 +42,45 @@ contract FeeRouterHandler {
         uint256 amount = uint256(rawAmount) % 1e24 + 1;
         subjectToken.mint(address(router), amount);
         router.sync(address(subjectToken));
+        totalSubjectGross += amount;
     }
 
     function donateAndSyncQuote(uint96 rawAmount) external {
         uint256 amount = uint256(rawAmount) % 1e24 + 1;
         quoteToken.mint(address(router), amount);
         router.sync(address(quoteToken));
+        totalQuoteGross += amount;
     }
 
     function processSubject(uint96 rawAmount) external {
+        rawAmount;
         uint256 pending = router.bucketInputOwed(0, address(subjectToken));
         if (pending == 0) return;
-        uint256 amount = uint256(rawAmount) % pending + 1;
-        router.processBucket(0, address(subjectToken), amount, 0, "");
+        router.processBucket(0, address(subjectToken), pending, 0, "");
     }
 
     function processQuote(uint96 rawAmount) external {
+        rawAmount;
         uint256 pending = router.bucketInputOwed(0, address(quoteToken));
         if (pending == 0) return;
-        uint256 amount = uint256(rawAmount) % pending + 1;
-        subjectToken.mint(address(adapter), amount);
-        router.processBucket(0, address(quoteToken), amount, 0, "");
+        subjectToken.mint(address(adapter), pending);
+        router.processBucket(0, address(quoteToken), pending, 0, "");
     }
 
     function sendSubjectProtocolFee(uint96 rawAmount) external {
         uint256 pending = router.protocolOwed(address(subjectToken));
         if (pending == 0) return;
-        router.sendProtocolFee(address(subjectToken), uint256(rawAmount) % pending + 1);
+        uint256 amount = uint256(rawAmount) % pending + 1;
+        router.sendProtocolFee(address(subjectToken), amount);
+        subjectProtocolSent += amount;
     }
 
     function sendQuoteProtocolFee(uint96 rawAmount) external {
         uint256 pending = router.protocolOwed(address(quoteToken));
         if (pending == 0) return;
-        router.sendProtocolFee(address(quoteToken), uint256(rawAmount) % pending + 1);
+        uint256 amount = uint256(rawAmount) % pending + 1;
+        router.sendProtocolFee(address(quoteToken), amount);
+        quoteProtocolSent += amount;
     }
 
     function sendWalletSubject(uint96 rawAmount) external {
@@ -96,6 +106,7 @@ contract SinjohFeeRouterInvariantTest is InvariantTestBase {
     MockSwapAdapter internal adapter;
     MockSink internal sink;
     SinjohFeeRouter internal router;
+    FeeRouterHandler internal handler;
 
     function setUp() public {
         subjectToken = new MockERC20("Subject", "SUB");
@@ -111,8 +122,7 @@ contract SinjohFeeRouterInvariantTest is InvariantTestBase {
             SinjohFeeRouter(payable(factory.deploy(address(this), bytes32("INVARIANT"), config)));
         router.bind(address(subjectToken));
 
-        FeeRouterHandler handler =
-            new FeeRouterHandler(router, subjectToken, quoteToken, adapter, sink, WALLET);
+        handler = new FeeRouterHandler(router, subjectToken, quoteToken, adapter, sink, WALLET);
         _targetedContracts.push(address(handler));
     }
 
@@ -139,6 +149,17 @@ contract SinjohFeeRouterInvariantTest is InvariantTestBase {
             + router.walletOwed(WALLET, address(quoteToken))
             + router.sinkOwed(router.allocationKey(0, 1), address(quoteToken));
         assertEq(router.totalLiability(address(quoteToken)), detailed);
+    }
+
+    function invariantProtocolFeesEqualOnePercentOfCumulativeIntake() public view {
+        assertEq(
+            router.protocolOwed(address(subjectToken)) + handler.subjectProtocolSent(),
+            handler.totalSubjectGross() * router.PROTOCOL_FEE_BPS() / router.BPS()
+        );
+        assertEq(
+            router.protocolOwed(address(quoteToken)) + handler.quoteProtocolSent(),
+            handler.totalQuoteGross() * router.PROTOCOL_FEE_BPS() / router.BPS()
+        );
     }
 
     function _config(MockPriceGuard guard)

@@ -98,14 +98,126 @@ contract SinjohFeeRouterTest is TestBase {
         assertEq(quoteToken.balanceOf(address(router)), amount);
     }
 
+    function testSplitSynchronizationCarriesProtocolFeeRemainder() public {
+        quoteToken.mint(address(router), 50);
+        router.sync(address(quoteToken));
+        assertEq(router.protocolOwed(address(quoteToken)), 0);
+        assertEq(router.protocolFeeRemainder(address(quoteToken)), 5_000);
+
+        quoteToken.mint(address(router), 50);
+        router.sync(address(quoteToken));
+
+        assertEq(router.protocolOwed(address(quoteToken)), 1);
+        assertEq(router.protocolFeeRemainder(address(quoteToken)), 0);
+        assertEq(router.bucketInputOwed(0, address(quoteToken)), 99);
+        assertEq(router.totalLiability(address(quoteToken)), 100);
+    }
+
+    function testSplitSynchronizationMatchesAggregateBucketAllocations() public {
+        RouterTypes.Config memory config = _twoBucketConfig();
+        SinjohFeeRouter splitRouter = SinjohFeeRouter(
+            payable(factory.deploy(address(this), bytes32("SPLIT_BUCKET"), config))
+        );
+        splitRouter.bind(address(subjectToken));
+
+        quoteToken.mint(address(splitRouter), 1);
+        splitRouter.sync(address(quoteToken));
+        assertEq(splitRouter.bucketInputOwed(0, address(quoteToken)), 1);
+        assertEq(splitRouter.bucketInputOwed(1, address(quoteToken)), 0);
+
+        quoteToken.mint(address(splitRouter), 1);
+        splitRouter.sync(address(quoteToken));
+        assertEq(splitRouter.bucketInputOwed(0, address(quoteToken)), 2);
+        assertEq(splitRouter.bucketInputOwed(1, address(quoteToken)), 0);
+    }
+
+    function testSplitProcessingMatchesAggregateDestinationAllocations() public {
+        subjectToken.mint(address(router), 1);
+        router.sync(address(subjectToken));
+        router.processBucket(0, address(subjectToken), 1, 0, "");
+        assertEq(router.walletOwed(WALLET, address(subjectToken)), 1);
+        assertEq(router.sinkOwed(router.allocationKey(0, 1), address(subjectToken)), 0);
+
+        subjectToken.mint(address(router), 1);
+        router.sync(address(subjectToken));
+        router.processBucket(0, address(subjectToken), 1, 0, "");
+        assertEq(router.walletOwed(WALLET, address(subjectToken)), 2);
+        assertEq(router.sinkOwed(router.allocationKey(0, 1), address(subjectToken)), 0);
+    }
+
+    function testRealRoutingWeightsAreIndependentOfOneUnitTransactions() public {
+        RouterTypes.Config memory config = _threeAllocationConfig();
+        SinjohFeeRouter splitRouter = SinjohFeeRouter(
+            payable(factory.deploy(address(this), bytes32("THREE_ALLOCATIONS"), config))
+        );
+        SinjohFeeRouter aggregateRouter = SinjohFeeRouter(
+            payable(factory.deploy(address(this), bytes32("AGGREGATE_ALLOCATIONS"), config))
+        );
+        splitRouter.bind(address(subjectToken));
+        aggregateRouter.bind(address(subjectToken));
+
+        for (uint256 i; i < 10; ++i) {
+            subjectToken.mint(address(splitRouter), 1);
+            splitRouter.sync(address(subjectToken));
+            uint256 pending = splitRouter.bucketInputOwed(0, address(subjectToken));
+            if (pending != 0) splitRouter.processBucket(0, address(subjectToken), pending, 0, "");
+        }
+
+        subjectToken.mint(address(aggregateRouter), 10);
+        aggregateRouter.sync(address(subjectToken));
+        aggregateRouter.processBucket(0, address(subjectToken), 10, 0, "");
+
+        assertEq(
+            splitRouter.walletOwed(WALLET, address(subjectToken)),
+            aggregateRouter.walletOwed(WALLET, address(subjectToken))
+        );
+        assertEq(
+            splitRouter.sinkOwed(splitRouter.allocationKey(0, 1), address(subjectToken)),
+            aggregateRouter.sinkOwed(aggregateRouter.allocationKey(0, 1), address(subjectToken))
+        );
+        assertEq(
+            splitRouter.walletOwed(NEW_WALLET, address(subjectToken)),
+            aggregateRouter.walletOwed(NEW_WALLET, address(subjectToken))
+        );
+    }
+
+    function testRealRoutingWeightsAreExactOverAFullAllocationCycle() public {
+        RouterTypes.Config memory config = _threeAllocationConfig();
+        SinjohFeeRouter cycleRouter = SinjohFeeRouter(
+            payable(factory.deploy(address(this), bytes32("ALLOCATION_CYCLE"), config))
+        );
+        cycleRouter.bind(address(subjectToken));
+
+        subjectToken.mint(address(cycleRouter), 10_101);
+        cycleRouter.sync(address(subjectToken));
+        cycleRouter.processBucket(0, address(subjectToken), 10_000, 0, "");
+
+        assertEq(cycleRouter.protocolOwed(address(subjectToken)), 101);
+        assertEq(cycleRouter.walletOwed(WALLET, address(subjectToken)), 4_000);
+        assertEq(
+            cycleRouter.sinkOwed(cycleRouter.allocationKey(0, 1), address(subjectToken)), 3_000
+        );
+        assertEq(cycleRouter.walletOwed(NEW_WALLET, address(subjectToken)), 3_000);
+    }
+
+    function testProcessingRequiresTheFullPermittedTranche() public {
+        subjectToken.mint(address(router), 10_000);
+        router.sync(address(subjectToken));
+
+        vm.expectRevert(SinjohFeeRouter.InvalidAmount.selector);
+        router.processBucket(0, address(subjectToken), 1, 0, "");
+
+        router.processBucket(0, address(subjectToken), 9_900, 0, "");
+    }
+
     function testIdentityProcessingSnapshotsAllocations() public {
         subjectToken.mint(address(router), 10_000);
         router.sync(address(subjectToken));
 
         uint256 amountOut = router.processBucket(0, address(subjectToken), 9_900, 0, "");
         assertEq(amountOut, 9_900);
-        assertEq(router.walletOwed(WALLET, address(subjectToken)), 4_950);
-        assertEq(router.sinkOwed(router.allocationKey(0, 1), address(subjectToken)), 4_950);
+        assertEq(router.walletOwed(WALLET, address(subjectToken)), 5_000);
+        assertEq(router.sinkOwed(router.allocationKey(0, 1), address(subjectToken)), 4_900);
         assertEq(router.totalLiability(address(subjectToken)), 10_000);
     }
 
@@ -119,7 +231,7 @@ contract SinjohFeeRouterTest is TestBase {
         assertEq(router.totalLiability(address(quoteToken)), 100);
         assertEq(router.totalLiability(address(subjectToken)), 9_900);
         assertEq(quoteToken.allowance(address(router), address(adapter)), 0);
-        assertEq(router.walletOwed(WALLET, address(subjectToken)), 4_950);
+        assertEq(router.walletOwed(WALLET, address(subjectToken)), 5_000);
     }
 
     function testWeakCallerMinimumCannotLowerGuardAndStrictMinimumCanRevert() public {
@@ -150,16 +262,18 @@ contract SinjohFeeRouterTest is TestBase {
     }
 
     function testWalletRepointOnlyAffectsFutureCredits() public {
-        subjectToken.mint(address(router), 10_000);
+        subjectToken.mint(address(router), 4_000);
         router.sync(address(subjectToken));
-        router.processBucket(0, address(subjectToken), 4_000, 0, "");
-        assertEq(router.walletOwed(WALLET, address(subjectToken)), 2_000);
+        router.processBucket(0, address(subjectToken), 3_960, 0, "");
+        assertEq(router.walletOwed(WALLET, address(subjectToken)), 3_960);
 
         router.repointWallet(0, 0, NEW_WALLET);
-        router.processBucket(0, address(subjectToken), 5_900, 0, "");
+        subjectToken.mint(address(router), 6_000);
+        router.sync(address(subjectToken));
+        router.processBucket(0, address(subjectToken), 5_940, 0, "");
 
-        assertEq(router.walletOwed(WALLET, address(subjectToken)), 2_000);
-        assertEq(router.walletOwed(NEW_WALLET, address(subjectToken)), 2_950);
+        assertEq(router.walletOwed(WALLET, address(subjectToken)), 3_960);
+        assertEq(router.walletOwed(NEW_WALLET, address(subjectToken)), 1_040);
     }
 
     function testWalletCannotBeRepointedToRouterItself() public {
@@ -173,11 +287,11 @@ contract SinjohFeeRouterTest is TestBase {
         router.processBucket(0, address(subjectToken), 9_900, 0, "");
 
         router.sendProtocolFee(address(subjectToken), 100);
-        router.sendWallet(WALLET, address(subjectToken), 4_950);
+        router.sendWallet(WALLET, address(subjectToken), 5_000);
 
         assertEq(subjectToken.balanceOf(PROTOCOL_RECIPIENT), 100);
-        assertEq(subjectToken.balanceOf(WALLET), 4_950);
-        assertEq(router.totalLiability(address(subjectToken)), 4_950);
+        assertEq(subjectToken.balanceOf(WALLET), 5_000);
+        assertEq(router.totalLiability(address(subjectToken)), 4_900);
     }
 
     function testSinkPullsAtomicallyAndAllowanceReturnsToZero() public {
@@ -185,11 +299,11 @@ contract SinjohFeeRouterTest is TestBase {
         router.sync(address(subjectToken));
         router.processBucket(0, address(subjectToken), 9_900, 0, "");
 
-        router.fundSink(0, 1, 4_950);
+        router.fundSink(0, 1, 4_900);
 
-        assertEq(subjectToken.balanceOf(address(sink)), 4_950);
+        assertEq(subjectToken.balanceOf(address(sink)), 4_900);
         assertEq(subjectToken.allowance(address(router), address(sink)), 0);
-        assertEq(router.totalLiability(address(subjectToken)), 5_050);
+        assertEq(router.totalLiability(address(subjectToken)), 5_100);
     }
 
     function testSinkFailureLeavesLiabilityAndAllowanceUnchanged() public {
@@ -199,9 +313,9 @@ contract SinjohFeeRouterTest is TestBase {
         sink.setShouldRevert(true);
 
         vm.expectRevert();
-        router.fundSink(0, 1, 4_950);
+        router.fundSink(0, 1, 4_900);
 
-        assertEq(router.sinkOwed(router.allocationKey(0, 1), address(subjectToken)), 4_950);
+        assertEq(router.sinkOwed(router.allocationKey(0, 1), address(subjectToken)), 4_900);
         assertEq(subjectToken.allowance(address(router), address(sink)), 0);
         assertEq(router.totalLiability(address(subjectToken)), 10_000);
     }
@@ -251,12 +365,12 @@ contract SinjohFeeRouterTest is TestBase {
         twoBucketRouter.sync(address(quoteToken));
 
         vm.expectPartialRevert(SinjohFeeRouter.InsufficientOutput.selector);
-        twoBucketRouter.processBucket(0, address(quoteToken), 4_950, 4_951, "");
+        twoBucketRouter.processBucket(0, address(quoteToken), 5_000, 5_001, "");
 
-        assertEq(twoBucketRouter.bucketInputOwed(0, address(quoteToken)), 4_950);
-        twoBucketRouter.processBucket(1, address(quoteToken), 4_950, 0, "");
+        assertEq(twoBucketRouter.bucketInputOwed(0, address(quoteToken)), 5_000);
+        twoBucketRouter.processBucket(1, address(quoteToken), 4_900, 0, "");
         assertEq(twoBucketRouter.bucketInputOwed(1, address(quoteToken)), 0);
-        assertEq(twoBucketRouter.walletOwed(NEW_WALLET, address(quoteToken)), 4_950);
+        assertEq(twoBucketRouter.walletOwed(NEW_WALLET, address(quoteToken)), 4_900);
     }
 
     function testBucketMayDeliberatelyConfigureNoConversions() public {
@@ -293,6 +407,7 @@ contract SinjohFeeRouterTest is TestBase {
     function testMinimumIntervalIsImmutableAndEnforced() public {
         RouterTypes.Config memory config = _config();
         config.buckets[0].conversions[0].minInterval = 100;
+        config.buckets[0].conversions[0].maxAmountInPerCall = 1_000;
         SinjohFeeRouter timedRouter =
             SinjohFeeRouter(payable(factory.deploy(address(this), bytes32("TIMED"), config)));
         timedRouter.bind(address(subjectToken));
@@ -425,6 +540,29 @@ contract SinjohFeeRouterTest is TestBase {
             intakeAssets: intakeAssets,
             buckets: buckets
         });
+    }
+
+    function _threeAllocationConfig() internal view returns (RouterTypes.Config memory config) {
+        config = _config();
+        RouterTypes.Allocation[] memory allocations = new RouterTypes.Allocation[](3);
+        allocations[0] = RouterTypes.Allocation({
+            destination: WALLET, bps: 4_000, isSink: false, creatorMayRepoint: false, sinkConfig: ""
+        });
+        allocations[1] = RouterTypes.Allocation({
+            destination: address(sink),
+            bps: 3_000,
+            isSink: true,
+            creatorMayRepoint: false,
+            sinkConfig: abi.encode(bytes32("SINK_CONFIG"))
+        });
+        allocations[2] = RouterTypes.Allocation({
+            destination: NEW_WALLET,
+            bps: 3_000,
+            isSink: false,
+            creatorMayRepoint: false,
+            sinkConfig: ""
+        });
+        config.buckets[0].allocations = allocations;
     }
 
     function _twoBucketConfig() internal view returns (RouterTypes.Config memory config) {

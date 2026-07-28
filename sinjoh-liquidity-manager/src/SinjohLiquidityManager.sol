@@ -224,6 +224,7 @@ contract SinjohLiquidityManager {
 
     mapping(bytes32 id => Account account) private _accounts;
     mapping(address recipient => mapping(address asset => uint256 amount)) public feeOwed;
+    mapping(address asset => uint16 remainder) public protocolFeeRemainder;
     mapping(address asset => uint256 amount) public protocolOwed;
     mapping(address asset => uint256 amount) public totalLiability;
 
@@ -736,8 +737,12 @@ contract SinjohLiquidityManager {
         private
     {
         bytes32 id = accountId(account.funder, account.subject);
-        uint256 quoteProtocolFee = quoteAmount * PROTOCOL_FEE_BPS / BPS;
-        uint256 subjectProtocolFee = subjectAmount * PROTOCOL_FEE_BPS / BPS;
+        (uint256 quoteProtocolFee, uint16 nextQuoteFeeRemainder) =
+            _accrueProtocolFee(quoteAmount, protocolFeeRemainder[account.config.quoteAsset]);
+        (uint256 subjectProtocolFee, uint16 nextSubjectFeeRemainder) =
+            _accrueProtocolFee(subjectAmount, protocolFeeRemainder[account.subject]);
+        protocolFeeRemainder[account.config.quoteAsset] = nextQuoteFeeRemainder;
+        protocolFeeRemainder[account.subject] = nextSubjectFeeRemainder;
         uint256 netQuote = quoteAmount - quoteProtocolFee;
         uint256 netSubject = subjectAmount - subjectProtocolFee;
         protocolOwed[account.config.quoteAsset] += quoteProtocolFee;
@@ -761,6 +766,20 @@ contract SinjohLiquidityManager {
         emit ProtocolFeeAccrued(id, account.config.quoteAsset, quoteAmount, quoteProtocolFee);
         emit ProtocolFeeAccrued(id, account.subject, subjectAmount, subjectProtocolFee);
         emit FeesCollected(id, netQuote, netSubject, account.config.feeMode, recipient);
+    }
+
+    function _accrueProtocolFee(uint256 amount, uint16 remainder)
+        private
+        pure
+        returns (uint256 fee, uint16 nextRemainder)
+    {
+        uint256 scaledRemainder = (amount % BPS) * PROTOCOL_FEE_BPS + remainder;
+        // Quotient/remainder decomposition avoids overflow without losing precision.
+        // forge-lint: disable-next-line(divide-before-multiply)
+        fee = (amount / BPS) * PROTOCOL_FEE_BPS + scaledRemainder / BPS;
+        // The modulo result is strictly below BPS and therefore fits uint16.
+        // forge-lint: disable-next-line(unsafe-typecast)
+        nextRemainder = uint16(scaledRemainder % BPS);
     }
 
     function _poolKey(Config storage config, address subject, address quote)

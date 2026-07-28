@@ -124,9 +124,13 @@ contract SinjohFeeRouter {
 
     mapping(address asset => bool supported) public isIntakeAsset;
     mapping(address asset => uint256 amount) public protocolOwed;
+    mapping(address asset => uint16 remainder) public protocolFeeRemainder;
     mapping(uint8 bucketId => mapping(address asset => uint256 amount)) public bucketInputOwed;
+    mapping(address asset => uint16 remainder) public bucketAllocationRemainder;
     mapping(address recipient => mapping(address asset => uint256 amount)) public walletOwed;
     mapping(uint16 allocationKey => mapping(address asset => uint256 amount)) public sinkOwed;
+    mapping(uint8 bucketId => mapping(address asset => uint16 remainder)) public
+        destinationAllocationRemainder;
     mapping(address asset => uint256 amount) public totalLiability;
     mapping(uint8 bucketId => mapping(address asset => uint48 timestamp)) public lastProcessedAt;
 
@@ -217,17 +221,22 @@ contract SinjohFeeRouter {
             return (0, 0);
         }
 
-        fee = gross * PROTOCOL_FEE_BPS / BPS;
+        uint16 nextFeeRemainder;
+        (fee, nextFeeRemainder) = _accrueProtocolFee(gross, protocolFeeRemainder[asset]);
+        protocolFeeRemainder[asset] = nextFeeRemainder;
         uint256 net = gross - fee;
         protocolOwed[asset] += fee;
 
+        uint16 allocationRemainder = bucketAllocationRemainder[asset];
         uint256 bucketLength = _buckets.length;
-        uint256 assigned;
+        uint16 allocationStart = 0;
         for (uint256 i; i < bucketLength; ++i) {
-            uint256 share = i + 1 == bucketLength ? net - assigned : net * _buckets[i].bps / BPS;
-            assigned += share;
+            uint16 bps = _buckets[i].bps;
+            uint256 share = _allocationShare(net, allocationStart, bps, allocationRemainder);
             bucketInputOwed[uint8(i)][asset] += share;
+            allocationStart += bps;
         }
+        bucketAllocationRemainder[asset] = _nextAllocationRemainder(net, allocationRemainder);
         totalLiability[asset] = liability + gross;
 
         emit Synchronized(asset, gross, fee, net);
@@ -256,14 +265,15 @@ contract SinjohFeeRouter {
         if (amountIn == 0) revert InvalidAmount();
 
         uint256 pending = bucketInputOwed[bucketId][inputAsset];
-        if (amountIn > pending) revert InsufficientLiability();
 
         uint256 indexPlusOne = _conversionIndexPlusOne[_conversionKey(bucketId, inputAsset)];
         if (indexPlusOne == 0) revert UnsupportedConversion(bucketId, inputAsset);
 
         BucketStorage storage bucket = _buckets[bucketId];
         ConversionStorage storage conversion = bucket.conversions[indexPlusOne - 1];
-        if (amountIn > conversion.maxAmountInPerCall) revert InvalidAmount();
+        uint256 permitted =
+            pending < conversion.maxAmountInPerCall ? pending : conversion.maxAmountInPerCall;
+        if (amountIn != permitted) revert InvalidAmount();
 
         uint48 last = lastProcessedAt[bucketId][inputAsset];
         if (last != 0 && block.timestamp < uint256(last) + conversion.minInterval) {
@@ -682,20 +692,80 @@ contract SinjohFeeRouter {
 
     function _creditAllocations(uint8 bucketId, address asset, uint256 amount) private {
         BucketStorage storage bucket = _buckets[bucketId];
+        uint16 allocationRemainder = destinationAllocationRemainder[bucketId][asset];
         uint256 allocationLength = bucket.allocations.length;
-        uint256 assigned;
+        uint16 allocationStart = 0;
 
         for (uint256 i; i < allocationLength; ++i) {
             AllocationStorage storage allocation = bucket.allocations[i];
+            uint16 key = allocationKey(bucketId, uint8(i));
             uint256 share =
-                i + 1 == allocationLength ? amount - assigned : amount * allocation.bps / BPS;
-            assigned += share;
+                _allocationShare(amount, allocationStart, allocation.bps, allocationRemainder);
             if (allocation.isSink) {
-                sinkOwed[allocationKey(bucketId, uint8(i))][asset] += share;
+                sinkOwed[key][asset] += share;
             } else {
                 walletOwed[allocation.destination][asset] += share;
             }
+            allocationStart += allocation.bps;
         }
+        destinationAllocationRemainder[bucketId][asset] =
+            _nextAllocationRemainder(amount, allocationRemainder);
+    }
+
+    function _accrueProtocolFee(uint256 amount, uint16 remainder)
+        private
+        pure
+        returns (uint256 fee, uint16 nextRemainder)
+    {
+        uint256 scaledRemainder = (amount % BPS) * PROTOCOL_FEE_BPS + remainder;
+        // Quotient/remainder decomposition avoids overflow without losing precision.
+        // forge-lint: disable-next-line(divide-before-multiply)
+        fee = (amount / BPS) * PROTOCOL_FEE_BPS + scaledRemainder / BPS;
+        // The modulo result is strictly below BPS and therefore fits uint16.
+        // forge-lint: disable-next-line(unsafe-typecast)
+        nextRemainder = uint16(scaledRemainder % BPS);
+    }
+
+    function _allocationShare(
+        uint256 amount,
+        uint16 allocationStart,
+        uint16 bps,
+        uint16 inputRemainder
+    ) private pure returns (uint256 share) {
+        // Every 10,000 raw units form one exact allocation cycle. A stored phase
+        // makes the result independent of transaction boundaries while ensuring
+        // every unit is credited immediately.
+        share = (amount / BPS) * bps;
+        uint256 residual = amount % BPS;
+        uint256 intervalEnd = uint256(inputRemainder) + residual;
+        uint256 allocationEnd = uint256(allocationStart) + bps;
+        if (intervalEnd <= BPS) {
+            share += _overlap(inputRemainder, intervalEnd, allocationStart, allocationEnd);
+        } else {
+            share += _overlap(inputRemainder, BPS, allocationStart, allocationEnd);
+            share += _overlap(0, intervalEnd - BPS, allocationStart, allocationEnd);
+        }
+    }
+
+    function _overlap(
+        uint256 intervalStart,
+        uint256 intervalEnd,
+        uint256 allocationStart,
+        uint256 allocationEnd
+    ) private pure returns (uint256) {
+        uint256 start = intervalStart > allocationStart ? intervalStart : allocationStart;
+        uint256 end = intervalEnd < allocationEnd ? intervalEnd : allocationEnd;
+        return end > start ? end - start : 0;
+    }
+
+    function _nextAllocationRemainder(uint256 amount, uint16 inputRemainder)
+        private
+        pure
+        returns (uint16)
+    {
+        // The modulo result is strictly below BPS and therefore fits uint16.
+        // forge-lint: disable-next-line(unsafe-typecast)
+        return uint16((uint256(inputRemainder) + amount % BPS) % BPS);
     }
 
     function _sendExact(address asset, address recipient, uint256 amount) private {

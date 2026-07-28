@@ -40,6 +40,7 @@ contract MockERC20 {
         balanceOf[recipient] += amount;
     }
 }
+
 contract FeeOnTransferToken is MockERC20 {
     function _transfer(address sender, address recipient, uint256 amount) internal override {
         uint256 fee = amount / 100;

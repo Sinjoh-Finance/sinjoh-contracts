@@ -40,7 +40,10 @@ constructor(address attestor, address protocolFeeRecipient);
 
 `attestor` may be an EOA or a contract wallet such as a Safe. It cannot be changed.
 `protocolFeeRecipient` is the immutable destination for the distributor's fixed 1%
-funding fee and cannot be zero.
+funding fee and cannot be zero. Fee rounding is cumulative per account:
+`protocolOwed` advances so it always reflects
+`floor(cumulative measured funding * 100 / 10_000)`, regardless of how the funder
+splits transactions.
 
 Robinhood Chain is an Arbitrum Orbit chain. Solidity `block.number` is the parent-chain estimate, while RPC `eth_blockNumber` is the L2 height. The distributor therefore uses the canonical `ArbSys` precompile at `0x0000000000000000000000000000000000000064`:
 
@@ -433,7 +436,8 @@ Core execution never calls ERC-8056 interfaces.
 ## Security requirements
 
 - Reentrancy guard on funding and push.
-- Fixed 1% funding fee with an immutable recipient and permissionless exact delivery.
+- Fixed cumulative 1% funding fee with an immutable recipient and permissionless
+  exact delivery.
 - Exact balance-delta verification.
 - Account-scoped funding and payment accounting.
 - Domain-separated, direction-aware Merkle-sum proofs.
@@ -464,7 +468,9 @@ Core execution never calls ERC-8056 interfaces.
 14. Supplying the parent-chain `block.number` domain in place of the L2 height reverts.
 15. Reconstructed leaf sums equal committed root sums for fixed fixtures.
 16. Raw ERC-8056 balance fixtures remain unaffected by multiplier changes.
-17. Protocol fees are exactly 1% of measured funding and cannot be redirected.
+17. Protocol fees are exactly 1% of cumulative measured funding per asset across
+    all accounts, cannot be reduced by transaction or account splitting, and
+    cannot be redirected.
 18. Invariant: per-asset liabilities never exceed balances.
 19. Invariant: `totalPaid <= latestRootSum <= totalFunded`.
 20. Invariant: aggregate liabilities equal account liabilities plus protocol fees.

@@ -193,12 +193,14 @@ function sync(address asset) external returns (uint256 gross, uint256 fee);
 
 1. resolves and verifies that `asset` is a configured intake asset;
 2. computes unaccounted intake from the balance/liability difference;
-3. calculates `fee = gross * 100 / 10_000`;
+3. advances an asset-scoped fee remainder and calculates the incremental fee so
+   cumulative protocol fees always equal `floor(cumulativeGross * 100 / 10_000)`;
 4. adds the fee to `protocolOwed[asset]`;
-5. splits the net amount across `bucketInputOwed` by bucket bps;
-6. assigns division dust to the last bucket;
-7. increases `totalLiability[asset]` by `gross`;
-8. emits the complete accounting transition.
+5. advances a bounded modulo-10,000 allocation remainder and credits each bucket
+   from a repeating 10,000-unit cycle containing exactly `bps` slots for each
+   bucket;
+6. increases `totalLiability[asset]` by `gross`;
+7. emits the complete accounting transition.
 
 Nothing is charged during a swap, allocation, retry, claim, or receipt from another internal ledger. Value is charged exactly once when it crosses from unaccounted balance into liabilities.
 
@@ -277,8 +279,8 @@ function processBucket(
 
 Rules:
 
-1. `amountIn` must be nonzero and no greater than the pending bucket-input liability.
-2. It must not exceed the immutable maximum per call.
+1. `amountIn` must equal `min(pending bucket input, maxAmountInPerCall)`.
+2. A caller cannot choose a smaller tranche or exceed the immutable maximum.
 3. The immutable minimum interval must have elapsed.
 4. For identity conversion, output equals input.
 5. Otherwise the guard supplies `guardMinOut` and expiry.
@@ -289,7 +291,10 @@ Rules:
 10. On success, the detailed and aggregate input liabilities decrease by exact input spent.
 11. Output is credited across allocations and both detailed and aggregate output liabilities increase by exact output received.
 
-Allocation dust goes to the last allocation.
+Destination allocations use the same repeating 10,000-unit cycle. Transaction
+boundaries therefore cannot change the result, each full cycle exactly matches
+the configured basis points, and every output unit is immediately deliverable.
+Within a partial cycle, allocations follow immutable configuration order.
 
 Each bucket is processed in a separate transaction. A failed conversion cannot block a different bucket.
 

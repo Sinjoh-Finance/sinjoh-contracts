@@ -23,6 +23,7 @@ contract RevenueCollectorHandler {
         collector.forwardAll(address(token));
     }
 }
+
 contract SinjohRevenueCollectorInvariantTest is InvariantTestBase {
     address internal constant GOVERNANCE = address(0xA11CE);
     address internal constant PROCESSOR = address(0xBEEF);

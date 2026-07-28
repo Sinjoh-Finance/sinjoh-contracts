@@ -338,9 +338,11 @@ Fee collection is permissionless and always uses the zero-liquidity collection p
 - v4: `DECREASE_LIQUIDITY` with zero liquidity plus `TAKE_PAIR`.
 
 The manager measures actual received amounts. It charges no fee on funding or
-position principal. For each asset collected, it accrues exactly
-`grossAmount * 100 / 10_000` to `protocolOwed[asset]`; only the net amount follows
-the account's configured fee mode.
+position principal. For each collected asset globally, it carries fee remainders
+across every account and collection so cumulative protocol fees always equal
+`floor(cumulativeGrossAmount * 100 / 10_000)`. Only the net amount follows the
+account's configured fee mode, and splitting collection calls or fragmenting
+fees across accounts cannot reduce the fee.
 
 Disposition:
 
@@ -447,7 +449,8 @@ Nothing is mutable afterward. There is no owner, admin, upgrade, rescue, or arbi
 10. Hook rejection leaves account credits unchanged.
 11. Fee collection cannot decrease principal liquidity.
 12. Native ETH excess returns to the same account ledger.
-13. Protocol fees are exactly 1% of gross LP fees collected and never touch principal.
+13. Protocol fees are exactly 1% of cumulative gross LP fees collected, cannot be
+    reduced by transaction splitting, and never touch principal.
 14. Invariant: liquid liabilities never exceed liquid balances.
 15. Invariant: aggregate liabilities equal account, recipient-fee, and protocol-fee liabilities.
 16. Robinhood mainnet fork tests cover canonical v3 and v4 PositionManagers.

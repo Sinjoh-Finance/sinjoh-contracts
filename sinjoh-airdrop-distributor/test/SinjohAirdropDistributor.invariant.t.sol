@@ -14,6 +14,7 @@ contract AirdropHandler {
     MockERC20 public immutable asset;
     SinjohAirdropDistributor public immutable distributor;
     bytes32 public immutable id;
+    uint256 public totalGrossFunded;
 
     constructor() {
         subject = new MockERC20("Subject", "SUB");
@@ -33,6 +34,7 @@ contract AirdropHandler {
             })
         );
         distributor.fund(address(subject), address(asset), amount, config);
+        totalGrossFunded += amount;
     }
 
     function commitAndPush(uint96 rawBudget) external {
@@ -103,6 +105,13 @@ contract SinjohAirdropDistributorInvariantTest is InvariantTestBase {
         assertEq(
             distributor.totalLiability(address(asset)),
             totalFunded - totalPaid + distributor.protocolOwed(address(asset))
+        );
+    }
+
+    function invariantProtocolFeeEqualsOnePercentOfCumulativeFunding() public view {
+        assertEq(
+            distributor.protocolOwed(address(asset)),
+            handler.totalGrossFunded() * distributor.PROTOCOL_FEE_BPS() / distributor.BPS()
         );
     }
 }

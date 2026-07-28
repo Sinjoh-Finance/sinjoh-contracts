@@ -31,6 +31,10 @@ interface IGuardReadback {
     function subject() external view returns (address);
 }
 
+interface IRouterFactoryReadback {
+    function implementation() external view returns (address);
+}
+
 contract DeploySjtestFinalIntegration {
     enum Venue {
         UNISWAP_V3,
@@ -79,11 +83,10 @@ contract DeploySjtestFinalIntegration {
     address internal constant PONS_POOL = 0xa0594e9a288939864C6A918e5dee7f65194f5730;
     address internal constant PONS_POSITION_MANAGER = 0xBc82a9aA33ff24FCd56D36a0fB0a2105B193A327;
     address internal constant PONS_DEPLOYER_HELPER = 0xFECCB63CD759d768538458Ea56F47eA8004323c1;
-    address internal constant ROUTER_FACTORY = 0x66D7302fff83344F4aE6eB9cb7Dd8eb1a1c8e070;
     address internal constant ADAPTER_FACTORY = 0x3a92f7C900aD154a46e8630f60176c805B561C98;
 
-    bytes32 internal constant ROUTER_SALT = keccak256("SINJOH_SJTEST_ROUTER_FINAL_V4");
-    bytes32 internal constant ADAPTER_SALT = keccak256("SINJOH_SJTEST_PONS_ADAPTER_FINAL_V4");
+    bytes32 internal constant ROUTER_SALT = keccak256("SINJOH_SJTEST_ROUTER_FINAL_V5");
+    bytes32 internal constant ADAPTER_SALT = keccak256("SINJOH_SJTEST_PONS_ADAPTER_FINAL_V5");
 
     VmSjtestFinalIntegration internal constant vm =
         VmSjtestFinalIntegration(address(uint160(uint256(keccak256("hevm cheat code")))));
@@ -96,6 +99,8 @@ contract DeploySjtestFinalIntegration {
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address reverseAdapter = vm.envAddress("REVERSE_ADAPTER");
         address bidirectionalGuard = vm.envAddress("BIDIRECTIONAL_GUARD");
+        address routerImplementation = vm.envAddress("ROUTER_IMPLEMENTATION");
+        address routerFactory = vm.envAddress("ROUTER_FACTORY");
         address revenueCollector = vm.envAddress("REVENUE_COLLECTOR");
         address airdropDistributor = vm.envAddress("AIRDROP_DISTRIBUTOR");
         address liquidityManager = vm.envAddress("LIQUIDITY_MANAGER");
@@ -107,6 +112,8 @@ contract DeploySjtestFinalIntegration {
         _assertExecutionDependencies(
             reverseAdapter,
             bidirectionalGuard,
+            routerImplementation,
+            routerFactory,
             revenueCollector,
             airdropDistributor,
             liquidityManager,
@@ -124,7 +131,7 @@ contract DeploySjtestFinalIntegration {
             forwardGuard
         );
         vm.startBroadcast(deployerKey);
-        router = SinjohFeeRouterFactory(ROUTER_FACTORY).deploy(DESIGNATED, ROUTER_SALT, config);
+        router = SinjohFeeRouterFactory(routerFactory).deploy(DESIGNATED, ROUTER_SALT, config);
         SinjohFeeRouter(payable(router)).bind(SUBJECT);
         ponsAdapter = IPonsAdapterFactoryFinal(ADAPTER_FACTORY)
             .deploy(DESIGNATED, SUBJECT, router, ADAPTER_SALT);
@@ -134,6 +141,10 @@ contract DeploySjtestFinalIntegration {
             router.code.length == 0 || ponsAdapter.code.length == 0
                 || SinjohFeeRouter(payable(router)).subject() != SUBJECT
                 || SinjohFeeRouter(payable(router)).protocolFeeRecipient() != revenueCollector
+                || SinjohFeeRouter(payable(router)).creator() != DESIGNATED
+                || SinjohFeeRouter(payable(router)).weth() != PONS_WETH
+                || SinjohFeeRouter(payable(router)).configHash() != keccak256(abi.encode(config))
+                || !SinjohFeeRouter(payable(router)).bound()
         ) revert DeploymentFailed();
     }
 
@@ -265,6 +276,8 @@ contract DeploySjtestFinalIntegration {
     function _assertExecutionDependencies(
         address reverseAdapter,
         address bidirectionalGuard,
+        address routerImplementation,
+        address routerFactory,
         address revenueCollector,
         address airdropDistributor,
         address liquidityManager,
@@ -273,6 +286,7 @@ contract DeploySjtestFinalIntegration {
     ) private view {
         if (
             reverseAdapter.code.length == 0 || bidirectionalGuard.code.length == 0
+                || routerImplementation.code.length == 0 || routerFactory.code.length == 0
                 || revenueCollector.code.length == 0 || airdropDistributor.code.length == 0
                 || liquidityManager.code.length == 0 || forwardAdapter.code.length == 0
                 || forwardGuard.code.length == 0
@@ -282,6 +296,8 @@ contract DeploySjtestFinalIntegration {
                 || IGuardReadback(bidirectionalGuard).oraclePool() != PONS_POOL
                 || IGuardReadback(bidirectionalGuard).subject() != SUBJECT
                 || IGuardReadback(bidirectionalGuard).quoteAsset() != PONS_WETH
+                || IRouterFactoryReadback(routerFactory).implementation() != routerImplementation
+                || ADAPTER_FACTORY.code.length == 0
         ) revert InvalidExecutionDependency();
     }
 }

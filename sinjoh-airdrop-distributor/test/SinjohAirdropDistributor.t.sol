@@ -84,6 +84,40 @@ contract SinjohAirdropDistributorTest is TestBase {
         assertEq(distributor.totalLiability(address(asset)), 9_900);
     }
 
+    function testSplitFundingCarriesProtocolFeeRemainder() public {
+        bytes memory config = _config(1);
+        distributor.fund(address(subject), address(asset), 50, config);
+        bytes32 id = distributor.accountId(address(this), address(subject), address(asset));
+        assertEq(distributor.protocolOwed(address(asset)), 0);
+        assertEq(distributor.protocolFeeRemainder(address(asset)), 5_000);
+
+        distributor.fund(address(subject), address(asset), 50, config);
+        (,,,,,,,,, uint256 totalFunded,,,) = distributor.accounts(id);
+        assertEq(totalFunded, 99);
+        assertEq(distributor.protocolOwed(address(asset)), 1);
+        assertEq(distributor.protocolFeeRemainder(address(asset)), 0);
+        assertEq(distributor.totalLiability(address(asset)), 100);
+    }
+
+    function testProtocolFeeCannotBeAvoidedBySplittingAcrossAccounts() public {
+        MockERC20 secondSubject = new MockERC20("Second Subject", "SUB2");
+        bytes memory config = _config(1);
+
+        distributor.fund(address(subject), address(asset), 50, config);
+        distributor.fund(address(secondSubject), address(asset), 50, config);
+
+        bytes32 firstId = distributor.accountId(address(this), address(subject), address(asset));
+        bytes32 secondId =
+            distributor.accountId(address(this), address(secondSubject), address(asset));
+        (uint256 firstFunded,,,,) = distributor.accountFinancials(firstId);
+        (uint256 secondFunded,,,,) = distributor.accountFinancials(secondId);
+        assertEq(firstFunded, 50);
+        assertEq(secondFunded, 49);
+        assertEq(distributor.protocolOwed(address(asset)), 1);
+        assertEq(distributor.protocolFeeRemainder(address(asset)), 0);
+        assertEq(distributor.totalLiability(address(asset)), 100);
+    }
+
     function testFeeOnTransferFundingRevertsWithoutCredit() public {
         asset.setFeeBps(100);
         vm.expectPartialRevert(SinjohAirdropDistributor.UnexpectedBalanceDelta.selector);
