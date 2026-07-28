@@ -12,6 +12,7 @@ Solidity packages plus the offchain automation package:
 | [`sinjoh-pons-v1-adapter`](./sinjoh-pons-v1-adapter) | Collects or receives Pons v1 fees and forwards the subject token and WETH to a fixed fee router. |
 | [`sinjoh-revenue-collector`](./sinjoh-revenue-collector) | Provides a stable protocol-revenue endpoint and forwards assets to a governance-selected downstream processor without charging again. |
 | [`sinjoh-keeper`](./sinjoh-keeper) | Automates permissionless routing and provides the isolated deterministic airdrop snapshot, attestation, and push workflow. |
+| [`sinjoh-indexer`](./sinjoh-indexer) | Projects factory and protocol events through one dynamically registered Envio indexer. |
 
 The packages do not import one another's implementations. Composition uses copied
 interfaces and ordinary asset transfers. Each package has its own Foundry
@@ -54,11 +55,21 @@ npm test
 npm run build
 ```
 
+Validate the Envio indexer independently:
+
+```sh
+cd sinjoh-indexer
+npm ci
+npm run typecheck
+npm test
+```
+
 ## Documentation
 
 - [`STRATEGY.md`](./STRATEGY.md): protocol boundaries and design principles
 - [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md): delivery and release gates
 - [`UI-NOTES.md`](./UI-NOTES.md): UI, indexer, keeper, and end-to-end wiring handoff
+- [`INFRASTRUCTURE.md`](./INFRASTRUCTURE.md): provisioned cloud resources, runtime variables, and remaining credential gates
 - [`TESTNET_DEPLOYMENTS.md`](./TESTNET_DEPLOYMENTS.md): verified Robinhood testnet deployments
 - [`SJTEST_TESTNET_REPORT.md`](./SJTEST_TESTNET_REPORT.md): completed SJTEST test launch
 - Each package's `SPEC.md`: normative behavior and security requirements
