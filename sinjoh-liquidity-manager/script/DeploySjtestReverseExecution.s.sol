@@ -40,10 +40,13 @@ contract DeploySjtestReverseExecution {
         reverseAdapter = new SinjohUniswapV3SwapAdapter(
             PONS_V3_ROUTER, PONS_V3_FACTORY, PONS_V3_POOL, SJTEST, PONS_WETH, 10_000
         );
+        reverseAdapter.activate();
         guard = new SinjohV3TwapPriceGuard(
             PONS_V3_POOL,
+            PONS_V3_FACTORY,
             SJTEST,
             PONS_WETH,
+            10_000,
             keccak256(routeData),
             60,
             500,
@@ -52,6 +55,7 @@ contract DeploySjtestReverseExecution {
             type(uint128).max,
             1_000_000_000
         );
+        guard.activate();
         vm.stopBroadcast();
 
         if (address(reverseAdapter).code.length == 0 || address(guard).code.length == 0) {
