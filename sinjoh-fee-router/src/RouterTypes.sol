@@ -13,13 +13,10 @@ library RouterTypes {
         address token;
     }
 
-    struct Conversion {
-        AssetRef input;
+    /// @notice One direct swap. The adapter interprets routeData.
+    struct Route {
         address adapter;
-        address priceGuard;
         bytes routeData;
-        uint128 maxAmountInPerCall;
-        uint48 minInterval;
     }
 
     struct Allocation {
@@ -30,10 +27,11 @@ library RouterTypes {
         bytes sinkConfig;
     }
 
+    /// @notice A share of normalized WETH and what that share becomes.
     struct Bucket {
         AssetRef output;
         uint16 bps;
-        Conversion[] conversions;
+        Route route;
         Allocation[] allocations;
     }
 
@@ -41,10 +39,7 @@ library RouterTypes {
         address creator;
         address protocolFeeRecipient;
         address weth;
-        AssetRef[] intakeAssets;
-        /// @notice Conversions applied to whole intake before any split, so a
-        /// project token is sold once rather than once per bucket.
-        Conversion[] normalizations;
+        Route subjectToWeth;
         Bucket[] buckets;
     }
 }

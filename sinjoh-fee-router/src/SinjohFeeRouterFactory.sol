@@ -33,7 +33,7 @@ contract SinjohFeeRouterFactory {
         returns (address router)
     {
         if (creator != config.creator) revert CreatorMismatch();
-        bytes32 configHash = _configHash(config);
+        bytes32 configHash = keccak256(abi.encode(config));
         bytes32 salt = _derivedSalt(creator, userSalt, configHash);
         router = Clones.predictDeterministicAddress(implementation, salt, address(this));
 
@@ -56,7 +56,7 @@ contract SinjohFeeRouterFactory {
         returns (address)
     {
         if (creator != config.creator) revert CreatorMismatch();
-        bytes32 salt = _derivedSalt(creator, userSalt, _configHash(config));
+        bytes32 salt = _derivedSalt(creator, userSalt, keccak256(abi.encode(config)));
         return Clones.predictDeterministicAddress(implementation, salt, address(this));
     }
 
@@ -66,13 +66,7 @@ contract SinjohFeeRouterFactory {
         returns (bytes32)
     {
         if (creator != config.creator) revert CreatorMismatch();
-        return _derivedSalt(creator, userSalt, _configHash(config));
-    }
-
-    /// @dev Encoded from a memory copy so the compiler uses the memory encoder,
-    /// which the deeply nested config does not overflow the stack in.
-    function _configHash(RouterTypes.Config calldata config) private pure returns (bytes32) {
-        return keccak256(abi.encode(config));
+        return _derivedSalt(creator, userSalt, keccak256(abi.encode(config)));
     }
 
     function _derivedSalt(address creator, bytes32 userSalt, bytes32 configHash)
