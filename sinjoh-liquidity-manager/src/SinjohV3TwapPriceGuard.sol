@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import { IUniswapV3Factory } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import { IUniswapV3Pool } from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import { FullMath } from "@uniswap/v4-core/src/libraries/FullMath.sol";
 import { TickMath } from "@uniswap/v4-core/src/libraries/TickMath.sol";
@@ -18,13 +19,21 @@ contract SinjohV3TwapPriceGuard is ISinjohPriceGuard {
     error InvalidConfiguration();
     error InvalidRoute();
     error InvalidAmount();
+    error NotActive();
+    error AlreadyActive();
     error OracleNotReady();
     error PriceUnavailable();
     error ExcessivePriceDeviation(uint256 allowedBps, uint256 actualBps);
 
+    event Activated(
+        address indexed oraclePool, address indexed subject, address indexed quoteAsset
+    );
+
     IUniswapV3Pool public immutable oraclePool;
+    address public immutable factory;
     address public immutable subject;
     address public immutable quoteAsset;
+    uint24 public immutable poolFee;
     bytes32 public immutable routeHash;
     uint32 public immutable twapWindow;
     uint16 public immutable maxSpotDeviationBps;
@@ -32,11 +41,14 @@ contract SinjohV3TwapPriceGuard is ISinjohPriceGuard {
     uint48 public immutable validityPeriod;
     uint128 public immutable maxAmountIn;
     uint128 public immutable comparisonAmount;
+    bool public active;
 
     constructor(
         address oraclePool_,
+        address factory_,
         address subject_,
         address quoteAsset_,
+        uint24 poolFee_,
         bytes32 routeHash_,
         uint32 twapWindow_,
         uint16 maxSpotDeviationBps_,
@@ -46,15 +58,9 @@ contract SinjohV3TwapPriceGuard is ISinjohPriceGuard {
         uint128 comparisonAmount_
     ) {
         if (
-            oraclePool_.code.length == 0 || subject_.code.length == 0
-                || quoteAsset_.code.length == 0 || subject_ == quoteAsset_
+            oraclePool_ == address(0) || factory_.code.length == 0 || subject_ == address(0)
+                || quoteAsset_.code.length == 0 || subject_ == quoteAsset_ || poolFee_ == 0
         ) revert InvalidAddress();
-        address token0 = subject_ < quoteAsset_ ? subject_ : quoteAsset_;
-        address token1 = subject_ < quoteAsset_ ? quoteAsset_ : subject_;
-        if (
-            IUniswapV3Pool(oraclePool_).token0() != token0
-                || IUniswapV3Pool(oraclePool_).token1() != token1
-        ) revert InvalidRoute();
         if (
             routeHash_ == bytes32(0) || twapWindow_ == 0 || twapWindow_ > MAX_TWAP_WINDOW
                 || maxSpotDeviationBps_ == 0 || maxSpotDeviationBps_ > MAX_BOUND_BPS
@@ -64,8 +70,10 @@ contract SinjohV3TwapPriceGuard is ISinjohPriceGuard {
         ) revert InvalidConfiguration();
 
         oraclePool = IUniswapV3Pool(oraclePool_);
+        factory = factory_;
         subject = subject_;
         quoteAsset = quoteAsset_;
+        poolFee = poolFee_;
         routeHash = routeHash_;
         twapWindow = twapWindow_;
         maxSpotDeviationBps = maxSpotDeviationBps_;
@@ -75,12 +83,39 @@ contract SinjohV3TwapPriceGuard is ISinjohPriceGuard {
         comparisonAmount = comparisonAmount_;
     }
 
+    /// @notice Enables the immutable oracle once the predicted subject and pool exist.
+    /// @dev Permissionless because the pool and pair were fixed at deployment.
+    function activate() external {
+        if (active) revert AlreadyActive();
+        if (address(oraclePool).code.length == 0 || subject.code.length == 0) {
+            revert InvalidAddress();
+        }
+        address token0 = subject < quoteAsset ? subject : quoteAsset;
+        address token1 = subject < quoteAsset ? quoteAsset : subject;
+        if (
+            oraclePool.factory() != factory || oraclePool.token0() != token0
+                || oraclePool.token1() != token1 || oraclePool.fee() != poolFee
+                || IUniswapV3Factory(factory).getPool(token0, token1, poolFee)
+                    != address(oraclePool)
+        ) {
+            revert InvalidRoute();
+        }
+        // Fresh V3 pools start with one observation slot, which cannot support
+        // a historical TWAP. Growing the ring buffer is permissionless; the
+        // next pool write populates the second slot and the guard remains
+        // fail-closed until the full window has elapsed.
+        oraclePool.increaseObservationCardinalityNext(2);
+        active = true;
+        emit Activated(address(oraclePool), subject, quoteAsset);
+    }
+
     function validatePoolPrice(
         address subject_,
         address assetIn_,
         address assetOut_,
         uint160 venueSqrtPriceX96
     ) external view {
+        if (!active) revert NotActive();
         _validatePair(subject_, assetIn_, assetOut_);
         int24 twapTick = _twapTickAndValidateAnchor();
         int24 venueTick;
@@ -101,6 +136,7 @@ contract SinjohV3TwapPriceGuard is ISinjohPriceGuard {
         bytes32 routeHash_,
         bytes calldata guardData
     ) external view returns (uint256 minOut, uint48 validUntil) {
+        if (!active) revert NotActive();
         _validatePair(subject_, assetIn_, assetOut_);
         if (
             routeHash_ != routeHash || guardData.length != 0 || amountIn == 0
@@ -115,6 +151,7 @@ contract SinjohV3TwapPriceGuard is ISinjohPriceGuard {
     }
 
     function quoteAtTwap(uint128 amountIn) external view returns (uint256 amountOut) {
+        if (!active) revert NotActive();
         int24 twapTick = _twapTickAndValidateAnchor();
         amountOut = _quoteAtTick(twapTick, amountIn, quoteAsset, subject);
     }
