@@ -214,6 +214,7 @@ contract SinjohFeeRouterInvariantTest is InvariantTestBase {
             protocolFeeRecipient: PROTOCOL_RECIPIENT,
             weth: address(quoteToken),
             intakeAssets: intakeAssets,
+            normalizations: new RouterTypes.Conversion[](0),
             buckets: buckets
         });
     }
