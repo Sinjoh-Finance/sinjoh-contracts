@@ -110,7 +110,6 @@ contract DeploySjtestExecution {
         v3Adapter = new SinjohUniswapV3SwapAdapter(
             PONS_V3_ROUTER, PONS_V3_FACTORY, PONS_V3_POOL, PONS_WETH, SJTEST, POOL_FEE
         );
-        v3Adapter.activate();
         IERC20SjtestExecution(PONS_WETH).approve(address(v3Adapter), WARMUP_SWAP_AMOUNT);
         v3Adapter.swap(PONS_WETH, SJTEST, WARMUP_SWAP_AMOUNT, 1, routeData);
 
@@ -119,10 +118,8 @@ contract DeploySjtestExecution {
         );
         guard = new SinjohV3TwapPriceGuard(
             PONS_V3_POOL,
-            PONS_V3_FACTORY,
             SJTEST,
             PONS_WETH,
-            POOL_FEE,
             keccak256(routeData),
             60,
             500,
@@ -131,7 +128,6 @@ contract DeploySjtestExecution {
             1_000_000_000_000,
             1 ether
         );
-        guard.activate();
         v3Manager = new SinjohLiquidityManager(
             PONS_V3_FACTORY,
             PONS_V3_POSITION_MANAGER,
