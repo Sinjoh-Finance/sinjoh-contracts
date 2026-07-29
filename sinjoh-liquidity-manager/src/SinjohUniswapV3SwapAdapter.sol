@@ -17,8 +17,12 @@ contract SinjohUniswapV3SwapAdapter is ISinjohSwapAdapter {
     error InvalidAddress();
     error InvalidRoute();
     error InvalidAmount();
+    error NotActive();
+    error AlreadyActive();
     error UnexpectedBalanceDelta(address asset, uint256 expected, uint256 actual);
     error InsufficientOutput(uint256 minimum, uint256 actual);
+
+    event Activated(address indexed pool, address indexed assetIn, address indexed assetOut);
 
     address public immutable router;
     address public immutable factory;
@@ -26,6 +30,7 @@ contract SinjohUniswapV3SwapAdapter is ISinjohSwapAdapter {
     address public immutable assetIn;
     address public immutable assetOut;
     uint24 public immutable poolFee;
+    bool public active;
 
     constructor(
         address router_,
@@ -36,17 +41,10 @@ contract SinjohUniswapV3SwapAdapter is ISinjohSwapAdapter {
         uint24 poolFee_
     ) {
         if (
-            router_.code.length == 0 || factory_.code.length == 0 || pool_.code.length == 0
-                || assetIn_.code.length == 0 || assetOut_.code.length == 0 || assetIn_ == assetOut_
+            router_.code.length == 0 || factory_.code.length == 0 || pool_ == address(0)
+                || assetIn_ == address(0) || assetOut_ == address(0) || assetIn_ == assetOut_
+                || poolFee_ == 0
         ) revert InvalidAddress();
-        IUniswapV3Pool candidate = IUniswapV3Pool(pool_);
-        address token0 = assetIn_ < assetOut_ ? assetIn_ : assetOut_;
-        address token1 = assetIn_ < assetOut_ ? assetOut_ : assetIn_;
-        if (
-            candidate.factory() != factory_ || candidate.token0() != token0
-                || candidate.token1() != token1 || candidate.fee() != poolFee_
-                || IUniswapV3Factory(factory_).getPool(token0, token1, poolFee_) != pool_
-        ) revert InvalidRoute();
 
         router = router_;
         factory = factory_;
@@ -54,6 +52,25 @@ contract SinjohUniswapV3SwapAdapter is ISinjohSwapAdapter {
         assetIn = assetIn_;
         assetOut = assetOut_;
         poolFee = poolFee_;
+    }
+
+    /// @notice Enables the immutable route once the predicted token and pool exist.
+    /// @dev Permissionless because every checked address was fixed at deployment.
+    function activate() external {
+        if (active) revert AlreadyActive();
+        if (pool.code.length == 0 || assetIn.code.length == 0 || assetOut.code.length == 0) {
+            revert InvalidAddress();
+        }
+        IUniswapV3Pool candidate = IUniswapV3Pool(pool);
+        address token0 = assetIn < assetOut ? assetIn : assetOut;
+        address token1 = assetIn < assetOut ? assetOut : assetIn;
+        if (
+            candidate.factory() != factory || candidate.token0() != token0
+                || candidate.token1() != token1 || candidate.fee() != poolFee
+                || IUniswapV3Factory(factory).getPool(token0, token1, poolFee) != pool
+        ) revert InvalidRoute();
+        active = true;
+        emit Activated(pool, assetIn, assetOut);
     }
 
     /// @param routeData Canonical ABI encoding of one uint160 sqrt-price limit.
@@ -65,6 +82,7 @@ contract SinjohUniswapV3SwapAdapter is ISinjohSwapAdapter {
         uint256 minimumAmountOut,
         bytes calldata routeData
     ) external payable {
+        if (!active) revert NotActive();
         if (msg.value != 0) revert InvalidAmount();
         if (
             assetIn_ != assetIn || assetOut_ != assetOut || routeData.length != 32 || amountIn == 0
