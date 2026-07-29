@@ -64,10 +64,8 @@ contract ResumeSjtestExecution {
         v4Adapter = new SinjohUniswapV4SwapAdapter(V4_POOL_MANAGER, PONS_WETH, SJTEST, 10_000, 200);
         guard = new SinjohV3TwapPriceGuard(
             PONS_V3_POOL,
-            PONS_V3_FACTORY,
             SJTEST,
             PONS_WETH,
-            10_000,
             keccak256(routeData),
             60,
             500,
@@ -76,7 +74,6 @@ contract ResumeSjtestExecution {
             1_000_000_000_000,
             1 ether
         );
-        guard.activate();
         v3Manager = new SinjohLiquidityManager(
             PONS_V3_FACTORY,
             PONS_V3_POSITION_MANAGER,

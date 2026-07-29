@@ -6,7 +6,6 @@ import { TickMath } from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import { SinjohUniswapV3SwapAdapter } from "../src/SinjohUniswapV3SwapAdapter.sol";
 import { SinjohUniswapV4SwapAdapter } from "../src/SinjohUniswapV4SwapAdapter.sol";
 import { SinjohV3TwapPriceGuard } from "../src/SinjohV3TwapPriceGuard.sol";
-import { SinjohV3ExecutionFactory } from "../src/SinjohV3ExecutionFactory.sol";
 import { TestBase } from "./TestBase.sol";
 import { MockERC20 } from "./mocks/MockERC20.sol";
 import {
@@ -47,239 +46,6 @@ contract SinjohExecutionComponentsTest is TestBase {
 
         vm.expectPartialRevert(SinjohUniswapV3SwapAdapter.InvalidRoute.selector);
         adapter.swap(address(subject), address(quote), 1 ether, 1 ether, abi.encode(uint160(0)));
-    }
-
-    function testExecutionFactoryPredeploysInactiveDependenciesDeterministically() public {
-        SinjohV3ExecutionFactory executionFactory = new SinjohV3ExecutionFactory();
-        MockV3ExecutionFactory v3Factory = new MockV3ExecutionFactory();
-        MockV3ExecutionRouter router = new MockV3ExecutionRouter();
-        address futureSubject = address(0x1234);
-        address futurePool = address(0x5678);
-        bytes32 userSalt = keccak256("future-route");
-        bytes32 routeHash = keccak256(abi.encode(uint160(0)));
-
-        address predictedAdapter = executionFactory.predictSwapAdapter(
-            address(this),
-            userSalt,
-            address(router),
-            address(v3Factory),
-            futurePool,
-            address(quote),
-            futureSubject,
-            FEE
-        );
-        address adapter = executionFactory.deploySwapAdapter(
-            address(this),
-            userSalt,
-            address(router),
-            address(v3Factory),
-            futurePool,
-            address(quote),
-            futureSubject,
-            FEE
-        );
-        assertEq(adapter, predictedAdapter);
-        assertTrue(adapter.code.length != 0);
-        assertTrue(!SinjohUniswapV3SwapAdapter(adapter).active());
-        vm.expectPartialRevert(SinjohUniswapV3SwapAdapter.InvalidAddress.selector);
-        SinjohUniswapV3SwapAdapter(adapter).activate();
-        assertEq(
-            executionFactory.deploySwapAdapter(
-                address(this),
-                userSalt,
-                address(router),
-                address(v3Factory),
-                futurePool,
-                address(quote),
-                futureSubject,
-                FEE
-            ),
-            adapter
-        );
-
-        address predictedGuard = executionFactory.predictPriceGuard(
-            address(this),
-            userSalt,
-            futurePool,
-            address(v3Factory),
-            futureSubject,
-            address(quote),
-            FEE,
-            routeHash,
-            60,
-            500,
-            500,
-            60,
-            100 ether,
-            1 ether
-        );
-        address guard = executionFactory.deployPriceGuard(
-            address(this),
-            userSalt,
-            futurePool,
-            address(v3Factory),
-            futureSubject,
-            address(quote),
-            FEE,
-            routeHash,
-            60,
-            500,
-            500,
-            60,
-            100 ether,
-            1 ether
-        );
-        assertEq(guard, predictedGuard);
-        assertTrue(guard.code.length != 0);
-        assertTrue(!SinjohV3TwapPriceGuard(guard).active());
-        vm.expectPartialRevert(SinjohV3TwapPriceGuard.InvalidAddress.selector);
-        SinjohV3TwapPriceGuard(guard).activate();
-    }
-
-    function testExecutionFactoryActivatesCanonicalDependenciesAndIsResumable() public {
-        SinjohV3ExecutionFactory executionFactory = new SinjohV3ExecutionFactory();
-        MockV3ExecutionFactory v3Factory = new MockV3ExecutionFactory();
-        MockV3ExecutionRouter router = new MockV3ExecutionRouter();
-        address token0 = address(subject) < address(quote) ? address(subject) : address(quote);
-        address token1 = address(subject) < address(quote) ? address(quote) : address(subject);
-        MockV3ExecutionPool pool =
-            new MockV3ExecutionPool(address(v3Factory), token0, token1, FEE, SPACING);
-        v3Factory.setPool(address(pool));
-        bytes32 userSalt = keccak256("canonical-route");
-        bytes32 routeHash = keccak256(abi.encode(uint160(0)));
-
-        SinjohV3ExecutionFactory.V3RouteConfig memory route = SinjohV3ExecutionFactory.V3RouteConfig({
-            router: address(router),
-            factory: address(v3Factory),
-            pool: address(pool),
-            subject: address(subject),
-            quoteAsset: address(quote),
-            poolFee: FEE,
-            routeHash: routeHash,
-            twapWindow: 60,
-            maxSpotDeviationBps: 500,
-            maxOutputSlippageBps: 500,
-            validityPeriod: 60,
-            maxAmountIn: 100 ether,
-            comparisonAmount: 1 ether
-        });
-        (address forwardAdapter, address reverseAdapter, address guard) =
-            executionFactory.deployRoute(address(this), userSalt, route);
-        assertEq(
-            forwardAdapter,
-            executionFactory.predictSwapAdapter(
-                address(this),
-                userSalt,
-                address(router),
-                address(v3Factory),
-                address(pool),
-                address(quote),
-                address(subject),
-                FEE
-            )
-        );
-        assertEq(
-            reverseAdapter,
-            executionFactory.predictSwapAdapter(
-                address(this),
-                userSalt,
-                address(router),
-                address(v3Factory),
-                address(pool),
-                address(subject),
-                address(quote),
-                FEE
-            )
-        );
-        address[] memory dependencies = new address[](3);
-        dependencies[0] = forwardAdapter;
-        dependencies[1] = reverseAdapter;
-        dependencies[2] = guard;
-
-        executionFactory.activate(dependencies);
-        assertTrue(SinjohUniswapV3SwapAdapter(forwardAdapter).active());
-        assertTrue(SinjohUniswapV3SwapAdapter(reverseAdapter).active());
-        assertTrue(SinjohV3TwapPriceGuard(guard).active());
-
-        executionFactory.activate(dependencies);
-        assertTrue(SinjohUniswapV3SwapAdapter(forwardAdapter).active());
-        assertTrue(SinjohUniswapV3SwapAdapter(reverseAdapter).active());
-        assertTrue(SinjohV3TwapPriceGuard(guard).active());
-    }
-
-    function testExecutionFactoryActivationRollsBackIfAnyDependencyIsInvalid() public {
-        SinjohV3ExecutionFactory executionFactory = new SinjohV3ExecutionFactory();
-        MockV3ExecutionFactory v3Factory = new MockV3ExecutionFactory();
-        MockV3ExecutionRouter router = new MockV3ExecutionRouter();
-        address token0 = address(subject) < address(quote) ? address(subject) : address(quote);
-        address token1 = address(subject) < address(quote) ? address(quote) : address(subject);
-        MockV3ExecutionPool pool =
-            new MockV3ExecutionPool(address(v3Factory), token0, token1, FEE, SPACING);
-        v3Factory.setPool(address(pool));
-        bytes32 userSalt = keccak256("rollback-route");
-
-        address adapter = executionFactory.deploySwapAdapter(
-            address(this),
-            userSalt,
-            address(router),
-            address(v3Factory),
-            address(pool),
-            address(quote),
-            address(subject),
-            FEE
-        );
-        address invalidGuard = executionFactory.deployPriceGuard(
-            address(this),
-            userSalt,
-            address(0x5678),
-            address(v3Factory),
-            address(subject),
-            address(quote),
-            FEE,
-            keccak256(abi.encode(uint160(0))),
-            60,
-            500,
-            500,
-            60,
-            100 ether,
-            1 ether
-        );
-        address[] memory dependencies = new address[](2);
-        dependencies[0] = adapter;
-        dependencies[1] = invalidGuard;
-
-        vm.expectPartialRevert(SinjohV3ExecutionFactory.ActivationFailed.selector);
-        executionFactory.activate(dependencies);
-        assertTrue(!SinjohUniswapV3SwapAdapter(adapter).active());
-        assertTrue(!SinjohV3TwapPriceGuard(invalidGuard).active());
-    }
-
-    function testTwapGuardRejectsNoncanonicalFactoryBinding() public {
-        MockV3ExecutionFactory canonicalFactory = new MockV3ExecutionFactory();
-        MockV3ExecutionFactory wrongFactory = new MockV3ExecutionFactory();
-        address token0 = address(subject) < address(quote) ? address(subject) : address(quote);
-        address token1 = address(subject) < address(quote) ? address(quote) : address(subject);
-        MockV3ExecutionPool pool =
-            new MockV3ExecutionPool(address(canonicalFactory), token0, token1, FEE, SPACING);
-        canonicalFactory.setPool(address(pool));
-        wrongFactory.setPool(address(pool));
-        SinjohV3TwapPriceGuard guard = new SinjohV3TwapPriceGuard(
-            address(pool),
-            address(wrongFactory),
-            address(subject),
-            address(quote),
-            FEE,
-            keccak256(abi.encode(uint160(0))),
-            60,
-            500,
-            500,
-            60,
-            100 ether,
-            1 ether
-        );
-
-        vm.expectPartialRevert(SinjohV3TwapPriceGuard.InvalidRoute.selector);
-        guard.activate();
     }
 
     function testV3AdapterRejectsPartialExactInputConsumption() public {
@@ -365,39 +131,6 @@ contract SinjohExecutionComponentsTest is TestBase {
         );
     }
 
-    function testTwapGuardActivationGrowsFreshPoolObservationCapacity() public {
-        address token0 = address(subject) < address(quote) ? address(subject) : address(quote);
-        address token1 = address(subject) < address(quote) ? address(quote) : address(subject);
-        MockV3ExecutionFactory factory = new MockV3ExecutionFactory();
-        MockV3OraclePool pool = new MockV3OraclePool(address(factory), token0, token1, FEE);
-        pool.setCardinality(1);
-        factory.setPool(address(pool));
-        bytes32 routeHash = keccak256(abi.encode(uint160(0)));
-        SinjohV3TwapPriceGuard guard = new SinjohV3TwapPriceGuard(
-            address(pool),
-            address(factory),
-            address(subject),
-            address(quote),
-            FEE,
-            routeHash,
-            60,
-            500,
-            500,
-            60,
-            100 ether,
-            1 ether
-        );
-
-        guard.activate();
-
-        assertEq(pool.cardinality(), 1);
-        assertEq(pool.cardinalityNext(), 2);
-        vm.expectPartialRevert(SinjohV3TwapPriceGuard.OracleNotReady.selector);
-        guard.minimumOutput(
-            address(subject), address(quote), address(subject), 10 ether, routeHash, ""
-        );
-    }
-
     function testTwapGuardRejectsV4VenuePriceAwayFromV3Anchor() public {
         (, SinjohV3TwapPriceGuard guard,) = _deployGuard();
 
@@ -425,7 +158,6 @@ contract SinjohExecutionComponentsTest is TestBase {
         adapter = new SinjohUniswapV3SwapAdapter(
             address(router), address(factory), address(pool), address(quote), address(subject), FEE
         );
-        adapter.activate();
     }
 
     function _deployGuard()
@@ -434,16 +166,12 @@ contract SinjohExecutionComponentsTest is TestBase {
     {
         address token0 = address(subject) < address(quote) ? address(subject) : address(quote);
         address token1 = address(subject) < address(quote) ? address(quote) : address(subject);
-        MockV3ExecutionFactory factory = new MockV3ExecutionFactory();
-        pool = new MockV3OraclePool(address(factory), token0, token1, FEE);
-        factory.setPool(address(pool));
+        pool = new MockV3OraclePool(token0, token1);
         routeHash = keccak256(abi.encode(uint160(0)));
         guard = new SinjohV3TwapPriceGuard(
             address(pool),
-            address(factory),
             address(subject),
             address(quote),
-            FEE,
             routeHash,
             60,
             500,
@@ -452,6 +180,5 @@ contract SinjohExecutionComponentsTest is TestBase {
             100 ether,
             1 ether
         );
-        guard.activate();
     }
 }

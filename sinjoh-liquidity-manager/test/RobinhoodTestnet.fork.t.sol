@@ -86,7 +86,6 @@ contract RobinhoodTestnetLiquidityForkTest is TestBase {
         SinjohUniswapV3SwapAdapter adapter = new SinjohUniswapV3SwapAdapter(
             V3_ROUTER, V3_FACTORY, V3_POOL, PONS_WETH, SJTEST, 10_000
         );
-        adapter.activate();
         uint256 amountIn = 10_000_000_000;
         uint256 beforeOutput = IERC20Fork(SJTEST).balanceOf(TEST_ACCOUNT);
         vm.prank(TEST_ACCOUNT);
@@ -107,10 +106,8 @@ contract RobinhoodTestnetLiquidityForkTest is TestBase {
         );
         SinjohV3TwapPriceGuard guard = new SinjohV3TwapPriceGuard(
             V3_POOL,
-            V3_FACTORY,
             SJTEST,
             PONS_WETH,
-            10_000,
             keccak256(routeData),
             60,
             500,
@@ -119,8 +116,6 @@ contract RobinhoodTestnetLiquidityForkTest is TestBase {
             type(uint128).max,
             1_000_000_000
         );
-        adapter.activate();
-        guard.activate();
         uint256 amountIn = 1 ether;
         (uint256 minimum,) =
             guard.minimumOutput(SJTEST, SJTEST, PONS_WETH, amountIn, keccak256(routeData), "");
@@ -139,20 +134,8 @@ contract RobinhoodTestnetLiquidityForkTest is TestBase {
 
         bytes memory routeData = abi.encode(uint160(0));
         SinjohV3TwapPriceGuard guard = new SinjohV3TwapPriceGuard(
-            V3_POOL,
-            V3_FACTORY,
-            SJTEST,
-            PONS_WETH,
-            10_000,
-            keccak256(routeData),
-            60,
-            500,
-            500,
-            60,
-            1 ether,
-            1 ether
+            V3_POOL, SJTEST, PONS_WETH, keccak256(routeData), 60, 500, 500, 60, 1 ether, 1 ether
         );
-        guard.activate();
         (uint256 minimum, uint48 validUntil) =
             guard.minimumOutput(SJTEST, PONS_WETH, SJTEST, 1_000_000_000, keccak256(routeData), "");
         assertTrue(minimum != 0 && validUntil > block.timestamp);
