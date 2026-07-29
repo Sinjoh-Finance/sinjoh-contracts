@@ -20,6 +20,7 @@ contract MockV3ExecutionPool {
     address public immutable token1;
     uint24 public immutable fee;
     int24 public immutable tickSpacing;
+    uint16 public cardinalityNext = 1;
 
     constructor(address factory_, address token0_, address token1_, uint24 fee_, int24 spacing_) {
         factory = factory_;
@@ -27,6 +28,10 @@ contract MockV3ExecutionPool {
         token1 = token1_;
         fee = fee_;
         tickSpacing = spacing_;
+    }
+
+    function increaseObservationCardinalityNext(uint16 value) external {
+        if (value > cardinalityNext) cardinalityNext = value;
     }
 }
 
@@ -66,18 +71,23 @@ contract MockV3ExecutionRouter {
 }
 
 contract MockV3OraclePool {
+    address public immutable factory;
     address public immutable token0;
     address public immutable token1;
+    uint24 public immutable fee;
     int24 public spotTick;
     int24 public twapTick;
     uint160 public sqrtPriceX96 = 79_228_162_514_264_337_593_543_950_336;
     uint16 public cardinality = 2;
+    uint16 public cardinalityNext = 2;
     bool public unlocked = true;
     bool public observeReverts;
 
-    constructor(address token0_, address token1_) {
+    constructor(address factory_, address token0_, address token1_, uint24 fee_) {
+        factory = factory_;
         token0 = token0_;
         token1 = token1_;
+        fee = fee_;
     }
 
     function setTicks(int24 spotTick_, int24 twapTick_) external {
@@ -91,6 +101,11 @@ contract MockV3OraclePool {
 
     function setCardinality(uint16 value) external {
         cardinality = value;
+        cardinalityNext = value;
+    }
+
+    function increaseObservationCardinalityNext(uint16 value) external {
+        if (value > cardinalityNext) cardinalityNext = value;
     }
 
     function setObserveReverts(bool value) external {
@@ -98,7 +113,7 @@ contract MockV3OraclePool {
     }
 
     function slot0() external view returns (uint160, int24, uint16, uint16, uint16, uint8, bool) {
-        return (sqrtPriceX96, spotTick, 0, cardinality, cardinality, 0, unlocked);
+        return (sqrtPriceX96, spotTick, 0, cardinality, cardinalityNext, 0, unlocked);
     }
 
     function observe(uint32[] calldata secondsAgos)

@@ -7,6 +7,9 @@ interface Vm {
     function expectRevert(bytes4 selector) external;
     function expectPartialRevert(bytes4 selector) external;
     function prank(address sender) external;
+    function prank(address sender, address origin) external;
+    function snapshotState() external returns (uint256 snapshotId);
+    function revertToState(uint256 snapshotId) external returns (bool success);
     function warp(uint256 timestamp) external;
 }
 
