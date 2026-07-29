@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import { SinjohUniswapV3MultiHopSwapAdapter } from "./SinjohUniswapV3MultiHopSwapAdapter.sol";
 import { SinjohUniswapV3SwapAdapter } from "./SinjohUniswapV3SwapAdapter.sol";
+import { SinjohV3RouteGuardDeployer } from "./SinjohV3RouteGuardDeployer.sol";
 import { SinjohV3RouteTwapPriceGuard } from "./SinjohV3RouteTwapPriceGuard.sol";
 
 /// @notice Deterministically deploys the immutable execution dependencies a fee
@@ -15,7 +16,21 @@ import { SinjohV3RouteTwapPriceGuard } from "./SinjohV3RouteTwapPriceGuard.sol";
 contract SinjohV3RouteExecutionFactory {
     error InvalidCreator();
     error InvalidRoute();
+    error InvalidGuardDeployer();
     error ActivationFailed(address dependency, bytes reason);
+
+    /// @notice Deploys this factory's price guards.
+    /// @dev A factory embeds its children's creation code in its own runtime.
+    /// Carrying the adapters and the guard together exceeded EIP-170, so guards
+    /// come from a companion deployer fixed at construction.
+    SinjohV3RouteGuardDeployer public immutable guardDeployer;
+
+    constructor(address guardDeployer_) {
+        if (guardDeployer_ == address(0) || guardDeployer_.code.length == 0) {
+            revert InvalidGuardDeployer();
+        }
+        guardDeployer = SinjohV3RouteGuardDeployer(guardDeployer_);
+    }
 
     /// @param subjectPool The subject/quote pool created by the launchpad.
     /// @param assetPool The quote/asset pool the payout token already trades in.
@@ -59,14 +74,6 @@ contract SinjohV3RouteExecutionFactory {
         bytes32 derivedSalt,
         bool created
     );
-    event RouteGuardDeployed(
-        address indexed guard,
-        address indexed creator,
-        bytes32 indexed userSalt,
-        bytes32 derivedSalt,
-        bool created
-    );
-
     /// @notice The canonical `routeData` for a direct single-hop conversion.
     /// @dev One zero sqrt-price limit, meaning the router's full valid range.
     function directRouteData() public pure returns (bytes memory) {
@@ -254,15 +261,7 @@ contract SinjohV3RouteExecutionFactory {
         bytes32 userSalt,
         SinjohV3RouteTwapPriceGuard.RouteGuard memory config
     ) public returns (address guard) {
-        if (creator == address(0)) revert InvalidCreator();
-        bytes32 salt = _guardSalt(creator, userSalt, config);
-        guard = predictRouteGuard(creator, userSalt, config);
-        bool created;
-        if (guard.code.length == 0) {
-            guard = address(new SinjohV3RouteTwapPriceGuard{ salt: salt }(config));
-            created = true;
-        }
-        emit RouteGuardDeployed(guard, creator, userSalt, salt, created);
+        return guardDeployer.deployGuard(creator, userSalt, config);
     }
 
     function predictRouteGuard(
@@ -270,13 +269,7 @@ contract SinjohV3RouteExecutionFactory {
         bytes32 userSalt,
         SinjohV3RouteTwapPriceGuard.RouteGuard memory config
     ) public view returns (address) {
-        if (creator == address(0)) revert InvalidCreator();
-        bytes32 initCodeHash = keccak256(
-            abi.encodePacked(
-                type(SinjohV3RouteTwapPriceGuard).creationCode, abi.encode(config)
-            )
-        );
-        return _create2Address(_guardSalt(creator, userSalt, config), initCodeHash);
+        return guardDeployer.predictGuard(creator, userSalt, config);
     }
 
     function _subjectGuardConfig(AssetRoute calldata route)
@@ -379,14 +372,6 @@ contract SinjohV3RouteExecutionFactory {
                 block.chainid, creator, userSalt, router, factory, pool, assetIn, assetOut, poolFee
             )
         );
-    }
-
-    function _guardSalt(
-        address creator,
-        bytes32 userSalt,
-        SinjohV3RouteTwapPriceGuard.RouteGuard memory config
-    ) private view returns (bytes32) {
-        return keccak256(abi.encode(block.chainid, creator, userSalt, config));
     }
 
     function _create2Address(bytes32 salt, bytes32 initCodeHash) private view returns (address) {

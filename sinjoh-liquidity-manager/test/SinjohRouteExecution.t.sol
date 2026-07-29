@@ -7,6 +7,7 @@ import { SinjohUniswapV3MultiHopSwapAdapter } from
     "../src/SinjohUniswapV3MultiHopSwapAdapter.sol";
 import { SinjohUniswapV3SwapAdapter } from "../src/SinjohUniswapV3SwapAdapter.sol";
 import { SinjohV3RouteExecutionFactory } from "../src/SinjohV3RouteExecutionFactory.sol";
+import { SinjohV3RouteGuardDeployer } from "../src/SinjohV3RouteGuardDeployer.sol";
 import { SinjohV3RouteTwapPriceGuard } from "../src/SinjohV3RouteTwapPriceGuard.sol";
 import { DeployV3RouteExecutionFactory } from "../script/DeployV3RouteExecutionFactory.s.sol";
 import { TestBase } from "./TestBase.sol";
@@ -18,6 +19,13 @@ import { MockV3MultiHopRouter, MockV3MultiPoolFactory, MockV3OraclePool } from
 /// bucket needs: the subject normalises through the quote asset in one atomic
 /// two-hop swap, and quote-asset fees take the direct pool.
 contract SinjohRouteExecutionTest is TestBase {
+    uint256 internal constant EIP170_LIMIT = 24_576;
+    address internal constant PINNED_GUARD_DEPLOYER =
+        0xd9A2F73d97fb6EbAe65FEA981afe3BD252C8b530;
+    address internal constant PINNED_FACTORY = 0xa4bb1330403f60b0271505eEcAa8eEE96FB51722;
+    bytes32 internal constant PINNED_FACTORY_RUNTIME_CODE_HASH =
+        0xe4199312a61f7f8d8b4fb16e37b3d258540a7921cfc24b6dac68f11dbe07bc5b;
+
     uint24 internal constant SUBJECT_FEE = 10_000;
     uint24 internal constant ASSET_FEE = 3_000;
 
@@ -41,7 +49,8 @@ contract SinjohRouteExecutionTest is TestBase {
         router = new MockV3MultiHopRouter();
         subjectPool = _pool(address(subject), address(quote), SUBJECT_FEE);
         assetPool = _pool(address(quote), address(asset), ASSET_FEE);
-        executionFactory = new SinjohV3RouteExecutionFactory();
+        executionFactory =
+            new SinjohV3RouteExecutionFactory(address(new SinjohV3RouteGuardDeployer()));
     }
 
     // ---------------------------------------------------------------- factory
@@ -91,20 +100,41 @@ contract SinjohRouteExecutionTest is TestBase {
         assertTrue(base != otherCreator);
     }
 
-    /// @dev The UI pins this address and runtime hash before the deployment
-    /// exists, so any source change that would move it must fail here first.
+    /// @dev A factory carries its children's creation code in its own runtime,
+    /// which is what pushed an earlier single-contract version over EIP-170.
+    /// `forge test` does not enforce that limit, so assert it directly: the
+    /// chain does, and a deployment over it burns the deployer's gas for
+    /// nothing.
+    function testEveryDeployedContractFitsWithinTheEip170Limit() public {
+        address guardDeployer = address(new SinjohV3RouteGuardDeployer());
+        address factory = address(new SinjohV3RouteExecutionFactory(guardDeployer));
+        SinjohV3RouteExecutionFactory.AssetRouteDependencies memory dependencies =
+            _liveRoute();
+
+        assertTrue(factory.code.length <= EIP170_LIMIT);
+        assertTrue(guardDeployer.code.length <= EIP170_LIMIT);
+        assertTrue(dependencies.subjectAdapter.code.length <= EIP170_LIMIT);
+        assertTrue(dependencies.subjectGuard.code.length <= EIP170_LIMIT);
+        assertTrue(dependencies.quoteAdapter.code.length <= EIP170_LIMIT);
+        assertTrue(dependencies.quoteGuard.code.length <= EIP170_LIMIT);
+    }
+
+    /// @dev The UI pins this address before the deployment exists, so any
+    /// source change that would move it must fail here first.
     function testDeploymentAddressMatchesTheAddressPinnedInTheManifest() public {
         DeployV3RouteExecutionFactory deployment = new DeployV3RouteExecutionFactory();
-        (address predicted, bytes32 initCodeHash) = deployment.predict();
+        (address guardDeployer, address factory) = deployment.predict();
 
-        assertEq(predicted, 0x07F556403E9d8459eF5e4428084FDC966B26AE6c);
+        assertEq(guardDeployer, PINNED_GUARD_DEPLOYER);
+        assertEq(factory, PINNED_FACTORY);
+
+        // The factory's runtime carries the guard deployer as an immutable, so
+        // pinning its hash also pins which deployer it will ever use. Deploy a
+        // copy bound to the pinned address and compare.
+        vm.etch(PINNED_GUARD_DEPLOYER, address(new SinjohV3RouteGuardDeployer()).code);
+        address bound = address(new SinjohV3RouteExecutionFactory(PINNED_GUARD_DEPLOYER));
         assertEq(
-            uint256(initCodeHash),
-            uint256(0xf5b75b9ed137975b1c53913ed136dfeec8db3c0a3f974f164bffe0433f83867f)
-        );
-        assertEq(
-            uint256(keccak256(type(SinjohV3RouteExecutionFactory).runtimeCode)),
-            uint256(0x016d3f99ed5adfcf1f5681d94fc162ebfe05765681286c83d1532374c2d2ca71)
+            uint256(bound.codehash), uint256(PINNED_FACTORY_RUNTIME_CODE_HASH)
         );
     }
 

@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 interface Vm {
     function deal(address account, uint256 newBalance) external;
+    function etch(address target, bytes calldata newRuntimeBytecode) external;
     function expectRevert() external;
     function expectRevert(bytes4 selector) external;
     function expectPartialRevert(bytes4 selector) external;
