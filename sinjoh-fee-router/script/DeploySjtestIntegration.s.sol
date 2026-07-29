@@ -148,6 +148,7 @@ contract DeploySjtestIntegration {
             protocolFeeRecipient: revenueCollector,
             weth: PONS_WETH,
             intakeAssets: intakeAssets,
+            normalizations: new RouterTypes.Conversion[](0),
             buckets: buckets
         });
     }

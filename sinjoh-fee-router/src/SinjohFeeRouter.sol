@@ -49,6 +49,8 @@ contract SinjohFeeRouter {
     error NonContract(address target);
     error ImmutableAllocation();
     error NativeBurnForbidden();
+    error NotNormalized(address asset);
+    error NormalizedAssetInBucket(address asset);
 
     event Initialized(
         address indexed creator,
@@ -58,6 +60,9 @@ contract SinjohFeeRouter {
     );
     event SubjectBound(address indexed subject);
     event Synchronized(address indexed asset, uint256 gross, uint256 fee, uint256 net);
+    event Normalized(
+        address indexed asset, uint256 amountIn, uint256 amountOut, address indexed caller
+    );
     event ProtocolFeeSent(
         address indexed asset, address indexed recipient, uint256 amount, address indexed caller
     );
@@ -120,6 +125,7 @@ contract SinjohFeeRouter {
     bool public bound;
 
     RouterTypes.AssetRef[] private _intakeAssets;
+    ConversionStorage[] private _normalizations;
     BucketStorage[] private _buckets;
 
     mapping(address asset => bool supported) public isIntakeAsset;
@@ -134,7 +140,12 @@ contract SinjohFeeRouter {
     mapping(address asset => uint256 amount) public totalLiability;
     mapping(uint8 bucketId => mapping(address asset => uint48 timestamp)) public lastProcessedAt;
 
+    /// @notice Logged value waiting to be turned into WETH before it is split.
+    mapping(address asset => uint256 amount) public normalizeOwed;
+    mapping(address asset => uint48 timestamp) public lastNormalizedAt;
+
     mapping(bytes32 conversionKey => uint256 indexPlusOne) private _conversionIndexPlusOne;
+    mapping(address asset => uint256 indexPlusOne) private _normalizationIndexPlusOne;
     uint256 private _reentrancyState;
 
     constructor() {
@@ -158,8 +169,13 @@ contract SinjohFeeRouter {
     function initialize(RouterTypes.Config calldata config) external {
         if (initialized) revert AlreadyInitialized();
         initialized = true;
+        // Encoded once and reused: the config is the largest value this
+        // contract ever handles, and encoding it twice costs both gas and
+        // stack room.
+        bytes memory encoded = abi.encode(config);
+        if (encoded.length > MAX_CONFIG_BYTES) revert ConfigurationTooLarge();
         _validateAndStore(config);
-        configHash = keccak256(abi.encode(config));
+        configHash = keccak256(encoded);
         emit Initialized(creator, protocolFeeRecipient, weth, configHash);
     }
 
@@ -183,6 +199,15 @@ contract SinjohFeeRouter {
             isIntakeAsset[asset] = true;
         }
 
+        uint256 normalizationLength = _normalizations.length;
+        for (uint256 i; i < normalizationLength; ++i) {
+            address input = _resolve(_normalizations[i].input);
+            if (!isIntakeAsset[input]) revert UnsupportedAsset(input);
+            if (input == weth) revert InvalidConfiguration();
+            if (_normalizationIndexPlusOne[input] != 0) revert DuplicateAsset(input);
+            _normalizationIndexPlusOne[input] = i + 1;
+        }
+
         uint256 bucketLength = _buckets.length;
         address[] memory resolvedOutputs = new address[](bucketLength);
         for (uint256 i; i < bucketLength; ++i) {
@@ -196,6 +221,9 @@ contract SinjohFeeRouter {
             for (uint256 j; j < conversionLength; ++j) {
                 address input = _resolve(_buckets[i].conversions[j].input);
                 if (!isIntakeAsset[input]) revert UnsupportedAsset(input);
+                if (_normalizationIndexPlusOne[input] != 0) {
+                    revert NormalizedAssetInBucket(input);
+                }
                 bytes32 key = _conversionKey(uint8(i), input);
                 if (_conversionIndexPlusOne[key] != 0) {
                     revert UnsupportedConversion(uint8(i), input);
@@ -227,19 +255,108 @@ contract SinjohFeeRouter {
         uint256 net = gross - fee;
         protocolOwed[asset] += fee;
 
+        // A normalized asset is held whole until it becomes WETH. Splitting it
+        // here would leave every bucket holding its own share of the project
+        // token, and each would then have to sell that share separately.
+        if (_normalizationIndexPlusOne[asset] != 0) {
+            normalizeOwed[asset] += net;
+        } else {
+            _creditBuckets(asset, net);
+        }
+        totalLiability[asset] = liability + gross;
+
+        emit Synchronized(asset, gross, fee, net);
+    }
+
+    function _creditBuckets(address asset, uint256 amount) private {
+        if (amount == 0) return;
         uint16 allocationRemainder = bucketAllocationRemainder[asset];
         uint256 bucketLength = _buckets.length;
         uint16 allocationStart = 0;
         for (uint256 i; i < bucketLength; ++i) {
             uint16 bps = _buckets[i].bps;
-            uint256 share = _allocationShare(net, allocationStart, bps, allocationRemainder);
+            uint256 share = _allocationShare(amount, allocationStart, bps, allocationRemainder);
             bucketInputOwed[uint8(i)][asset] += share;
             allocationStart += bps;
         }
-        bucketAllocationRemainder[asset] = _nextAllocationRemainder(net, allocationRemainder);
-        totalLiability[asset] = liability + gross;
+        bucketAllocationRemainder[asset] = _nextAllocationRemainder(amount, allocationRemainder);
+    }
 
-        emit Synchronized(asset, gross, fee, net);
+    /// @notice Turns logged fees of a normalized asset into WETH, then splits
+    /// the WETH across the buckets.
+    /// @dev The whole point of the step: the project token is sold once, at one
+    /// price, paying one pool fee, instead of once per bucket.
+    function normalize(
+        address asset,
+        uint256 amountIn,
+        uint256 callerMinOut,
+        bytes calldata guardData
+    ) external nonReentrant returns (uint256 amountOut) {
+        if (!bound) revert NotBound();
+        if (guardData.length > MAX_GUARD_DATA_BYTES) revert ConfigurationTooLarge();
+        if (amountIn == 0) revert InvalidAmount();
+
+        uint256 indexPlusOne = _normalizationIndexPlusOne[asset];
+        if (indexPlusOne == 0) revert NotNormalized(asset);
+        ConversionStorage storage route = _normalizations[indexPlusOne - 1];
+
+        uint256 pending = normalizeOwed[asset];
+        uint256 permitted =
+            pending < route.maxAmountInPerCall ? pending : route.maxAmountInPerCall;
+        if (amountIn != permitted) revert InvalidAmount();
+
+        uint48 last = lastNormalizedAt[asset];
+        if (last != 0 && block.timestamp < uint256(last) + route.minInterval) {
+            revert InvalidInterval();
+        }
+
+        address output = weth;
+        normalizeOwed[asset] = pending - amountIn;
+        totalLiability[asset] -= amountIn;
+
+        amountOut = _swap(
+            route.adapter,
+            route.priceGuard,
+            route.routeData,
+            asset,
+            output,
+            amountIn,
+            callerMinOut,
+            guardData
+        );
+
+        _creditBuckets(output, amountOut);
+        totalLiability[output] += amountOut;
+        lastNormalizedAt[asset] = uint48(block.timestamp);
+
+        emit Normalized(asset, amountIn, amountOut, msg.sender);
+    }
+
+    function normalizationCount() external view returns (uint256) {
+        return _normalizations.length;
+    }
+
+    function normalizationInfo(uint256 index)
+        external
+        view
+        returns (
+            RouterTypes.AssetRef memory input,
+            address resolvedInput,
+            address adapter,
+            address priceGuard,
+            bytes memory routeData,
+            uint128 maxAmountInPerCall,
+            uint48 minInterval
+        )
+    {
+        ConversionStorage storage route = _normalizations[index];
+        input = route.input;
+        if (bound) resolvedInput = _resolve(input);
+        adapter = route.adapter;
+        priceGuard = route.priceGuard;
+        routeData = route.routeData;
+        maxAmountInPerCall = route.maxAmountInPerCall;
+        minInterval = route.minInterval;
     }
 
     function sendProtocolFee(address asset, uint256 amount) external nonReentrant {
@@ -467,7 +584,6 @@ contract SinjohFeeRouter {
     }
 
     function _validateAndStore(RouterTypes.Config calldata config) private {
-        if (abi.encode(config).length > MAX_CONFIG_BYTES) revert ConfigurationTooLarge();
         if (
             config.creator == address(0) || config.protocolFeeRecipient == address(0)
                 || config.weth == address(0) || config.creator == address(this)
@@ -487,6 +603,7 @@ contract SinjohFeeRouter {
         weth = config.weth;
 
         bytes32[] memory intakeKeys = _storeIntakeAssets(config.intakeAssets);
+        bytes32[] memory normalizedKeys = _storeNormalizations(config.normalizations, intakeKeys);
 
         uint256 bucketBps;
         bytes32[] memory outputKeys = new bytes32[](bucketLength);
@@ -499,7 +616,7 @@ contract SinjohFeeRouter {
             }
             outputKeys[i] = outputKey;
             bucketBps += sourceBucket.bps;
-            _storeBucket(sourceBucket, outputKey, intakeKeys);
+            _storeBucket(sourceBucket, outputKey, intakeKeys, normalizedKeys);
         }
         if (bucketBps != BPS) revert InvalidConfiguration();
     }
@@ -520,10 +637,55 @@ contract SinjohFeeRouter {
         }
     }
 
+    function _storeNormalizations(
+        RouterTypes.Conversion[] calldata source,
+        bytes32[] memory intakeKeys
+    ) private returns (bytes32[] memory keys) {
+        if (source.length > MAX_INTAKE_ASSETS) revert TooManyItems();
+        keys = new bytes32[](source.length);
+        bytes32 wethKey = keccak256(
+            abi.encode(RouterTypes.AssetKind.FIXED_ERC20, weth)
+        );
+        for (uint256 i; i < source.length; ++i) {
+            RouterTypes.Conversion calldata route = source[i];
+            _validateAssetRef(route.input);
+            bytes32 key = _assetRefKey(route.input);
+            // Normalising WETH into WETH is not a route, and a repeated input
+            // would give one asset two conflicting destinations.
+            if (key == wethKey) revert InvalidConfiguration();
+            if (!_contains(intakeKeys, key)) revert InvalidConfiguration();
+            for (uint256 j; j < i; ++j) {
+                if (keys[j] == key) revert InvalidConfiguration();
+            }
+            keys[i] = key;
+
+            if (route.routeData.length > MAX_DYNAMIC_BYTES) revert ConfigurationTooLarge();
+            if (route.maxAmountInPerCall == 0) revert InvalidConfiguration();
+            if (route.adapter == address(0) || route.priceGuard == address(0)) {
+                revert InvalidConfiguration();
+            }
+            if (route.adapter == address(this) || route.priceGuard == address(this)) {
+                revert InvalidConfiguration();
+            }
+            if (route.adapter.code.length == 0) revert NonContract(route.adapter);
+            if (route.priceGuard.code.length == 0) revert NonContract(route.priceGuard);
+
+            _normalizations.push();
+            ConversionStorage storage stored = _normalizations[_normalizations.length - 1];
+            stored.input = route.input;
+            stored.adapter = route.adapter;
+            stored.priceGuard = route.priceGuard;
+            stored.routeData = route.routeData;
+            stored.maxAmountInPerCall = route.maxAmountInPerCall;
+            stored.minInterval = route.minInterval;
+        }
+    }
+
     function _storeBucket(
         RouterTypes.Bucket calldata source,
         bytes32 outputKey,
-        bytes32[] memory intakeKeys
+        bytes32[] memory intakeKeys,
+        bytes32[] memory normalizedKeys
     ) private {
         uint256 conversionLength = source.conversions.length;
         uint256 allocationLength = source.allocations.length;
@@ -537,7 +699,7 @@ contract SinjohFeeRouter {
         target.output = source.output;
         target.bps = source.bps;
 
-        _storeConversions(target, source.conversions, outputKey, intakeKeys);
+        _storeConversions(target, source.conversions, outputKey, intakeKeys, normalizedKeys);
         _storeAllocations(target, source.allocations, source.output.kind);
     }
 
@@ -545,7 +707,8 @@ contract SinjohFeeRouter {
         BucketStorage storage target,
         RouterTypes.Conversion[] calldata source,
         bytes32 outputKey,
-        bytes32[] memory intakeKeys
+        bytes32[] memory intakeKeys,
+        bytes32[] memory normalizedKeys
     ) private {
         bytes32[] memory conversionKeys = new bytes32[](source.length);
         for (uint256 i; i < source.length; ++i) {
@@ -553,6 +716,9 @@ contract SinjohFeeRouter {
             _validateAssetRef(conversion.input);
             bytes32 inputKey = _assetRefKey(conversion.input);
             if (!_contains(intakeKeys, inputKey)) revert InvalidConfiguration();
+            // A normalized asset never reaches a bucket, so a conversion for it
+            // could never run. Reject it rather than freeze dead configuration.
+            if (_contains(normalizedKeys, inputKey)) revert InvalidConfiguration();
             for (uint256 j; j < i; ++j) {
                 if (conversionKeys[j] == inputKey) revert InvalidConfiguration();
             }
@@ -642,14 +808,31 @@ contract SinjohFeeRouter {
         uint256 callerMinOut,
         bytes calldata guardData
     ) private returns (uint256 amountOut) {
-        (uint256 guardMinOut, uint48 validUntil) = ISinjohPriceGuard(conversion.priceGuard)
+        return _swap(
+            conversion.adapter,
+            conversion.priceGuard,
+            conversion.routeData,
+            inputAsset,
+            outputAsset,
+            amountIn,
+            callerMinOut,
+            guardData
+        );
+    }
+
+    function _swap(
+        address adapter,
+        address priceGuard,
+        bytes storage routeData,
+        address inputAsset,
+        address outputAsset,
+        uint256 amountIn,
+        uint256 callerMinOut,
+        bytes calldata guardData
+    ) private returns (uint256 amountOut) {
+        (uint256 guardMinOut, uint48 validUntil) = ISinjohPriceGuard(priceGuard)
             .minimumOutput(
-                subject,
-                inputAsset,
-                outputAsset,
-                amountIn,
-                keccak256(conversion.routeData),
-                guardData
+                subject, inputAsset, outputAsset, amountIn, keccak256(routeData), guardData
             );
         if (validUntil < block.timestamp) revert InvalidExpiry();
         if (guardMinOut == 0) revert InvalidMinimumOutput();
@@ -658,7 +841,7 @@ contract SinjohFeeRouter {
         uint256 inputBefore = _assetBalance(inputAsset);
         uint256 outputBefore = _assetBalance(outputAsset);
 
-        _callSwapAdapter(conversion, inputAsset, outputAsset, amountIn, minimum);
+        _callSwapAdapter(adapter, routeData, inputAsset, outputAsset, amountIn, minimum);
 
         uint256 inputAfter = _assetBalance(inputAsset);
         uint256 outputAfter = _assetBalance(outputAsset);
@@ -671,23 +854,24 @@ contract SinjohFeeRouter {
     }
 
     function _callSwapAdapter(
-        ConversionStorage storage conversion,
+        address adapter,
+        bytes storage routeData,
         address inputAsset,
         address outputAsset,
         uint256 amountIn,
         uint256 minimum
     ) private {
         if (inputAsset == address(0)) {
-            ISinjohSwapAdapter(conversion.adapter).swap{ value: amountIn }(
-                inputAsset, outputAsset, amountIn, minimum, conversion.routeData
+            ISinjohSwapAdapter(adapter).swap{ value: amountIn }(
+                inputAsset, outputAsset, amountIn, minimum, routeData
             );
             return;
         }
 
-        inputAsset.safeApprove(conversion.adapter, amountIn);
-        ISinjohSwapAdapter(conversion.adapter)
-            .swap(inputAsset, outputAsset, amountIn, minimum, conversion.routeData);
-        inputAsset.safeApprove(conversion.adapter, 0);
+        inputAsset.safeApprove(adapter, amountIn);
+        ISinjohSwapAdapter(adapter)
+            .swap(inputAsset, outputAsset, amountIn, minimum, routeData);
+        inputAsset.safeApprove(adapter, 0);
     }
 
     function _creditAllocations(uint8 bucketId, address asset, uint256 amount) private {

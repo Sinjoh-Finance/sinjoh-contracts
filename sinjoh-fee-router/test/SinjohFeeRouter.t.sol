@@ -500,6 +500,7 @@ contract SinjohFeeRouterTest is TestBase {
             protocolFeeRecipient: PROTOCOL_RECIPIENT,
             weth: address(quoteToken),
             intakeAssets: intakeAssets,
+            normalizations: new RouterTypes.Conversion[](0),
             buckets: buckets
         });
     }
@@ -538,6 +539,7 @@ contract SinjohFeeRouterTest is TestBase {
             protocolFeeRecipient: PROTOCOL_RECIPIENT,
             weth: address(quoteToken),
             intakeAssets: intakeAssets,
+            normalizations: new RouterTypes.Conversion[](0),
             buckets: buckets
         });
     }

@@ -42,6 +42,9 @@ library RouterTypes {
         address protocolFeeRecipient;
         address weth;
         AssetRef[] intakeAssets;
+        /// @notice Conversions applied to whole intake before any split, so a
+        /// project token is sold once rather than once per bucket.
+        Conversion[] normalizations;
         Bucket[] buckets;
     }
 }
