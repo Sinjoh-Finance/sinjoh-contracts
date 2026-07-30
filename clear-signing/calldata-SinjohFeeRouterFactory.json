@@ -6,7 +6,7 @@
       "deployments": [
         {
           "chainId": 46630,
-      "address": "0x014BA12C441069a4D73D50EBBe41F0391DF84e1F"
+          "address": "0xd19cCBfE7a5159e43E30719e8f1d88bD6324cd16"
         }
       ]
     }
@@ -20,9 +20,9 @@
   },
   "display": {
     "formats": {
-      "deploy(address creator, bytes32 userSalt, (address creator, address protocolFeeRecipient, address weth, (address adapter, bytes routeData) subjectToWeth, ((uint8 kind, address token) output, uint16 bps, (address adapter, bytes routeData) route, (address destination, uint16 bps, bool isSink, bool creatorMayRepoint, bytes sinkConfig)[] allocations)[] buckets) config)": {
-        "$id": "deploy",
-        "intent": "Deploy Sinjoh Fee Router",
+      "deployPons(address creator, bytes32 userSalt, (address creator, address protocolFeeRecipient, address weth, (address adapter, bytes routeData) subjectToWeth, ((uint8 kind, address token) output, uint16 bps, (address adapter, bytes routeData) route, (address destination, uint16 bps, bool isSink, bool creatorMayRepoint, bytes sinkConfig)[] allocations)[] buckets) config)": {
+        "$id": "deployPons",
+        "intent": "Deploy Pons fee router",
         "fields": [
           {
             "path": "creator",

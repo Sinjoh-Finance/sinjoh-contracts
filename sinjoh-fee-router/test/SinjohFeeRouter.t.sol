@@ -5,9 +5,11 @@ import { TestBase } from "./TestBase.sol";
 import { MockERC20 } from "./mocks/MockERC20.sol";
 import { MockSink } from "./mocks/MockSink.sol";
 import { MockSwapAdapter } from "./mocks/MockSwapAdapter.sol";
+import { MockPonsV1LaunchFactory, MockPonsV1Locker } from "./mocks/MockPonsV1.sol";
 import { RouterTypes } from "../src/RouterTypes.sol";
 import { SinjohFeeRouter } from "../src/SinjohFeeRouter.sol";
 import { SinjohFeeRouterFactory } from "../src/SinjohFeeRouterFactory.sol";
+import { IPonsV1LaunchFactory } from "../src/interfaces/IPonsV1.sol";
 
 contract SinjohFeeRouterTest is TestBase {
     address internal constant PROTOCOL_RECIPIENT = address(0x1001);
@@ -49,6 +51,78 @@ contract SinjohFeeRouterTest is TestBase {
         address deployed = factory.deploy(address(this), bytes32("SECOND"), config);
         assertEq(deployed, predicted);
         assertEq(factory.deploy(address(this), bytes32("SECOND"), config), deployed);
+    }
+
+    function testPonsFactoryPredictionDoesNotDependOnSubjectConfiguration() public {
+        RouterTypes.Config memory config = _config();
+        bytes32 salt = bytes32("PONS");
+        address predicted = factory.predictPonsAddress(address(this), salt);
+        address deployed = factory.deployPons(address(this), salt, config);
+        assertEq(deployed, predicted);
+        assertEq(factory.deployPons(address(this), salt, config), deployed);
+
+        config.protocolFeeRecipient = NEW_WALLET;
+        vm.expectRevert(SinjohFeeRouterFactory.ConfigMismatch.selector);
+        factory.deployPons(address(this), salt, config);
+    }
+
+    function testRouterOwnsPonsLaunchAndForwardsDeveloperBuyToCreator() public {
+        RouterTypes.Config memory config = _config();
+        bytes32 routerSalt = bytes32("ROUTER_OWNED");
+        SinjohFeeRouter launchRouter =
+            SinjohFeeRouter(payable(factory.deployPons(address(this), routerSalt, config)));
+        MockPonsV1Locker locker = new MockPonsV1Locker(weth);
+        MockPonsV1LaunchFactory pons = new MockPonsV1LaunchFactory(address(locker));
+        pons.setLaunchBuyAmount(1_000);
+
+        IPonsV1LaunchFactory.LaunchParams memory params = _ponsParams(address(launchRouter));
+        address launched = launchRouter.launchPonsToken{ value: 1 ether }(
+            address(pons), params, 0, 0, bytes32("TOKEN")
+        );
+
+        assertEq(pons.lastDeployer(), address(launchRouter));
+        assertEq(pons.lastFeeWallet(), address(launchRouter));
+        assertEq(launchRouter.creator(), address(this));
+        assertEq(launchRouter.ponsLaunchFactory(), address(pons));
+        assertEq(launchRouter.ponsLocker(), address(locker));
+        assertEq(launchRouter.subject(), launched);
+        assertTrue(launchRouter.bound());
+        assertEq(MockERC20(launched).balanceOf(address(this)), 1_000);
+        assertEq(MockERC20(launched).balanceOf(address(launchRouter)), 0);
+    }
+
+    function testPonsLaunchRejectsAnyFeeWalletOtherThanRouter() public {
+        RouterTypes.Config memory config = _config();
+        SinjohFeeRouter launchRouter = SinjohFeeRouter(
+            payable(factory.deployPons(address(this), bytes32("WRONG_WALLET"), config))
+        );
+        MockPonsV1Locker locker = new MockPonsV1Locker(weth);
+        MockPonsV1LaunchFactory pons = new MockPonsV1LaunchFactory(address(locker));
+        IPonsV1LaunchFactory.LaunchParams memory params = _ponsParams(address(this));
+
+        vm.expectRevert(SinjohFeeRouter.InvalidPonsFeeWallet.selector);
+        launchRouter.launchPonsToken(address(pons), params, 0, 0, bytes32("TOKEN"));
+    }
+
+    function testAnyoneCanCollectPonsFeesThroughRouter() public {
+        RouterTypes.Config memory config = _config();
+        SinjohFeeRouter launchRouter = SinjohFeeRouter(
+            payable(factory.deployPons(address(this), bytes32("COLLECT"), config))
+        );
+        MockPonsV1Locker locker = new MockPonsV1Locker(weth);
+        MockPonsV1LaunchFactory pons = new MockPonsV1LaunchFactory(address(locker));
+        address launched = launchRouter.launchPonsToken(
+            address(pons), _ponsParams(address(launchRouter)), 0, 0, bytes32("TOKEN")
+        );
+        locker.setFees(launched, 2_000, 3_000);
+
+        vm.prank(address(0xBEEF));
+        (uint256 amount0, uint256 amount1) = launchRouter.collectPonsFees();
+
+        assertEq(amount0, 2_000);
+        assertEq(amount1, 3_000);
+        assertEq(MockERC20(launched).balanceOf(address(launchRouter)), 2_000);
+        assertEq(weth.balanceOf(address(launchRouter)), 3_000);
     }
 
     function testBindCanReturnOnlyTheExactPonsLaunchBuyToCreator() public {
@@ -319,6 +393,23 @@ contract SinjohFeeRouterTest is TestBase {
             weth: address(weth),
             subjectToWeth: RouterTypes.Route(address(adapter), hex"01"),
             buckets: buckets
+        });
+    }
+
+    function _ponsParams(address feeWallet)
+        internal
+        pure
+        returns (IPonsV1LaunchFactory.LaunchParams memory params)
+    {
+        params = IPonsV1LaunchFactory.LaunchParams({
+            name: "Router Owned",
+            symbol: "ROUTE",
+            logo: "",
+            description: "",
+            socials: IPonsV1LaunchFactory.Socials({
+                twitter: "", telegram: "", discord: "", website: "", farcaster: ""
+            }),
+            feeWallet: feeWallet
         });
     }
 }

@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import { RouterTypes } from "./RouterTypes.sol";
+import { IPonsV1LaunchFactory, IPonsV1Locker } from "./interfaces/IPonsV1.sol";
 import { ISinjohSink } from "./interfaces/ISinjohSink.sol";
 import { ISinjohSwapAdapter } from "./interfaces/ISinjohSwapAdapter.sol";
 import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
@@ -43,6 +44,9 @@ contract SinjohFeeRouter {
     error NonContract(address target);
     error ImmutableAllocation();
     error NativeBurnForbidden();
+    error InvalidPonsFactory();
+    error InvalidPonsFeeWallet();
+    error PonsLaunchAlreadyConfigured();
 
     event Initialized(
         address indexed creator,
@@ -52,6 +56,20 @@ contract SinjohFeeRouter {
     );
     event SubjectBound(address indexed subject);
     event LaunchBuyDelivered(address indexed subject, address indexed recipient, uint256 amount);
+    event PonsTokenLaunched(
+        address indexed factory,
+        address indexed locker,
+        address indexed subject,
+        uint256 value,
+        uint256 launchBuyAmount
+    );
+    event PonsFeesCollected(
+        address indexed locker,
+        address indexed subject,
+        uint256 amount0,
+        uint256 amount1,
+        address caller
+    );
     event Normalized(
         address indexed inputAsset, uint256 amountIn, uint256 wethOut, address indexed caller
     );
@@ -112,6 +130,8 @@ contract SinjohFeeRouter {
     bytes32 public configHash;
     bool public initialized;
     bool public bound;
+    address public ponsLaunchFactory;
+    address public ponsLocker;
 
     RouteStorage private _subjectToWeth;
     BucketStorage[] private _buckets;
@@ -159,6 +179,52 @@ contract SinjohFeeRouter {
 
     function bind(address newSubject) external onlyCreator {
         _bind(newSubject);
+    }
+
+    /// @notice Launches the configured subject through Pons with this router as
+    /// both the onchain deployer and fee wallet.
+    /// @dev The Sinjoh creator remains the user configured at initialization.
+    /// Any developer-buy output received by the router is forwarded to that
+    /// creator before the transaction completes.
+    function launchPonsToken(
+        address factory,
+        IPonsV1LaunchFactory.LaunchParams calldata params,
+        uint256 launchConfigId,
+        uint256 dexId,
+        bytes32 salt
+    ) external payable onlyCreator nonReentrant returns (address launchedSubject) {
+        if (bound || ponsLaunchFactory != address(0)) {
+            revert PonsLaunchAlreadyConfigured();
+        }
+        if (factory == address(0) || factory.code.length == 0) revert InvalidPonsFactory();
+        if (params.feeWallet != address(this)) revert InvalidPonsFeeWallet();
+
+        address locker = IPonsV1LaunchFactory(factory).locker();
+        if (locker == address(0) || locker.code.length == 0) revert InvalidPonsFactory();
+
+        launchedSubject = IPonsV1LaunchFactory(factory).launchToken{ value: msg.value }(
+            params, launchConfigId, dexId, salt
+        );
+        ponsLaunchFactory = factory;
+        ponsLocker = locker;
+        _bind(launchedSubject);
+
+        uint256 launchBuyAmount = launchedSubject.safeBalanceOf(address(this));
+        if (launchBuyAmount != 0) {
+            launchedSubject.safeTransfer(creator, launchBuyAmount);
+            emit LaunchBuyDelivered(launchedSubject, creator, launchBuyAmount);
+        }
+        emit PonsTokenLaunched(factory, locker, launchedSubject, msg.value, launchBuyAmount);
+    }
+
+    /// @notice Permissionlessly collects this token's Pons creator fees into
+    /// the router. The router is authorized because it launched the token.
+    function collectPonsFees() external nonReentrant returns (uint256 amount0, uint256 amount1) {
+        if (!bound) revert NotBound();
+        address locker = ponsLocker;
+        if (locker == address(0)) revert InvalidPonsFactory();
+        (amount0, amount1) = IPonsV1Locker(locker).collectFees(subject);
+        emit PonsFeesCollected(locker, subject, amount0, amount1, msg.sender);
     }
 
     /// @notice Binds the launched token and returns Pons's first-buy output to

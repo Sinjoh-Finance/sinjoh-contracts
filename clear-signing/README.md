@@ -16,3 +16,9 @@ uvx erc7730 lint clear-signing/*.json
 
 Wallet-wide availability requires publishing the reviewed descriptors through
 a registry or wallet integration that supports Robinhood Chain testnet.
+
+The deterministic factory deployment can be decoded by its fixed factory
+address. The following launch call targets a newly created router clone, so the
+Sinjoh UI also renders the full plain-English intent before opening the wallet;
+registries that require every clone address cannot pre-register that second
+transaction.
