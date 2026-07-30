@@ -5,7 +5,7 @@
     "contract": {
       "deployments": [
         {
-          "chainId": 46630,
+          "chainId": 4663,
           "address": "0xd19cCBfE7a5159e43E30719e8f1d88bD6324cd16"
         }
       ]
@@ -47,7 +47,7 @@
             "format": "tokenTicker",
             "label": "Routing base asset",
             "params": {
-              "chainId": 46630
+              "chainId": 4663
             }
           },
           {

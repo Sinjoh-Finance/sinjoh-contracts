@@ -5,15 +5,15 @@
     "eip712": {
       "deployments": [
         {
-          "chainId": 46630,
-          "address": "0x1160351B42ac027b9dFd3BFC497ee8985912c9dc"
+          "chainId": 4663,
+          "address": "0xA5aAb3F0c6EeadF30Ef1D3Eb997108E976351feB"
         }
       ],
       "domain": {
         "name": "Sinjoh Launch",
         "version": "1",
-        "chainId": 46630,
-        "verifyingContract": "0x1160351B42ac027b9dFd3BFC497ee8985912c9dc"
+        "chainId": 4663,
+        "verifyingContract": "0xA5aAb3F0c6EeadF30Ef1D3Eb997108E976351feB"
       }
     }
   },
