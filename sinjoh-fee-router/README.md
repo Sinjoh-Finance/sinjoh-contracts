@@ -43,13 +43,8 @@ Sinjoh creator in the same transaction.
 the locker from the router that deployed the token; proceeds can only enter that
 same immutable router.
 
-The focused live flow exercises router creation, Pons launch, developer-buy
+The end-to-end live flow — router creation, Pons launch, developer-buy
 delivery, Pons fee collection, subject-to-WETH normalization, routing, wallet
-delivery, and protocol-fee delivery:
-
-```sh
-DEPLOYER_PRIVATE_KEY=... forge script \
-  script/RunRouterOwnedPonsEndToEnd.s.sol:RunRouterOwnedPonsEndToEnd \
-  --rpc-url https://rpc.testnet.chain.robinhood.com \
-  --broadcast --gas-estimate-multiplier 200
-```
+delivery, and protocol-fee delivery — was exercised by a testnet-only script
+that has been removed. Reinstate an equivalent rehearsal against a mainnet
+fork before broadcasting; see the mainnet fork gate in `DEVELOPMENT_PLAN.md`.
