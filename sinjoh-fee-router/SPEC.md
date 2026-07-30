@@ -24,16 +24,36 @@ executes direct Pons v3 swaps and WETH unwrapping.
 ## Deployment and binding
 
 `SinjohFeeRouterFactory` deploys EIP-1167 clones with CREATE2. Initialization is
-atomic. The predicted address depends on the creator, salt, and canonical config,
-so the router can be installed as the Pons fee wallet before the token exists.
+atomic. The historical `deploy` path derives its address from the creator, salt,
+and canonical config.
 
-After the launch confirms, the creator calls:
+New Pons launches use `predictPonsAddress` and `deployPons`. Their clone address
+depends only on the creator and user salt, breaking the otherwise circular
+dependency between the router configuration and Pons's future subject/pool
+addresses. Reusing a salt with a different configuration reverts.
 
 ```solidity
-function bind(address subject) external;
+function launchPonsToken(
+    address factory,
+    IPonsV1LaunchFactory.LaunchParams calldata params,
+    uint256 launchConfigId,
+    uint256 dexId,
+    bytes32 salt
+) external payable returns (address subject);
 ```
 
-Binding is one-time, requires deployed token code, and enables routing.
+This call is creator-only. It requires the router itself as `feeWallet`, calls
+Pons from the router, stores the reviewed factory and locker, binds the returned
+subject, and sends any developer-buy output to the Sinjoh creator atomically.
+
+Pons creator fees are then collected without trusting the caller:
+
+```solidity
+function collectPonsFees() external returns (uint256 amount0, uint256 amount1);
+```
+
+The historical one-time `bind` and `bindAndSendLaunchBuy` functions remain
+available for already deployed routers and do not change behavior.
 
 ## Configuration
 

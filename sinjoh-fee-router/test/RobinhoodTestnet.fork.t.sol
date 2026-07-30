@@ -5,6 +5,7 @@ import { TestBase } from "./TestBase.sol";
 import { RouterTypes } from "../src/RouterTypes.sol";
 import { SinjohFeeRouter } from "../src/SinjohFeeRouter.sol";
 import { SinjohFeeRouterFactory } from "../src/SinjohFeeRouterFactory.sol";
+import { IPonsV1LaunchFactory } from "../src/interfaces/IPonsV1.sol";
 
 interface IERC20FinalFork {
     function balanceOf(address account) external view returns (uint256);
@@ -51,6 +52,7 @@ interface IPonsLaunchFactoryCurrentFork {
     }
 
     function launchFee() external view returns (uint256);
+    function locker() external view returns (address);
 
     function launchToken(
         LaunchParams calldata params,
@@ -67,8 +69,6 @@ interface IERC20CurrentFork {
 
 contract RobinhoodTestnetFeeRouterForkTest is TestBase {
     uint256 internal constant ROBINHOOD_TESTNET_CHAIN_ID = 46_630;
-    address internal constant OPTIMIZED_IMPLEMENTATION = 0xe5B3b007BB6ed057A1AA8746819435867fd88A3A;
-    address internal constant OPTIMIZED_FACTORY = 0x014BA12C441069a4D73D50EBBe41F0391DF84e1F;
     address internal constant SIMPLE_SWAP_ADAPTER = 0x1D5a12305F8cb32537F3A710806C159F24231aCe;
     address internal constant PONS_LAUNCH_FACTORY = 0x1160351B42ac027b9dFd3BFC497ee8985912c9dc;
     address internal constant SJTEST = 0x690caA9c7FF95e01d470Ec60Ed6aD57d794a38F5;
@@ -87,20 +87,11 @@ contract RobinhoodTestnetFeeRouterForkTest is TestBase {
     bytes32 internal constant LIQUIDITY_ACCOUNT =
         0x35461c7425c0ac823a01b1e35a362c4c90821e55bb9745bbea2ab877bebf382c;
 
-    function testForkOptimizedFactoryDeploysCurrentRouterConfig() public {
+    function testForkRouterOwnedPonsLaunchAndRouting() public {
         if (block.chainid != ROBINHOOD_TESTNET_CHAIN_ID) return;
 
-        assertEq(
-            uint256(OPTIMIZED_IMPLEMENTATION.codehash),
-            uint256(0x0ca54e5aa03dd3fe49f90977cbc8db51c6a6de5fa5460a9bb155423b5dedaf61)
-        );
-        assertEq(
-            uint256(OPTIMIZED_FACTORY.codehash),
-            uint256(0x7da98e58c4e0384abefeacd4495ac7475915edbb21791dad7f368f48154c5932)
-        );
-
-        SinjohFeeRouterFactory factory = SinjohFeeRouterFactory(OPTIMIZED_FACTORY);
-        assertEq(factory.implementation(), OPTIMIZED_IMPLEMENTATION);
+        SinjohFeeRouter implementation = new SinjohFeeRouter();
+        SinjohFeeRouterFactory factory = new SinjohFeeRouterFactory(address(implementation));
 
         RouterTypes.Allocation[] memory allocations = new RouterTypes.Allocation[](1);
         allocations[0] = RouterTypes.Allocation({
@@ -126,8 +117,8 @@ contract RobinhoodTestnetFeeRouterForkTest is TestBase {
         });
 
         bytes32 salt = keccak256("optimized-live-factory-fork");
-        address predicted = factory.predictAddress(address(this), salt, config);
-        address deployed = factory.deploy(address(this), salt, config);
+        address predicted = factory.predictPonsAddress(address(this), salt);
+        address deployed = factory.deployPons(address(this), salt, config);
         assertEq(deployed, predicted);
         SinjohFeeRouter router = SinjohFeeRouter(payable(deployed));
         assertEq(router.creator(), address(this));
@@ -149,14 +140,33 @@ contract RobinhoodTestnetFeeRouterForkTest is TestBase {
                 }),
                 feeWallet: deployed
             });
-        address subject = pons.launchToken{ value: launchFee + developerBuy }(params, 0, 0, salt);
+        address subject = router.launchPonsToken{ value: launchFee + developerBuy }(
+            PONS_LAUNCH_FACTORY,
+            IPonsV1LaunchFactory.LaunchParams({
+                name: params.name,
+                symbol: params.symbol,
+                logo: params.logo,
+                description: params.description,
+                socials: IPonsV1LaunchFactory.Socials({
+                    twitter: params.socials.twitter,
+                    telegram: params.socials.telegram,
+                    discord: params.socials.discord,
+                    website: params.socials.website,
+                    farcaster: params.socials.farcaster
+                }),
+                feeWallet: params.feeWallet
+            }),
+            0,
+            0,
+            salt
+        );
         assertTrue(subject.code.length != 0);
-
-        uint256 launchBuyAmount = IERC20CurrentFork(subject).balanceOf(deployed);
-        assertTrue(launchBuyAmount > 1);
-        router.bindAndSendLaunchBuy(subject, launchBuyAmount);
         assertEq(router.subject(), subject);
         assertTrue(router.bound());
+        assertEq(router.ponsLaunchFactory(), PONS_LAUNCH_FACTORY);
+        assertEq(router.ponsLocker(), pons.locker());
+        router.collectPonsFees();
+        (, uint256 collectedFeeProtocol) = router.sync(PONS_WETH);
 
         IERC20CurrentFork subjectToken = IERC20CurrentFork(subject);
         uint256 subjectBalance = subjectToken.balanceOf(address(this));
@@ -173,7 +183,7 @@ contract RobinhoodTestnetFeeRouterForkTest is TestBase {
         assertEq(router.walletOwed(address(this), PONS_WETH), net);
 
         router.sendWallet(address(this), PONS_WETH, net);
-        router.sendProtocolFee(PONS_WETH, protocolFee);
+        router.sendProtocolFee(PONS_WETH, protocolFee + collectedFeeProtocol);
         assertEq(router.totalLiability(PONS_WETH), 0);
         assertEq(IERC20CurrentFork(PONS_WETH).balanceOf(deployed), 0);
         assertTrue(IERC20CurrentFork(PONS_WETH).balanceOf(address(this)) > 0);

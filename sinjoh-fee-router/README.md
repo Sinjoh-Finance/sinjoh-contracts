@@ -22,27 +22,34 @@ forge build --sizes
 
 ## Robinhood testnet deployment
 
-The deployment script accepts the key only through the process environment, verifies
-chain ID `46630`, verifies the expected deployer address, and deploys the shared
-swap adapter, nonblocking testnet liquidity guard, router implementation, and
-factory.
+The router-owned Pons deployment script accepts the key only through the process
+environment, verifies chain ID `46630`, verifies the expected deployer address,
+and deploys the router implementation and deterministic factory.
 
 ```sh
-DEPLOYER_PRIVATE_KEY=... forge script script/DeployFeeRouter.s.sol:DeployFeeRouter \
+DEPLOYER_PRIVATE_KEY=... forge script \
+  script/DeployRouterOwnedPons.s.sol:DeployRouterOwnedPons \
   --rpc-url https://rpc.testnet.chain.robinhood.com \
   --broadcast
 ```
 
-Router clones are deployed later from per-launch configurations. The launch UI
-installs each clone as the original Pons fee wallet and binds the launched token
-after the launch transaction confirms.
+For new launches the UI predicts the clone without needing the future subject
+address, deploys it with `deployPons`, and calls `launchPonsToken` on the clone.
+Pons therefore records the router as both deployer and fee wallet. The router
+binds the returned subject and sends any developer-buy output to its configured
+Sinjoh creator in the same transaction.
 
-The repeatable live flow exercises WETH, native ETH, buyback, another token,
-RWA, wallet sends, burns, airdrop funding, and permanent LP:
+`collectPonsFees` is permissionless. Pons authorizes it because the call reaches
+the locker from the router that deployed the token; proceeds can only enter that
+same immutable router.
+
+The focused live flow exercises router creation, Pons launch, developer-buy
+delivery, Pons fee collection, subject-to-WETH normalization, routing, wallet
+delivery, and protocol-fee delivery:
 
 ```sh
 DEPLOYER_PRIVATE_KEY=... forge script \
-  script/TestnetSimpleFlow.s.sol:TestnetSimpleFlow \
+  script/RunRouterOwnedPonsEndToEnd.s.sol:RunRouterOwnedPonsEndToEnd \
   --rpc-url https://rpc.testnet.chain.robinhood.com \
-  --broadcast --slow --gas-estimate-multiplier 200
+  --broadcast --gas-estimate-multiplier 200
 ```
