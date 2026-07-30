@@ -20,7 +20,7 @@ interface ISingletonFactory {
 /// @notice Idempotently deploys the reviewed execution factory at the same
 /// address on every chain where the EIP-2470 singleton factory is installed.
 contract DeployV3ExecutionFactory {
-    uint256 internal constant ROBINHOOD_TESTNET_CHAIN_ID = 46_630;
+    uint256 internal constant ROBINHOOD_MAINNET_CHAIN_ID = 4_663;
     address internal constant SINGLETON_FACTORY = 0xce0042B868300000d44A59004Da54A005ffdcf9f;
     bytes32 internal constant SINGLETON_FACTORY_CODE_HASH =
         0xc4d5542b53a8b779595a20a8ddd60e58a6c49d3c3decc2df83ced1c69c8ca807;
@@ -39,7 +39,7 @@ contract DeployV3ExecutionFactory {
     error DeploymentFailed(address expected, address actual);
 
     function run() external returns (SinjohV3ExecutionFactory executionFactory) {
-        if (block.chainid != ROBINHOOD_TESTNET_CHAIN_ID) {
+        if (block.chainid != ROBINHOOD_MAINNET_CHAIN_ID) {
             revert WrongChain(block.chainid);
         }
         _assertHash(SINGLETON_FACTORY, SINGLETON_FACTORY_CODE_HASH);

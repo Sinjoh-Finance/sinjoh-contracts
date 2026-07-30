@@ -12,11 +12,11 @@ interface VmPonsLiquidity {
 }
 
 contract DeployPonsLiquidityManager {
-    uint256 internal constant ROBINHOOD_TESTNET_CHAIN_ID = 46_630;
+    uint256 internal constant ROBINHOOD_MAINNET_CHAIN_ID = 4_663;
     address internal constant EXPECTED_DEPLOYER = 0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49;
 
-    address internal constant PONS_V3_FACTORY = 0xFECCB63CD759d768538458Ea56F47eA8004323c1;
-    address internal constant PONS_V3_POSITION_MANAGER = 0xBc82a9aA33ff24FCd56D36a0fB0a2105B193A327;
+    address internal constant PONS_V3_FACTORY = 0x1f7d7550B1b028f7571E69A784071F0205FD2EfA;
+    address internal constant PONS_V3_POSITION_MANAGER = 0x73991a25C818Bf1f1128dEAaB1492D45638DE0D3;
     address internal constant V4_POSITION_MANAGER = 0x58daec3116aae6D93017bAAea7749052E8a04fA7;
     address internal constant V4_STATE_VIEW = 0xF3334192D15450CdD385c8B70e03f9A6bD9E673b;
     address internal constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
@@ -42,7 +42,7 @@ contract DeployPonsLiquidityManager {
     error DeploymentFailed();
 
     function run() external returns (SinjohLiquidityManager manager) {
-        if (block.chainid != ROBINHOOD_TESTNET_CHAIN_ID) {
+        if (block.chainid != ROBINHOOD_MAINNET_CHAIN_ID) {
             revert WrongChain(block.chainid);
         }
         _assertHash(PONS_V3_FACTORY, PONS_V3_FACTORY_HASH);

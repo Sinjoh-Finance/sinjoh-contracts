@@ -11,15 +11,15 @@ interface Vm {
 }
 
 contract DeployPonsV1AdapterFactory {
-    uint256 internal constant ROBINHOOD_TESTNET_CHAIN_ID = 46_630;
+    uint256 internal constant ROBINHOOD_MAINNET_CHAIN_ID = 4_663;
     address internal constant EXPECTED_DEPLOYER = 0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49;
 
-    address internal constant PONS_V1_LOCKER = 0x9E18AFba6eADDC1A00Edd35FB7AB6C5CD1E1dEE0;
-    address internal constant WETH = 0x37E402B8081eFcE1D82A09a066512278006e4691;
+    address internal constant PONS_V1_LOCKER = 0x736D76699C26D0d966744cAe304C000d471f7F35;
+    address internal constant WETH = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
     bytes32 internal constant PONS_V1_LOCKER_HASH =
-        0xc98810d63174049c9debaab082a05f52ff16b6df65781dda07cc95d85a34730c;
+        0xa7880a625a649da833de5597c9f41585bb75e20ef91d45830ccc6f4e49cc281c;
     bytes32 internal constant WETH_HASH =
-        0xa7f01c02394c333cc82f3236a0212384759ac2b0a4b982db822e3ff691e6567d;
+        0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353;
 
     Vm internal constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
@@ -29,7 +29,7 @@ contract DeployPonsV1AdapterFactory {
     error DeploymentFailed();
 
     function run() external returns (SinjohPonsV1AdapterFactory factory) {
-        if (block.chainid != ROBINHOOD_TESTNET_CHAIN_ID) {
+        if (block.chainid != ROBINHOOD_MAINNET_CHAIN_ID) {
             revert WrongChain(block.chainid);
         }
         _assertHash(PONS_V1_LOCKER, PONS_V1_LOCKER_HASH);

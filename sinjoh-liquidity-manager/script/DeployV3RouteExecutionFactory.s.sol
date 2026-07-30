@@ -23,7 +23,7 @@ interface ISingletonFactoryRoute {
 /// takes it as a constructor argument. Re-running after a successful
 /// deployment submits no transaction and only re-verifies the addresses.
 contract DeployV3RouteExecutionFactory {
-    uint256 internal constant ROBINHOOD_TESTNET_CHAIN_ID = 46_630;
+    uint256 internal constant ROBINHOOD_MAINNET_CHAIN_ID = 4_663;
     uint256 internal constant EIP170_LIMIT = 24_576;
     address internal constant SINGLETON_FACTORY = 0xce0042B868300000d44A59004Da54A005ffdcf9f;
     bytes32 internal constant SINGLETON_FACTORY_CODE_HASH =
@@ -54,7 +54,7 @@ contract DeployV3RouteExecutionFactory {
         external
         returns (SinjohV3RouteGuardDeployer guardDeployer, SinjohV3RouteExecutionFactory factory)
     {
-        if (block.chainid != ROBINHOOD_TESTNET_CHAIN_ID) {
+        if (block.chainid != ROBINHOOD_MAINNET_CHAIN_ID) {
             revert WrongChain(block.chainid);
         }
         _assertHash(SINGLETON_FACTORY, SINGLETON_FACTORY_CODE_HASH);

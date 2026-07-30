@@ -14,10 +14,10 @@ interface Vm {
 }
 
 contract DeployFeeRouter {
-    uint256 internal constant ROBINHOOD_TESTNET_CHAIN_ID = 46_630;
+    uint256 internal constant ROBINHOOD_MAINNET_CHAIN_ID = 4_663;
     address internal constant EXPECTED_DEPLOYER = 0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49;
-    address internal constant PONS_SWAP_ROUTER = 0x1b32F47434a7EF83E97d0675C823E547F9266725;
-    address internal constant PONS_WETH = 0x37E402B8081eFcE1D82A09a066512278006e4691;
+    address internal constant PONS_SWAP_ROUTER = 0xCaf681a66D020601342297493863E78C959E5cb2;
+    address internal constant PONS_WETH = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
 
     Vm internal constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
@@ -34,7 +34,7 @@ contract DeployFeeRouter {
             SinjohTestnetPriceGuard priceGuard
         )
     {
-        if (block.chainid != ROBINHOOD_TESTNET_CHAIN_ID) {
+        if (block.chainid != ROBINHOOD_MAINNET_CHAIN_ID) {
             revert WrongChain(block.chainid);
         }
 

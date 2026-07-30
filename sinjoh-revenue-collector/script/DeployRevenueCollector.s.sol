@@ -11,7 +11,7 @@ interface Vm {
 }
 
 contract DeployRevenueCollector {
-    uint256 internal constant ROBINHOOD_TESTNET_CHAIN_ID = 46_630;
+    uint256 internal constant ROBINHOOD_MAINNET_CHAIN_ID = 4_663;
     address internal constant EXPECTED_DEPLOYER = 0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49;
     address internal constant GOVERNANCE = 0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f;
     address internal constant INITIAL_PROCESSOR = GOVERNANCE;
@@ -27,7 +27,7 @@ contract DeployRevenueCollector {
     error DeploymentFailed();
 
     function run() external returns (SinjohRevenueCollector collector) {
-        if (block.chainid != ROBINHOOD_TESTNET_CHAIN_ID) {
+        if (block.chainid != ROBINHOOD_MAINNET_CHAIN_ID) {
             revert WrongChain(block.chainid);
         }
         if (ARBSYS.codehash != ARBSYS_MARKER_HASH) revert InvalidArbSys();

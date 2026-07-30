@@ -12,7 +12,7 @@ interface Vm {
 }
 
 contract DeployAirdropDistributor {
-    uint256 internal constant ROBINHOOD_TESTNET_CHAIN_ID = 46_630;
+    uint256 internal constant ROBINHOOD_MAINNET_CHAIN_ID = 4_663;
     address internal constant EXPECTED_DEPLOYER = 0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49;
     address internal constant ARBSYS = address(0x64);
     bytes32 internal constant ARBSYS_MARKER_HASH =
@@ -27,7 +27,7 @@ contract DeployAirdropDistributor {
     error DeploymentFailed();
 
     function run() external returns (SinjohAirdropDistributor distributor) {
-        if (block.chainid != ROBINHOOD_TESTNET_CHAIN_ID) {
+        if (block.chainid != ROBINHOOD_MAINNET_CHAIN_ID) {
             revert WrongChain(block.chainid);
         }
         // Orbit exposes ArbSys through a 0xfe marker that Foundry cannot execute locally.

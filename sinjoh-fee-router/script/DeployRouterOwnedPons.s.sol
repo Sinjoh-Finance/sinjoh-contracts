@@ -12,7 +12,7 @@ interface VmRouterOwnedPons {
 }
 
 contract DeployRouterOwnedPons {
-    uint256 internal constant ROBINHOOD_TESTNET_CHAIN_ID = 46_630;
+    uint256 internal constant ROBINHOOD_MAINNET_CHAIN_ID = 4_663;
     address internal constant EXPECTED_DEPLOYER = 0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49;
 
     VmRouterOwnedPons internal constant vm =
@@ -26,7 +26,7 @@ contract DeployRouterOwnedPons {
         external
         returns (SinjohFeeRouter implementation, SinjohFeeRouterFactory factory)
     {
-        if (block.chainid != ROBINHOOD_TESTNET_CHAIN_ID) {
+        if (block.chainid != ROBINHOOD_MAINNET_CHAIN_ID) {
             revert WrongChain(block.chainid);
         }
 
