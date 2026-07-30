@@ -2,8 +2,9 @@
 pragma solidity 0.8.28;
 
 import { Create2 } from "@openzeppelin/contracts/utils/Create2.sol";
+import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 
-import { SinjohUniswapV3SwapAdapter } from "./SinjohUniswapV3SwapAdapter.sol";
+import { SinjohUniswapV3SwapAdapterClone } from "./SinjohUniswapV3SwapAdapterClone.sol";
 import { SinjohV3TwapPriceGuard } from "./SinjohV3TwapPriceGuard.sol";
 
 /// @notice Deterministically deploys immutable V3 execution dependencies before
@@ -11,6 +12,8 @@ import { SinjohV3TwapPriceGuard } from "./SinjohV3TwapPriceGuard.sol";
 contract SinjohV3ExecutionFactory {
     error InvalidCreator();
     error ActivationFailed(address dependency, bytes reason);
+
+    address public immutable swapAdapterImplementation;
 
     struct V3RouteConfig {
         address router;
@@ -42,6 +45,10 @@ contract SinjohV3ExecutionFactory {
         bytes32 derivedSalt,
         bool created
     );
+
+    constructor() {
+        swapAdapterImplementation = address(new SinjohUniswapV3SwapAdapterClone());
+    }
 
     /// @notice Activates a set of immutable execution dependencies in one transaction.
     /// @dev Already-active dependencies are skipped so the operation is resumable.
@@ -122,10 +129,10 @@ contract SinjohV3ExecutionFactory {
         );
         bool created;
         if (adapter.code.length == 0) {
-            adapter = address(
-                new SinjohUniswapV3SwapAdapter{ salt: salt }(
-                    router, factory, pool, assetIn, assetOut, poolFee
-                )
+            adapter = Clones.cloneDeterministicWithImmutableArgs(
+                swapAdapterImplementation,
+                _swapAdapterArgs(router, factory, pool, assetIn, assetOut, poolFee),
+                salt
             );
             created = true;
         }
@@ -145,13 +152,12 @@ contract SinjohV3ExecutionFactory {
         if (creator == address(0)) revert InvalidCreator();
         bytes32 salt =
             _swapSalt(creator, userSalt, router, factory, pool, assetIn, assetOut, poolFee);
-        bytes32 initCodeHash = keccak256(
-            abi.encodePacked(
-                type(SinjohUniswapV3SwapAdapter).creationCode,
-                abi.encode(router, factory, pool, assetIn, assetOut, poolFee)
-            )
+        return Clones.predictDeterministicAddressWithImmutableArgs(
+            swapAdapterImplementation,
+            _swapAdapterArgs(router, factory, pool, assetIn, assetOut, poolFee),
+            salt,
+            address(this)
         );
-        return _create2Address(salt, initCodeHash);
     }
 
     function deployPriceGuard(
@@ -296,6 +302,17 @@ contract SinjohV3ExecutionFactory {
                 block.chainid, creator, userSalt, router, factory, pool, assetIn, assetOut, poolFee
             )
         );
+    }
+
+    function _swapAdapterArgs(
+        address router,
+        address factory,
+        address pool,
+        address assetIn,
+        address assetOut,
+        uint24 poolFee
+    ) private pure returns (bytes memory) {
+        return abi.encode(router, factory, pool, assetIn, assetOut, poolFee);
     }
 
     function _guardSalt(

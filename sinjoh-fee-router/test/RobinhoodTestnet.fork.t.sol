@@ -32,8 +32,45 @@ interface IPonsLockerFinalFork {
     function feeRedirects(address subject) external view returns (address);
 }
 
+interface IPonsLaunchFactoryCurrentFork {
+    struct Socials {
+        string twitter;
+        string telegram;
+        string discord;
+        string website;
+        string farcaster;
+    }
+
+    struct LaunchParams {
+        string name;
+        string symbol;
+        string logo;
+        string description;
+        Socials socials;
+        address feeWallet;
+    }
+
+    function launchFee() external view returns (uint256);
+
+    function launchToken(
+        LaunchParams calldata params,
+        uint256 launchConfigId,
+        uint256 dexId,
+        bytes32 salt
+    ) external payable returns (address token);
+}
+
+interface IERC20CurrentFork {
+    function balanceOf(address account) external view returns (uint256);
+    function transfer(address recipient, uint256 amount) external returns (bool);
+}
+
 contract RobinhoodTestnetFeeRouterForkTest is TestBase {
     uint256 internal constant ROBINHOOD_TESTNET_CHAIN_ID = 46_630;
+    address internal constant OPTIMIZED_IMPLEMENTATION = 0xe5B3b007BB6ed057A1AA8746819435867fd88A3A;
+    address internal constant OPTIMIZED_FACTORY = 0x014BA12C441069a4D73D50EBBe41F0391DF84e1F;
+    address internal constant SIMPLE_SWAP_ADAPTER = 0x1D5a12305F8cb32537F3A710806C159F24231aCe;
+    address internal constant PONS_LAUNCH_FACTORY = 0x1160351B42ac027b9dFd3BFC497ee8985912c9dc;
     address internal constant SJTEST = 0x690caA9c7FF95e01d470Ec60Ed6aD57d794a38F5;
     address internal constant PONS_WETH = 0x37E402B8081eFcE1D82A09a066512278006e4691;
     address internal constant PONS_LOCKER = 0x9E18AFba6eADDC1A00Edd35FB7AB6C5CD1E1dEE0;
@@ -49,6 +86,98 @@ contract RobinhoodTestnetFeeRouterForkTest is TestBase {
         0xdd04dd181cd12470d3e7259346c30c3c50117aeeabcf316ea4515d5d93536f99;
     bytes32 internal constant LIQUIDITY_ACCOUNT =
         0x35461c7425c0ac823a01b1e35a362c4c90821e55bb9745bbea2ab877bebf382c;
+
+    function testForkOptimizedFactoryDeploysCurrentRouterConfig() public {
+        if (block.chainid != ROBINHOOD_TESTNET_CHAIN_ID) return;
+
+        assertEq(
+            uint256(OPTIMIZED_IMPLEMENTATION.codehash),
+            uint256(0x0ca54e5aa03dd3fe49f90977cbc8db51c6a6de5fa5460a9bb155423b5dedaf61)
+        );
+        assertEq(
+            uint256(OPTIMIZED_FACTORY.codehash),
+            uint256(0x7da98e58c4e0384abefeacd4495ac7475915edbb21791dad7f368f48154c5932)
+        );
+
+        SinjohFeeRouterFactory factory = SinjohFeeRouterFactory(OPTIMIZED_FACTORY);
+        assertEq(factory.implementation(), OPTIMIZED_IMPLEMENTATION);
+
+        RouterTypes.Allocation[] memory allocations = new RouterTypes.Allocation[](1);
+        allocations[0] = RouterTypes.Allocation({
+            destination: address(this),
+            bps: 10_000,
+            isSink: false,
+            creatorMayRepoint: true,
+            sinkConfig: ""
+        });
+        RouterTypes.Bucket[] memory buckets = new RouterTypes.Bucket[](1);
+        buckets[0] = RouterTypes.Bucket({
+            output: RouterTypes.AssetRef(RouterTypes.AssetKind.FIXED_ERC20, PONS_WETH),
+            bps: 10_000,
+            route: RouterTypes.Route(address(0), ""),
+            allocations: allocations
+        });
+        RouterTypes.Config memory config = RouterTypes.Config({
+            creator: address(this),
+            protocolFeeRecipient: REVENUE_COLLECTOR,
+            weth: PONS_WETH,
+            subjectToWeth: RouterTypes.Route(SIMPLE_SWAP_ADAPTER, abi.encode(uint24(10_000))),
+            buckets: buckets
+        });
+
+        bytes32 salt = keccak256("optimized-live-factory-fork");
+        address predicted = factory.predictAddress(address(this), salt, config);
+        address deployed = factory.deploy(address(this), salt, config);
+        assertEq(deployed, predicted);
+        SinjohFeeRouter router = SinjohFeeRouter(payable(deployed));
+        assertEq(router.creator(), address(this));
+        assertEq(router.weth(), PONS_WETH);
+        assertEq(router.bucketCount(), 1);
+
+        IPonsLaunchFactoryCurrentFork pons = IPonsLaunchFactoryCurrentFork(PONS_LAUNCH_FACTORY);
+        uint256 launchFee = pons.launchFee();
+        uint256 developerBuy = 0.00005 ether;
+        vm.deal(address(this), launchFee + developerBuy);
+        IPonsLaunchFactoryCurrentFork.LaunchParams memory params =
+            IPonsLaunchFactoryCurrentFork.LaunchParams({
+                name: "Optimized Router Fork Test",
+                symbol: "ORFT",
+                logo: "",
+                description: "Current Sinjoh router-first launch flow",
+                socials: IPonsLaunchFactoryCurrentFork.Socials({
+                    twitter: "", telegram: "", discord: "", website: "", farcaster: ""
+                }),
+                feeWallet: deployed
+            });
+        address subject = pons.launchToken{ value: launchFee + developerBuy }(params, 0, 0, salt);
+        assertTrue(subject.code.length != 0);
+
+        uint256 launchBuyAmount = IERC20CurrentFork(subject).balanceOf(deployed);
+        assertTrue(launchBuyAmount > 1);
+        router.bindAndSendLaunchBuy(subject, launchBuyAmount);
+        assertEq(router.subject(), subject);
+        assertTrue(router.bound());
+
+        IERC20CurrentFork subjectToken = IERC20CurrentFork(subject);
+        uint256 subjectBalance = subjectToken.balanceOf(address(this));
+        assertTrue(subjectBalance > 1);
+        uint256 amountToNormalize = subjectBalance / 2;
+        assertTrue(subjectToken.transfer(deployed, amountToNormalize));
+
+        (uint256 gross, uint256 protocolFee) = router.sync(subject);
+        assertEq(gross, amountToNormalize);
+        assertTrue(protocolFee > 0);
+        uint256 net = router.bucketInputOwed(0, PONS_WETH);
+        assertTrue(net > protocolFee);
+        assertEq(router.processBucket(0, PONS_WETH, net, 0, ""), net);
+        assertEq(router.walletOwed(address(this), PONS_WETH), net);
+
+        router.sendWallet(address(this), PONS_WETH, net);
+        router.sendProtocolFee(PONS_WETH, protocolFee);
+        assertEq(router.totalLiability(PONS_WETH), 0);
+        assertEq(IERC20CurrentFork(PONS_WETH).balanceOf(deployed), 0);
+        assertTrue(IERC20CurrentFork(PONS_WETH).balanceOf(address(this)) > 0);
+    }
 
     function testForkDeploysImplementationAndFactory() public {
         if (block.chainid != ROBINHOOD_TESTNET_CHAIN_ID) return;

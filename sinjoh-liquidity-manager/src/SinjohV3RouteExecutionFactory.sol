@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { SinjohUniswapV3MultiHopSwapAdapter } from "./SinjohUniswapV3MultiHopSwapAdapter.sol";
-import { SinjohUniswapV3SwapAdapter } from "./SinjohUniswapV3SwapAdapter.sol";
+import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
+
+import {
+    SinjohUniswapV3MultiHopSwapAdapterClone
+} from "./SinjohUniswapV3MultiHopSwapAdapterClone.sol";
+import { SinjohUniswapV3SwapAdapterClone } from "./SinjohUniswapV3SwapAdapterClone.sol";
 import { SinjohV3RouteGuardDeployer } from "./SinjohV3RouteGuardDeployer.sol";
 import { SinjohV3RouteTwapPriceGuard } from "./SinjohV3RouteTwapPriceGuard.sol";
 
@@ -24,12 +28,16 @@ contract SinjohV3RouteExecutionFactory {
     /// Carrying the adapters and the guard together exceeded EIP-170, so guards
     /// come from a companion deployer fixed at construction.
     SinjohV3RouteGuardDeployer public immutable guardDeployer;
+    address public immutable multiHopAdapterImplementation;
+    address public immutable swapAdapterImplementation;
 
     constructor(address guardDeployer_) {
         if (guardDeployer_ == address(0) || guardDeployer_.code.length == 0) {
             revert InvalidGuardDeployer();
         }
         guardDeployer = SinjohV3RouteGuardDeployer(guardDeployer_);
+        multiHopAdapterImplementation = address(new SinjohUniswapV3MultiHopSwapAdapterClone());
+        swapAdapterImplementation = address(new SinjohUniswapV3SwapAdapterClone());
     }
 
     /// @param subjectPool The subject/quote pool created by the launchpad.
@@ -74,6 +82,7 @@ contract SinjohV3RouteExecutionFactory {
         bytes32 derivedSalt,
         bool created
     );
+
     /// @notice The canonical `routeData` for a direct single-hop conversion.
     /// @dev One zero sqrt-price limit, meaning the router's full valid range.
     function directRouteData() public pure returns (bytes memory) {
@@ -114,8 +123,7 @@ contract SinjohV3RouteExecutionFactory {
         _validateRoute(route);
 
         dependencies.subjectAdapter = deployMultiHopAdapter(creator, userSalt, route);
-        dependencies.subjectGuard =
-            deployRouteGuard(creator, userSalt, _subjectGuardConfig(route));
+        dependencies.subjectGuard = deployRouteGuard(creator, userSalt, _subjectGuardConfig(route));
         dependencies.quoteAdapter = deploySwapAdapter(
             creator,
             userSalt,
@@ -138,8 +146,7 @@ contract SinjohV3RouteExecutionFactory {
         _validateRoute(route);
 
         dependencies.subjectAdapter = predictMultiHopAdapter(creator, userSalt, route);
-        dependencies.subjectGuard =
-            predictRouteGuard(creator, userSalt, _subjectGuardConfig(route));
+        dependencies.subjectGuard = predictRouteGuard(creator, userSalt, _subjectGuardConfig(route));
         dependencies.quoteAdapter = predictSwapAdapter(
             creator,
             userSalt,
@@ -162,47 +169,26 @@ contract SinjohV3RouteExecutionFactory {
         adapter = predictMultiHopAdapter(creator, userSalt, route);
         bool created;
         if (adapter.code.length == 0) {
-            adapter = address(
-                new SinjohUniswapV3MultiHopSwapAdapter{ salt: salt }(
-                    route.router,
-                    route.factory,
-                    route.subjectPool,
-                    route.assetPool,
-                    route.subject,
-                    route.quoteAsset,
-                    route.asset,
-                    route.subjectPoolFee,
-                    route.assetPoolFee
-                )
+            adapter = Clones.cloneDeterministicWithImmutableArgs(
+                multiHopAdapterImplementation, _multiHopAdapterArgs(route), salt
             );
             created = true;
         }
         emit MultiHopAdapterDeployed(adapter, creator, userSalt, salt, created);
     }
 
-    function predictMultiHopAdapter(
-        address creator,
-        bytes32 userSalt,
-        AssetRoute calldata route
-    ) public view returns (address) {
+    function predictMultiHopAdapter(address creator, bytes32 userSalt, AssetRoute calldata route)
+        public
+        view
+        returns (address)
+    {
         if (creator == address(0)) revert InvalidCreator();
-        bytes32 initCodeHash = keccak256(
-            abi.encodePacked(
-                type(SinjohUniswapV3MultiHopSwapAdapter).creationCode,
-                abi.encode(
-                    route.router,
-                    route.factory,
-                    route.subjectPool,
-                    route.assetPool,
-                    route.subject,
-                    route.quoteAsset,
-                    route.asset,
-                    route.subjectPoolFee,
-                    route.assetPoolFee
-                )
-            )
+        return Clones.predictDeterministicAddressWithImmutableArgs(
+            multiHopAdapterImplementation,
+            _multiHopAdapterArgs(route),
+            _multiHopSalt(creator, userSalt, route),
+            address(this)
         );
-        return _create2Address(_multiHopSalt(creator, userSalt, route), initCodeHash);
     }
 
     function deploySwapAdapter(
@@ -223,10 +209,10 @@ contract SinjohV3RouteExecutionFactory {
         );
         bool created;
         if (adapter.code.length == 0) {
-            adapter = address(
-                new SinjohUniswapV3SwapAdapter{ salt: salt }(
-                    router, factory, pool, assetIn, assetOut, poolFee
-                )
+            adapter = Clones.cloneDeterministicWithImmutableArgs(
+                swapAdapterImplementation,
+                _swapAdapterArgs(router, factory, pool, assetIn, assetOut, poolFee),
+                salt
             );
             created = true;
         }
@@ -244,15 +230,11 @@ contract SinjohV3RouteExecutionFactory {
         uint24 poolFee
     ) public view returns (address) {
         if (creator == address(0)) revert InvalidCreator();
-        bytes32 initCodeHash = keccak256(
-            abi.encodePacked(
-                type(SinjohUniswapV3SwapAdapter).creationCode,
-                abi.encode(router, factory, pool, assetIn, assetOut, poolFee)
-            )
-        );
-        return _create2Address(
+        return Clones.predictDeterministicAddressWithImmutableArgs(
+            swapAdapterImplementation,
+            _swapAdapterArgs(router, factory, pool, assetIn, assetOut, poolFee),
             _swapSalt(creator, userSalt, router, factory, pool, assetIn, assetOut, poolFee),
-            initCodeHash
+            address(this)
         );
     }
 
@@ -372,6 +354,31 @@ contract SinjohV3RouteExecutionFactory {
                 block.chainid, creator, userSalt, router, factory, pool, assetIn, assetOut, poolFee
             )
         );
+    }
+
+    function _multiHopAdapterArgs(AssetRoute calldata route) private pure returns (bytes memory) {
+        return abi.encode(
+            route.router,
+            route.factory,
+            route.subjectPool,
+            route.assetPool,
+            route.subject,
+            route.quoteAsset,
+            route.asset,
+            route.subjectPoolFee,
+            route.assetPoolFee
+        );
+    }
+
+    function _swapAdapterArgs(
+        address router,
+        address factory,
+        address pool,
+        address assetIn,
+        address assetOut,
+        uint24 poolFee
+    ) private pure returns (bytes memory) {
+        return abi.encode(router, factory, pool, assetIn, assetOut, poolFee);
     }
 
     function _create2Address(bytes32 salt, bytes32 initCodeHash) private view returns (address) {

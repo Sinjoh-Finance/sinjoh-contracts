@@ -1,0 +1,71 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ethereum/clear-signing-erc7730-registry/master/specs/erc7730-v2.schema.json",
+  "context": {
+    "$id": "SinjohLaunchAuthorization",
+    "eip712": {
+      "deployments": [
+        {
+          "chainId": 46630,
+          "address": "0x1160351B42ac027b9dFd3BFC497ee8985912c9dc"
+        }
+      ],
+      "domain": {
+        "name": "Sinjoh Launch",
+        "version": "1",
+        "chainId": 46630,
+        "verifyingContract": "0x1160351B42ac027b9dFd3BFC497ee8985912c9dc"
+      }
+    }
+  },
+  "metadata": {
+    "owner": "Sinjoh",
+    "contractName": "Sinjoh Launch Authorization",
+    "info": {
+      "url": "https://sinjoh-ui.vercel.app"
+    }
+  },
+  "display": {
+    "formats": {
+      "LaunchAuthorization(string action,address wallet,string tokenName,string tokenSymbol,string artworkSha256,string routingSha256,string expiresAt)": {
+        "$id": "LaunchAuthorization",
+        "intent": "Authorize launch",
+        "interpolatedIntent": "Authorize {tokenSymbol} launch",
+        "fields": [
+          {
+            "path": "action",
+            "label": "Authorization"
+          },
+          {
+            "path": "wallet",
+            "format": "addressName",
+            "label": "Creator wallet",
+            "params": {
+              "types": ["eoa", "contract"],
+              "sources": ["local"]
+            }
+          },
+          {
+            "path": "tokenName",
+            "label": "Token name"
+          },
+          {
+            "path": "tokenSymbol",
+            "label": "Token ticker"
+          },
+          {
+            "path": "artworkSha256",
+            "label": "Artwork fingerprint"
+          },
+          {
+            "path": "routingSha256",
+            "label": "Routing fingerprint"
+          },
+          {
+            "path": "expiresAt",
+            "label": "Expires"
+          }
+        ]
+      }
+    }
+  }
+}

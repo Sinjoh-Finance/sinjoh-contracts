@@ -6,6 +6,8 @@ import { SinjohLiquidityManager } from "../src/SinjohLiquidityManager.sol";
 import { SinjohUniswapV3SwapAdapter } from "../src/SinjohUniswapV3SwapAdapter.sol";
 import { SinjohUniswapV4SwapAdapter } from "../src/SinjohUniswapV4SwapAdapter.sol";
 import { SinjohV3TwapPriceGuard } from "../src/SinjohV3TwapPriceGuard.sol";
+import { SinjohV3ExecutionFactory } from "../src/SinjohV3ExecutionFactory.sol";
+import { SinjohV3RouteExecutionFactory } from "../src/SinjohV3RouteExecutionFactory.sol";
 
 interface IERC20Fork {
     function approve(address spender, uint256 amount) external returns (bool);
@@ -40,6 +42,12 @@ contract RobinhoodTestnetLiquidityForkTest is TestBase {
     address internal constant FINAL_GUARD = 0x11e5A7DcA3A38c466b78945a8EC2b875b951d57B;
     address internal constant FINAL_V3_MANAGER = 0xF9A5808200F41a0a61655CA5C764bEaA637D440D;
     address internal constant FINAL_V4_MANAGER = 0x5be5006a112b6DB96600d1735e3674cB7A210e63;
+    address internal constant OPTIMIZED_EXECUTION_FACTORY =
+        0x1871C61011B39bbc191e4FC898966EEd08d5a554;
+    address internal constant OPTIMIZED_ROUTE_FACTORY =
+        0x3c40C6B72630cdB07EBB5487A38fF0677E1360DB;
+    address internal constant ROUTE_GUARD_DEPLOYER =
+        0xd9A2F73d97fb6EbAe65FEA981afe3BD252C8b530;
     bytes32 internal constant V4_POOL_ID =
         0x8aaa239485403665f7eeff73ca2c23b29d12b7c4fa403ce71ab02625303a02d7;
 
@@ -53,6 +61,26 @@ contract RobinhoodTestnetLiquidityForkTest is TestBase {
         0x7d9c591e0956fd89d98feb4ffcfe8bf1f7a62bd485edd979fa21d104b49878a6;
     bytes32 internal constant PERMIT2_HASH =
         0x0117e0ed818bc3f2a8729ffc336c837e63e965f04b473047b39b35ad86aac259;
+    bytes32 internal constant OPTIMIZED_EXECUTION_FACTORY_HASH =
+        0xe0931d3ae36d840b9bb0e4f550144980f22cb3a188bc8d4439cace1b4273f021;
+    bytes32 internal constant OPTIMIZED_ROUTE_FACTORY_HASH =
+        0x2b20461aeac55f2525e4670c9ec9d463ff1249aa54bb8f018ffa4b28037c0556;
+
+    function testForkOptimizedFactoriesAndImplementations() public {
+        if (block.chainid != ROBINHOOD_TESTNET_CHAIN_ID) return;
+
+        assertTrue(OPTIMIZED_EXECUTION_FACTORY.codehash == OPTIMIZED_EXECUTION_FACTORY_HASH);
+        assertTrue(OPTIMIZED_ROUTE_FACTORY.codehash == OPTIMIZED_ROUTE_FACTORY_HASH);
+
+        SinjohV3ExecutionFactory executionFactory =
+            SinjohV3ExecutionFactory(OPTIMIZED_EXECUTION_FACTORY);
+        SinjohV3RouteExecutionFactory routeFactory =
+            SinjohV3RouteExecutionFactory(OPTIMIZED_ROUTE_FACTORY);
+        assertTrue(executionFactory.swapAdapterImplementation().code.length != 0);
+        assertEq(address(routeFactory.guardDeployer()), ROUTE_GUARD_DEPLOYER);
+        assertTrue(routeFactory.swapAdapterImplementation().code.length != 0);
+        assertTrue(routeFactory.multiHopAdapterImplementation().code.length != 0);
+    }
 
     function testForkDependenciesAndDeployment() public {
         if (block.chainid != ROBINHOOD_TESTNET_CHAIN_ID) return;

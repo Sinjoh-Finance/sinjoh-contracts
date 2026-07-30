@@ -51,6 +51,7 @@ contract SinjohFeeRouter {
         bytes32 configHash
     );
     event SubjectBound(address indexed subject);
+    event LaunchBuyDelivered(address indexed subject, address indexed recipient, uint256 amount);
     event Normalized(
         address indexed inputAsset, uint256 amountIn, uint256 wethOut, address indexed caller
     );
@@ -148,13 +149,36 @@ contract SinjohFeeRouter {
 
     function initialize(RouterTypes.Config calldata config) external {
         if (initialized) revert AlreadyInitialized();
+        bytes memory encodedConfig = abi.encode(config);
+        if (encodedConfig.length > MAX_CONFIG_BYTES) revert ConfigurationTooLarge();
         initialized = true;
         _validateAndStore(config);
-        configHash = keccak256(abi.encode(config));
+        configHash = keccak256(encodedConfig);
         emit Initialized(creator, protocolFeeRecipient, weth, configHash);
     }
 
     function bind(address newSubject) external onlyCreator {
+        _bind(newSubject);
+    }
+
+    /// @notice Binds the launched token and returns Pons's first-buy output to
+    /// the creator in the same transaction.
+    /// @dev Pons sends first-buy tokens to its configured fee wallet. For a
+    /// router-first launch that wallet is this router. The caller supplies the
+    /// exact pool-to-router transfer amount decoded from the launch receipt, so
+    /// any separately accrued creator fees remain available for normal sync.
+    function bindAndSendLaunchBuy(address newSubject, uint256 amount)
+        external
+        onlyCreator
+        nonReentrant
+    {
+        if (amount == 0) revert InvalidAmount();
+        _bind(newSubject);
+        newSubject.safeTransfer(creator, amount);
+        emit LaunchBuyDelivered(newSubject, creator, amount);
+    }
+
+    function _bind(address newSubject) private {
         if (!initialized) revert NotInitialized();
         if (bound) revert AlreadyBound();
         if (newSubject == address(0) || newSubject == weth) revert InvalidAddress();
@@ -423,15 +447,15 @@ contract SinjohFeeRouter {
     }
 
     function _validateAndStore(RouterTypes.Config calldata config) private {
-        if (abi.encode(config).length > MAX_CONFIG_BYTES) revert ConfigurationTooLarge();
         if (
             config.creator == address(0) || config.protocolFeeRecipient == address(0)
                 || config.weth == address(0) || config.creator == address(this)
                 || config.protocolFeeRecipient == address(this) || config.weth == address(this)
         ) revert InvalidAddress();
         if (config.weth.code.length == 0) revert NonContract(config.weth);
-        if (config.buckets.length == 0) revert InvalidConfiguration();
-        if (config.buckets.length > MAX_BUCKETS) revert TooManyItems();
+        uint256 bucketLength = config.buckets.length;
+        if (bucketLength == 0) revert InvalidConfiguration();
+        if (bucketLength > MAX_BUCKETS) revert TooManyItems();
         _validateRoute(config.subjectToWeth, false);
 
         creator = config.creator;
@@ -441,16 +465,16 @@ contract SinjohFeeRouter {
         _subjectToWeth.routeData = config.subjectToWeth.routeData;
 
         uint256 bucketBps;
-        for (uint256 i; i < config.buckets.length; ++i) {
+        for (uint256 i; i < bucketLength; ++i) {
             RouterTypes.Bucket calldata source = config.buckets[i];
             _validateAssetRef(source.output);
             bool identity = source.output.kind == RouterTypes.AssetKind.FIXED_ERC20
                 && source.output.token == config.weth;
             _validateRoute(source.route, identity);
-            if (
-                source.allocations.length == 0
-                    || source.allocations.length > MAX_ALLOCATIONS_PER_BUCKET
-            ) revert InvalidConfiguration();
+            uint256 allocationLength = source.allocations.length;
+            if (allocationLength == 0 || allocationLength > MAX_ALLOCATIONS_PER_BUCKET) {
+                revert InvalidConfiguration();
+            }
 
             _buckets.push();
             BucketStorage storage target = _buckets[_buckets.length - 1];
@@ -484,7 +508,8 @@ contract SinjohFeeRouter {
         RouterTypes.AssetKind outputKind
     ) private {
         uint256 allocationBps;
-        for (uint256 i; i < source.length; ++i) {
+        uint256 allocationLength = source.length;
+        for (uint256 i; i < allocationLength; ++i) {
             RouterTypes.Allocation calldata allocation = source[i];
             if (allocation.destination == address(0) || allocation.destination == address(this)) {
                 revert InvalidAddress();
@@ -537,11 +562,11 @@ contract SinjohFeeRouter {
     function _creditAllocations(uint8 bucketId, address asset, uint256 amount) private {
         BucketStorage storage bucket = _buckets[bucketId];
         uint256 allocated;
-        for (uint256 i; i < bucket.allocations.length; ++i) {
+        uint256 allocationLength = bucket.allocations.length;
+        for (uint256 i; i < allocationLength; ++i) {
             AllocationStorage storage allocation = bucket.allocations[i];
-            uint256 share = i + 1 == bucket.allocations.length
-                ? amount - allocated
-                : amount * allocation.bps / BPS;
+            uint256 share =
+                i + 1 == allocationLength ? amount - allocated : amount * allocation.bps / BPS;
             if (allocation.isSink) {
                 sinkOwed[allocationKey(bucketId, uint8(i))][asset] += share;
             } else {

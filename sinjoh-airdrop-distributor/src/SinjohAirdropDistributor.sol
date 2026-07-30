@@ -303,10 +303,14 @@ contract SinjohAirdropDistributor {
         Account storage account = accounts[id];
         if (!account.configured) revert AccountNotFound();
         EpochCommitment storage commitment = commitments[id][epochId];
-        if (commitment.rootHash == bytes32(0)) revert InvalidEpoch();
+        bytes32 rootHash = commitment.rootHash;
+        if (rootHash == bytes32(0)) revert InvalidEpoch();
+        uint256 rootSum = commitment.rootSum;
+        uint64 snapshotBlock = commitment.snapshotBlock;
 
         uint256 length = leaves.length;
-        if (length == 0 || length > account.maxBatchSize || length != proofs.length) {
+        uint16 maxBatchSize = account.maxBatchSize;
+        if (length == 0 || length > maxBatchSize || length != proofs.length) {
             revert InvalidBatch();
         }
 
@@ -316,15 +320,18 @@ contract SinjohAirdropDistributor {
             if (leaf.holder <= previousHolder) revert InvalidBatch();
             if (isExcluded[id][leaf.holder]) revert ExcludedHolder();
             if (proofs[i].length > MAX_PROOF_LENGTH) revert InvalidProof();
-            if (!_verify(id, epochId, commitment, leaf, proofs[i])) revert InvalidProof();
+            if (!_verify(id, epochId, snapshotBlock, rootHash, rootSum, leaf, proofs[i])) {
+                revert InvalidProof();
+            }
             previousHolder = leaf.holder;
         }
 
+        uint128 minPayout = account.minPayout;
         for (uint256 i; i < length; ++i) {
             Leaf calldata leaf = leaves[i];
             uint256 alreadyPaid = paid[id][leaf.holder];
             if (leaf.cumulativeAmount <= alreadyPaid) continue;
-            if (leaf.cumulativeAmount - alreadyPaid < account.minPayout) continue;
+            if (leaf.cumulativeAmount - alreadyPaid < minPayout) continue;
 
             try this.pay(id, epochId, leaf.holder, leaf.cumulativeAmount) { }
             catch (bytes memory reason) {
@@ -417,14 +424,15 @@ contract SinjohAirdropDistributor {
         bytes32 configHash,
         Config memory config
     ) private {
+        uint256 exclusionLength = config.exclusions.length;
         if (
             config.minPayout == 0 || config.maxBatchSize == 0
                 || config.maxBatchSize > MAX_BATCH_SIZE || config.minConfirmations == 0
-                || config.minConfirmations > 255 || config.exclusions.length > MAX_EXCLUSIONS
+                || config.minConfirmations > 255 || exclusionLength > MAX_EXCLUSIONS
         ) revert InvalidConfiguration();
 
         address previous;
-        for (uint256 i; i < config.exclusions.length; ++i) {
+        for (uint256 i; i < exclusionLength; ++i) {
             address excluded = config.exclusions[i];
             if (excluded == address(0) || excluded <= previous) {
                 revert InvalidConfiguration();
@@ -462,15 +470,16 @@ contract SinjohAirdropDistributor {
     function _verify(
         bytes32 id,
         uint64 epochId,
-        EpochCommitment storage commitment,
+        uint64 snapshotBlock,
+        bytes32 rootHash,
+        uint256 rootSum,
         Leaf calldata leaf,
         ProofElement[] calldata proof
     ) private view returns (bool) {
-        bytes32 hash = leafHash(
-            id, epochId, commitment.snapshotBlock, leaf.holder, leaf.cumulativeAmount
-        );
+        bytes32 hash = leafHash(id, epochId, snapshotBlock, leaf.holder, leaf.cumulativeAmount);
         uint256 sum = leaf.cumulativeAmount;
-        for (uint256 i; i < proof.length; ++i) {
+        uint256 proofLength = proof.length;
+        for (uint256 i; i < proofLength; ++i) {
             ProofElement calldata element = proof[i];
             if (element.siblingIsLeft) {
                 hash = nodeHash(element.siblingHash, element.siblingSum, hash, sum);
@@ -479,7 +488,7 @@ contract SinjohAirdropDistributor {
             }
             sum += element.siblingSum;
         }
-        return hash == commitment.rootHash && sum == commitment.rootSum;
+        return hash == rootHash && sum == rootSum;
     }
 
     function _balance(address asset) private view returns (uint256) {

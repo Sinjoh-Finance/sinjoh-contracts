@@ -26,9 +26,9 @@ contract DeployV3ExecutionFactory {
         0xc4d5542b53a8b779595a20a8ddd60e58a6c49d3c3decc2df83ced1c69c8ca807;
     bytes32 internal constant DEPLOYMENT_SALT =
         0x4b87b4f94b1d880917a66b0d50964b499bd8f5cb7b4c0a46eb56059ab3131301;
-    address internal constant EXPECTED_FACTORY = 0xd6d40c66DC22Fc0CA8216E2bC20dE7473C90846a;
+    address internal constant EXPECTED_FACTORY = 0x1871C61011B39bbc191e4FC898966EEd08d5a554;
     bytes32 internal constant EXPECTED_RUNTIME_CODE_HASH =
-        0x70ec8df3ca6b0d096d66ae675fa7533361c2482c5cae11b1f925fc3a3e963df0;
+        0xe0931d3ae36d840b9bb0e4f550144980f22cb3a188bc8d4439cace1b4273f021;
 
     VmV3ExecutionFactory internal constant vm =
         VmV3ExecutionFactory(address(uint160(uint256(keccak256("hevm cheat code")))));

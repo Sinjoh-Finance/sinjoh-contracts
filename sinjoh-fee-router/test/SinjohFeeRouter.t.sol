@@ -51,6 +51,32 @@ contract SinjohFeeRouterTest is TestBase {
         assertEq(factory.deploy(address(this), bytes32("SECOND"), config), deployed);
     }
 
+    function testBindCanReturnOnlyTheExactPonsLaunchBuyToCreator() public {
+        RouterTypes.Config memory config = _config();
+        SinjohFeeRouter launchRouter =
+            SinjohFeeRouter(payable(factory.deploy(address(this), bytes32("LAUNCH_BUY"), config)));
+        subjectToken.mint(address(launchRouter), 1_500);
+
+        launchRouter.bindAndSendLaunchBuy(address(subjectToken), 1_000);
+
+        assertTrue(launchRouter.bound());
+        assertEq(launchRouter.subject(), address(subjectToken));
+        assertEq(subjectToken.balanceOf(address(this)), 1_000);
+        assertEq(subjectToken.balanceOf(address(launchRouter)), 500);
+
+        weth.mint(address(adapter), 500);
+        launchRouter.sync(address(subjectToken));
+        assertEq(subjectToken.balanceOf(address(launchRouter)), 0);
+    }
+
+    function testBindAndSendLaunchBuyRejectsZeroAmount() public {
+        RouterTypes.Config memory config = _config();
+        SinjohFeeRouter launchRouter =
+            SinjohFeeRouter(payable(factory.deploy(address(this), bytes32("ZERO_BUY"), config)));
+        vm.expectRevert(SinjohFeeRouter.InvalidAmount.selector);
+        launchRouter.bindAndSendLaunchBuy(address(subjectToken), 0);
+    }
+
     function testSubjectIsNormalizedBeforeWethIsSplit() public {
         subjectToken.mint(address(router), 10_000);
         weth.mint(address(adapter), 10_000);

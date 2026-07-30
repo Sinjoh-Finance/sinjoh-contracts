@@ -1,0 +1,39 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ethereum/clear-signing-erc7730-registry/master/specs/erc7730-v2.schema.json",
+  "context": {
+    "$id": "SinjohFeeRouter",
+    "contract": {
+      "deployments": [
+        {
+          "chainId": 46630,
+          "address": "0xd902dC25415b40aAe3BB33a6D88F56257113Acd6"
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "owner": "Sinjoh",
+    "contractName": "Sinjoh Fee Router",
+    "info": {
+      "url": "https://sinjoh-ui.vercel.app"
+    }
+  },
+  "display": {
+    "formats": {
+      "bind(address newSubject)": {
+        "$id": "bind",
+        "intent": "Bind token to fee router",
+        "fields": [
+          {
+            "path": "newSubject",
+            "format": "tokenTicker",
+            "label": "Launched token",
+            "params": {
+              "chainId": 46630
+            }
+          }
+        ]
+      }
+    }
+  }
+}

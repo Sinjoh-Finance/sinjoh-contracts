@@ -1,0 +1,67 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ethereum/clear-signing-erc7730-registry/master/specs/erc7730-v2.schema.json",
+  "context": {
+    "$id": "PonsLaunchFactory",
+    "contract": {
+      "deployments": [
+        {
+          "chainId": 46630,
+          "address": "0x1160351B42ac027b9dFd3BFC497ee8985912c9dc"
+        }
+      ]
+    }
+  },
+  "metadata": {
+    "owner": "Pons",
+    "contractName": "Pons Launch Factory",
+    "info": {
+      "url": "https://sinjoh-ui.vercel.app"
+    }
+  },
+  "display": {
+    "formats": {
+      "launchToken((string name, string symbol, string logo, string description, (string twitter, string telegram, string discord, string website, string farcaster) socials, address feeWallet) params, uint256 launchConfigId, uint256 dexId, bytes32 salt)": {
+        "$id": "launchToken",
+        "intent": "Launch token on Pons",
+        "interpolatedIntent": "Launch {params.symbol} on Pons",
+        "fields": [
+          {
+            "path": "@.value",
+            "format": "amount",
+            "label": "Total ETH sent"
+          },
+          {
+            "path": "params.name",
+            "label": "Token name"
+          },
+          {
+            "path": "params.symbol",
+            "label": "Token ticker"
+          },
+          {
+            "path": "params.feeWallet",
+            "format": "addressName",
+            "label": "Fee router",
+            "params": {
+              "types": ["contract"],
+              "sources": ["local"]
+            }
+          },
+          {
+            "path": "launchConfigId",
+            "label": "Launch config"
+          },
+          {
+            "path": "dexId",
+            "label": "DEX config"
+          },
+          {
+            "path": "salt",
+            "label": "Launch salt",
+            "visible": "never"
+          }
+        ]
+      }
+    }
+  }
+}
