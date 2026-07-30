@@ -4,13 +4,15 @@ pragma solidity 0.8.28;
 import { ISinjohSwapAdapter } from "./interfaces/ISinjohSwapAdapter.sol";
 import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
 
+/// @dev Robinhood Chain mainnet runs SwapRouter02, whose
+/// ExactInputSingleParams has no deadline field. Selector verified against
+/// the deployed router's bytecode and Blockscout-verified source.
 interface ISimpleV3SwapRouter {
     struct ExactInputSingleParams {
         address tokenIn;
         address tokenOut;
         uint24 fee;
         address recipient;
-        uint256 deadline;
         uint256 amountIn;
         uint256 amountOutMinimum;
         uint160 sqrtPriceLimitX96;
@@ -81,7 +83,6 @@ contract SinjohSimpleSwapAdapter is ISinjohSwapAdapter {
                     tokenOut: assetOut,
                     fee: fee,
                     recipient: msg.sender,
-                    deadline: block.timestamp,
                     amountIn: amountIn,
                     amountOutMinimum: minimumAmountOut,
                     sqrtPriceLimitX96: 0

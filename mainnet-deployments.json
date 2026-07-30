@@ -20,11 +20,15 @@
       }
     },
     "simpleSwapAdapter": {
-      "address": "0xc32b2250b26a92f2cbe6388b52d3f9f32e39256c",
-      "deploymentTransaction": "0x38fc04e043135c2027f7c1982409ca3ad9f8ab3f650de0d952c106b32da6fa66",
-      "deploymentBlock": 23491737,
-      "runtimeCodeHash": "0xd457185c00ab376c56abc84aa431c4629ebd8a97974d118ccaa8da44aa9f19e2",
-      "purpose": "Shared direct WETH swap and WETH-to-ETH unwrap adapter."
+      "address": "0xc9F600ebaf9EE1F4a24568D2e4Af9E8df1e07D7B",
+      "deploymentTransaction": "0x76dfd0f6689c47401234604a57dcb8e7591ed1369495ca1ad2bcadcae12d8ac6",
+      "deploymentBlock": 23576389,
+      "runtimeCodeHash": "0x17b8eecc60ff9af5768240b0384e96c4e54fd8611355297e45146303294c6ac6",
+      "purpose": "Shared direct WETH swap and WETH-to-ETH unwrap adapter, SwapRouter02 interface. Verified by live mainnet-fork swaps through fee tiers 10000 and 3000 plus the unwrap path.",
+      "supersedes": {
+        "address": "0xc32b2250b26a92f2cbe6388b52d3f9f32e39256c",
+        "reason": "Spoke the v1 swap-router ABI; mainnet runs SwapRouter02, so every swap reverted. Discovered via the TANM test launch."
+      }
     },
     "feeRouterImplementation": {
       "address": "0x17c76ff58b7da12e116bb22ebdcc7f31cadf9b64",
