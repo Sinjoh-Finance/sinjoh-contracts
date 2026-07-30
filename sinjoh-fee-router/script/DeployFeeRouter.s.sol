@@ -4,7 +4,6 @@ pragma solidity 0.8.28;
 import { SinjohFeeRouter } from "../src/SinjohFeeRouter.sol";
 import { SinjohFeeRouterFactory } from "../src/SinjohFeeRouterFactory.sol";
 import { SinjohSimpleSwapAdapter } from "../src/SinjohSimpleSwapAdapter.sol";
-import { SinjohTestnetPriceGuard } from "../src/SinjohTestnetPriceGuard.sol";
 
 interface Vm {
     function addr(uint256 privateKey) external returns (address);
@@ -30,8 +29,7 @@ contract DeployFeeRouter {
         returns (
             SinjohFeeRouter implementation,
             SinjohFeeRouterFactory factory,
-            SinjohSimpleSwapAdapter swapAdapter,
-            SinjohTestnetPriceGuard priceGuard
+            SinjohSimpleSwapAdapter swapAdapter
         )
     {
         if (block.chainid != ROBINHOOD_MAINNET_CHAIN_ID) {
@@ -44,14 +42,13 @@ contract DeployFeeRouter {
 
         vm.startBroadcast(deployerKey);
         swapAdapter = new SinjohSimpleSwapAdapter(PONS_SWAP_ROUTER, PONS_WETH);
-        priceGuard = new SinjohTestnetPriceGuard();
         implementation = new SinjohFeeRouter();
         factory = new SinjohFeeRouterFactory(address(implementation));
         vm.stopBroadcast();
 
         if (
             address(implementation).code.length == 0 || address(factory).code.length == 0
-                || address(swapAdapter).code.length == 0 || address(priceGuard).code.length == 0
+                || address(swapAdapter).code.length == 0
         ) {
             revert DeploymentFailed();
         }

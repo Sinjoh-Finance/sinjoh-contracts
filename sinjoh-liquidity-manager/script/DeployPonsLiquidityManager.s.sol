@@ -22,15 +22,15 @@ contract DeployPonsLiquidityManager {
     address internal constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
 
     bytes32 internal constant PONS_V3_FACTORY_HASH =
-        0x2b8f65119f8e463cf1391bb1e6484aa0abb829214c5d3d2ff9d2736381824ab6;
+        0xec72b1abd1f2faee020cfea9c646bd8994f9fb389054f6e574f103a895091739;
     bytes32 internal constant PONS_V3_POSITION_MANAGER_HASH =
-        0x87698d4e0834a0d4c80d3c865f0f7d6c659888a6e7f213949506e0cc3e314419;
+        0x0a493d1af3d0f25fed8efa205244ebee14114267a08647fc38c515c7cd6ead4f;
     bytes32 internal constant V4_POSITION_MANAGER_HASH =
-        0xf3a0edb689229fa4bf135a728f2ec2eb4a2fbee2e41e3e74ffadb7b4c56e8a6d;
+        0xc873e135dc9aaec88489cfbad146b4cb49d6a32e0d80326377784b7ba17670b2;
     bytes32 internal constant V4_STATE_VIEW_HASH =
         0x7d9c591e0956fd89d98feb4ffcfe8bf1f7a62bd485edd979fa21d104b49878a6;
     bytes32 internal constant PERMIT2_HASH =
-        0x0117e0ed818bc3f2a8729ffc336c837e63e965f04b473047b39b35ad86aac259;
+        0x5208783f52488f7d3493e5e38311ab707c1d75457fe472a19b0b4d57d66a7fca;
 
     VmPonsLiquidity internal constant vm =
         VmPonsLiquidity(address(uint160(uint256(keccak256("hevm cheat code")))));

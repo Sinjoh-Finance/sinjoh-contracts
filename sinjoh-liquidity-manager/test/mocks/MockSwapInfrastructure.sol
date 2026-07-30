@@ -37,6 +37,13 @@ contract MockV3ExecutionPool {
 
 contract MockV3ExecutionFactory {
     address public pool;
+    mapping(uint24 => int24) public feeAmountTickSpacing;
+
+    constructor() {
+        feeAmountTickSpacing[500] = 10;
+        feeAmountTickSpacing[3_000] = 60;
+        feeAmountTickSpacing[10_000] = 200;
+    }
 
     function setPool(address pool_) external {
         pool = pool_;
@@ -191,8 +198,7 @@ contract MockV3MultiPoolFactory {
     }
 
     function _key(address tokenA, address tokenB, uint24 fee) private pure returns (bytes32) {
-        (address token0, address token1) =
-            tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
+        (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
         return keccak256(abi.encode(token0, token1, fee));
     }
 }
