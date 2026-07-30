@@ -10,3 +10,4 @@
 **/cache/
 **/out/
 supabase/.temp/
+.deployer.env

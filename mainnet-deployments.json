@@ -1,0 +1,95 @@
+{
+  "status": "core-infrastructure-deployed",
+  "releaseCandidate": true,
+  "chainId": 4663,
+  "rpcUrl": "https://rpc.mainnet.chain.robinhood.com",
+  "explorerUrl": "https://robinhoodchain.blockscout.com",
+  "deployer": "0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49",
+  "governance": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f",
+  "deployedAt": "2026-07-30",
+  "currentInfrastructure": {
+    "revenueCollector": {
+      "address": "0x5bb7582557f5be30b62c335ad3ccf4ba79e138c5",
+      "deploymentTransaction": "0x387b2d49c1504c13fd64ceb8d48fe7bf1ad8c14e5c31d85551d33d994d8f75db",
+      "deploymentBlock": 23491477,
+      "runtimeCodeHash": "0x2a2605aed6c20353f19ea155b13605c9730f53b8b0fc9f2c1aea78433654789b",
+      "purpose": "Protocol revenue sink. Owner and initial processor are governance; renounceOwnership permanently disabled.",
+      "verified": {
+        "owner": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f",
+        "processor": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f"
+      }
+    },
+    "simpleSwapAdapter": {
+      "address": "0xc32b2250b26a92f2cbe6388b52d3f9f32e39256c",
+      "deploymentTransaction": "0x38fc04e043135c2027f7c1982409ca3ad9f8ab3f650de0d952c106b32da6fa66",
+      "deploymentBlock": 23491737,
+      "runtimeCodeHash": "0xd457185c00ab376c56abc84aa431c4629ebd8a97974d118ccaa8da44aa9f19e2",
+      "purpose": "Shared direct WETH swap and WETH-to-ETH unwrap adapter."
+    },
+    "feeRouterImplementation": {
+      "address": "0x17c76ff58b7da12e116bb22ebdcc7f31cadf9b64",
+      "deploymentTransaction": "0x8341cb304191aedba9ca661e368c7c5e14046b03fe59ab84ddb6b644610aacd8",
+      "deploymentBlock": 23491737,
+      "runtimeCodeHash": "0xd6f37a88ac47cf7ccedfa73bbb07412b3117282e47f914887e572d893572a9b4",
+      "purpose": "SinjohFeeRouter implementation cloned per launch."
+    },
+    "feeRouterFactory": {
+      "address": "0xfa51e67f799699a237d558f5fbe7b170f8c5584d",
+      "deploymentTransaction": "0xd7dc8d302de47702c1004355631647260e8a1abb96c42b3e911baf7ddeed253b",
+      "deploymentBlock": 23491737,
+      "runtimeCodeHash": "0x0e655836d0b721d90e18f2edd779114908124c116dea9dabf818cf57abea72b4",
+      "purpose": "Deploys per-launch fee router clones.",
+      "verified": {
+        "implementation": "0x17c76Ff58b7Da12E116bb22ebDcc7F31Cadf9B64"
+      }
+    },
+    "priceGuard": {
+      "address": "0xfdd4f594a9f7cd17fee0bbf2859f4eea3265f328",
+      "deploymentTransaction": "0x3ee734cb02785d76f3f2f8a1c3ec91083eaede4262148b41c7f44ab1dced5326",
+      "deploymentBlock": 23492034,
+      "runtimeCodeHash": "0xed01ca68a9705fe3e595e39261a5700dc48593edb08d9737ecc98401cf2e856d",
+      "purpose": "SinjohSharedV3TwapPriceGuard: shared TWAP guard for all launches. 15-min window, 10% max spot deviation, 7.5% max output slippage, 5-min validity, pools must be primed via prime()."
+    },
+    "airdropDistributor": {
+      "address": "0xa1d65242d367501d9a261389a69005e584f4786a",
+      "deploymentTransaction": "0x7d071b39734510141394d82b82fbe90666985a76c67b2f1d7cf4fe4d8702f79a",
+      "deploymentBlock": 23492149,
+      "runtimeCodeHash": "0x75dd6c860a639d0b283f308486fd1c6dafaf9f2e755e078850146cbecea33f7d",
+      "purpose": "Merkle airdrop distributor. Protocol fee recipient is the revenue collector."
+    },
+    "liquidityManagerV3": {
+      "address": "0xf67150fb39e6a9200c06f9f8df589d40c94d79c3",
+      "deploymentTransaction": "0x7ecb3a7dccb615e821f797689014fbbc9891a517a9ff27cb231759467502eb67",
+      "deploymentBlock": 23492375,
+      "runtimeCodeHash": "0x5686b9e5166e3c34a0928b93153a4edead9e8ee95bdc8d31b0f71c6f03ad3789",
+      "purpose": "Single liquidity manager (v3 + v4). DeployPonsLiquidityManager was removed as identical; one instance serves both roles on mainnet."
+    },
+    "ponsAdapterFactory": {
+      "address": "0x22f1755c85febcd486acff07fc5a3f5f60504950",
+      "deploymentTransaction": "0xd5878a1775f92d263c2b8212b40620dc4940b46c5325560f61ea6be1f293d1ca",
+      "deploymentBlock": 23492626,
+      "runtimeCodeHash": "0x3c8f93001da484e96c32e697572fceb65a88ff6f8cc4f65c0a5f280cd2630840",
+      "purpose": "Deploys per-launch Pons v1 adapters. Pinned to mainnet Pons locker and WETH."
+    },
+    "ponsAdapterImplementation": {
+      "address": "0x488b1068D10FBcd49b96A06F7f76A1D2853001A6",
+      "deploymentTransaction": "0xd5878a1775f92d263c2b8212b40620dc4940b46c5325560f61ea6be1f293d1ca",
+      "deploymentBlock": 23492626,
+      "runtimeCodeHash": "0x1524070efa0fec4165da0d894d849925f4e38de401eff724362462201caecd23",
+      "purpose": "SinjohPonsV1Adapter implementation, self-deployed by the adapter factory constructor."
+    }
+  },
+  "notDeployed": {
+    "v3ExecutionFactory": "Optional CREATE2 deployment via EIP-2470, deferred.",
+    "v3RouteExecutionFactory": "Optional CREATE2 deployment via EIP-2470, deferred.",
+    "routerOwnedPons": "Deliberately never deployed: duplicates DeployFeeRouter output."
+  },
+  "dependencies": {
+    "ponsLaunchFactory": "0xA5aAb3F0c6EeadF30Ef1D3Eb997108E976351feB",
+    "ponsLocker": "0x736D76699C26D0d966744cAe304C000d471f7F35",
+    "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+    "v3Factory": "0x1f7d7550B1b028f7571E69A784071F0205FD2EfA",
+    "v3PositionManager": "0x73991a25C818Bf1f1128dEAaB1492D45638DE0D3",
+    "swapRouter": "0xCaf681a66D020601342297493863E78C959E5cb2"
+  }
+}
