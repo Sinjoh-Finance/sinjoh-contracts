@@ -154,11 +154,17 @@ Permissionless. Rules:
 4. `ArbSys.arbBlockHash(requestBlock)` is nonzero;
 5. the entropy is written once and can never be replaced.
 
-**This is the tightest operational deadline in the system.** The 255-block window
-on a fast Orbit chain may be around a minute. A missed window kills the request
-permanently — there is no second entropy source and no way to re-pin it — and the
-consumer falls back to its own timeout. The keeper seals in the block immediately
-following the request.
+**This is the tightest operational deadline in the system, and it is measured, not
+estimated.** Robinhood Chain mainnet produces a block every **0.1004 seconds**,
+averaged over 100,000 blocks, so the 255-block hash window is **about 25.6
+seconds**. A missed window kills the request permanently — there is no second
+entropy source and no way to re-pin it — and the consumer falls back to its own
+timeout.
+
+The keeper must therefore seal in the block immediately following the request,
+which at this cadence is roughly a tenth of a second later. It must not wait on
+anything else first, and a stuck seal transaction must be repriced rather than
+left pending. A request whose seal is late by even half a minute is dead.
 
 Sealing is separate from proving so the deadline applies only to a cheap call that
 anyone can make. Once sealed, the proof may be submitted at any later time with no

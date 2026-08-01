@@ -10,6 +10,16 @@ interface Vm {
     function prank(address sender) external;
     function roll(uint256 newHeight) external;
     function warp(uint256 newTimestamp) external;
+    function createSelectFork(string calldata urlOrAlias) external returns (uint256);
+    function createSelectFork(string calldata urlOrAlias, uint256 blockNumber)
+        external
+        returns (uint256);
+    function envOr(string calldata name, string calldata defaultValue)
+        external
+        returns (string memory);
+    function skip(bool skipTest) external;
+    function label(address account, string calldata newLabel) external;
+    function addr(uint256 privateKey) external pure returns (address);
 }
 
 abstract contract TestBase {

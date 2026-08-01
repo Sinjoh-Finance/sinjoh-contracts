@@ -1,7 +1,7 @@
 # Sinjoh
 
 Sinjoh is immutable launchpad infrastructure for Robinhood Chain, beginning with
-Pons v1. This monorepo contains five independently deployable and auditable
+Pons v1. This monorepo contains seven independently deployable and auditable
 Solidity packages plus the offchain automation package:
 
 | Package | Purpose |
@@ -12,6 +12,8 @@ Solidity packages plus the offchain automation package:
 | [`sinjoh-pons-v1-adapter`](./sinjoh-pons-v1-adapter) | Collects or receives Pons v1 fees and forwards the subject token and WETH to a fixed fee router. |
 | [`sinjoh-revenue-collector`](./sinjoh-revenue-collector) | Provides a stable protocol-revenue endpoint and forwards assets to a governance-selected downstream processor without charging again. |
 | [`sinjoh-keeper`](./sinjoh-keeper) | Automates permissionless routing and provides the isolated deterministic airdrop snapshot, attestation, and push workflow. |
+| [`sinjoh-raffle-rewards`](./sinjoh-raffle-rewards) | Pays holders of a subject token by lottery: one ticket per 10,000 tokens, hourly draws, prize reserved before any randomness exists. |
+| [`sinjoh-randomness`](./sinjoh-randomness) | Verifiable randomness from an ECVRF proof checked on-chain, for a chain with no VRF deployment. |
 | [`sinjoh-indexer`](./sinjoh-indexer) | Projects factory and protocol events through one dynamically registered Envio indexer. |
 
 The packages do not import one another's implementations. Composition uses copied
@@ -37,7 +39,9 @@ for package in \
   sinjoh-airdrop-distributor \
   sinjoh-liquidity-manager \
   sinjoh-pons-v1-adapter \
-  sinjoh-revenue-collector
+  sinjoh-revenue-collector \
+  sinjoh-raffle-rewards \
+  sinjoh-randomness
 do
   (cd "$package" && forge fmt --check && forge test)
 done
@@ -70,6 +74,7 @@ npm test
 - [`DEVELOPMENT_PLAN.md`](./DEVELOPMENT_PLAN.md): delivery and release gates
 - [`UI-NOTES.md`](./UI-NOTES.md): UI, indexer, keeper, and end-to-end wiring handoff
 - [`INFRASTRUCTURE.md`](./INFRASTRUCTURE.md): provisioned cloud resources, runtime variables, and remaining credential gates
+- [`SELF-AUDIT.md`](./SELF-AUDIT.md): pre-audit review of the raffle and randomness packages
 - [`TESTNET_DEPLOYMENTS.md`](./TESTNET_DEPLOYMENTS.md): verified Robinhood testnet deployments
 - [`SJTEST_TESTNET_REPORT.md`](./SJTEST_TESTNET_REPORT.md): completed SJTEST test launch
 - Each package's `SPEC.md`: normative behavior and security requirements

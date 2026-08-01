@@ -23,6 +23,26 @@ contract ReentrantHolder {
     }
 }
 
+/// @notice An adapter that tries to settle an earlier round while the raffle is mid-commit.
+contract HostileRandomness {
+    SinjohRaffleRewards public raffle;
+    bytes32 public targetRequestId;
+    uint256 public counter;
+
+    function arm(SinjohRaffleRewards raffle_, bytes32 requestId) external {
+        raffle = raffle_;
+        targetRequestId = requestId;
+    }
+
+    function requestRandomness(uint64) external returns (bytes32) {
+        if (targetRequestId != bytes32(0)) {
+            raffle.receiveRandomness(targetRequestId, 12_345);
+        }
+        counter += 1;
+        return keccak256(abi.encode(address(this), counter));
+    }
+}
+
 /// @notice Rejection paths and configuration bounds, kept apart from the behavioural suite.
 contract SinjohRaffleRewardsBranchesTest is TestBase {
     address internal constant CREATOR = address(0xC0FFEE);
@@ -115,6 +135,28 @@ contract SinjohRaffleRewardsBranchesTest is TestBase {
 
         assertEq(ethRaffle.claim(1, 0, leaves[0], proofs[0]), 0);
         assertTrue(ethRaffle.owed(address(holder)) != 0);
+    }
+
+    /// A hostile adapter cannot settle an earlier round while a commit is in flight.
+    function testHostileAdapterCannotReenterDelivery() public {
+        HostileRandomness hostile = new HostileRandomness();
+        RaffleTypes.Config memory config = _baseConfig();
+        config.randomness = address(hostile);
+        SinjohRaffleRewards target = _bindNew(config, bytes32("hostile"));
+
+        // Round one commits normally and stays pending.
+        _arm(FIRST_SNAPSHOT);
+        vm.prank(ATTESTOR);
+        target.commitRound(1, FIRST_SNAPSHOT, _hashFor(FIRST_SNAPSHOT), keccak256("r"), 10);
+        (, bytes32 requestId,,,,,,,,,) = target.rounds(1);
+
+        // The adapter now tries to deliver round one from inside round two's request.
+        hostile.arm(target, requestId);
+        vm.warp(block.timestamp + 3_600);
+        _arm(FIRST_SNAPSHOT + 5);
+        vm.prank(ATTESTOR);
+        vm.expectRevert(SinjohRaffleRewards.Reentrancy.selector);
+        target.commitRound(2, FIRST_SNAPSHOT + 5, _hashFor(FIRST_SNAPSHOT + 5), keccak256("r"), 10);
     }
 
     // ------------------------------------------------------------------

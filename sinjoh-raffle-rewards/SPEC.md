@@ -295,10 +295,17 @@ The same transaction requests randomness from the immutable adapter and stores t
 returned `requestId`. A commitment without a request is not possible, and a
 request cannot precede a root.
 
-The 255-L2-block hash window is short on a fast Orbit chain. The worker must pick
-`minConfirmations` so that commitment lands well inside it, and the interface must
-treat a missed window as a skipped round, never as a reason to reuse a stale
-snapshot.
+The 255-L2-block hash window is short, and on this chain it is very short.
+Robinhood Chain mainnet produces a block every **0.1004 seconds**, measured over
+100,000 blocks, so **255 blocks is about 25.6 seconds**. That is the entire budget
+between choosing a snapshot block and having the commitment mined: reconstructing
+balances, building the tree, signing, and landing the transaction.
+
+A worker that starts indexing when the snapshot is chosen will not make it. The
+reference worker maintains holder balances incrementally as blocks arrive, so that
+at snapshot time only tree finalisation and submission remain. `minConfirmations`
+must be chosen with the remaining budget in mind, and a missed window is a skipped
+round, never a reason to reuse a stale snapshot.
 
 ### 2. Draw
 
@@ -595,7 +602,7 @@ choose a root against a known output, and the key holder cannot precompute an
 output for a future round.
 
 Settlement has one hard deadline: the adapter's `seal` must run inside the L2's
-255-block hash window, which on a fast Orbit chain may be about a minute. A missed
+255-block hash window, which on this chain is about 25.6 seconds. A missed
 seal kills that round's randomness permanently and the round abandons. Everything
 after sealing is unbounded in time, so `randomnessTimeout = 3,600` gives an hourly
 raffle a full round to recover from a prover outage.

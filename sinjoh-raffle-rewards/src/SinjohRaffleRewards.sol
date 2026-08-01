@@ -10,7 +10,8 @@ interface IArbSys {
 }
 
 /// @dev Copied, never imported. Any adapter satisfying `sinjoh-randomness/SPEC.md` may be used.
-interface ISinjohRaffleRandomness {
+/// The name matches the adapter package's declaration so the two read identically.
+interface ISinjohRandomness {
     function requestRandomness(uint64 roundId) external returns (bytes32 requestId);
 }
 
@@ -352,7 +353,7 @@ contract SinjohRaffleRewards {
         lastCommitAt = uint64(block.timestamp);
         pendingRounds += 1;
 
-        bytes32 requestId = ISinjohRaffleRandomness(settings.randomness).requestRandomness(roundId);
+        bytes32 requestId = ISinjohRandomness(settings.randomness).requestRandomness(roundId);
         if (requestId == bytes32(0) || roundOfRequest[requestId] != 0) revert InvalidRequest();
         roundOfRequest[requestId] = roundId;
 
@@ -373,7 +374,10 @@ contract SinjohRaffleRewards {
     }
 
     /// @notice Randomness delivery. Performs no transfer and calls nothing external.
-    function receiveRandomness(bytes32 requestId, uint256 seed) external {
+    /// @dev Guarded even though it moves no value. `commitRound` calls out to the adapter while
+    /// holding the guard, and a hostile adapter could otherwise re-enter here mid-commit to
+    /// settle an earlier round. No honest adapter delivers during a request.
+    function receiveRandomness(bytes32 requestId, uint256 seed) external nonReentrant {
         if (msg.sender != settings.randomness) revert Unauthorized();
         if (seed == 0) revert InvalidSeed();
         uint64 roundId = roundOfRequest[requestId];
