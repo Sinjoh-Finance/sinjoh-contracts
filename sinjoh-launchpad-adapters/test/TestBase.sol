@@ -12,6 +12,7 @@ interface Vm {
     function expectPartialRevert(bytes4 selector) external;
     function prank(address sender) external;
     function chainId(uint256 newChainId) external;
+    function roll(uint256 newHeight) external;
     function deal(address account, uint256 balance) external;
     function load(address target, bytes32 slot) external view returns (bytes32);
     function store(address target, bytes32 slot, bytes32 value) external;

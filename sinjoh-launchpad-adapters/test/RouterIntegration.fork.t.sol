@@ -11,11 +11,33 @@ import { SinjohFeeRouterFactory } from "sinjoh-fee-router/src/SinjohFeeRouterFac
 
 interface IERC20Like {
     function balanceOf(address account) external view returns (uint256);
+    function approve(address spender, uint256 amount) external returns (bool);
     function transfer(address to, uint256 amount) external returns (bool);
+}
+
+interface IPonsV1TokenLike is IERC20Like {
+    function restrictionEndBlock() external view returns (uint256);
 }
 
 interface IWETHLike is IERC20Like {
     function deposit() external payable;
+}
+
+interface ISwapRouter02Like {
+    struct ExactInputSingleParams {
+        address tokenIn;
+        address tokenOut;
+        uint24 fee;
+        address recipient;
+        uint256 amountIn;
+        uint256 amountOutMinimum;
+        uint160 sqrtPriceLimitX96;
+    }
+
+    function exactInputSingle(ExactInputSingleParams calldata params)
+        external
+        payable
+        returns (uint256 amountOut);
 }
 
 contract ForkNormalizationGuard {
@@ -50,6 +72,7 @@ contract RouterIntegrationForkTest is TestBase {
     address constant WETH = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
     /// @dev The live SwapRouter02-interface adapter from mainnet-deployments.json.
     address constant SWAP_ADAPTER = 0xc9F600ebaf9EE1F4a24568D2e4Af9E8df1e07D7B;
+    address constant SWAP_ROUTER = 0xCaf681a66D020601342297493863E78C959E5cb2;
     uint256 constant CHAIN_ID = 4663;
     bytes32 constant USER_SALT = keccak256("sinjoh-router-integration");
 
@@ -157,6 +180,34 @@ contract RouterIntegrationForkTest is TestBase {
         params.feeWallet = feeWallet;
     }
 
+    function _launch(
+        SinjohPonsV1LaunchAdapter adapter,
+        IPonsV1LaunchFactory.LaunchParams memory params,
+        bytes32 salt,
+        uint256 value,
+        uint256 minDeveloperBuyOut
+    ) internal returns (address token) {
+        (bool launchOk, bytes memory launchConfig) = V1_FACTORY.staticcall(
+            abi.encodeWithSignature("getLaunchConfig(uint256)", 0)
+        );
+        (bool dexOk, bytes memory dexConfig) =
+            V1_FACTORY.staticcall(abi.encodeWithSignature("getDexConfig(uint256)", 0));
+        assertTrue(launchOk && dexOk);
+        address expected = IPonsV1LaunchFactory(V1_FACTORY)
+            .predictTokenAddress(params, 0, 0, salt, address(adapter));
+        vm.prank(creator);
+        token = adapter.launch{ value: value }(
+            params,
+            0,
+            0,
+            salt,
+            expected,
+            keccak256(launchConfig),
+            keccak256(dexConfig),
+            minDeveloperBuyOut
+        );
+    }
+
     // ------------------------------------------------------------------
 
     function test_v1IsTheLiveLaunchpad() public view {
@@ -169,10 +220,8 @@ contract RouterIntegrationForkTest is TestBase {
         (SinjohFeeRouter router, SinjohPonsV1LaunchAdapter adapter) = _deployPair();
         uint256 launchFee = IPonsV1LaunchFactory(V1_FACTORY).launchFee();
 
-        vm.prank(creator);
-        address token = adapter.launch{ value: launchFee }(
-            _params(address(adapter)), 0, 0, keccak256("integration-1")
-        );
+        address token =
+            _launch(adapter, _params(address(adapter)), keccak256("integration-1"), launchFee, 0);
 
         assertTrue(token != address(0));
         assertEq(adapter.subject(), token);
@@ -188,9 +237,8 @@ contract RouterIntegrationForkTest is TestBase {
         uint256 launchFee = IPonsV1LaunchFactory(V1_FACTORY).launchFee();
         uint256 devBuy = 0.05 ether;
 
-        vm.prank(creator);
-        address token = adapter.launch{ value: launchFee + devBuy }(
-            _params(address(adapter)), 0, 0, keccak256("integration-2")
+        address token = _launch(
+            adapter, _params(address(adapter)), keccak256("integration-2"), launchFee + devBuy, 1
         );
 
         // v1 delivers the first buy to the fee wallet; it must not be mistaken
@@ -204,10 +252,7 @@ contract RouterIntegrationForkTest is TestBase {
         (, SinjohPonsV1LaunchAdapter adapter) = _deployPair();
         uint256 launchFee = IPonsV1LaunchFactory(V1_FACTORY).launchFee();
 
-        vm.prank(creator);
-        adapter.launch{ value: launchFee }(
-            _params(address(adapter)), 0, 0, keccak256("integration-3")
-        );
+        _launch(adapter, _params(address(adapter)), keccak256("integration-3"), launchFee, 0);
 
         // No trades yet: the locker reverts NoFeesToCollect, which a keeper poll
         // must not see as a failure.
@@ -218,16 +263,80 @@ contract RouterIntegrationForkTest is TestBase {
         assertEq(amounts[1], 0);
     }
 
+    /// @dev Generates real bidirectional v3 volume after a real Pons launch,
+    /// then proves the locker pays both pool assets to the new adapter. This is
+    /// the economically important path the synthetic WETH-donation test cannot
+    /// cover.
+    function test_realTradesAccrueCollectAndForwardBothPonsFeeAssets() public {
+        (SinjohFeeRouter router, SinjohPonsV1LaunchAdapter adapter) = _deployPair();
+        uint256 launchFee = IPonsV1LaunchFactory(V1_FACTORY).launchFee();
+        address token = _launch(
+            adapter,
+            _params(address(adapter)),
+            keccak256("integration-real-fees"),
+            launchFee + 0.05 ether,
+            1
+        );
+        vm.roll(IPonsV1TokenLike(token).restrictionEndBlock() + 1);
+
+        uint256 wethIn = 0.01 ether;
+        vm.prank(creator);
+        IWETHLike(WETH).deposit{ value: wethIn }();
+        vm.prank(creator);
+        IERC20Like(WETH).approve(SWAP_ROUTER, wethIn);
+        vm.prank(creator);
+        ISwapRouter02Like(SWAP_ROUTER)
+            .exactInputSingle(
+                ISwapRouter02Like.ExactInputSingleParams({
+                tokenIn: WETH,
+                tokenOut: token,
+                fee: 10_000,
+                recipient: creator,
+                amountIn: wethIn,
+                amountOutMinimum: 1,
+                sqrtPriceLimitX96: 0
+            })
+            );
+
+        uint256 tokenIn = IERC20Like(token).balanceOf(creator) / 10;
+        vm.prank(creator);
+        IERC20Like(token).approve(SWAP_ROUTER, tokenIn);
+        vm.prank(creator);
+        ISwapRouter02Like(SWAP_ROUTER)
+            .exactInputSingle(
+                ISwapRouter02Like.ExactInputSingleParams({
+                tokenIn: token,
+                tokenOut: WETH,
+                fee: 10_000,
+                recipient: creator,
+                amountIn: tokenIn,
+                amountOutMinimum: 1,
+                sqrtPriceLimitX96: 0
+            })
+            );
+
+        vm.prank(keeper);
+        uint256[] memory amounts = adapter.collect();
+        assertTrue(amounts[0] > 0);
+        assertTrue(amounts[1] > 0);
+
+        vm.prank(keeper);
+        assertEq(adapter.forward(token), amounts[0]);
+        vm.prank(keeper);
+        assertEq(adapter.forward(WETH), amounts[1]);
+        assertEq(IERC20Like(token).balanceOf(address(router)), amounts[0]);
+        assertEq(IERC20Like(WETH).balanceOf(address(router)), amounts[1]);
+        assertEq(IERC20Like(token).balanceOf(address(adapter)), 0);
+        assertEq(IERC20Like(WETH).balanceOf(address(adapter)), 0);
+    }
+
     /// @dev The whole router path against real contracts: adapter forwards, the
     /// real router accounts, splits, converts and pays out, and ends solvent.
     function test_fullRouterPathFromAdapterForwardToWalletPayout() public {
         (SinjohFeeRouter router, SinjohPonsV1LaunchAdapter adapter) = _deployPair();
         uint256 launchFee = IPonsV1LaunchFactory(V1_FACTORY).launchFee();
 
-        vm.prank(creator);
-        adapter.launch{ value: launchFee }(
-            _params(address(adapter)), 0, 0, keccak256("integration-4")
-        );
+        _launch(adapter, _params(address(adapter)), keccak256("integration-4"), launchFee, 0);
 
         // Stand in for accrued WETH fees arriving at the adapter. The upstream
         // accrual path is covered by test_collectOnAnIdleLaunchIsANoOp and the
@@ -235,7 +344,7 @@ contract RouterIntegrationForkTest is TestBase {
         uint256 fees = 1 ether;
         vm.deal(address(this), fees);
         IWETHLike(WETH).deposit{ value: fees }();
-        IWETHLike(WETH).transfer(address(adapter), fees);
+        assertTrue(IWETHLike(WETH).transfer(address(adapter), fees));
 
         vm.prank(keeper);
         assertEq(adapter.forward(WETH), fees);
@@ -268,7 +377,7 @@ contract RouterIntegrationForkTest is TestBase {
         assertEq(router.totalLiability(WETH), 0);
     }
 
-    function test_adapterCannotLaunchIntoARouterThatDidNotNameIt() public {
+    function test_adapterCannotInitializeAgainstARouterThatDidNotNameIt() public {
         address predictedAdapter = adapterFactory.predictAddress(creator, USER_SALT);
         // A router naming somebody else entirely.
         RouterTypes.Config memory config = _config(address(0xDEAD));
@@ -276,21 +385,16 @@ contract RouterIntegrationForkTest is TestBase {
         address strangerRouter = routerFactory.deployForLaunchpad(creator, USER_SALT, config);
 
         vm.prank(creator);
-        SinjohPonsV1LaunchAdapter adapter = SinjohPonsV1LaunchAdapter(
-            payable(adapterFactory.deploy(creator, strangerRouter, USER_SALT))
-        );
-        assertEq(address(adapter), predictedAdapter);
-
-        uint256 launchFee = IPonsV1LaunchFactory(V1_FACTORY).launchFee();
-        vm.prank(creator);
         vm.expectRevert(
             abi.encodeWithSelector(
-                SinjohPonsV1LaunchAdapter.RouterDidNotNameAdapter.selector, address(0xDEAD)
+                SinjohPonsV1LaunchAdapterFactory.InitializationFailed.selector,
+                abi.encodeWithSelector(
+                    SinjohPonsV1LaunchAdapter.RouterDidNotNameAdapter.selector, address(0xDEAD)
+                )
             )
         );
-        adapter.launch{ value: launchFee }(
-            _params(address(adapter)), 0, 0, keccak256("integration-5")
-        );
+        adapterFactory.deploy(creator, strangerRouter, USER_SALT);
+        assertEq(predictedAdapter.code.length, 0);
     }
 
     function test_adapterRetryRejectsADifferentRouter() public {
@@ -306,18 +410,30 @@ contract RouterIntegrationForkTest is TestBase {
         (, SinjohPonsV1LaunchAdapter adapter) = _deployPair();
         uint256 launchFee = IPonsV1LaunchFactory(V1_FACTORY).launchFee();
 
-        vm.prank(creator);
+        (bool launchOk, bytes memory launchConfig) =
+            V1_FACTORY.staticcall(abi.encodeWithSignature("getLaunchConfig(uint256)", 0));
+        (bool dexOk, bytes memory dexConfig) =
+            V1_FACTORY.staticcall(abi.encodeWithSignature("getDexConfig(uint256)", 0));
+        assertTrue(launchOk && dexOk);
+
         vm.expectRevert(SinjohPonsV1LaunchAdapter.FeeWalletNotAdapter.selector);
-        adapter.launch{ value: launchFee }(_params(creator), 0, 0, keccak256("integration-6"));
+        vm.prank(creator);
+        adapter.launch{ value: launchFee }(
+            _params(creator),
+            0,
+            0,
+            keccak256("integration-6"),
+            address(1),
+            keccak256(launchConfig),
+            keccak256(dexConfig),
+            0
+        );
     }
 
     function test_routerRejectsAnAssetWithNoNormalizationRoute() public {
         (SinjohFeeRouter router, SinjohPonsV1LaunchAdapter adapter) = _deployPair();
         uint256 launchFee = IPonsV1LaunchFactory(V1_FACTORY).launchFee();
-        vm.prank(creator);
-        adapter.launch{ value: launchFee }(
-            _params(address(adapter)), 0, 0, keccak256("integration-7")
-        );
+        _launch(adapter, _params(address(adapter)), keccak256("integration-7"), launchFee, 0);
 
         vm.expectRevert(
             abi.encodeWithSelector(SinjohFeeRouter.UnsupportedAsset.selector, V1_LOCKER)
@@ -328,10 +444,8 @@ contract RouterIntegrationForkTest is TestBase {
     function test_intakeAssetsCoverBothPoolAssets() public {
         (, SinjohPonsV1LaunchAdapter adapter) = _deployPair();
         uint256 launchFee = IPonsV1LaunchFactory(V1_FACTORY).launchFee();
-        vm.prank(creator);
-        address token = adapter.launch{ value: launchFee }(
-            _params(address(adapter)), 0, 0, keccak256("integration-8")
-        );
+        address token =
+            _launch(adapter, _params(address(adapter)), keccak256("integration-8"), launchFee, 0);
 
         address[] memory assets = adapter.intakeAssets();
         assertEq(assets.length, 2);

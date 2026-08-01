@@ -6,7 +6,13 @@ import { IPonsV1LaunchFactory, IPonsV1Locker } from "./interfaces/IPonsV1.sol";
 import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
 
 interface ISinjohFeeRouter {
+    function creator() external view returns (address);
+    function weth() external view returns (address);
+    function subject() external view returns (address);
+    function configHash() external view returns (bytes32);
+    function bound() external view returns (bool);
     function launchpadAdapter() external view returns (address);
+    function isIntakeAsset(address asset) external view returns (bool);
     function bind(address subject) external;
 }
 
@@ -44,7 +50,17 @@ contract SinjohPonsV1LaunchAdapter is ISinjohLaunchpadAdapter {
     error LaunchFeeMismatch(uint256 minimum, uint256 provided);
     error UnexpectedBalanceDelta(address asset, uint256 expected, uint256 actual);
     error LaunchReturnedNoToken();
+    error PredictedTokenMismatch(address expected, address actual);
+    error ConfigurationHashMismatch(bytes4 getter, bytes32 expected, bytes32 actual);
+    error PairedAssetNotWeth(address pairedAsset);
+    error DeveloperBuyBelowMinimum(uint256 minimum, uint256 actual);
     error RouterDidNotNameAdapter(address named);
+    error RouterCreatorMismatch(address expected, address actual);
+    error RouterWethMismatch(address expected, address actual);
+    error RouterConfigMismatch(bytes32 expected, bytes32 actual);
+    error RouterAlreadyBound();
+    error RouterDidNotBindSubject(address expected, address actual);
+    error RouterUnsupportedIntake(address asset);
     error LockerMismatch(address expected, address actual);
 
     event Initialized(address indexed router, address indexed creator);
@@ -61,7 +77,11 @@ contract SinjohPonsV1LaunchAdapter is ISinjohLaunchpadAdapter {
     /// @dev v1's "nothing accrued" revert, the analogue of v2's `NoBalance()`.
     /// A keeper polling an idle launch must not read it as a failure.
     bytes4 private constant NO_FEES_SELECTOR = bytes4(keccak256("NoFeesToCollect()"));
+    bytes4 private constant GET_LAUNCH_CONFIG_SELECTOR =
+        bytes4(keccak256("getLaunchConfig(uint256)"));
+    bytes4 private constant GET_DEX_CONFIG_SELECTOR = bytes4(keccak256("getDexConfig(uint256)"));
 
+    address public immutable adapterFactory;
     address public immutable launchFactory;
     address public immutable locker;
     address public immutable weth;
@@ -70,6 +90,7 @@ contract SinjohPonsV1LaunchAdapter is ISinjohLaunchpadAdapter {
     address public router;
     address public creator;
     address public subject;
+    bytes32 public routerConfigHash;
     bool public initialized;
     bool public launched;
 
@@ -85,6 +106,7 @@ contract SinjohPonsV1LaunchAdapter is ISinjohLaunchpadAdapter {
         address declared = IPonsV1LaunchFactory(launchFactory_).locker();
         if (declared != locker_) revert LockerMismatch(locker_, declared);
 
+        adapterFactory = msg.sender;
         launchFactory = launchFactory_;
         locker = locker_;
         weth = weth_;
@@ -106,6 +128,7 @@ contract SinjohPonsV1LaunchAdapter is ISinjohLaunchpadAdapter {
 
     function initialize(address router_, address creator_) external {
         if (initialized) revert AlreadyInitialized();
+        if (msg.sender != adapterFactory) revert Unauthorized();
         initialized = true;
         if (
             router_.code.length == 0 || creator_ == address(0) || router_ == address(this)
@@ -113,8 +136,19 @@ contract SinjohPonsV1LaunchAdapter is ISinjohLaunchpadAdapter {
         ) {
             revert InvalidAddress();
         }
+        ISinjohFeeRouter routerContract = ISinjohFeeRouter(router_);
+        address routerCreator = routerContract.creator();
+        if (routerCreator != creator_) revert RouterCreatorMismatch(creator_, routerCreator);
+        address routerWeth = routerContract.weth();
+        if (routerWeth != weth) revert RouterWethMismatch(weth, routerWeth);
+        address named = routerContract.launchpadAdapter();
+        if (named != address(this)) revert RouterDidNotNameAdapter(named);
+        if (routerContract.bound()) revert RouterAlreadyBound();
+        bytes32 configHash_ = routerContract.configHash();
+        if (configHash_ == bytes32(0)) revert InvalidAddress();
         router = router_;
         creator = creator_;
+        routerConfigHash = configHash_;
         emit Initialized(router_, creator_);
     }
 
@@ -128,46 +162,88 @@ contract SinjohPonsV1LaunchAdapter is ISinjohLaunchpadAdapter {
     /// @dev `msg.value` must be at least the launch fee; anything above it is
     /// v1's developer buy, which the factory performs internally and delivers to
     /// `params.feeWallet`. Unlike v2 there is no separate curve call and no
-    /// slippage floor to supply — the whole launch is one transaction upstream.
+    /// slippage floor upstream. This adapter therefore enforces a creator-set
+    /// minimum against the exact token balance it receives.
     function launch(
         IPonsV1LaunchFactory.LaunchParams calldata params,
         uint256 launchConfigId,
         uint256 dexId,
-        bytes32 salt
+        bytes32 salt,
+        address expectedToken,
+        bytes32 expectedLaunchConfigHash,
+        bytes32 expectedDexConfigHash,
+        uint256 minDeveloperBuyOut
     ) external payable nonReentrant returns (address token) {
         _assertChain();
         if (msg.sender != creator) revert Unauthorized();
         if (launched) revert AlreadyLaunched();
         address router_ = router;
         if (router_ == address(0)) revert InvalidAddress();
-        // Proves the router named this adapter. Without it a seized clone could
-        // launch against a router that will reject its bind anyway.
-        address named = ISinjohFeeRouter(router_).launchpadAdapter();
+        ISinjohFeeRouter routerContract = ISinjohFeeRouter(router_);
+        address named = routerContract.launchpadAdapter();
         if (named != address(this)) revert RouterDidNotNameAdapter(named);
+        address routerCreator = routerContract.creator();
+        if (routerCreator != creator) revert RouterCreatorMismatch(creator, routerCreator);
+        address routerWeth = routerContract.weth();
+        if (routerWeth != weth) revert RouterWethMismatch(weth, routerWeth);
+        bytes32 actualRouterConfigHash = routerContract.configHash();
+        if (actualRouterConfigHash != routerConfigHash) {
+            revert RouterConfigMismatch(routerConfigHash, actualRouterConfigHash);
+        }
+        if (routerContract.bound()) revert RouterAlreadyBound();
         launched = true;
 
         IPonsV1LaunchFactory factory = IPonsV1LaunchFactory(launchFactory);
         if (!factory.launchEnabled()) revert LaunchesDisabled();
-        // Routing fees anywhere but this adapter would break the guarantee
-        // permanently; v1 lets the launch deployer repoint later, so this is a
-        // floor, not a lock.
+        // Routing fees anywhere but this adapter would break the guarantee.
+        // This adapter exposes no fee-redirect mutator after launch.
         if (params.feeWallet != address(this)) revert FeeWalletNotAdapter();
+
+        (bytes32 launchConfigHash, address pairedAsset) =
+            _configurationHashAndFirstAddress(GET_LAUNCH_CONFIG_SELECTOR, launchConfigId);
+        if (launchConfigHash != expectedLaunchConfigHash) {
+            revert ConfigurationHashMismatch(
+                GET_LAUNCH_CONFIG_SELECTOR, expectedLaunchConfigHash, launchConfigHash
+            );
+        }
+        if (pairedAsset != weth) revert PairedAssetNotWeth(pairedAsset);
+        (bytes32 dexConfigHash,) = _configurationHashAndFirstAddress(GET_DEX_CONFIG_SELECTOR, dexId);
+        if (dexConfigHash != expectedDexConfigHash) {
+            revert ConfigurationHashMismatch(
+                GET_DEX_CONFIG_SELECTOR, expectedDexConfigHash, dexConfigHash
+            );
+        }
+
+        address predicted =
+            factory.predictTokenAddress(params, launchConfigId, dexId, salt, address(this));
+        if (expectedToken == address(0) || predicted != expectedToken) {
+            revert PredictedTokenMismatch(expectedToken, predicted);
+        }
 
         uint256 launchFee = factory.launchFee();
         if (msg.value < launchFee) revert LaunchFeeMismatch(launchFee, msg.value);
 
+        uint256 balanceBefore = address(this).balance - msg.value;
         token = factory.launchToken{ value: msg.value }(params, launchConfigId, dexId, salt);
         if (token == address(0)) revert LaunchReturnedNoToken();
+        if (token != expectedToken) revert PredictedTokenMismatch(expectedToken, token);
 
         subject = token;
         emit Launched(token, launchConfigId, dexId, msg.value);
 
-        ISinjohFeeRouter(router_).bind(token);
+        routerContract.bind(token);
+        address boundSubject = routerContract.subject();
+        if (boundSubject != token) revert RouterDidNotBindSubject(token, boundSubject);
+        if (!routerContract.isIntakeAsset(token)) revert RouterUnsupportedIntake(token);
+        if (!routerContract.isIntakeAsset(weth)) revert RouterUnsupportedIntake(weth);
 
         // v1 sends the first buy to the fee wallet, which is this adapter. It
         // belongs to the creator, not to fee routing, so it leaves immediately
         // and before any fee can accrue.
         uint256 launchBuy = token.safeBalanceOf(address(this));
+        if (launchBuy < minDeveloperBuyOut) {
+            revert DeveloperBuyBelowMinimum(minDeveloperBuyOut, launchBuy);
+        }
         if (launchBuy != 0) {
             token.safeTransfer(creator, launchBuy);
             emit DeveloperBuyDelivered(token, creator, launchBuy);
@@ -178,7 +254,8 @@ contract SinjohPonsV1LaunchAdapter is ISinjohLaunchpadAdapter {
         // forwarding path — v1 pays fees in pool assets — so anything left here
         // would be stranded permanently. Return it in the same transaction,
         // before any fee can accrue and be confused with it.
-        uint256 refund = address(this).balance;
+        uint256 currentBalance = address(this).balance;
+        uint256 refund = currentBalance > balanceBefore ? currentBalance - balanceBefore : 0;
         if (refund != 0) {
             (bool sent,) = payable(creator).call{ value: refund }("");
             if (!sent) revert UnexpectedBalanceDelta(address(0), refund, 0);
@@ -245,6 +322,7 @@ contract SinjohPonsV1LaunchAdapter is ISinjohLaunchpadAdapter {
     /// @notice v1 pays both pool assets, so the router must carry a
     /// subject-to-WETH normalization route as well as accepting WETH directly.
     function intakeAssets() external view returns (address[] memory assets) {
+        if (!launched) revert NotLaunched();
         assets = new address[](2);
         assets[0] = subject;
         assets[1] = weth;
@@ -252,9 +330,9 @@ contract SinjohPonsV1LaunchAdapter is ISinjohLaunchpadAdapter {
 
     /// @notice Whether the locker still resolves this launch's payout here.
     ///
-    /// @dev v1 lets the launch deployer repoint fees away from this adapter.
-    /// Sinjoh's guarantee begins where value arrives, so interfaces must watch
-    /// this and mark future fee flow inactive the moment it stops resolving.
+    /// @dev The adapter deliberately exposes no redirect mutator, but the
+    /// upstream factory retains its own authority. Interfaces must therefore
+    /// mark future fee flow inactive if the resolved recipient ever changes.
     function feeRedirectIntact() external view returns (bool) {
         if (!launched) return false;
         address redirect = IPonsV1Locker(locker).feeRedirects(subject);
@@ -273,12 +351,32 @@ contract SinjohPonsV1LaunchAdapter is ISinjohLaunchpadAdapter {
     /// @dev An idle launch reverts `NoFeesToCollect()`. That is the normal
     /// state between trades, so it is absorbed; every other revert propagates.
     function _tryCollect(address token) private returns (bool) {
-        try IPonsV1Locker(locker).collectFees(token) returns (uint256, uint256) {
-            return true;
-        } catch (bytes memory reason) {
-            if (_isNoFees(reason)) return false;
-            _bubble(reason);
-            return false;
+        (bool success, bytes memory result) =
+            locker.call(abi.encodeWithSelector(IPonsV1Locker.collectFees.selector, token));
+        if (success) return true;
+        if (_isNoFees(result)) return false;
+        _bubble(result);
+    }
+
+    /// @dev Hashes the getter's canonical ABI return bytes and also extracts
+    /// the first word, which is `pairToken` for Pons v1 launch configs. The
+    /// DEX getter's first word is ignored. Raw returndata keeps this compatible
+    /// with the deployed v1 tuple ABI without importing an upstream struct.
+    function _configurationHashAndFirstAddress(bytes4 selector, uint256 id)
+        private
+        view
+        returns (bytes32 hash, address firstAddress)
+    {
+        (bool success, bytes memory result) =
+            launchFactory.staticcall(abi.encodeWithSelector(selector, id));
+        if (!success) _bubble(result);
+        if (result.length < 32) revert InvalidAddress();
+        hash = keccak256(result);
+        assembly {
+            firstAddress := and(
+                mload(add(result, 0x20)),
+                0xffffffffffffffffffffffffffffffffffffffff
+            )
         }
     }
 

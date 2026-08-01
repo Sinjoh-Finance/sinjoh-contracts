@@ -33,6 +33,16 @@ interface IPonsV1LaunchFactory {
         bytes32 salt
     ) external payable returns (address token);
 
+    /// @notice Predicts the CREATE2 token address for an exact launch intent.
+    /// The launcher is explicit because it participates in Pons' address salt.
+    function predictTokenAddress(
+        LaunchParams calldata params,
+        uint256 launchConfigId,
+        uint256 dexId,
+        bytes32 salt,
+        address launcher
+    ) external view returns (address token);
+
     function locker() external view returns (address);
 
     function launchFee() external view returns (uint256);
@@ -53,7 +63,10 @@ interface IPonsV1Locker {
     ///
     /// Reverts `NoFeesToCollect()` when nothing has accrued, rather than
     /// returning zero.
-    function collectFees(address token) external returns (uint256 amount0, uint256 amount1);
+    /// @dev Pons v1 locker deployments are ABI-compatible at the selector but
+    /// are not consistent about returning the two collected amounts. Callers
+    /// must measure token balance deltas and must not ABI-decode return data.
+    function collectFees(address token) external;
 
     function feeRedirects(address token) external view returns (address);
 }
