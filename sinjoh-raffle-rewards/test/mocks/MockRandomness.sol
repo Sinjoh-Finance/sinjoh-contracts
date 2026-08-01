@@ -11,13 +11,8 @@ contract MockRandomness {
 
     mapping(bytes32 requestId => address consumer) public consumerOf;
     mapping(address consumer => mapping(uint64 roundId => bytes32 requestId)) public requestOf;
-    bool public revertOnRequest;
     bool public returnZeroId;
     bytes32 public fixedId;
-
-    function setRevertOnRequest(bool value) external {
-        revertOnRequest = value;
-    }
 
     function setReturnZeroId(bool value) external {
         returnZeroId = value;
@@ -28,7 +23,6 @@ contract MockRandomness {
     }
 
     function requestRandomness(uint64 roundId) external returns (bytes32 requestId) {
-        require(!revertOnRequest, "RANDOMNESS_UNAVAILABLE");
         if (returnZeroId) return bytes32(0);
         if (fixedId != bytes32(0)) return fixedId;
 

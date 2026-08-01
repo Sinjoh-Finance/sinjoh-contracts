@@ -138,18 +138,6 @@ Invariants run 16,384 calls each with zero reverts. `src/` is warning-free under
 `forge lint` in both packages, and `VRF.sol` is byte-identical to upstream and
 excluded from formatting so it stays diffable.
 
-## Still open before mainnet
-
-1. Independent audit. The blind-spot problem above is structural.
-2. Static analysis — neither slither nor aderyn is installed in this environment.
-3. ~~The off-chain prover and the raffle worker do not exist yet.~~ Both now exist
-   in `sinjoh-keeper` and are pinned to the Solidity references by committed
-   fixtures: proof components, tree root and proofs, and winning-index derivation.
-   What remains is the chain-connected loop — signing, submission, retries, and the
-   operational journal — around the pure logic that is built and tested.
-4. The ECVRF key must be generated on the host that will hold it, and must not be
-   the attestor's host.
-
 ## Offchain implementation
 
 The keeper now carries the pure half of the worker, each piece pinned to its
@@ -175,3 +163,15 @@ point.
 What is still missing is the chain-connected loop around this logic: signing,
 submission, receipt reconciliation, retries, and the journal. The existing airdrop
 worker is the template.
+
+## Still open before mainnet
+
+1. Independent audit. The blind-spot problem above is structural.
+2. Static analysis — neither slither nor aderyn is installed in this environment.
+3. ~~The off-chain prover and the raffle worker do not exist yet.~~ Both now exist
+   in `sinjoh-keeper` and are pinned to the Solidity references by committed
+   fixtures: proof components, tree root and proofs, and winning-index derivation.
+   What remains is the chain-connected loop — signing, submission, retries, and the
+   operational journal — around the pure logic that is built and tested.
+4. The ECVRF key must be generated on the host that will hold it, and must not be
+   the attestor's host.
