@@ -41,21 +41,21 @@ VRF v2.5's supported networks are Ethereum, Arbitrum, Base, OP, Polygon, BNB Cha
 Avalanche, Ronin, and Soneium.
 
 Randomness is therefore an immutable adapter address chosen per deployment, behind
-a two-function interface.
-
-**Selected:** `SinjohCcipVrfRandomness` — VRF v2.5 runs on Arbitrum One and the
-word returns over CCIP, batched so one word serves every raffle on that beacon.
-Specified in [`sinjoh-ccip-vrf`](../sinjoh-ccip-vrf).
-
-| Adapter | Availability | Bias | Cost and latency |
-|---|---|---|---|
-| **`SinjohCcipVrfRandomness`** | **selected** — CCIP to a VRF chain | none | VRF request + two CCIP legs per beacon, 5–20 min |
-| `SinjohEcvrfRandomness` | chains with no CCIP lane | operator can withhold, not steer | one verification per round, seconds |
-| `SinjohDirectVrfRandomness` | if VRF launches on `4663` | none | one VRF request |
+a two-function interface. The release configuration uses `SinjohEcvrfRandomness`
+from [`sinjoh-randomness`](../sinjoh-randomness): a secp256k1 ECVRF proof verified
+on-chain against one immutable public key. No oracle network, no second chain,
+settlement in seconds.
 
 `blockhash`, `ArbSys.arbBlockHash`, and `block.prevrandao` are rejected as
-randomness sources: the sequencer determines all three and the attestor chooses
-commit timing.
+randomness sources on their own: the sequencer determines all three and the attestor
+chooses commit timing. The adapter uses a block hash only as a *binding* — it pins
+the proof input to a value nobody knew when the commitment was built, which is what
+stops the attestor from grinding a root against a known output.
+
+**The residual:** the adapter's key holder sees each outcome before publishing and
+can withhold a proof, forcing that round to abandon. The key must not be held by
+whoever runs the attestor, abandoned rounds must be monitored, and any interface
+must disclose it. See [`sinjoh-randomness/SPEC.md`](../sinjoh-randomness/SPEC.md).
 
 ## Trust boundary
 
@@ -95,5 +95,5 @@ code. Per-launch raffles are then created through the factory:
 → `bind(subject)` once the token exists.
 
 The randomness adapter is immutable in every raffle. Deploy against
-[`sinjoh-ccip-vrf`](../sinjoh-ccip-vrf) only after a full beacon has been run end to
-end on that adapter.
+[`sinjoh-randomness`](../sinjoh-randomness) only after one full request-seal-prove-
+deliver cycle has run against that adapter with the real key.

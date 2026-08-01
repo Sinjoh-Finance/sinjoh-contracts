@@ -9,7 +9,7 @@ interface IArbSys {
     function arbBlockHash(uint256 arbBlockNum) external view returns (bytes32);
 }
 
-/// @dev Copied, never imported. Any adapter satisfying `sinjoh-ccip-vrf/SPEC.md` may be used.
+/// @dev Copied, never imported. Any adapter satisfying `sinjoh-randomness/SPEC.md` may be used.
 interface ISinjohRaffleRandomness {
     function requestRandomness(uint64 roundId) external returns (bytes32 requestId);
 }

@@ -5,7 +5,7 @@ interface ISinjohRandomnessConsumer {
     function receiveRandomness(bytes32 requestId, uint256 seed) external;
 }
 
-/// @notice Stand-in for `SinjohCcipVrfRandomness`: records requests, delivers on demand.
+/// @notice Stand-in for `SinjohEcvrfRandomness`: records requests, delivers on demand.
 contract MockRandomness {
     error AlreadyRequested();
 
