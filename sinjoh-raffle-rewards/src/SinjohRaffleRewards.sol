@@ -121,7 +121,9 @@ contract SinjohRaffleRewards {
     event ProtocolFeeSent(address indexed recipient, uint256 amount, address indexed caller);
     event TaxSent(address indexed recipient, uint256 amount, address indexed caller);
 
-    RaffleTypes.Settings public settings;
+    /// @dev Not `public`: the generated 20-value getter is unencodable without via-IR, which
+    /// blocks coverage instrumentation. `configuration()` returns the same data as one struct.
+    RaffleTypes.Settings internal settings;
     bytes32 public configHash;
     address public subject;
     bool public initialized;
@@ -396,19 +398,26 @@ contract SinjohRaffleRewards {
         RaffleTypes.Leaf calldata leaf,
         RaffleTypes.ProofElement[] calldata proof
     ) external nonReentrant returns (uint256 paid) {
+        _requireWinningClaim(roundId, slot, leaf, proof);
+        paid = _settleSlot(roundId, slot, leaf.holder);
+        _assertSolvent();
+    }
+
+    /// @dev Every check that can reject a claim, in one place and before any state changes.
+    function _requireWinningClaim(
+        uint64 roundId,
+        uint8 slot,
+        RaffleTypes.Leaf calldata leaf,
+        RaffleTypes.ProofElement[] calldata proof
+    ) private view {
         RaffleTypes.Round storage round = rounds[roundId];
         if (round.state != RaffleTypes.RoundState.DRAWN) revert InvalidRound();
         // forge-lint: disable-next-line(block-timestamp)
         if (block.timestamp > uint256(round.drawnAt) + settings.claimWindow) {
             revert ClaimWindowClosed();
         }
-
-        uint8 winners = settings.winnersPerRound;
-        if (slot >= winners) revert InvalidSlot();
-        uint16 mask = round.slotsPaidMask;
-        // forge-lint: disable-next-line(unsafe-typecast)
-        uint16 bit = uint16(uint256(1) << slot);
-        if (mask & bit != 0) revert SlotAlreadyPaid();
+        if (slot >= settings.winnersPerRound) revert InvalidSlot();
+        if (round.slotsPaidMask & _slotBit(slot) != 0) revert SlotAlreadyPaid();
         if (leaf.tickets == 0) revert InvalidProof();
         if (isExcluded[leaf.holder]) revert ExcludedHolder();
         if (proof.length > MAX_PROOF_LENGTH) revert InvalidProof();
@@ -419,8 +428,17 @@ contract SinjohRaffleRewards {
 
         uint256 index = winningIndex(roundId, slot);
         if (index < offset || index >= offset + leaf.tickets) revert NotWinningLeaf();
+    }
 
-        round.slotsPaidMask = mask | bit;
+    /// @dev Consumes the slot's reserve, splits the tax, and attempts payment.
+    function _settleSlot(uint64 roundId, uint8 slot, address holder)
+        private
+        returns (uint256 paid)
+    {
+        RaffleTypes.Round storage round = rounds[roundId];
+        uint8 winners = settings.winnersPerRound;
+
+        round.slotsPaidMask |= _slotBit(slot);
         uint256 share = _slotPrize(round.prize, winners, slot);
         round.paidTotal += share;
         if (round.paidTotal > round.prize) revert InvariantViolation();
@@ -437,20 +455,19 @@ contract SinjohRaffleRewards {
         if (recipientTax != 0) taxOwed += recipientTax;
         if (recycleTax != 0) availablePool += recycleTax;
 
-        if (net != 0) {
-            try this.payWinner(leaf.holder, net) {
-                paid = net;
-                emit PrizePaid(roundId, slot, leaf.holder, share, recipientTax, recycleTax, net);
-            } catch (bytes memory reason) {
-                owed[leaf.holder] += net;
-                totalOwed += net;
-                emit PaymentDeferred(roundId, slot, leaf.holder, net, reason);
-            }
-        } else {
-            emit PrizePaid(roundId, slot, leaf.holder, share, recipientTax, recycleTax, 0);
+        if (net == 0) {
+            emit PrizePaid(roundId, slot, holder, share, recipientTax, recycleTax, 0);
+            return 0;
         }
 
-        _assertSolvent();
+        try this.payWinner(holder, net) {
+            paid = net;
+            emit PrizePaid(roundId, slot, holder, share, recipientTax, recycleTax, net);
+        } catch (bytes memory reason) {
+            owed[holder] += net;
+            totalOwed += net;
+            emit PaymentDeferred(roundId, slot, holder, net, reason);
+        }
     }
 
     /// @dev Isolated so a reverting winner cannot roll back an already-settled slot.
@@ -560,6 +577,11 @@ contract SinjohRaffleRewards {
         return _slotPrize(rounds[roundId].prize, settings.winnersPerRound, slot);
     }
 
+    /// @notice The frozen configuration, as one struct.
+    function configuration() external view returns (RaffleTypes.Settings memory) {
+        return settings;
+    }
+
     /// @notice Total payout tax in basis points: the recipient share plus the recycled share.
     function payoutTaxBps() external view returns (uint256) {
         return uint256(settings.recipientTaxBps) + settings.recycleTaxBps;
@@ -660,6 +682,11 @@ contract SinjohRaffleRewards {
     function _slotPrize(uint256 prize, uint8 winners, uint8 slot) private pure returns (uint256) {
         uint256 base = prize / winners;
         return slot == 0 ? base + (prize % winners) : base;
+    }
+
+    function _slotBit(uint8 slot) private pure returns (uint16) {
+        // forge-lint: disable-next-line(unsafe-typecast)
+        return uint16(uint256(1) << slot);
     }
 
     function _fullMask(uint8 winners) private pure returns (uint16) {
