@@ -265,6 +265,32 @@ contract SinjohEcvrfRandomnessTest is TestBase {
     // Deployment
     // ------------------------------------------------------------------
 
+    function testWrongChainIdReverts() public {
+        uint256[2] memory publicKey = prover.derivePublicKey(SECRET_KEY);
+        vm.expectRevert(SinjohEcvrfRandomness.InvalidAddress.selector);
+        new SinjohEcvrfRandomness(publicKey[0], publicKey[1], block.chainid + 1);
+    }
+
+    /// A block whose hash the chain no longer serves cannot be sealed.
+    function testMissingBlockHashReverts() public {
+        bytes32 requestId = _request(consumerA, 1);
+        arbSys.setBlockHash(REQUEST_BLOCK, bytes32(0));
+        _advance(1);
+        vm.expectRevert(SinjohEcvrfRandomness.MissingBlockHash.selector);
+        adapter.seal(requestId);
+    }
+
+    function testUnknownRequestRejectedEverywhere() public {
+        bytes32 unknown = keccak256("nope");
+
+        vm.expectRevert(SinjohEcvrfRandomness.UnknownRequest.selector);
+        adapter.deliver(unknown);
+
+        VRF.Proof memory proof = prover.prove(SECRET_KEY, 1, NONCE);
+        vm.expectRevert(SinjohEcvrfRandomness.UnknownRequest.selector);
+        adapter.fulfill(unknown, proof);
+    }
+
     function testOffCurvePublicKeyReverts() public {
         vm.expectRevert(SinjohEcvrfRandomness.InvalidPublicKey.selector);
         new SinjohEcvrfRandomness(1, 1, block.chainid);
