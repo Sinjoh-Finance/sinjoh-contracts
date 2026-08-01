@@ -110,6 +110,11 @@ contract SinjohRaffleRewardsTest is TestBase {
         config.exclusions[1] = config.exclusions[0];
         vm.expectPartialRevert(SinjohRaffleRewardsFactory.InitializationFailed.selector);
         factory.deployRaffle(bytes32("exclusions"), config);
+
+        config = _baseConfig();
+        config.prizeAsset = address(0xBEEF);
+        vm.expectPartialRevert(SinjohRaffleRewardsFactory.InitializationFailed.selector);
+        factory.deployRaffle(bytes32("prize-asset"), config);
     }
 
     // ------------------------------------------------------------------
@@ -152,6 +157,22 @@ contract SinjohRaffleRewardsTest is TestBase {
 
         (uint256 second,) = raffle.sync();
         assertEq(second, 0);
+    }
+
+    function testPrizeCalculationDoesNotOverflowForMaximumPool() public {
+        MockERC20 enormousAsset = new MockERC20("Enormous", "MAX");
+        RaffleTypes.Config memory config = _baseConfig();
+        config.prizeAsset = address(enormousAsset);
+        SinjohRaffleRewards enormousRaffle = _deploy(config, bytes32("maximum-pool"));
+        vm.prank(CREATOR);
+        enormousRaffle.bind(address(subject));
+
+        enormousAsset.mint(address(enormousRaffle), type(uint256).max);
+        enormousRaffle.sync();
+
+        uint256 expectedPool = type(uint256).max - (type(uint256).max / 100);
+        assertEq(enormousRaffle.availablePool(), expectedPool);
+        assertEq(enormousRaffle.nextPrize(), expectedPool / 20);
     }
 
     /// Required test 13: fee-on-transfer prize assets revert without credit.

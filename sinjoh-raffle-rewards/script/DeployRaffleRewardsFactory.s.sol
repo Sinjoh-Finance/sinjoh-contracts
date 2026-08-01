@@ -16,9 +16,8 @@ interface IArbSys {
 }
 
 /// @notice Deploys the raffle factory and its implementation.
-/// @dev `RANDOMNESS_ADAPTER` is asserted to have code so a raffle can never be configured
-/// against an adapter that does not exist. The adapter address is immutable in every raffle
-/// this factory produces, so it cannot be corrected later.
+/// @dev `RANDOMNESS_ADAPTER` is a production smoke check for the intended adapter. Every raffle
+/// independently rejects a configured adapter without code during its immutable initialization.
 contract DeployRaffleRewardsFactory {
     uint256 internal constant ROBINHOOD_MAINNET_CHAIN_ID = 4_663;
     address internal constant ARBSYS = address(0x64);

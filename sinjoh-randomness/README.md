@@ -51,7 +51,7 @@ forge test
 forge build --sizes
 ```
 
-20 tests, including a full round trip with a genuine ECVRF proof, forged-key and
+35 tests, including a full round trip with a genuine ECVRF proof, forged-key and
 wrong-input rejection, tampering with each proof component, the seal window at both
 edges, and gas ceilings per step.
 
@@ -63,6 +63,7 @@ and the challenge scalar come from the verifier itself.
 
 [`src/libraries/VRF.sol`](./src/libraries/VRF.sol) is Chainlink's ECVRF verifier,
 byte-identical to `smartcontractkit/chainlink-evm` and excluded from `forge fmt` so
-it stays diffable upstream. Do not edit it.
+it stays diffable upstream. Its pinned provenance and checksum are recorded in
+[`VENDORED.md`](./VENDORED.md). Do not edit it.
 
 Consumer: [`sinjoh-raffle-rewards`](../sinjoh-raffle-rewards).

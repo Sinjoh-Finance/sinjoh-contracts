@@ -75,7 +75,7 @@ forge coverage --report summary
 forge build --sizes
 ```
 
-26 unit tests and 4 invariants cover the spec's required list: commit ordering and
+72 tests across six suites, including six strict invariants, cover the spec's required list: commit ordering and
 snapshot verification, prize freezing, randomness authentication and single
 delivery, ticket-interval partitioning, falsified proofs, slot-once payment,
 deferred payment to a rejecting winner, tax splitting and bounds, cumulative 1%
@@ -90,7 +90,8 @@ worker must reproduce.
 
 [`script/DeployRaffleRewardsFactory.s.sol`](./script/DeployRaffleRewardsFactory.s.sol)
 asserts chain ID `4663`, reads `ArbSys`, and requires `RANDOMNESS_ADAPTER` to have
-code. Per-launch raffles are then created through the factory:
+code as a production smoke check. The raffle also rejects any configured ERC-20
+prize asset or randomness adapter without code. Per-launch raffles are then created through the factory:
 `predictRaffle` → configure the launch against the predicted address → `deployRaffle`
 → `bind(subject)` once the token exists.
 

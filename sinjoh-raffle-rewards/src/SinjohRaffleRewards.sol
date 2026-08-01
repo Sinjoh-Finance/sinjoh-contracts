@@ -79,12 +79,7 @@ contract SinjohRaffleRewards {
     error InvariantViolation();
 
     event RaffleInitialized(
-        bytes32 configHash,
-        address indexed creator,
-        address indexed attestor,
-        address indexed randomness,
-        address prizeAsset,
-        address[] exclusions
+        bytes32 indexed configHash, RaffleTypes.Settings configuration, address[] exclusions
     );
     event SubjectBound(address indexed subject);
     event Deposited(
@@ -97,6 +92,7 @@ contract SinjohRaffleRewards {
         bytes32 rootHash,
         uint256 totalTickets,
         uint256 prize,
+        uint8 winnersPerRound,
         bytes32 requestId
     );
     event RandomnessReceived(uint64 indexed roundId, bytes32 requestId, uint256 seed);
@@ -113,7 +109,10 @@ contract SinjohRaffleRewards {
         uint64 indexed roundId,
         uint8 indexed slot,
         address indexed holder,
-        uint256 amount,
+        uint256 gross,
+        uint256 recipientTax,
+        uint256 recycleTax,
+        uint256 net,
         bytes reason
     );
     event OwedDelivered(address indexed holder, uint256 amount, address indexed caller);
@@ -149,6 +148,13 @@ contract SinjohRaffleRewards {
 
     uint256 private _reentrancyState = 1;
 
+    /// @dev The factory deploys this contract once as clone bytecode. Locking that deployment's
+    /// storage does not affect clone storage, but prevents anyone from initializing and operating
+    /// the implementation as an untracked raffle.
+    constructor() {
+        initialized = true;
+    }
+
     modifier nonReentrant() {
         if (_reentrancyState == 2) revert Reentrancy();
         _reentrancyState = 2;
@@ -177,7 +183,7 @@ contract SinjohRaffleRewards {
 
         initialized = true;
         configHash = keccak256(abi.encode(config));
-        settings = RaffleTypes.Settings({
+        RaffleTypes.Settings memory frozen = RaffleTypes.Settings({
             creator: config.creator,
             attestor: config.attestor,
             randomness: config.randomness,
@@ -199,6 +205,7 @@ contract SinjohRaffleRewards {
             claimWindow: config.claimWindow,
             basis: config.basis
         });
+        settings = frozen;
 
         uint256 exclusionLength = config.exclusions.length;
         for (uint256 i; i < exclusionLength; ++i) {
@@ -208,14 +215,7 @@ contract SinjohRaffleRewards {
         isExcluded[BURN_ADDRESS] = true;
         isExcluded[address(this)] = true;
 
-        emit RaffleInitialized(
-            configHash,
-            config.creator,
-            config.attestor,
-            config.randomness,
-            config.prizeAsset,
-            config.exclusions
-        );
+        emit RaffleInitialized(configHash, frozen, config.exclusions);
     }
 
     /// @notice Binds the subject token once. The raffle address exists before the token does.
@@ -369,7 +369,14 @@ contract SinjohRaffleRewards {
 
         _assertSolvent();
         emit RoundCommitted(
-            roundId, snapshotBlock, snapshotBlockHash, rootHash, totalTickets, prize, requestId
+            roundId,
+            snapshotBlock,
+            snapshotBlockHash,
+            rootHash,
+            totalTickets,
+            prize,
+            settings.winnersPerRound,
+            requestId
         );
     }
 
@@ -453,8 +460,8 @@ contract SinjohRaffleRewards {
         totalReserved -= share;
         // Each share is floored independently, so neither can round into the other and any
         // rounding dust stays with the winner.
-        uint256 recipientTax = (share * settings.recipientTaxBps) / BPS;
-        uint256 recycleTax = (share * settings.recycleTaxBps) / BPS;
+        uint256 recipientTax = _applyBps(share, settings.recipientTaxBps);
+        uint256 recycleTax = _applyBps(share, settings.recycleTaxBps);
         uint256 net = share - recipientTax - recycleTax;
         if (recipientTax != 0) taxOwed += recipientTax;
         if (recycleTax != 0) availablePool += recycleTax;
@@ -470,7 +477,9 @@ contract SinjohRaffleRewards {
         } catch (bytes memory reason) {
             owed[holder] += net;
             totalOwed += net;
-            emit PaymentDeferred(roundId, slot, holder, net, reason);
+            emit PaymentDeferred(
+                roundId, slot, holder, share, recipientTax, recycleTax, net, reason
+            );
         }
     }
 
@@ -609,11 +618,15 @@ contract SinjohRaffleRewards {
     // Internal
     // --------------------------------------------------------------------------------
 
-    function _validate(RaffleTypes.Config calldata config) private pure {
+    function _validate(RaffleTypes.Config calldata config) private view {
         if (
             config.creator == address(0) || config.attestor == address(0)
                 || config.randomness == address(0) || config.protocolFeeRecipient == address(0)
         ) revert InvalidAddress();
+        if (config.randomness.code.length == 0) revert InvalidAddress();
+        if (config.prizeAsset != address(0) && config.prizeAsset.code.length == 0) {
+            revert InvalidAddress();
+        }
         if (config.recipientTaxBps != 0 && config.taxRecipient == address(0)) {
             revert InvalidAddress();
         }
@@ -678,9 +691,15 @@ contract SinjohRaffleRewards {
     }
 
     function _prizeFor(uint256 pool) private view returns (uint256 prize) {
-        prize = (pool * settings.prizeBps) / BPS;
+        prize = _applyBps(pool, settings.prizeBps);
         uint256 cap = settings.maxPrize;
         if (cap != 0 && prize > cap) prize = cap;
+    }
+
+    /// @dev Computes floor(value * bps / BPS) without overflowing for any uint256 value.
+    function _applyBps(uint256 value, uint16 bps) private pure returns (uint256) {
+        // forge-lint: disable-next-line(divide-before-multiply)
+        return (value / BPS) * bps + ((value % BPS) * bps) / BPS;
     }
 
     function _slotPrize(uint256 prize, uint8 winners, uint8 slot) private pure returns (uint256) {

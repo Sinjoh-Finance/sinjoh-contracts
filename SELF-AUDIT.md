@@ -1,15 +1,42 @@
-# Self-audit: `sinjoh-raffle-rewards` and `sinjoh-randomness`
+# Review record: `sinjoh-raffle-rewards` and `sinjoh-randomness`
 
-A review of the two new packages by their author, before independent audit. It
-records what was checked, what was found and fixed, what was measured against the
-live chain, and — most importantly — what this exercise cannot establish.
+This record combines the original author's self-audit with the later independent
+branch takeover review. It records what was checked, fixed, and measured against
+the live chain, and — most importantly — what these exercises cannot establish.
+
+## Independent takeover review — 2026-08-01
+
+A second agent reviewed the entire branch against `origin/main` without accepting
+the original self-audit as evidence. The review found and corrected additional
+issues across the contracts, keeper, indexer, and documentation:
+
+1. the keeper rejected the final valid block of both 255-block hash windows;
+2. the production ECVRF prover accepted caller-supplied nonces, making accidental
+   nonce reuse and secret-key disclosure possible;
+3. round artifacts omitted the snapshot hash, Merkle proofs, and deterministic
+   content hash required for reproducibility;
+4. transfer replay did not enforce canonical intra-block log order and the round
+   builder failed to exclude the bound subject token;
+5. the clone implementation itself remained publicly initializable;
+6. immutable raffle configuration accepted randomness and ERC-20 prize-asset
+   addresses without deployed code;
+7. basis-point multiplication could overflow for a valid maximum-size token pool;
+8. raffle and randomness handlers were unreachable from the Envio chain config;
+9. repeated factory events erased existing raffle aggregates;
+10. initialization events omitted the frozen configuration and exclusions needed
+    by the indexer; and
+11. deferred-settlement events lacked gross/tax data, so the indexer recorded
+    incorrect prize and tax totals and could not identify settled rounds reliably.
+
+Focused regression tests were added for these cases. The remaining release gaps
+are listed at the end of this document.
 
 ## What this is not
 
 The contracts and their tests share one author. A misreading of the specification
 produces a contract and a test that agree with each other, and no amount of green
 suites detects that. This document narrows the space where such an error could
-hide; it does not close it. **Independent review remains a release gate.**
+hide; it does not close it. **An external security audit remains a release gate.**
 
 ## Findings
 
@@ -130,13 +157,15 @@ offline.
 
 | | Lines | Branches |
 |---|---|---|
-| `SinjohRaffleRewards` | 98.15% | 95.65% |
-| `SinjohRaffleRewardsFactory` | 95.45% | 100% |
+| `SinjohRaffleRewards` | 96.40% | 93.62% |
+| `SinjohRaffleRewardsFactory` | 100% | 100% |
 | `SinjohEcvrfRandomness` | 98.48% | 95% |
 
-Invariants run 16,384 calls each with zero reverts. `src/` is warning-free under
-`forge lint` in both packages, and `VRF.sol` is byte-identical to upstream and
-excluded from formatting so it stays diffable.
+The raffle report was refreshed after the takeover corrections with
+`forge coverage --ir-minimum`; Foundry warns that its minimum via-IR source mapping
+can be less precise. Invariants run 16,384 calls each with zero reverts. `src/` is
+warning-free under `forge lint` in both packages, and `VRF.sol` is byte-identical
+to the pinned upstream commit recorded in `sinjoh-randomness/VENDORED.md`.
 
 ## Offchain implementation
 
@@ -152,8 +181,10 @@ Solidity counterpart by fixtures generated from that counterpart:
 
 `src/raffle/tickets.ts` implements the `MIN_BALANCE` basis, with tests showing a
 balance borrowed into the snapshot block earns nothing while a point snapshot would
-have rewarded it. `src/raffle/sequencer.ts` holds the deadline rules, including
-that a missed seal is terminal rather than retried forever.
+have rewarded it. Transfer histories are required to be strictly ordered by block
+and log index, and the effective exclusion set includes the bound subject and all
+automatic contract exclusions. `src/raffle/sequencer.ts` holds the deadline rules,
+including that the final window block remains valid and a later seal is terminal.
 
 Regenerate the fixtures with `forge test --match-contract GenerateFixtures` in each
 Solidity package and copy them into `sinjoh-keeper/test/fixtures`. A change to a
@@ -166,7 +197,7 @@ worker is the template.
 
 ## Still open before mainnet
 
-1. Independent audit. The blind-spot problem above is structural.
+1. External security audit. The blind-spot problem above is structural.
 2. Static analysis — neither slither nor aderyn is installed in this environment.
 3. ~~The off-chain prover and the raffle worker do not exist yet.~~ Both now exist
    in `sinjoh-keeper` and are pinned to the Solidity references by committed
@@ -175,3 +206,6 @@ worker is the template.
    operational journal — around the pure logic that is built and tested.
 4. The ECVRF key must be generated on the host that will hold it, and must not be
    the attestor's host.
+5. The raffle Envio handlers code-generate and type-check, and their settlement
+   projection has a pure regression test, but they still need an end-to-end handler
+   simulation against representative factory, raffle, and adapter logs.

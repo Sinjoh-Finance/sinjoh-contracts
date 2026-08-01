@@ -85,15 +85,11 @@ contract SinjohRaffleRewardsBranchesTest is TestBase {
     // Guards
     // ------------------------------------------------------------------
 
-    function testUninitializedImplementationRejectsUse() public {
+    function testImplementationCannotBeInitialized() public {
         SinjohRaffleRewards implementation = SinjohRaffleRewards(payable(factory.implementation()));
 
-        vm.expectRevert(SinjohRaffleRewards.NotInitialized.selector);
-        implementation.sync();
-
-        vm.prank(CREATOR);
-        vm.expectRevert(SinjohRaffleRewards.NotInitialized.selector);
-        implementation.bind(address(subject));
+        vm.expectRevert(SinjohRaffleRewards.AlreadyInitialized.selector);
+        implementation.initialize(_baseConfig());
     }
 
     function testCommitRoundIsAttestorOnly() public {
@@ -397,6 +393,7 @@ contract SinjohRaffleRewardsBranchesTest is TestBase {
         _expectBadConfig(_withCreator(address(0)), bytes32("c0"));
         _expectBadConfig(_withAttestor(address(0)), bytes32("a0"));
         _expectBadConfig(_withRandomness(address(0)), bytes32("r0"));
+        _expectBadConfig(_withRandomness(address(0xBEEF)), bytes32("rcode"));
         _expectBadConfig(_withProtocolRecipient(address(0)), bytes32("p0"));
     }
 

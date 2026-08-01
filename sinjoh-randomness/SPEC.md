@@ -313,7 +313,8 @@ each seal preceded its proof.
 `src/libraries/VRF.sol` is Chainlink's ECVRF verifier, copied byte-identical from
 `smartcontractkit/chainlink-evm` (`contracts/src/v0.8/vrf/VRF.sol`, MIT). It is
 excluded from `forge fmt` so it stays diffable against upstream. Do not edit it: a
-change there is a change to the verification rules.
+change there is a change to the verification rules. The reviewed commit and
+checksum are pinned in [`VENDORED.md`](./VENDORED.md).
 
 ## Deployment checklist
 

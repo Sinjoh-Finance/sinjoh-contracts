@@ -143,7 +143,7 @@ Bounds, enforced at initialization:
 | `randomnessTimeout` | 900 to 86,400 seconds |
 | `claimWindow` | 3,600 to 2,592,000 seconds |
 | `exclusions` | sorted ascending, unique, nonzero, at most 32 |
-| addresses | attestor, randomness, protocol fee recipient nonzero; tax recipient nonzero when `recipientTaxBps != 0` |
+| addresses | creator, attestor, randomness, and protocol fee recipient nonzero; tax recipient nonzero when `recipientTaxBps != 0`; randomness and any ERC-20 prize asset must contain code |
 
 `configHash` is `keccak256` of the canonical encoding with `subject` as zero. It is
 stored and used by `fund()`.
@@ -557,14 +557,17 @@ Adapter requirements, normative for any adapter used with this raffle:
 3. exactly one delivery per request succeeds;
 4. the delivered seed is unpredictable to the consumer, the attestor, the caller,
    and any observer at request time;
-5. the seed does not depend on block hash, timestamp, coinbase, `prevrandao`, or
-   any value a keeper, sequencer, or attestor can grind;
+5. the seed does not use block hash, timestamp, coinbase, `prevrandao`, or another
+   sequencer-controlled value as its sole entropy source; a block hash may bind a
+   cryptographic proof input only when the adapter documents the sequencer/key-holder
+   collusion and withholding assumptions;
 6. delivery costs are paid by the adapter's own funding, never from the prize pool;
 7. an adapter may serve many raffles.
 
 An adapter that cannot satisfy (4) and (5) must not be used. `blockhash`,
-`ArbSys.arbBlockHash`, and `block.prevrandao` are explicitly rejected: on an Orbit
-chain the sequencer determines all three, and the attestor chooses commit timing.
+`ArbSys.arbBlockHash`, and `block.prevrandao` are explicitly rejected as standalone
+randomness: on an Orbit chain the sequencer determines all three, and the attestor
+chooses commit timing.
 
 ### Chainlink VRF is not deployed on Robinhood Chain
 
@@ -635,7 +638,7 @@ Once per `minRoundInterval`, for round `n`:
 2. Verify the snapshot block hash through at least two independently operated RPC
    endpoints.
 3. Reconstruct raw subject balances from `Transfer` logs from the deployment block
-   through the snapshot block.
+   through the snapshot block in strict `(blockNumber, logIndex)` order.
 4. Cross-check reconstructed supply against `totalSupply()` at that block.
 5. Under `MIN_BALANCE`, additionally compute each holder's minimum raw balance over
    `[snapshotBlock - weightWindowBlocks, snapshotBlock]` from the same log stream.
@@ -647,9 +650,9 @@ Once per `minRoundInterval`, for round `n`:
 10. Compute `totalTickets` as the checked sum of leaf tickets.
 11. Build the padded, direction-aware Merkle-sum tree; assert the root sum equals
     `totalTickets`.
-12. Persist the complete leaf set, all proofs, snapshot block and hash, weight
-    basis, window, ticket size, cap, and algorithm version, plus a deterministic
-    content hash of the artifact.
+12. Persist the subject, complete effective exclusion set, complete leaf set, all
+    proofs, snapshot block and hash, weight basis, window, ticket size, cap, winner
+    count, and algorithm version, plus a deterministic content hash of the artifact.
 13. Commit with the attestor signer, inside the confirmation and 255-block window.
 14. After `RandomnessReceived`, compute each slot's index, locate the owning leaf
     by interval, and submit `claim` for each slot.
@@ -695,18 +698,18 @@ a round reserve, a deferred winner credit, protocol fees, or payout tax.
 ## Events
 
 ```solidity
-event RaffleInitialized(bytes32 configHash, address creator, address randomness);
+event RaffleInitialized(bytes32 indexed configHash, RaffleTypes.Settings configuration, address[] exclusions);
 event SubjectBound(address indexed subject);
 event Deposited(address indexed source, uint256 gross, uint256 fee, uint256 net, bool attributed);
-event RoundCommitted(uint64 indexed roundId, uint64 snapshotBlock, bytes32 snapshotBlockHash, bytes32 rootHash, uint256 totalTickets, uint256 prize, bytes32 requestId);
+event RoundCommitted(uint64 indexed roundId, uint64 snapshotBlock, bytes32 snapshotBlockHash, bytes32 rootHash, uint256 totalTickets, uint256 prize, uint8 winnersPerRound, bytes32 requestId);
 event RandomnessReceived(uint64 indexed roundId, bytes32 requestId, uint256 seed);
 event PrizePaid(uint64 indexed roundId, uint8 indexed slot, address indexed holder, uint256 gross, uint256 recipientTax, uint256 recycleTax, uint256 net);
-event PaymentDeferred(uint64 indexed roundId, uint8 slot, address indexed holder, uint256 amount);
-event OwedDelivered(address indexed holder, uint256 amount);
+event PaymentDeferred(uint64 indexed roundId, uint8 indexed slot, address indexed holder, uint256 gross, uint256 recipientTax, uint256 recycleTax, uint256 net, bytes reason);
+event OwedDelivered(address indexed holder, uint256 amount, address indexed caller);
 event RoundExpired(uint64 indexed roundId, uint256 returned);
 event RoundAbandoned(uint64 indexed roundId, uint256 returned);
-event ProtocolFeeSent(uint256 amount);
-event TaxSent(uint256 amount);
+event ProtocolFeeSent(address indexed recipient, uint256 amount, address indexed caller);
+event TaxSent(address indexed recipient, uint256 amount, address indexed caller);
 ```
 
 The events must be sufficient to reproduce all contract state without an archive
@@ -714,17 +717,22 @@ trace.
 
 ## Indexer contract
 
-The reference Envio indexer publishes a versioned schema with:
+The reference Envio indexer projects the complete on-chain event stream into a
+versioned schema with:
 
 - raffle configuration, exclusions, and derived ticket parameters;
 - deposit history, split into attributed and swept, gross, fee, and net;
 - round metadata: snapshot block and hash, root, total tickets, prize, request ID,
   state, and timestamps;
-- seed, derived slot indices, and per-slot resolution;
-- the complete sorted leaf set and proofs for every committed round;
-- pending claims with time remaining in the claim window;
+- seed and per-slot settlement resolution;
 - deferred credits, expired and abandoned reserves;
 - protocol fee and payout tax accrual and delivery.
+
+Complete sorted leaves, proofs, derived winning indices, and claim payloads live in
+the keeper's deterministic round artifact. They are not emitted on-chain and the
+current Envio package does not ingest that off-chain artifact. A query layer that
+needs proof delivery or live claim countdowns must join the artifact store with the
+on-chain projection.
 
 Provider names never appear in the contract. The ABI, entity schema, and
 deterministic tree fixtures are part of the implementation repository's
@@ -752,7 +760,9 @@ compatibility tests.
   floored independently, with an immutable delivery destination.
 - No owner, upgrade, sweep, rescue, arbitrary call, attestor change, adapter
   change, root replacement, or configuration setter.
-- Chain-ID and dependency-code-hash assertions in deployment scripts.
+- Chain-ID, `ArbSys`, intended randomness-adapter code, and deployed factory and
+  implementation code assertions in the deployment script. Every raffle separately
+  rejects a configured adapter or ERC-20 prize asset without code.
 
 ## Required tests
 
@@ -810,9 +820,9 @@ These require a decision before implementation; each has a stated default in thi
 document.
 
 1. ~~**Randomness adapter.**~~ **Resolved:** on-chain ECVRF, specified in
-   [`sinjoh-randomness`](../sinjoh-randomness/SPEC.md). Blocking item before any
-   mainnet raffle: measure Robinhood Chain's block time, because 255 blocks is the
-   seal deadline and the keeper's schedule depends on it.
+   [`sinjoh-randomness`](../sinjoh-randomness/SPEC.md). The measured 0.1004-second
+   block cadence leaves about 25.6 seconds for each 255-block deadline, so the
+   keeper must be deployed and exercised before any mainnet raffle.
 2. ~~**`MAX_PAYOUT_TAX_BPS`.**~~ **Resolved:** 5,000. Deliberately permissive so a
    novel reward design can be supported without a new implementation and factory.
    Interfaces carry the burden of displaying a high configured tax clearly.
