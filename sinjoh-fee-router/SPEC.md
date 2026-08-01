@@ -117,8 +117,31 @@ struct Config {
 `normalizations` replaces the former single `subjectToWeth` leg. Fees do not
 always arrive as the subject token: a launchpad that pairs a launch against a
 quote asset pays fees in that asset instead, and that asset may not be 18
-decimals. `sync(asset)` accepts any asset with a configured route and converts it
-to WETH through that route; WETH itself passes through with no route.
+decimals. `sync` accepts any asset with a configured route and converts it to
+WETH through that route; WETH itself passes through with no route.
+
+## Synchronizing
+
+```solidity
+function sync(address asset) external returns (uint256 gross, uint256 fee);
+function sync(address asset, uint256 minAmountOut) external returns (uint256 gross, uint256 fee);
+```
+
+**The one-argument form is WETH-only.** WETH needs no conversion, so there is
+nothing for a floor to protect and requiring one would be noise on the most
+common call a keeper makes. Every other asset is swapped, so every other asset
+must state a floor; passing one to the WETH form reverts
+`NormalizationFloorRequired`.
+
+The refusal distinguishes its causes — `NativeIntakeUnsupported` for the zero
+address, `UnsupportedAsset` when no route is configured, and
+`NormalizationFloorRequired` only when a route exists and the caller omitted the
+floor — so a caller is not sent to fix the wrong thing.
+
+The floor is denominated in WETH, the swap's output, but must be derived from the
+input asset's own decimals. A 6-decimal quote asset read as 18 decimals misprices
+by twelve orders of magnitude, which is exactly the mistake the parameter exists
+to let a caller avoid.
 
 Decimals are confined to the route. Every route outputs 18-decimal WETH and all
 downstream accounting is denominated in the output, so nothing after

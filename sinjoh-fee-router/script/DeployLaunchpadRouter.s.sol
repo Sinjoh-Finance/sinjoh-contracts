@@ -43,5 +43,11 @@ contract DeployLaunchpadRouter {
             revert DeploymentFailed();
         }
         if (factory.implementation() != address(implementation)) revert DeploymentFailed();
+        // The implementation's constructor sets `initialized` so the shared
+        // logic contract cannot be initialized by whoever finds it first. Assert
+        // it here rather than trusting the constructor ran as expected — a
+        // seizable implementation would let an attacker bind a subject on the
+        // contract every clone delegates to.
+        if (!implementation.initialized()) revert DeploymentFailed();
     }
 }

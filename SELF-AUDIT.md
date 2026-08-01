@@ -34,14 +34,33 @@ This predates my changes for the subject-token case, but generalizing intake fro
 like USDG normalizing into 18-decimal WETH is exactly where a sandwich is most
 profitable and a mispriced floor least obvious.
 
-Fixed: added `sync(address asset, uint256 minAmountOut)`. `sync(address)` is retained,
-delegating with a zero floor, so existing callers are unaffected and can migrate
-deliberately. Regressions: `testSyncFloorRejectsAnUnderpricedNormalization`,
-`testSyncFloorAcceptsAnAdequateNormalization`, `testWethSyncIgnoresTheFloor`.
+Fixed in two passes. First, added `sync(address asset, uint256 minAmountOut)` and kept
+`sync(address)` delegating with a zero floor — justified at the time as protecting
+existing callers. **That justification was wrong**: nothing predates a contract that
+has not shipped, and the old router is a different deployment those callers keep using.
+Leaving an unprotected path on a fresh immutable contract was a footgun with no
+offsetting benefit.
 
-**Follow-up for the keeper:** it currently calls `sync(asset)`. It should compute a
-floor in the input asset's own decimals and call the two-argument form. Until it does,
-the protection exists but is unused.
+Final shape: `sync(address)` is **WETH-only**. WETH performs no swap, so there is
+nothing for a floor to protect and requiring one would be noise on the most common
+keeper call. Every swappable asset must state a floor. The refusal distinguishes its
+causes — `NativeIntakeUnsupported`, `UnsupportedAsset` when no route exists, and
+`NormalizationFloorRequired` only when a route exists and the floor was omitted — so a
+caller is not sent to fix the wrong thing.
+
+Regressions: `testSyncFloorRejectsAnUnderpricedNormalization`,
+`testSyncFloorAcceptsAnAdequateNormalization`, `testWethSyncIgnoresTheFloor`,
+`testSwappableAssetsMustStateAFloor`, `testRefusalDistinguishesNoRouteFromNoFloor`.
+
+**Keeper, done.** `DeploymentManifest` gained `routerIntakes: [{asset, minAmountOut}]`
+alongside the legacy `intakeAssets`. Which field a manifest sets is what tells the
+planner which router it points at — pre-seam routers have only the one-argument `sync`,
+so sending them the two-argument form would hit a selector that does not exist there.
+Validation requires exactly one of the two: both is ambiguous, and neither would
+silently never synchronize, which is the worse failure because nothing reverts and fees
+would accumulate unaccounted forever. `routerIntakes` also rejects the zero address,
+which `assertAsset` otherwise permits as native, because the agnostic router refuses
+native intake outright.
 
 ### F3 — v1 adapter could strand native value (low)
 

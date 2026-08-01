@@ -35,7 +35,7 @@ contract FeeRouterHandler {
         uint256 amount = uint256(rawAmount) % 1e24 + 1;
         subject.mint(address(router), amount);
         weth.mint(address(adapter), amount);
-        router.sync(address(subject));
+        router.sync(address(subject), 0);
         normalizedGross += amount;
     }
 

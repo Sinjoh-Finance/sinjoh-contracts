@@ -57,6 +57,7 @@ contract SinjohFeeRouter {
     error ImmutableAllocation();
     error NativeBurnForbidden();
     error NativeIntakeUnsupported();
+    error NormalizationFloorRequired(address asset);
 
     event Initialized(
         address indexed creator,
@@ -265,11 +266,25 @@ contract SinjohFeeRouter {
     /// already WETH is swapped to WETH through its configured normalization
     /// route before the fee and bucket split.
     ///
-    /// @dev Unprotected overload, kept for callers that predate the floor. The
-    /// normalization swap runs with `minAmountOut = 0`, so it is only safe on a
-    /// route that cannot be sandwiched, or when the caller is willing to accept
-    /// whatever the route returns. Prefer `sync(asset, minAmountOut)`.
+    /// @notice Synchronize an asset that needs no conversion.
+    ///
+    /// @dev WETH only. WETH is already the normalized asset, so this path
+    /// performs no swap and there is nothing for a floor to protect — requiring
+    /// one would be noise on the most common call the keeper makes.
+    ///
+    /// Every other asset is swapped, so every other asset must state a floor and
+    /// is directed to `sync(asset, minAmountOut)`. An unprotected overload that
+    /// silently accepted a swappable asset would be a footgun on a fresh
+    /// immutable contract, and nothing predates this one to need it.
     function sync(address asset) external nonReentrant returns (uint256 gross, uint256 fee) {
+        if (asset != weth) {
+            // Report why it is refused, not merely that it is. Telling a caller
+            // to supply a floor for an asset with no route would send them to
+            // fix the wrong thing.
+            if (asset == address(0)) revert NativeIntakeUnsupported();
+            if (_normalizationIndex[asset] == 0) revert UnsupportedAsset(asset);
+            revert NormalizationFloorRequired(asset);
+        }
         return _sync(asset, 0);
     }
 

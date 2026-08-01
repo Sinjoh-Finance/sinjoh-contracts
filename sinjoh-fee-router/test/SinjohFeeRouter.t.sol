@@ -132,7 +132,7 @@ contract SinjohFeeRouterTest is TestBase {
         assertEq(subjectToken.balanceOf(address(launchRouter)), 500);
 
         weth.mint(address(adapter), 500);
-        launchRouter.sync(address(subjectToken));
+        launchRouter.sync(address(subjectToken), 0);
         assertEq(subjectToken.balanceOf(address(launchRouter)), 0);
     }
 
@@ -171,7 +171,7 @@ contract SinjohFeeRouterTest is TestBase {
         quoteToken.mint(address(quoteRouter), 1_000);
         weth.mint(address(quoteAdapter), 1_000 * 1e12);
 
-        (uint256 gross,) = quoteRouter.sync(address(quoteToken));
+        (uint256 gross,) = quoteRouter.sync(address(quoteToken), 0);
 
         assertEq(gross, 1_000);
         assertEq(quoteToken.balanceOf(address(quoteRouter)), 0);
@@ -205,7 +205,7 @@ contract SinjohFeeRouterTest is TestBase {
         vm.expectRevert(
             abi.encodeWithSelector(SinjohFeeRouter.UnsupportedAsset.selector, address(subjectToken))
         );
-        quoteOnly.sync(address(subjectToken));
+        quoteOnly.sync(address(subjectToken), 0);
     }
 
     /// @dev Audit finding: normalization was the one swap leg with no caller
@@ -236,6 +236,32 @@ contract SinjohFeeRouterTest is TestBase {
         assertEq(gross, 10_000);
     }
 
+    /// @dev A swappable asset cannot be synchronized without stating a floor.
+    /// The one-argument form exists only for WETH, which performs no swap.
+    function testSwappableAssetsMustStateAFloor() public {
+        subjectToken.mint(address(router), 10_000);
+        weth.mint(address(adapter), 10_000);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                SinjohFeeRouter.NormalizationFloorRequired.selector, address(subjectToken)
+            )
+        );
+        router.sync(address(subjectToken));
+    }
+
+    /// @dev And the refusal says why. Telling a caller to supply a floor for an
+    /// asset that has no route at all would send them to fix the wrong thing.
+    function testRefusalDistinguishesNoRouteFromNoFloor() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(SinjohFeeRouter.UnsupportedAsset.selector, address(payoutToken))
+        );
+        router.sync(address(payoutToken));
+
+        vm.expectRevert(SinjohFeeRouter.NativeIntakeUnsupported.selector);
+        router.sync(address(0));
+    }
+
     function testAssetWithoutANormalizationRouteIsRejected() public {
         payoutToken.mint(address(router), 1_000);
         vm.expectRevert(
@@ -254,7 +280,7 @@ contract SinjohFeeRouterTest is TestBase {
         subjectToken.mint(address(router), 10_000);
         weth.mint(address(adapter), 10_000);
 
-        (uint256 gross, uint256 fee) = router.sync(address(subjectToken));
+        (uint256 gross, uint256 fee) = router.sync(address(subjectToken), 0);
 
         assertEq(gross, 10_000);
         assertEq(fee, 100);
