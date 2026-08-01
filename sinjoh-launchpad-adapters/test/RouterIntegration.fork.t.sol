@@ -116,6 +116,8 @@ contract RouterIntegrationForkTest is TestBase {
             output: RouterTypes.AssetRef(RouterTypes.AssetKind.FIXED_ERC20, WETH),
             bps: 10_000,
             route: RouterTypes.Route(address(0), ""),
+            priceGuard: address(0),
+            maxAmountInPerCall: type(uint128).max,
             allocations: allocations
         });
 
@@ -125,7 +127,8 @@ contract RouterIntegrationForkTest is TestBase {
         normalizations[0] = RouterTypes.Normalization({
             asset: RouterTypes.AssetRef(RouterTypes.AssetKind.SUBJECT, address(0)),
             route: RouterTypes.Route(SWAP_ADAPTER, abi.encode(uint24(10_000))),
-            priceGuard: address(normalizationGuard)
+            priceGuard: address(normalizationGuard),
+            maxAmountInPerCall: type(uint128).max
         });
 
         config = RouterTypes.Config({

@@ -19,7 +19,7 @@ An immutable per-launch router with one accounting asset: WETH.
 8. The launch UI does not offer burn allocations for RWA buckets.
 
 The router does not deploy per-launch adapters or guards. A shared adapter
-executes direct Pons v3 swaps and WETH unwrapping.
+executes direct Robinhood Chain v3 swaps and WETH unwrapping.
 
 ## Deployment and binding
 
@@ -54,9 +54,9 @@ which asset they arrive in, what the launch parameters look like — lives behin
 launchpad means writing an adapter. It does not mean changing this contract.**
 
 `bind` is delegable to the adapter because a launchpad may not produce a
-predictable token address. pons v2, for example, creates tokens with a plain
-`new`, so nothing derived from the address can be committed before the launch
-lands; the adapter learns the address in the launch transaction and binds there.
+predictable token address. Some launchpads create tokens dynamically, so nothing
+derived from the address can be committed before the launch lands; the adapter
+learns the address in the launch transaction and binds there.
 
 A zero `launchpadAdapter` is valid and means only the creator may bind, which is
 correct for a launch the creator performs themselves.
@@ -96,6 +96,8 @@ struct Bucket {
     AssetRef output;
     uint16 bps;
     Route route;
+    address priceGuard;
+    uint128 maxAmountInPerCall;
     Allocation[] allocations;
 }
 
@@ -103,6 +105,7 @@ struct Normalization {
     AssetRef asset;
     Route route;
     address priceGuard;
+    uint128 maxAmountInPerCall;
 }
 
 struct Config {
@@ -146,8 +149,10 @@ by twelve orders of magnitude.
 The caller floor is not the router's trust boundary: `sync` is permissionless,
 so an attacker could always supply a weak value. Each normalization therefore
 stores an immutable `priceGuard`. The router asks it for an amount-aware minimum
-for the full unaccounted balance and executes with the stricter of the guard
-quote and the caller floor. Zero or expired guard quotes fail closed.
+for at most `maxAmountInPerCall` of the unaccounted balance and executes with the
+stricter of the guard quote and the caller floor. Excess balance remains
+unaccounted for later bounded calls, so a donation cannot permanently exceed a
+guard's supported amount. Zero or expired guard quotes fail closed.
 
 For the shared `ISinjohPriceGuard` interface, normalization supplies its input
 asset as both `subject` and `assetIn`. This deliberately binds the guard to the
@@ -169,6 +174,9 @@ Rules:
 - every bucket’s allocation basis points total 10,000;
 - WETH output uses an empty identity route;
 - every other output uses a deployed adapter;
+- every ERC-20 output other than WETH uses a deployed immutable price guard;
+- native unwrap and WETH identity buckets use no guard and enforce exact value;
+- every bucket has a nonzero immutable per-call input cap;
 - route and sink configuration bytes are bounded;
 - resolved bucket outputs must be unique;
 - native ETH cannot use the burn address.
@@ -195,9 +203,12 @@ created by buyback buckets therefore cannot be mistaken for new fee intake.
 function sync(address asset) external returns (uint256 gross, uint256 fee);
 ```
 
-`asset` must be the bound subject or WETH. Subject intake swaps to WETH first.
-The protocol fee and all bucket shares are then denominated in WETH. The last
-bucket receives integer-division dust so every unit is assigned immediately.
+`asset` must be WETH or any bound configured normalization asset. Non-WETH intake
+swaps to WETH first. The protocol fee and all bucket shares are then denominated
+in WETH. Shares use house-monotone D'Hondt apportionment over lifetime cumulative
+totals, so splitting one sync into smaller calls cannot change any bucket's
+cumulative entitlement and no entitlement ever needs to decrease. Exact priority
+ties go to the earlier configured entry.
 
 ## Bucket processing
 
@@ -207,14 +218,19 @@ function processBucket(
     address inputAsset,
     uint256 amountIn,
     uint256 callerMinOut,
-    bytes calldata unused
+    bytes calldata guardData
 ) external returns (uint256 amountOut);
 ```
 
-`inputAsset` must be WETH. Any nonzero amount up to the bucket’s pending WETH
-may be processed. The immutable bucket route either keeps WETH or produces the
-configured output. The router verifies exact WETH spend and measures the actual
-output balance increase. The last allocation receives integer-division dust.
+`inputAsset` must be WETH. Any nonzero amount up to both the bucket’s pending WETH
+and immutable `maxAmountInPerCall` may be processed. The immutable bucket route either keeps WETH or produces the
+configured output. ERC-20 swaps execute against the stricter of the immutable
+guard quote and `callerMinOut`; zero and expired quotes fail closed. WETH
+identity needs no guard, and native unwrap requires at least exact one-to-one
+output. The router verifies exact WETH spend and measures the actual output
+balance increase. Allocations use the same house-monotone cumulative
+apportionment, so caller-selected processing tranches cannot redirect rounding
+value.
 
 Each bucket is independent. A failed asset swap does not block WETH sends,
 airdrops, buybacks, native ETH, LP, or another asset bucket.

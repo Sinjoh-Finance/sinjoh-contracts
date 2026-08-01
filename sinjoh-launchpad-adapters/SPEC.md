@@ -127,9 +127,18 @@ approved equity token, and their fees arrive in that asset — neither `subject`
 normalization routes keyed by intake asset:
 
 ```solidity
-struct Normalization { AssetRef asset; Route route; address priceGuard; }
+struct Normalization {
+    AssetRef asset;
+    Route route;
+    address priceGuard;
+    uint128 maxAmountInPerCall;
+}
 Normalization[] normalizations;   // replaces `Route subjectToWeth`
 ```
+
+Every router bucket likewise includes an immutable `priceGuard` and
+`maxAmountInPerCall`; WETH identity and native unwrap buckets use a zero guard,
+while other ERC-20 outputs require one.
 
 `sync(asset)` accepts any asset with a configured normalization route and converts it
 to WETH through that route; WETH itself passes through with no route, as today. The

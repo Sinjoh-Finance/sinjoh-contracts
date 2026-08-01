@@ -2,7 +2,6 @@
 pragma solidity 0.8.28;
 
 import { SinjohFeeRouter } from "../src/SinjohFeeRouter.sol";
-import { SinjohFeeRouterFactory } from "../src/SinjohFeeRouterFactory.sol";
 
 interface Vm {
     function addr(uint256 privateKey) external returns (address);
@@ -20,10 +19,10 @@ contract DeployFeeRouter {
     error WrongDeployer(address actual);
     error DeploymentFailed();
 
-    function run()
-        external
-        returns (SinjohFeeRouter implementation, SinjohFeeRouterFactory factory)
-    {
+    /// @notice Stage one: deploy only the implementation. Keeping the factory
+    /// bytecode out of this script keeps Forge's simulation contract below
+    /// EIP-170 after the router grows.
+    function run() external returns (SinjohFeeRouter implementation) {
         if (block.chainid != ROBINHOOD_MAINNET_CHAIN_ID) {
             revert WrongChain(block.chainid);
         }
@@ -33,12 +32,11 @@ contract DeployFeeRouter {
 
         vm.startBroadcast(deployerKey);
         implementation = new SinjohFeeRouter();
-        factory = new SinjohFeeRouterFactory(address(implementation));
         vm.stopBroadcast();
 
-        if (address(implementation).code.length == 0 || address(factory).code.length == 0) {
-            revert DeploymentFailed();
-        }
-        if (factory.implementation() != address(implementation)) revert DeploymentFailed();
+        if (address(implementation).code.length == 0) revert DeploymentFailed();
+        // The constructor must lock the shared logic contract before a factory
+        // is allowed to point clones at it.
+        if (!implementation.initialized()) revert DeploymentFailed();
     }
 }

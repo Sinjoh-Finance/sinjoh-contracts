@@ -6,6 +6,10 @@ import { SinjohFeeRouter } from "./SinjohFeeRouter.sol";
 import { Clones } from "./libraries/Clones.sol";
 
 contract SinjohFeeRouterFactory {
+    /// @notice Audited runtime hash for the only implementation this factory
+    /// version may clone. Update deliberately whenever router bytecode changes.
+    bytes32 public constant IMPLEMENTATION_CODEHASH = RouterTypes.IMPLEMENTATION_CODEHASH;
+
     error InvalidImplementation();
     error CreatorMismatch();
     error ConfigMismatch();
@@ -24,7 +28,15 @@ contract SinjohFeeRouterFactory {
     address public immutable implementation;
 
     constructor(address implementation_) {
-        if (implementation_ == address(0) || implementation_.code.length == 0) {
+        if (
+            implementation_ == address(0) || implementation_.code.length == 0
+                || implementation_.codehash != IMPLEMENTATION_CODEHASH
+        ) {
+            revert InvalidImplementation();
+        }
+        (bool ok, bytes memory result) =
+            implementation_.staticcall(abi.encodeWithSignature("initialized()"));
+        if (!ok || result.length != 32 || !abi.decode(result, (bool))) {
             revert InvalidImplementation();
         }
         implementation = implementation_;

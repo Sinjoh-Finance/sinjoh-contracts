@@ -10,6 +10,12 @@ import { RouterTypes } from "../src/RouterTypes.sol";
 import { SinjohFeeRouter } from "../src/SinjohFeeRouter.sol";
 import { SinjohFeeRouterFactory } from "../src/SinjohFeeRouterFactory.sol";
 
+contract FakeInitializedImplementation {
+    function initialized() external pure returns (bool) {
+        return true;
+    }
+}
+
 contract SinjohFeeRouterTest is TestBase {
     address internal constant PROTOCOL_RECIPIENT = address(0x1001);
     address internal constant WALLET = address(0x2002);
@@ -50,6 +56,18 @@ contract SinjohFeeRouterTest is TestBase {
         implementation.initialize(_config());
         vm.expectRevert(SinjohFeeRouter.AlreadyInitialized.selector);
         router.initialize(_config());
+    }
+
+    function testFactoryRejectsMissingOrNonRouterImplementation() public {
+        vm.expectRevert(SinjohFeeRouterFactory.InvalidImplementation.selector);
+        new SinjohFeeRouterFactory(address(0));
+
+        vm.expectRevert(SinjohFeeRouterFactory.InvalidImplementation.selector);
+        new SinjohFeeRouterFactory(address(subjectToken));
+
+        FakeInitializedImplementation fake = new FakeInitializedImplementation();
+        vm.expectRevert(SinjohFeeRouterFactory.InvalidImplementation.selector);
+        new SinjohFeeRouterFactory(address(fake));
     }
 
     function testFactoryPredictionAndDeploymentAreIdempotent() public {
@@ -122,6 +140,47 @@ contract SinjohFeeRouterTest is TestBase {
     function testBindHappensOnlyOnce() public {
         vm.expectRevert(SinjohFeeRouter.AlreadyBound.selector);
         router.bind(address(subjectToken));
+    }
+
+    function testBindRejectsNonContractSubject() public {
+        RouterTypes.Config memory config = _config();
+        SinjohFeeRouter unbound =
+            SinjohFeeRouter(payable(factory.deploy(address(this), bytes32("BAD_SUBJECT"), config)));
+        vm.expectPartialRevert(SinjohFeeRouter.NonContract.selector);
+        unbound.bind(address(0xBEEF));
+    }
+
+    function testBindRejectsNormalizationRefsThatResolveToSameAsset() public {
+        RouterTypes.Config memory config = _config();
+        RouterTypes.Normalization[] memory normalizations = new RouterTypes.Normalization[](2);
+        normalizations[0] = config.normalizations[0];
+        normalizations[1] = RouterTypes.Normalization({
+            asset: RouterTypes.AssetRef(RouterTypes.AssetKind.FIXED_ERC20, address(subjectToken)),
+            route: RouterTypes.Route(address(adapter), hex"03"),
+            priceGuard: address(priceGuard),
+            maxAmountInPerCall: type(uint128).max
+        });
+        config.normalizations = normalizations;
+        SinjohFeeRouter unbound = SinjohFeeRouter(
+            payable(factory.deploy(address(this), bytes32("RESOLVED_NORMALIZATION_DUP"), config))
+        );
+
+        vm.expectPartialRevert(SinjohFeeRouter.DuplicateAsset.selector);
+        unbound.bind(address(subjectToken));
+    }
+
+    function testBindRejectsBucketRefsThatResolveToSameAsset() public {
+        RouterTypes.Config memory config = _config();
+        config.buckets[0].output =
+            RouterTypes.AssetRef(RouterTypes.AssetKind.FIXED_ERC20, address(subjectToken));
+        config.buckets[0].route = RouterTypes.Route(address(adapter), hex"03");
+        config.buckets[0].priceGuard = address(priceGuard);
+        SinjohFeeRouter unbound = SinjohFeeRouter(
+            payable(factory.deploy(address(this), bytes32("RESOLVED_BUCKET_DUP"), config))
+        );
+
+        vm.expectPartialRevert(SinjohFeeRouter.DuplicateAsset.selector);
+        unbound.bind(address(subjectToken));
     }
 
     /// @dev The creator-direct path: a launchpad delivers first-buy tokens to
@@ -200,7 +259,8 @@ contract SinjohFeeRouterTest is TestBase {
         normalizations[0] = RouterTypes.Normalization({
             asset: RouterTypes.AssetRef(RouterTypes.AssetKind.FIXED_ERC20, address(quoteToken)),
             route: RouterTypes.Route(address(quoteAdapter), hex"09"),
-            priceGuard: address(priceGuard)
+            priceGuard: address(priceGuard),
+            maxAmountInPerCall: type(uint128).max
         });
         config.normalizations = normalizations;
 
@@ -240,6 +300,19 @@ contract SinjohFeeRouterTest is TestBase {
         assertEq(router.totalLiability(address(weth)), 10_000);
     }
 
+    function testRevertingNormalizationPreservesBalanceLiabilityAndAllowance() public {
+        subjectToken.mint(address(router), 100);
+        weth.mint(address(adapter), 100);
+        adapter.setSpendLess(true);
+
+        vm.expectPartialRevert(SinjohFeeRouter.UnexpectedBalanceDelta.selector);
+        router.sync(address(subjectToken), 1);
+
+        assertEq(subjectToken.balanceOf(address(router)), 100);
+        assertEq(router.totalLiability(address(subjectToken)), 0);
+        assertEq(subjectToken.allowance(address(router), address(adapter)), 0);
+    }
+
     function testImmutableGuardCannotBeWeakenedByPermissionlessCaller() public {
         subjectToken.mint(address(router), 10_000);
         weth.mint(address(adapter), 10_000);
@@ -265,6 +338,38 @@ contract SinjohFeeRouterTest is TestBase {
 
         vm.expectRevert(SinjohFeeRouter.InvalidMinimumOutput.selector);
         router.sync(address(subjectToken), 1);
+    }
+
+    function testNormalizationGuardReceivesExactSwapArguments() public {
+        subjectToken.mint(address(router), 123);
+        weth.mint(address(adapter), 123);
+        priceGuard.setExpectedArguments(
+            address(subjectToken), address(subjectToken), address(weth), 123, keccak256(hex"01"), ""
+        );
+
+        router.sync(address(subjectToken), 1);
+        assertEq(router.totalLiability(address(weth)), 123);
+    }
+
+    function testNormalizationProcessesBoundedTranchesAfterOversizedDonation() public {
+        RouterTypes.Config memory config = _config();
+        config.normalizations[0].maxAmountInPerCall = 100;
+        SinjohFeeRouter bounded =
+            SinjohFeeRouter(payable(factory.deploy(address(this), bytes32("BOUNDED"), config)));
+        bounded.bind(address(subjectToken));
+        subjectToken.mint(address(bounded), 250);
+        weth.mint(address(adapter), 250);
+
+        (uint256 firstGross,) = bounded.sync(address(subjectToken), 1);
+        assertEq(firstGross, 100);
+        assertEq(subjectToken.balanceOf(address(bounded)), 150);
+        assertEq(bounded.unaccountedBalance(address(subjectToken)), 150);
+        assertEq(bounded.totalLiability(address(weth)), 100);
+
+        (uint256 secondGross,) = bounded.sync(address(subjectToken), 1);
+        assertEq(secondGross, 100);
+        assertEq(bounded.unaccountedBalance(address(subjectToken)), 50);
+        assertEq(bounded.totalLiability(address(weth)), 200);
     }
 
     /// @dev The floor is meaningless when no swap happens, and must not block.
@@ -393,6 +498,59 @@ contract SinjohFeeRouterTest is TestBase {
         assertEq(router.totalLiability(address(subjectToken)), 4_950);
     }
 
+    function testPermissionlessBucketSwapCannotWeakenImmutableGuard() public {
+        weth.mint(address(router), 10_000);
+        subjectToken.mint(address(adapter), 4_950);
+        router.sync(address(weth));
+        priceGuard.setQuote(4_951, type(uint48).max);
+
+        vm.prank(address(0xBAD));
+        vm.expectRevert(
+            abi.encodeWithSelector(SinjohFeeRouter.InsufficientOutput.selector, 4_951, 4_950)
+        );
+        router.processBucket(1, address(weth), 4_950, 0, "");
+
+        assertEq(router.bucketInputOwed(1, address(weth)), 4_950);
+        assertEq(router.totalLiability(address(weth)), 10_000);
+    }
+
+    function testBucketGuardReceivesExactSwapArgumentsAndGuardData() public {
+        weth.mint(address(router), 10_000);
+        subjectToken.mint(address(adapter), 4_950);
+        router.sync(address(weth));
+        bytes memory guardData = hex"cafe";
+        priceGuard.setExpectedArguments(
+            address(subjectToken),
+            address(weth),
+            address(subjectToken),
+            4_950,
+            keccak256(hex"02"),
+            guardData
+        );
+
+        vm.prank(address(0xBAD));
+        router.processBucket(1, address(weth), 4_950, 0, guardData);
+        assertEq(router.walletOwed(router.BURN_ADDRESS(), address(subjectToken)), 4_950);
+    }
+
+    function testBucketRejectsExpiredGuardQuote() public {
+        weth.mint(address(router), 10_000);
+        router.sync(address(weth));
+        priceGuard.setQuote(1, uint48(block.timestamp - 1));
+
+        vm.expectRevert(SinjohFeeRouter.InvalidExpiry.selector);
+        router.processBucket(1, address(weth), 4_950, 0, "");
+    }
+
+    function testBucketRejectsZeroGuardQuote() public {
+        weth.mint(address(router), 10_000);
+        router.sync(address(weth));
+        priceGuard.setQuote(0, type(uint48).max);
+
+        vm.expectRevert(SinjohFeeRouter.InvalidMinimumOutput.selector);
+        router.processBucket(1, address(weth), 4_950, 0, "");
+    }
+
     function testASecondTokenBucketUsesOneDirectWethSwap() public {
         RouterTypes.Config memory config = _threeBucketConfig();
         SinjohFeeRouter three =
@@ -423,6 +581,24 @@ contract SinjohFeeRouterTest is TestBase {
         assertEq(WALLET.balance - beforeBalance, 9_900);
     }
 
+    function testNativeBucketRequiresExactOneToOneUnwrap() public {
+        RouterTypes.Config memory config = _nativeConfig();
+        SinjohFeeRouter nativeRouter = SinjohFeeRouter(
+            payable(factory.deploy(address(this), bytes32("NATIVE_EXACT"), config))
+        );
+        nativeRouter.bind(address(subjectToken));
+        weth.mint(address(nativeRouter), 10_000);
+        vm.deal(address(adapter), 10_000);
+        adapter.setRate(1, 2);
+        nativeRouter.sync(address(weth));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(SinjohFeeRouter.InsufficientOutput.selector, 9_900, 4_950)
+        );
+        nativeRouter.processBucket(0, address(weth), 9_900, 0, "");
+        assertEq(nativeRouter.bucketInputOwed(0, address(weth)), 9_900);
+    }
+
     function testPartialProcessingIsAllowedAndRemainderStaysCredited() public {
         weth.mint(address(router), 10_000);
         router.sync(address(weth));
@@ -430,6 +606,24 @@ contract SinjohFeeRouterTest is TestBase {
         assertEq(router.bucketInputOwed(0, address(weth)), 3_950);
         router.processBucket(0, address(weth), 3_950, 0, "");
         assertEq(router.bucketInputOwed(0, address(weth)), 0);
+    }
+
+    function testBucketCapRejectsOversizedTrancheAndLeavesLiability() public {
+        RouterTypes.Config memory config = _config();
+        config.buckets[0].maxAmountInPerCall = 100;
+        SinjohFeeRouter capped =
+            SinjohFeeRouter(payable(factory.deploy(address(this), bytes32("BUCKET_CAP"), config)));
+        capped.bind(address(subjectToken));
+        weth.mint(address(capped), 1_000);
+        capped.sync(address(weth));
+
+        vm.expectRevert(SinjohFeeRouter.InvalidAmount.selector);
+        capped.processBucket(0, address(weth), 101, 0, "");
+        assertEq(capped.bucketInputOwed(0, address(weth)), 495);
+        assertEq(capped.totalLiability(address(weth)), 1_000);
+
+        capped.processBucket(0, address(weth), 99, 0, "");
+        assertEq(capped.bucketInputOwed(0, address(weth)), 396);
     }
 
     function testCreatorCanRepointOnlyFutureWalletCredits() public {
@@ -443,6 +637,15 @@ contract SinjohFeeRouterTest is TestBase {
         assertEq(router.walletOwed(NEW_WALLET, address(weth)), 1_475);
     }
 
+    function testOnlyCreatorMayRepointAndSinkCannotBeRepointed() public {
+        vm.prank(address(0xBAD));
+        vm.expectRevert(SinjohFeeRouter.Unauthorized.selector);
+        router.repointWallet(0, 0, NEW_WALLET);
+
+        vm.expectRevert(SinjohFeeRouter.ImmutableAllocation.selector);
+        router.repointWallet(0, 1, NEW_WALLET);
+    }
+
     function testSwapFailureLeavesTheBucketCredited() public {
         weth.mint(address(router), 10_000);
         subjectToken.mint(address(adapter), 10_000);
@@ -454,6 +657,69 @@ contract SinjohFeeRouterTest is TestBase {
 
         assertEq(router.bucketInputOwed(1, address(weth)), 4_950);
         assertEq(router.totalLiability(address(weth)), 10_000);
+    }
+
+    function testRevertingSinkPreservesLiabilityAndAllowance() public {
+        weth.mint(address(router), 10_000);
+        router.sync(address(weth));
+        router.processBucket(0, address(weth), 4_950, 0, "");
+        sink.setShouldRevert(true);
+
+        vm.expectRevert();
+        router.fundSink(0, 1, 2_475);
+
+        assertEq(router.sinkOwed(router.allocationKey(0, 1), address(weth)), 2_475);
+        assertEq(router.totalLiability(address(weth)), 10_000);
+        assertEq(weth.allowance(address(router), address(sink)), 0);
+
+        // A failed sink is isolated from an independent wallet delivery.
+        router.sendWallet(WALLET, address(weth), 2_475);
+        assertEq(weth.balanceOf(WALLET), 2_475);
+    }
+
+    function testSinkReceiptMismatchPreservesLiabilityAndAllowance() public {
+        weth.mint(address(router), 10_000);
+        router.sync(address(weth));
+        router.processBucket(0, address(weth), 4_950, 0, "");
+        sink.setLieAboutReceipt(true);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(SinjohFeeRouter.SinkReceiptMismatch.selector, 2_475, 2_474)
+        );
+        router.fundSink(0, 1, 2_475);
+
+        assertEq(router.sinkOwed(router.allocationKey(0, 1), address(weth)), 2_475);
+        assertEq(router.totalLiability(address(weth)), 10_000);
+        assertEq(weth.allowance(address(router), address(sink)), 0);
+    }
+
+    function testRevertingWalletTransferPreservesLiability() public {
+        weth.mint(address(router), 10_000);
+        router.sync(address(weth));
+        router.processBucket(0, address(weth), 4_950, 0, "");
+        weth.setFailTransfers(true);
+
+        vm.expectRevert();
+        router.sendWallet(WALLET, address(weth), 2_475);
+
+        assertEq(router.walletOwed(WALLET, address(weth)), 2_475);
+        assertEq(router.totalLiability(address(weth)), 10_000);
+    }
+
+    function testExistingSubjectLiabilityIsExcludedFromNewSubjectIntake() public {
+        weth.mint(address(router), 10_000);
+        subjectToken.mint(address(adapter), 5_050);
+        router.sync(address(weth));
+        router.processBucket(1, address(weth), 4_950, 0, "");
+        assertEq(router.totalLiability(address(subjectToken)), 4_950);
+
+        subjectToken.mint(address(router), 100);
+        weth.mint(address(adapter), 100);
+        (uint256 gross,) = router.sync(address(subjectToken), 1);
+
+        assertEq(gross, 100);
+        assertEq(router.totalLiability(address(subjectToken)), 4_950);
+        assertEq(subjectToken.balanceOf(address(router)), 4_950);
     }
 
     function testUnsupportedAssetsCannotEnterTheAccounting() public {
@@ -470,6 +736,211 @@ contract SinjohFeeRouterTest is TestBase {
         router.sync(address(weth));
         assertEq(router.protocolOwed(address(weth)), 1);
         assertEq(router.totalLiability(address(weth)), 100);
+    }
+
+    function testBucketSharesAreIndependentOfSyncCallSplitting() public {
+        RouterTypes.Config memory config = _config();
+        SinjohFeeRouter oneShot =
+            SinjohFeeRouter(payable(factory.deploy(address(this), bytes32("ONE_SHOT"), config)));
+        SinjohFeeRouter split =
+            SinjohFeeRouter(payable(factory.deploy(address(this), bytes32("SPLIT"), config)));
+        oneShot.bind(address(subjectToken));
+        split.bind(address(subjectToken));
+
+        weth.mint(address(oneShot), 100);
+        oneShot.sync(address(weth));
+        for (uint256 i; i < 100; ++i) {
+            weth.mint(address(split), 1);
+            split.sync(address(weth));
+        }
+
+        assertEq(split.bucketInputOwed(0, address(weth)), oneShot.bucketInputOwed(0, address(weth)));
+        assertEq(split.bucketInputOwed(1, address(weth)), oneShot.bucketInputOwed(1, address(weth)));
+        assertEq(split.bucketInputOwed(0, address(weth)), 50);
+        assertEq(split.bucketInputOwed(1, address(weth)), 49);
+    }
+
+    function testThreeBucketApportionmentNeverDecreasesAnEntitlement() public {
+        RouterTypes.Config memory config = _threeBucketConfig();
+        SinjohFeeRouter three = SinjohFeeRouter(
+            payable(factory.deploy(address(this), bytes32("THREE_ROUNDING"), config))
+        );
+        three.bind(address(subjectToken));
+
+        weth.mint(address(three), 9);
+        three.sync(address(weth));
+        weth.mint(address(three), 1);
+        three.sync(address(weth));
+
+        assertEq(three.bucketInputOwed(0, address(weth)), 4);
+        assertEq(three.bucketInputOwed(1, address(weth)), 3);
+        assertEq(three.bucketInputOwed(2, address(weth)), 3);
+    }
+
+    function testFuzzThreeBucketApportionmentIsSplitIndependent(uint96 rawFirst, uint96 rawSecond)
+        public
+    {
+        uint256 first = uint256(rawFirst) % 1e24 + 1;
+        uint256 second = uint256(rawSecond) % 1e24 + 1;
+        RouterTypes.Config memory config = _threeBucketConfig();
+        SinjohFeeRouter oneShot = SinjohFeeRouter(
+            payable(factory.deploy(address(this), bytes32("THREE_FUZZ_ONE"), config))
+        );
+        SinjohFeeRouter split = SinjohFeeRouter(
+            payable(factory.deploy(address(this), bytes32("THREE_FUZZ_SPLIT"), config))
+        );
+        oneShot.bind(address(subjectToken));
+        split.bind(address(subjectToken));
+
+        weth.mint(address(oneShot), first + second);
+        oneShot.sync(address(weth));
+        weth.mint(address(split), first);
+        split.sync(address(weth));
+        weth.mint(address(split), second);
+        split.sync(address(weth));
+
+        for (uint8 i; i < 3; ++i) {
+            assertEq(
+                split.bucketInputOwed(i, address(weth)), oneShot.bucketInputOwed(i, address(weth))
+            );
+        }
+    }
+
+    function testApportionmentHandlesMaximumUintWithoutOverflow() public {
+        weth.mint(address(router), type(uint256).max);
+        router.sync(address(weth));
+
+        assertEq(router.totalLiability(address(weth)), type(uint256).max);
+        assertEq(
+            router.protocolOwed(address(weth)) + router.bucketInputOwed(0, address(weth))
+                + router.bucketInputOwed(1, address(weth)),
+            type(uint256).max
+        );
+    }
+
+    function testAllocationSharesAreIndependentOfProcessingCallSplitting() public {
+        RouterTypes.Config memory config = _config();
+        SinjohFeeRouter oneShot = SinjohFeeRouter(
+            payable(factory.deploy(address(this), bytes32("ALLOC_ONE_SHOT"), config))
+        );
+        SinjohFeeRouter split =
+            SinjohFeeRouter(payable(factory.deploy(address(this), bytes32("ALLOC_SPLIT"), config)));
+        oneShot.bind(address(subjectToken));
+        split.bind(address(subjectToken));
+        weth.mint(address(oneShot), 1_000);
+        weth.mint(address(split), 1_000);
+        oneShot.sync(address(weth));
+        split.sync(address(weth));
+
+        oneShot.processBucket(0, address(weth), 100, 0, "");
+        for (uint256 i; i < 100; ++i) {
+            split.processBucket(0, address(weth), 1, 0, "");
+        }
+
+        assertEq(split.walletOwed(WALLET, address(weth)), oneShot.walletOwed(WALLET, address(weth)));
+        assertEq(
+            split.sinkOwed(split.allocationKey(0, 1), address(weth)),
+            oneShot.sinkOwed(oneShot.allocationKey(0, 1), address(weth))
+        );
+        assertEq(split.walletOwed(WALLET, address(weth)), 50);
+    }
+
+    function testThreeAllocationApportionmentNeverDecreasesAnEntitlement() public {
+        RouterTypes.Config memory config = _threeAllocationConfig();
+        SinjohFeeRouter three = SinjohFeeRouter(
+            payable(factory.deploy(address(this), bytes32("THREE_ALLOC_ROUNDING"), config))
+        );
+        three.bind(address(subjectToken));
+        weth.mint(address(three), 100);
+        three.sync(address(weth));
+
+        three.processBucket(0, address(weth), 9, 0, "");
+        three.processBucket(0, address(weth), 1, 0, "");
+
+        assertEq(three.walletOwed(WALLET, address(weth)), 4);
+        assertEq(three.walletOwed(NEW_WALLET, address(weth)), 3);
+        assertEq(three.walletOwed(three.BURN_ADDRESS(), address(weth)), 3);
+    }
+
+    function testInitializationRejectsNonContractSink() public {
+        RouterTypes.Config memory config = _config();
+        config.buckets[0].allocations[1].destination = address(0xBEEF);
+        vm.expectPartialRevert(SinjohFeeRouterFactory.InitializationFailed.selector);
+        factory.deploy(address(this), bytes32("EOA_SINK"), config);
+    }
+
+    function testInitializationRejectsZeroNormalizationCap() public {
+        RouterTypes.Config memory config = _config();
+        config.normalizations[0].maxAmountInPerCall = 0;
+        vm.expectPartialRevert(SinjohFeeRouterFactory.InitializationFailed.selector);
+        factory.deploy(address(this), bytes32("ZERO_CAP"), config);
+    }
+
+    function testInitializationRejectsZeroBucketCap() public {
+        RouterTypes.Config memory config = _config();
+        config.buckets[0].maxAmountInPerCall = 0;
+        vm.expectPartialRevert(SinjohFeeRouterFactory.InitializationFailed.selector);
+        factory.deploy(address(this), bytes32("ZERO_BUCKET_CAP"), config);
+    }
+
+    function testInitializationRejectsMissingBucketGuard() public {
+        RouterTypes.Config memory config = _config();
+        config.buckets[1].priceGuard = address(0);
+        vm.expectPartialRevert(SinjohFeeRouterFactory.InitializationFailed.selector);
+        factory.deploy(address(this), bytes32("NO_BUCKET_GUARD"), config);
+    }
+
+    function testInitializationRejectsGuardOnIdentityBucket() public {
+        RouterTypes.Config memory config = _config();
+        config.buckets[0].priceGuard = address(priceGuard);
+        vm.expectPartialRevert(SinjohFeeRouterFactory.InitializationFailed.selector);
+        factory.deploy(address(this), bytes32("IDENTITY_GUARD"), config);
+    }
+
+    function testInitializationRejectsDuplicateNormalizationRefs() public {
+        RouterTypes.Config memory config = _config();
+        RouterTypes.Normalization[] memory duplicates = new RouterTypes.Normalization[](2);
+        duplicates[0] = config.normalizations[0];
+        duplicates[1] = config.normalizations[0];
+        config.normalizations = duplicates;
+        vm.expectPartialRevert(SinjohFeeRouterFactory.InitializationFailed.selector);
+        factory.deploy(address(this), bytes32("DUP_NORMALIZATION"), config);
+    }
+
+    function testInitializationRejectsDuplicateBucketRefs() public {
+        RouterTypes.Config memory config = _config();
+        config.buckets[1].output = config.buckets[0].output;
+        vm.expectPartialRevert(SinjohFeeRouterFactory.InitializationFailed.selector);
+        factory.deploy(address(this), bytes32("DUP_BUCKET"), config);
+    }
+
+    function testInvalidInitializationDoesNotOccupyPredictedAddress() public {
+        RouterTypes.Config memory config = _config();
+        config.normalizations[0].maxAmountInPerCall = 0;
+        address predicted = factory.predictAddress(address(this), bytes32("FAILED_INIT"), config);
+
+        vm.expectPartialRevert(SinjohFeeRouterFactory.InitializationFailed.selector);
+        factory.deploy(address(this), bytes32("FAILED_INIT"), config);
+        assertEq(predicted.code.length, 0);
+    }
+
+    function testRouteViewsReturnImmutableGuardsAndCaps() public view {
+        (
+            address normalizationAdapter,
+            address normalizationPriceGuard,
+            bytes memory routeData,
+            uint128 cap
+        ) = router.normalizationInfo(address(subjectToken));
+        assertEq(normalizationAdapter, address(adapter));
+        assertEq(normalizationPriceGuard, address(priceGuard));
+        assertTrue(keccak256(routeData) == keccak256(hex"01"));
+        assertEq(uint256(cap), type(uint128).max);
+
+        (,,, address bucketPriceGuard, bytes memory bucketRouteData, uint128 bucketCap,) =
+            router.conversionInfo(1, 0);
+        assertEq(bucketPriceGuard, address(priceGuard));
+        assertTrue(keccak256(bucketRouteData) == keccak256(hex"02"));
+        assertEq(uint256(bucketCap), type(uint128).max);
     }
 
     function testAllNormalizedValueCanLeaveTheRouter() public {
@@ -499,7 +970,8 @@ contract SinjohFeeRouterTest is TestBase {
         normalizations[0] = RouterTypes.Normalization({
             asset: RouterTypes.AssetRef(RouterTypes.AssetKind.SUBJECT, address(0)),
             route: RouterTypes.Route(address(adapter), hex"01"),
-            priceGuard: address(priceGuard)
+            priceGuard: address(priceGuard),
+            maxAmountInPerCall: type(uint128).max
         });
     }
 
@@ -511,12 +983,14 @@ contract SinjohFeeRouterTest is TestBase {
         normalizations[0] = RouterTypes.Normalization({
             asset: RouterTypes.AssetRef(RouterTypes.AssetKind.SUBJECT, address(0)),
             route: RouterTypes.Route(address(adapter), hex"01"),
-            priceGuard: address(priceGuard)
+            priceGuard: address(priceGuard),
+            maxAmountInPerCall: type(uint128).max
         });
         normalizations[1] = RouterTypes.Normalization({
             asset: RouterTypes.AssetRef(RouterTypes.AssetKind.FIXED_ERC20, address(quoteToken)),
             route: RouterTypes.Route(address(quoteAdapter), hex"09"),
-            priceGuard: address(priceGuard)
+            priceGuard: address(priceGuard),
+            maxAmountInPerCall: type(uint128).max
         });
         config.normalizations = normalizations;
     }
@@ -548,12 +1022,16 @@ contract SinjohFeeRouterTest is TestBase {
             output: RouterTypes.AssetRef(RouterTypes.AssetKind.FIXED_ERC20, address(weth)),
             bps: 5_000,
             route: RouterTypes.Route(address(0), ""),
+            priceGuard: address(0),
+            maxAmountInPerCall: type(uint128).max,
             allocations: wethAllocations
         });
         buckets[1] = RouterTypes.Bucket({
             output: RouterTypes.AssetRef(RouterTypes.AssetKind.SUBJECT, address(0)),
             bps: 5_000,
             route: RouterTypes.Route(address(adapter), hex"02"),
+            priceGuard: address(priceGuard),
+            maxAmountInPerCall: type(uint128).max,
             allocations: burnAllocation
         });
 
@@ -586,6 +1064,8 @@ contract SinjohFeeRouterTest is TestBase {
             output: RouterTypes.AssetRef(RouterTypes.AssetKind.FIXED_ERC20, address(payoutToken)),
             bps: 3_000,
             route: RouterTypes.Route(address(adapter), hex"03"),
+            priceGuard: address(priceGuard),
+            maxAmountInPerCall: type(uint128).max,
             allocations: allocation
         });
         config.buckets = buckets;
@@ -605,6 +1085,46 @@ contract SinjohFeeRouterTest is TestBase {
             output: RouterTypes.AssetRef(RouterTypes.AssetKind.NATIVE, address(0)),
             bps: 10_000,
             route: RouterTypes.Route(address(adapter), ""),
+            priceGuard: address(0),
+            maxAmountInPerCall: type(uint128).max,
+            allocations: allocations
+        });
+        config = RouterTypes.Config({
+            creator: address(this),
+            protocolFeeRecipient: PROTOCOL_RECIPIENT,
+            weth: address(weth),
+            launchpadAdapter: address(0),
+            normalizations: _subjectNormalization(),
+            buckets: buckets
+        });
+    }
+
+    function _threeAllocationConfig() internal view returns (RouterTypes.Config memory config) {
+        RouterTypes.Allocation[] memory allocations = new RouterTypes.Allocation[](3);
+        allocations[0] = RouterTypes.Allocation({
+            destination: WALLET, bps: 4_000, isSink: false, creatorMayRepoint: false, sinkConfig: ""
+        });
+        allocations[1] = RouterTypes.Allocation({
+            destination: NEW_WALLET,
+            bps: 3_000,
+            isSink: false,
+            creatorMayRepoint: false,
+            sinkConfig: ""
+        });
+        allocations[2] = RouterTypes.Allocation({
+            destination: 0x000000000000000000000000000000000000dEaD,
+            bps: 3_000,
+            isSink: false,
+            creatorMayRepoint: false,
+            sinkConfig: ""
+        });
+        RouterTypes.Bucket[] memory buckets = new RouterTypes.Bucket[](1);
+        buckets[0] = RouterTypes.Bucket({
+            output: RouterTypes.AssetRef(RouterTypes.AssetKind.FIXED_ERC20, address(weth)),
+            bps: 10_000,
+            route: RouterTypes.Route(address(0), ""),
+            priceGuard: address(0),
+            maxAmountInPerCall: type(uint128).max,
             allocations: allocations
         });
         config = RouterTypes.Config({

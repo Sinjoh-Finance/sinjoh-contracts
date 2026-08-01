@@ -2,6 +2,11 @@
 pragma solidity 0.8.28;
 
 library RouterTypes {
+    /// @dev Audited runtime hash for SinjohFeeRouter under this package's
+    /// production compiler settings. Deployment code pins this exact version.
+    bytes32 internal constant IMPLEMENTATION_CODEHASH =
+        0x00eecc775b2dff40c52bdd038cdccc19b5812a527aa811b359a55249c6987276;
+
     enum AssetKind {
         NATIVE,
         FIXED_ERC20,
@@ -38,6 +43,10 @@ library RouterTypes {
         /// guard's subject and assetIn, so pair-validating shared guards can
         /// safely price quote-asset-to-WETH routes too.
         address priceGuard;
+        /// @notice Maximum input normalized by one sync call. Larger donated
+        /// balances remain unaccounted for later bounded calls instead of
+        /// permanently exceeding an oracle guard's supported amount.
+        uint128 maxAmountInPerCall;
     }
 
     struct Allocation {
@@ -53,6 +62,11 @@ library RouterTypes {
         AssetRef output;
         uint16 bps;
         Route route;
+        /// @notice Immutable amount-aware floor for WETH-to-ERC20 swaps.
+        /// Must be zero for WETH identity and exact WETH-to-native routes.
+        address priceGuard;
+        /// @notice Maximum WETH processed from this bucket in one call.
+        uint128 maxAmountInPerCall;
         Allocation[] allocations;
     }
 

@@ -120,12 +120,15 @@ contract SinjohFeeRouter {
         RouterTypes.AssetRef asset;
         RouteStorage route;
         address priceGuard;
+        uint128 maxAmountInPerCall;
     }
 
     struct BucketStorage {
         RouterTypes.AssetRef output;
         uint16 bps;
         RouteStorage route;
+        address priceGuard;
+        uint128 maxAmountInPerCall;
         AllocationStorage[] allocations;
     }
 
@@ -150,11 +153,13 @@ contract SinjohFeeRouter {
     mapping(address asset => uint256 amount) public protocolOwed;
     mapping(address asset => uint16 remainder) public protocolFeeRemainder;
     mapping(uint8 bucketId => mapping(address asset => uint256 amount)) public bucketInputOwed;
-    mapping(address asset => uint16 remainder) public bucketAllocationRemainder;
+    /// @notice Net WETH allocated across buckets over this router's lifetime.
+    /// Cumulative apportionment makes the result independent of call splits.
+    uint256 public bucketAllocationTotal;
     mapping(address recipient => mapping(address asset => uint256 amount)) public walletOwed;
     mapping(uint16 allocationKey => mapping(address asset => uint256 amount)) public sinkOwed;
-    mapping(uint8 bucketId => mapping(address asset => uint16 remainder)) public
-        destinationAllocationRemainder;
+    /// @notice Output allocated within each bucket over its lifetime.
+    mapping(uint8 bucketId => uint256 total) public destinationAllocationTotal;
     mapping(address asset => uint256 amount) public totalLiability;
 
     uint256 private _reentrancyState;
@@ -191,9 +196,9 @@ contract SinjohFeeRouter {
     /// the configured launchpad adapter.
     ///
     /// @dev The adapter needs this because a launchpad may not produce a
-    /// predictable token address — pons v2, for instance, creates tokens with a
-    /// plain `new`, so nothing derived from the address can be committed before
-    /// the launch lands. The adapter learns the address in the launch
+    /// predictable token address — some launchpads create tokens dynamically,
+    /// so nothing derived from the address can be committed before the launch
+    /// lands. The adapter learns the address in the launch
     /// transaction and binds it there.
     function bind(address newSubject) external {
         if (msg.sender != creator && msg.sender != launchpadAdapter) revert Unauthorized();
@@ -339,6 +344,9 @@ contract SinjohFeeRouter {
         } else {
             NormalizationStorage storage normalization =
                 _normalizations[_normalizationIndex[asset] - 1];
+            if (gross > normalization.maxAmountInPerCall) {
+                gross = normalization.maxAmountInPerCall;
+            }
             (uint256 guardMinimum, uint48 validUntil) = ISinjohPriceGuard(normalization.priceGuard)
                 .minimumOutput(
                     asset, asset, weth, gross, keccak256(normalization.route.routeData), ""
@@ -357,12 +365,15 @@ contract SinjohFeeRouter {
         uint256 net = normalized - fee;
 
         uint256 bucketLength = _buckets.length;
-        uint256 allocated;
+        uint256 previousTotal = bucketAllocationTotal;
+        uint256 nextTotal = previousTotal + net;
+        uint256[] memory previousShares = _bucketEntitlements(previousTotal);
+        uint256[] memory nextShares = _bucketEntitlements(nextTotal);
         for (uint256 i; i < bucketLength; ++i) {
-            uint256 share = i + 1 == bucketLength ? net - allocated : net * _buckets[i].bps / BPS;
+            uint256 share = nextShares[i] - previousShares[i];
             bucketInputOwed[uint8(i)][weth] += share;
-            allocated += share;
         }
+        bucketAllocationTotal = nextTotal;
         totalLiability[weth] += normalized;
         emit Synchronized(asset, gross, fee, net);
     }
@@ -381,7 +392,7 @@ contract SinjohFeeRouter {
         address inputAsset,
         uint256 amountIn,
         uint256 callerMinOut,
-        bytes calldata
+        bytes calldata guardData
     ) external nonReentrant returns (uint256 amountOut) {
         if (!bound) revert NotBound();
         if (bucketId >= _buckets.length) revert InvalidBucket();
@@ -390,14 +401,30 @@ contract SinjohFeeRouter {
         if (amountIn == 0 || amountIn > pending) revert InvalidAmount();
 
         BucketStorage storage bucket = _buckets[bucketId];
+        if (amountIn > bucket.maxAmountInPerCall) revert InvalidAmount();
         address outputAsset = _resolve(bucket.output);
         bucketInputOwed[bucketId][weth] = pending - amountIn;
         totalLiability[weth] -= amountIn;
 
         if (outputAsset == weth) {
             amountOut = amountIn;
+        } else if (outputAsset == address(0)) {
+            uint256 minimum = amountIn > callerMinOut ? amountIn : callerMinOut;
+            amountOut = _executeSwap(bucket.route, weth, outputAsset, amountIn, minimum);
         } else {
-            amountOut = _executeSwap(bucket.route, weth, outputAsset, amountIn, callerMinOut);
+            (uint256 guardMinimum, uint48 validUntil) = ISinjohPriceGuard(bucket.priceGuard)
+                .minimumOutput(
+                    outputAsset,
+                    weth,
+                    outputAsset,
+                    amountIn,
+                    keccak256(bucket.route.routeData),
+                    guardData
+                );
+            if (validUntil < block.timestamp) revert InvalidExpiry();
+            if (guardMinimum == 0) revert InvalidMinimumOutput();
+            uint256 minimum = guardMinimum > callerMinOut ? guardMinimum : callerMinOut;
+            amountOut = _executeSwap(bucket.route, weth, outputAsset, amountIn, minimum);
         }
 
         _creditAllocations(bucketId, outputAsset, amountOut);
@@ -495,13 +522,22 @@ contract SinjohFeeRouter {
     function normalizationInfo(address asset)
         external
         view
-        returns (address adapter, address priceGuard, bytes memory routeData)
+        returns (
+            address adapter,
+            address priceGuard,
+            bytes memory routeData,
+            uint128 maxAmountInPerCall
+        )
     {
         uint256 indexPlusOne = _normalizationIndex[asset];
-        if (indexPlusOne == 0) return (address(0), address(0), "");
+        if (indexPlusOne == 0) return (address(0), address(0), "", 0);
         NormalizationStorage storage normalization = _normalizations[indexPlusOne - 1];
-        return
-            (normalization.route.adapter, normalization.priceGuard, normalization.route.routeData);
+        return (
+            normalization.route.adapter,
+            normalization.priceGuard,
+            normalization.route.routeData,
+            normalization.maxAmountInPerCall
+        );
     }
 
     function bucketCount() external view returns (uint256) {
@@ -546,9 +582,9 @@ contract SinjohFeeRouter {
             input,
             weth,
             bucket.route.adapter,
-            address(0),
+            bucket.priceGuard,
             bucket.route.routeData,
-            type(uint128).max,
+            bucket.maxAmountInPerCall,
             0
         );
     }
@@ -612,6 +648,11 @@ contract SinjohFeeRouter {
 
         for (uint256 i; i < normalizationLength; ++i) {
             RouterTypes.Normalization calldata source = config.normalizations[i];
+            for (uint256 j; j < i; ++j) {
+                if (_sameAssetRef(source.asset, config.normalizations[j].asset)) {
+                    revert InvalidConfiguration();
+                }
+            }
             _validateAssetRef(source.asset);
             // Native cannot be an intake asset, and WETH needs no route.
             if (source.asset.kind == RouterTypes.AssetKind.NATIVE) revert InvalidAssetRef();
@@ -624,6 +665,7 @@ contract SinjohFeeRouter {
                 revert InvalidConfiguration();
             }
             if (source.priceGuard.code.length == 0) revert NonContract(source.priceGuard);
+            if (source.maxAmountInPerCall == 0) revert InvalidConfiguration();
 
             _normalizations.push();
             NormalizationStorage storage target = _normalizations[i];
@@ -631,15 +673,31 @@ contract SinjohFeeRouter {
             target.route.adapter = source.route.adapter;
             target.route.routeData = source.route.routeData;
             target.priceGuard = source.priceGuard;
+            target.maxAmountInPerCall = source.maxAmountInPerCall;
         }
 
         uint256 bucketBps;
         for (uint256 i; i < bucketLength; ++i) {
             RouterTypes.Bucket calldata source = config.buckets[i];
+            for (uint256 j; j < i; ++j) {
+                if (_sameAssetRef(source.output, config.buckets[j].output)) {
+                    revert InvalidConfiguration();
+                }
+            }
             _validateAssetRef(source.output);
             bool identity = source.output.kind == RouterTypes.AssetKind.FIXED_ERC20
                 && source.output.token == config.weth;
             _validateRoute(source.route, identity);
+            if (source.maxAmountInPerCall == 0) revert InvalidConfiguration();
+            bool exactNative = source.output.kind == RouterTypes.AssetKind.NATIVE;
+            if (identity || exactNative) {
+                if (source.priceGuard != address(0)) revert InvalidConfiguration();
+            } else {
+                if (source.priceGuard == address(0) || source.priceGuard == address(this)) {
+                    revert InvalidConfiguration();
+                }
+                if (source.priceGuard.code.length == 0) revert NonContract(source.priceGuard);
+            }
             uint256 allocationLength = source.allocations.length;
             if (allocationLength == 0 || allocationLength > MAX_ALLOCATIONS_PER_BUCKET) {
                 revert InvalidConfiguration();
@@ -651,6 +709,8 @@ contract SinjohFeeRouter {
             target.bps = source.bps;
             target.route.adapter = source.route.adapter;
             target.route.routeData = source.route.routeData;
+            target.priceGuard = source.priceGuard;
+            target.maxAmountInPerCall = source.maxAmountInPerCall;
             _storeAllocations(target, source.allocations, source.output.kind);
             bucketBps += source.bps;
         }
@@ -688,6 +748,9 @@ contract SinjohFeeRouter {
             }
             if (allocation.isSink && allocation.creatorMayRepoint) {
                 revert InvalidConfiguration();
+            }
+            if (allocation.isSink && allocation.destination.code.length == 0) {
+                revert NonContract(allocation.destination);
             }
             if (!allocation.isSink && allocation.sinkConfig.length != 0) {
                 revert InvalidConfiguration();
@@ -730,18 +793,117 @@ contract SinjohFeeRouter {
 
     function _creditAllocations(uint8 bucketId, address asset, uint256 amount) private {
         BucketStorage storage bucket = _buckets[bucketId];
-        uint256 allocated;
+        uint256 previousTotal = destinationAllocationTotal[bucketId];
+        uint256 nextTotal = previousTotal + amount;
         uint256 allocationLength = bucket.allocations.length;
+        uint256[] memory previousShares = _allocationEntitlements(bucket, previousTotal);
+        uint256[] memory nextShares = _allocationEntitlements(bucket, nextTotal);
         for (uint256 i; i < allocationLength; ++i) {
             AllocationStorage storage allocation = bucket.allocations[i];
-            uint256 share =
-                i + 1 == allocationLength ? amount - allocated : amount * allocation.bps / BPS;
+            uint256 share = nextShares[i] - previousShares[i];
             if (allocation.isSink) {
                 sinkOwed[allocationKey(bucketId, uint8(i))][asset] += share;
             } else {
                 walletOwed[allocation.destination][asset] += share;
             }
-            allocated += share;
+        }
+        destinationAllocationTotal[bucketId] = nextTotal;
+    }
+
+    /// @dev D'Hondt apportionment is house-monotone: increasing cumulative
+    /// value can never decrease an entry's entitlement. That gives exact,
+    /// split-independent routing without the non-monotonic residual produced by
+    /// assigning every call's rounding dust to the final entry.
+    function _bucketEntitlements(uint256 total) private view returns (uint256[] memory shares) {
+        uint256 length = _buckets.length;
+        shares = new uint256[](length);
+        uint256 allocated;
+        for (uint256 i; i < length; ++i) {
+            shares[i] = _proRataFloor(total, _buckets[i].bps);
+            allocated += shares[i];
+        }
+        _assignRemainderSeatsToBuckets(shares, total - allocated);
+    }
+
+    function _allocationEntitlements(BucketStorage storage bucket, uint256 total)
+        private
+        view
+        returns (uint256[] memory shares)
+    {
+        uint256 length = bucket.allocations.length;
+        shares = new uint256[](length);
+        uint256 allocated;
+        for (uint256 i; i < length; ++i) {
+            shares[i] = _proRataFloor(total, bucket.allocations[i].bps);
+            allocated += shares[i];
+        }
+        uint256 remaining = total - allocated;
+        while (remaining != 0) {
+            uint256 best = type(uint256).max;
+            for (uint256 i; i < length; ++i) {
+                uint16 weight = bucket.allocations[i].bps;
+                if (
+                    weight != 0
+                        && (best == type(uint256).max
+                            || _priorityGreater(
+                                weight,
+                                shares[i] + 1,
+                                bucket.allocations[best].bps,
+                                shares[best] + 1
+                            ))
+                ) best = i;
+            }
+            ++shares[best];
+            --remaining;
+        }
+    }
+
+    function _assignRemainderSeatsToBuckets(uint256[] memory shares, uint256 remaining)
+        private
+        view
+    {
+        uint256 length = shares.length;
+        while (remaining != 0) {
+            uint256 best = type(uint256).max;
+            for (uint256 i; i < length; ++i) {
+                uint16 weight = _buckets[i].bps;
+                if (
+                    weight != 0
+                        && (best == type(uint256).max
+                            || _priorityGreater(
+                                weight, shares[i] + 1, _buckets[best].bps, shares[best] + 1
+                            ))
+                ) best = i;
+            }
+            ++shares[best];
+            --remaining;
+        }
+    }
+
+    function _proRataFloor(uint256 total, uint16 bps) private pure returns (uint256) {
+        return (total / BPS) * bps + (total % BPS) * bps / BPS;
+    }
+
+    function _priorityGreater(
+        uint256 leftWeight,
+        uint256 leftSeats,
+        uint256 rightWeight,
+        uint256 rightSeats
+    ) private pure returns (bool) {
+        (uint256 leftHigh, uint256 leftLow) = _fullMul(leftWeight, rightSeats);
+        (uint256 rightHigh, uint256 rightLow) = _fullMul(rightWeight, leftSeats);
+        return leftHigh > rightHigh || (leftHigh == rightHigh && leftLow > rightLow);
+    }
+
+    function _fullMul(uint256 left, uint256 right)
+        private
+        pure
+        returns (uint256 high, uint256 low)
+    {
+        assembly ("memory-safe") {
+            let mm := mulmod(left, right, not(0))
+            low := mul(left, right)
+            high := sub(sub(mm, low), lt(mm, low))
         }
     }
 
@@ -773,6 +935,14 @@ contract SinjohFeeRouter {
         if (ref.kind == RouterTypes.AssetKind.NATIVE) return address(0);
         if (ref.kind == RouterTypes.AssetKind.SUBJECT) return subject;
         return ref.token;
+    }
+
+    function _sameAssetRef(RouterTypes.AssetRef calldata left, RouterTypes.AssetRef calldata right)
+        private
+        pure
+        returns (bool)
+    {
+        return left.kind == right.kind && left.token == right.token;
     }
 
     function _assetBalance(address asset) private view returns (uint256) {

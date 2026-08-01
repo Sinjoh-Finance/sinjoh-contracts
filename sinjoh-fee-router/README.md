@@ -39,16 +39,27 @@ floor can tighten that guard's quote but can never weaken it.
 
 ## Deployment
 
-The deployment script accepts the key only through the process environment,
-verifies the chain ID and the expected deployer address, and deploys the router
-implementation and deterministic factory.
+The two-stage deployment accepts the key only through the process environment
+and verifies the chain ID and expected deployer. The split keeps each Forge
+simulation script below EIP-170. Deploy the locked implementation first, then
+pass its emitted address verbatim to the factory stage:
 
 ```sh
 DEPLOYER_PRIVATE_KEY=... forge script \
-  script/DeployLaunchpadRouter.s.sol:DeployLaunchpadRouter \
+  script/DeployFeeRouter.s.sol:DeployFeeRouter \
+  --rpc-url https://rpc.mainnet.chain.robinhood.com \
+  --broadcast
+
+DEPLOYER_PRIVATE_KEY=... \
+ROUTER_IMPLEMENTATION=0x... forge script \
+  script/DeployFeeRouterFactory.s.sol:DeployFeeRouterFactory \
   --rpc-url https://rpc.mainnet.chain.robinhood.com \
   --broadcast
 ```
+
+The factory stage pins the audited router runtime code hash, refuses a missing,
+wrong-version, or unlocked implementation, and verifies that the deployed
+factory points at the supplied address.
 
 For an adapter-mediated launch the UI predicts the router clone with
 `predictLaunchpadAddress` — which depends only on `(creator, userSalt)`, never on
