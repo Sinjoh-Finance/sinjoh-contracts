@@ -1,0 +1,49 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.28;
+
+import { SinjohRaffleRewardsFactory } from "../src/SinjohRaffleRewardsFactory.sol";
+
+interface Vm {
+    function addr(uint256 privateKey) external returns (address);
+    function envUint(string calldata name) external returns (uint256);
+    function envAddress(string calldata name) external returns (address);
+    function startBroadcast(uint256 privateKey) external;
+    function stopBroadcast() external;
+}
+
+interface IArbSys {
+    function arbBlockNumber() external view returns (uint256);
+}
+
+/// @notice Deploys the raffle factory and its implementation.
+/// @dev `RANDOMNESS_ADAPTER` is asserted to have code so a raffle can never be configured
+/// against an adapter that does not exist. The adapter address is immutable in every raffle
+/// this factory produces, so it cannot be corrected later.
+contract DeployRaffleRewardsFactory {
+    uint256 internal constant ROBINHOOD_MAINNET_CHAIN_ID = 4_663;
+    address internal constant ARBSYS = address(0x64);
+
+    Vm internal constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+
+    error WrongChain(uint256 actual);
+    error MissingArbSys();
+    error AdapterHasNoCode(address adapter);
+    error DeploymentFailed();
+
+    function run() external returns (SinjohRaffleRewardsFactory factory) {
+        if (block.chainid != ROBINHOOD_MAINNET_CHAIN_ID) revert WrongChain(block.chainid);
+        if (IArbSys(ARBSYS).arbBlockNumber() == 0) revert MissingArbSys();
+
+        address adapter = vm.envAddress("RANDOMNESS_ADAPTER");
+        if (adapter.code.length == 0) revert AdapterHasNoCode(adapter);
+
+        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        vm.startBroadcast(deployerKey);
+        factory = new SinjohRaffleRewardsFactory(block.chainid);
+        vm.stopBroadcast();
+
+        if (address(factory).code.length == 0 || factory.implementation().code.length == 0) {
+            revert DeploymentFailed();
+        }
+    }
+}
