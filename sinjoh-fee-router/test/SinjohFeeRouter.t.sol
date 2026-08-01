@@ -5,21 +5,23 @@ import { TestBase } from "./TestBase.sol";
 import { MockERC20 } from "./mocks/MockERC20.sol";
 import { MockSink } from "./mocks/MockSink.sol";
 import { MockSwapAdapter } from "./mocks/MockSwapAdapter.sol";
-import { MockPonsV1LaunchFactory, MockPonsV1Locker } from "./mocks/MockPonsV1.sol";
 import { RouterTypes } from "../src/RouterTypes.sol";
 import { SinjohFeeRouter } from "../src/SinjohFeeRouter.sol";
 import { SinjohFeeRouterFactory } from "../src/SinjohFeeRouterFactory.sol";
-import { IPonsV1LaunchFactory } from "../src/interfaces/IPonsV1.sol";
 
 contract SinjohFeeRouterTest is TestBase {
     address internal constant PROTOCOL_RECIPIENT = address(0x1001);
     address internal constant WALLET = address(0x2002);
     address internal constant NEW_WALLET = address(0x3003);
+    address internal constant LAUNCHPAD_ADAPTER = address(0x4004);
 
     MockERC20 internal subjectToken;
     MockERC20 internal weth;
     MockERC20 internal payoutToken;
+    /// @dev Stands in for a launchpad's quote asset (USDG, an equity token).
+    MockERC20 internal quoteToken;
     MockSwapAdapter internal adapter;
+    MockSwapAdapter internal quoteAdapter;
     MockSink internal sink;
     SinjohFeeRouter internal implementation;
     SinjohFeeRouterFactory internal factory;
@@ -29,7 +31,9 @@ contract SinjohFeeRouterTest is TestBase {
         subjectToken = new MockERC20("Subject", "SUB");
         weth = new MockERC20("Wrapped Ether", "WETH");
         payoutToken = new MockERC20("Payout", "PAY");
+        quoteToken = new MockERC20("Global Dollar", "USDG");
         adapter = new MockSwapAdapter();
+        quoteAdapter = new MockSwapAdapter();
         sink = new MockSink();
         implementation = new SinjohFeeRouter();
         factory = new SinjohFeeRouterFactory(address(implementation));
@@ -53,79 +57,67 @@ contract SinjohFeeRouterTest is TestBase {
         assertEq(factory.deploy(address(this), bytes32("SECOND"), config), deployed);
     }
 
-    function testPonsFactoryPredictionDoesNotDependOnSubjectConfiguration() public {
+    function testLaunchpadPredictionDoesNotDependOnConfiguration() public {
         RouterTypes.Config memory config = _config();
-        bytes32 salt = bytes32("PONS");
-        address predicted = factory.predictPonsAddress(address(this), salt);
-        address deployed = factory.deployPons(address(this), salt, config);
+        bytes32 salt = bytes32("LAUNCHPAD");
+        address predicted = factory.predictLaunchpadAddress(address(this), salt);
+        address deployed = factory.deployForLaunchpad(address(this), salt, config);
         assertEq(deployed, predicted);
-        assertEq(factory.deployPons(address(this), salt, config), deployed);
+        assertEq(factory.deployForLaunchpad(address(this), salt, config), deployed);
 
+        // Address stability is what lets an adapter be named in a config that
+        // has not been deployed yet; a changed config must still be refused.
         config.protocolFeeRecipient = NEW_WALLET;
         vm.expectRevert(SinjohFeeRouterFactory.ConfigMismatch.selector);
-        factory.deployPons(address(this), salt, config);
+        factory.deployForLaunchpad(address(this), salt, config);
     }
 
-    function testRouterOwnsPonsLaunchAndForwardsDeveloperBuyToCreator() public {
+    /// @dev The router's entire launchpad surface. It never calls the adapter
+    /// and does not know what it integrates with; the adapter may bind, once.
+    function testConfiguredLaunchpadAdapterMayBindTheSubject() public {
         RouterTypes.Config memory config = _config();
-        bytes32 routerSalt = bytes32("ROUTER_OWNED");
-        SinjohFeeRouter launchRouter =
-            SinjohFeeRouter(payable(factory.deployPons(address(this), routerSalt, config)));
-        MockPonsV1Locker locker = new MockPonsV1Locker(weth);
-        MockPonsV1LaunchFactory pons = new MockPonsV1LaunchFactory(address(locker));
-        pons.setLaunchBuyAmount(1_000);
+        config.launchpadAdapter = LAUNCHPAD_ADAPTER;
+        SinjohFeeRouter adapterRouter =
+            SinjohFeeRouter(payable(factory.deploy(address(this), bytes32("ADAPTER"), config)));
 
-        IPonsV1LaunchFactory.LaunchParams memory params = _ponsParams(address(launchRouter));
-        address launched = launchRouter.launchPonsToken{ value: 1 ether }(
-            address(pons), params, 0, 0, bytes32("TOKEN")
-        );
+        vm.prank(LAUNCHPAD_ADAPTER);
+        adapterRouter.bind(address(subjectToken));
 
-        assertEq(pons.lastDeployer(), address(launchRouter));
-        assertEq(pons.lastFeeWallet(), address(launchRouter));
-        assertEq(launchRouter.creator(), address(this));
-        assertEq(launchRouter.ponsLaunchFactory(), address(pons));
-        assertEq(launchRouter.ponsLocker(), address(locker));
-        assertEq(launchRouter.subject(), launched);
-        assertTrue(launchRouter.bound());
-        assertEq(MockERC20(launched).balanceOf(address(this)), 1_000);
-        assertEq(MockERC20(launched).balanceOf(address(launchRouter)), 0);
+        assertTrue(adapterRouter.bound());
+        assertEq(adapterRouter.subject(), address(subjectToken));
+        assertEq(adapterRouter.launchpadAdapter(), LAUNCHPAD_ADAPTER);
     }
 
-    function testPonsLaunchRejectsAnyFeeWalletOtherThanRouter() public {
+    function testCreatorMayStillBindAlongsideTheAdapter() public {
         RouterTypes.Config memory config = _config();
-        SinjohFeeRouter launchRouter = SinjohFeeRouter(
-            payable(factory.deployPons(address(this), bytes32("WRONG_WALLET"), config))
-        );
-        MockPonsV1Locker locker = new MockPonsV1Locker(weth);
-        MockPonsV1LaunchFactory pons = new MockPonsV1LaunchFactory(address(locker));
-        IPonsV1LaunchFactory.LaunchParams memory params = _ponsParams(address(this));
+        config.launchpadAdapter = LAUNCHPAD_ADAPTER;
+        SinjohFeeRouter adapterRouter =
+            SinjohFeeRouter(payable(factory.deploy(address(this), bytes32("BOTH"), config)));
 
-        vm.expectRevert(SinjohFeeRouter.InvalidPonsFeeWallet.selector);
-        launchRouter.launchPonsToken(address(pons), params, 0, 0, bytes32("TOKEN"));
+        adapterRouter.bind(address(subjectToken));
+        assertTrue(adapterRouter.bound());
     }
 
-    function testAnyoneCanCollectPonsFeesThroughRouter() public {
+    function testNobodyElseMayBind() public {
         RouterTypes.Config memory config = _config();
-        SinjohFeeRouter launchRouter = SinjohFeeRouter(
-            payable(factory.deployPons(address(this), bytes32("COLLECT"), config))
-        );
-        MockPonsV1Locker locker = new MockPonsV1Locker(weth);
-        MockPonsV1LaunchFactory pons = new MockPonsV1LaunchFactory(address(locker));
-        address launched = launchRouter.launchPonsToken(
-            address(pons), _ponsParams(address(launchRouter)), 0, 0, bytes32("TOKEN")
-        );
-        locker.setFees(launched, 2_000, 3_000);
+        config.launchpadAdapter = LAUNCHPAD_ADAPTER;
+        SinjohFeeRouter adapterRouter =
+            SinjohFeeRouter(payable(factory.deploy(address(this), bytes32("STRANGER"), config)));
 
-        vm.prank(address(0xBEEF));
-        (uint256 amount0, uint256 amount1) = launchRouter.collectPonsFees();
-
-        assertEq(amount0, 2_000);
-        assertEq(amount1, 3_000);
-        assertEq(MockERC20(launched).balanceOf(address(launchRouter)), 2_000);
-        assertEq(weth.balanceOf(address(launchRouter)), 3_000);
+        vm.prank(address(0xBAD));
+        vm.expectRevert(SinjohFeeRouter.Unauthorized.selector);
+        adapterRouter.bind(address(subjectToken));
     }
 
-    function testBindCanReturnOnlyTheExactPonsLaunchBuyToCreator() public {
+    function testBindHappensOnlyOnce() public {
+        vm.expectRevert(SinjohFeeRouter.AlreadyBound.selector);
+        router.bind(address(subjectToken));
+    }
+
+    /// @dev The creator-direct path: a launchpad delivers first-buy tokens to
+    /// the router itself. Without this the tokens would be indistinguishable
+    /// from fee revenue and `sync` would route them away from the creator.
+    function testBindCanReturnTheExactLaunchBuyToCreator() public {
         RouterTypes.Config memory config = _config();
         SinjohFeeRouter launchRouter =
             SinjohFeeRouter(payable(factory.deploy(address(this), bytes32("LAUNCH_BUY"), config)));
@@ -136,6 +128,7 @@ contract SinjohFeeRouterTest is TestBase {
         assertTrue(launchRouter.bound());
         assertEq(launchRouter.subject(), address(subjectToken));
         assertEq(subjectToken.balanceOf(address(this)), 1_000);
+        // The remainder stays available as ordinary fee revenue.
         assertEq(subjectToken.balanceOf(address(launchRouter)), 500);
 
         weth.mint(address(adapter), 500);
@@ -149,6 +142,54 @@ contract SinjohFeeRouterTest is TestBase {
             SinjohFeeRouter(payable(factory.deploy(address(this), bytes32("ZERO_BUY"), config)));
         vm.expectRevert(SinjohFeeRouter.InvalidAmount.selector);
         launchRouter.bindAndSendLaunchBuy(address(subjectToken), 0);
+    }
+
+    function testBindAndSendLaunchBuyIsCreatorOnly() public {
+        RouterTypes.Config memory config = _config();
+        config.launchpadAdapter = LAUNCHPAD_ADAPTER;
+        SinjohFeeRouter launchRouter =
+            SinjohFeeRouter(payable(factory.deploy(address(this), bytes32("BUY_AUTH"), config)));
+        subjectToken.mint(address(launchRouter), 1_000);
+
+        // Binding is delegable to the adapter; moving value to the creator is not.
+        vm.prank(LAUNCHPAD_ADAPTER);
+        vm.expectRevert(SinjohFeeRouter.Unauthorized.selector);
+        launchRouter.bindAndSendLaunchBuy(address(subjectToken), 1_000);
+    }
+
+    /// @dev The case that motivated per-asset normalization. A launchpad that
+    /// pairs against a quote asset pays fees in that asset, which is neither the
+    /// subject nor WETH. The rate stands in for a 6-decimal asset normalizing
+    /// into 18-decimal WETH.
+    function testQuoteAssetIntakeNormalizesThroughItsOwnRoute() public {
+        RouterTypes.Config memory config = _quotePairConfig();
+        SinjohFeeRouter quoteRouter =
+            SinjohFeeRouter(payable(factory.deploy(address(this), bytes32("QUOTE"), config)));
+        quoteRouter.bind(address(subjectToken));
+
+        quoteAdapter.setRate(1e12, 1);
+        quoteToken.mint(address(quoteRouter), 1_000);
+        weth.mint(address(quoteAdapter), 1_000 * 1e12);
+
+        (uint256 gross,) = quoteRouter.sync(address(quoteToken));
+
+        assertEq(gross, 1_000);
+        assertEq(quoteToken.balanceOf(address(quoteRouter)), 0);
+        assertEq(quoteRouter.totalLiability(address(weth)), 1_000 * 1e12);
+    }
+
+    function testAssetWithoutANormalizationRouteIsRejected() public {
+        payoutToken.mint(address(router), 1_000);
+        vm.expectRevert(
+            abi.encodeWithSelector(SinjohFeeRouter.UnsupportedAsset.selector, address(payoutToken))
+        );
+        router.sync(address(payoutToken));
+    }
+
+    /// @dev Adapters wrap before forwarding, so intake stays uniformly ERC-20.
+    function testNativeIntakeIsRejected() public {
+        vm.expectRevert(SinjohFeeRouter.NativeIntakeUnsupported.selector);
+        router.sync(address(0));
     }
 
     function testSubjectIsNormalizedBeforeWethIsSplit() public {
@@ -302,6 +343,35 @@ contract SinjohFeeRouterTest is TestBase {
         assertEq(subjectToken.balanceOf(address(router)), 0);
     }
 
+    /// @dev The default: fees arrive as the subject token and normalize to WETH.
+    function _subjectNormalization()
+        internal
+        view
+        returns (RouterTypes.Normalization[] memory normalizations)
+    {
+        normalizations = new RouterTypes.Normalization[](1);
+        normalizations[0] = RouterTypes.Normalization({
+            asset: RouterTypes.AssetRef(RouterTypes.AssetKind.SUBJECT, address(0)),
+            route: RouterTypes.Route(address(adapter), hex"01")
+        });
+    }
+
+    /// @dev A launchpad paying fees in its quote asset. Both the subject and the
+    /// quote asset need routes, each through its own adapter.
+    function _quotePairConfig() internal view returns (RouterTypes.Config memory config) {
+        config = _config();
+        RouterTypes.Normalization[] memory normalizations = new RouterTypes.Normalization[](2);
+        normalizations[0] = RouterTypes.Normalization({
+            asset: RouterTypes.AssetRef(RouterTypes.AssetKind.SUBJECT, address(0)),
+            route: RouterTypes.Route(address(adapter), hex"01")
+        });
+        normalizations[1] = RouterTypes.Normalization({
+            asset: RouterTypes.AssetRef(RouterTypes.AssetKind.FIXED_ERC20, address(quoteToken)),
+            route: RouterTypes.Route(address(quoteAdapter), hex"09")
+        });
+        config.normalizations = normalizations;
+    }
+
     function _config() internal view returns (RouterTypes.Config memory config) {
         RouterTypes.Allocation[] memory wethAllocations = new RouterTypes.Allocation[](2);
         wethAllocations[0] = RouterTypes.Allocation({
@@ -342,7 +412,8 @@ contract SinjohFeeRouterTest is TestBase {
             creator: address(this),
             protocolFeeRecipient: PROTOCOL_RECIPIENT,
             weth: address(weth),
-            subjectToWeth: RouterTypes.Route(address(adapter), hex"01"),
+            launchpadAdapter: address(0),
+            normalizations: _subjectNormalization(),
             buckets: buckets
         });
     }
@@ -391,25 +462,9 @@ contract SinjohFeeRouterTest is TestBase {
             creator: address(this),
             protocolFeeRecipient: PROTOCOL_RECIPIENT,
             weth: address(weth),
-            subjectToWeth: RouterTypes.Route(address(adapter), hex"01"),
+            launchpadAdapter: address(0),
+            normalizations: _subjectNormalization(),
             buckets: buckets
-        });
-    }
-
-    function _ponsParams(address feeWallet)
-        internal
-        pure
-        returns (IPonsV1LaunchFactory.LaunchParams memory params)
-    {
-        params = IPonsV1LaunchFactory.LaunchParams({
-            name: "Router Owned",
-            symbol: "ROUTE",
-            logo: "",
-            description: "",
-            socials: IPonsV1LaunchFactory.Socials({
-                twitter: "", telegram: "", discord: "", website: "", farcaster: ""
-            }),
-            feeWallet: feeWallet
         });
     }
 }

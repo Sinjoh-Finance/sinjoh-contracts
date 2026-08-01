@@ -27,33 +27,43 @@ executes direct Pons v3 swaps and WETH unwrapping.
 atomic. The historical `deploy` path derives its address from the creator, salt,
 and canonical config.
 
-New Pons launches use `predictPonsAddress` and `deployPons`. Their clone address
-depends only on the creator and user salt, breaking the otherwise circular
-dependency between the router configuration and Pons's future subject/pool
-addresses. Reusing a salt with a different configuration reverts.
+Launchpad-mediated launches use `predictLaunchpadAddress` and
+`deployForLaunchpad`. Their clone address depends only on the creator and user
+salt, which breaks the otherwise circular dependency between the router
+configuration and the adapter it names. Reusing a salt with a different
+configuration reverts.
+
+## The launchpad boundary
+
+**The router contains no launchpad-specific code.** It knows one address:
 
 ```solidity
-function launchPonsToken(
-    address factory,
-    IPonsV1LaunchFactory.LaunchParams calldata params,
-    uint256 launchConfigId,
-    uint256 dexId,
-    bytes32 salt
-) external payable returns (address subject);
+address public launchpadAdapter;
 ```
 
-This call is creator-only. It requires the router itself as `feeWallet`, calls
-Pons from the router, stores the reviewed factory and locker, binds the returned
-subject, and sends any developer-buy output to the Sinjoh creator atomically.
-
-Pons creator fees are then collected without trusting the caller:
+The router never calls it and never inspects it. The address grants exactly one
+right — to bind the subject, once:
 
 ```solidity
-function collectPonsFees() external returns (uint256 amount0, uint256 amount1);
+function bind(address newSubject) external;   // creator or launchpadAdapter
 ```
 
-The historical one-time `bind` and `bindAndSendLaunchBuy` functions remain
-available for already deployed routers and do not change behavior.
+Everything launchpad-specific — how a token is launched, how fees are claimed,
+which asset they arrive in, what the launch parameters look like — lives behind
+`ISinjohLaunchpadAdapter` in `sinjoh-launchpad-adapters`. **Supporting a new
+launchpad means writing an adapter. It does not mean changing this contract.**
+
+`bind` is delegable to the adapter because a launchpad may not produce a
+predictable token address. pons v2, for example, creates tokens with a plain
+`new`, so nothing derived from the address can be committed before the launch
+lands; the adapter learns the address in the launch transaction and binds there.
+
+A zero `launchpadAdapter` is valid and means only the creator may bind, which is
+correct for a launch the creator performs themselves.
+
+Fees arrive by plain transfer. Adapters wrap native value before forwarding, so
+intake is uniformly ERC-20 and every balance is measured the same way;
+`sync(address(0))` reverts `NativeIntakeUnsupported`.
 
 ## Configuration
 
@@ -89,14 +99,32 @@ struct Bucket {
     Allocation[] allocations;
 }
 
+struct Normalization {
+    AssetRef asset;
+    Route route;
+}
+
 struct Config {
     address creator;
     address protocolFeeRecipient;
     address weth;
-    Route subjectToWeth;
+    address launchpadAdapter;
+    Normalization[] normalizations;
     Bucket[] buckets;
 }
 ```
+
+`normalizations` replaces the former single `subjectToWeth` leg. Fees do not
+always arrive as the subject token: a launchpad that pairs a launch against a
+quote asset pays fees in that asset instead, and that asset may not be 18
+decimals. `sync(asset)` accepts any asset with a configured route and converts it
+to WETH through that route; WETH itself passes through with no route.
+
+Decimals are confined to the route. Every route outputs 18-decimal WETH and all
+downstream accounting is denominated in the output, so nothing after
+normalization changes. The exposure is the route's `minAmountOut` and the price
+guard, both of which must be computed in the input asset's own scale — a
+6-decimal input read as 18 decimals misprices by twelve orders of magnitude.
 
 Rules:
 

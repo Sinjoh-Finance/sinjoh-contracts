@@ -2,18 +2,30 @@
 pragma solidity 0.8.28;
 
 import { RouterTypes } from "./RouterTypes.sol";
-import { IPonsV1LaunchFactory, IPonsV1Locker } from "./interfaces/IPonsV1.sol";
 import { ISinjohSink } from "./interfaces/ISinjohSink.sol";
 import { ISinjohSwapAdapter } from "./interfaces/ISinjohSwapAdapter.sol";
 import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
 
 /// @notice Normalizes launch fees to WETH, then routes WETH into configured outcomes.
+///
+/// @dev The router is launchpad-agnostic by construction. It knows one address
+/// — `launchpadAdapter` — which it never calls and never inspects, and which
+/// may bind its subject once. Everything launchpad-specific (how a token is
+/// launched, how fees are claimed, which asset they arrive in) lives in an
+/// adapter implementing `ISinjohLaunchpadAdapter`. Supporting a new launchpad
+/// means writing an adapter; this contract does not change.
+///
+/// Fees arrive by plain transfer and are recognised by `sync(asset)`, which
+/// accepts any asset with a configured normalization route. Adapters must wrap
+/// native value before forwarding so intake stays uniformly ERC-20 and the
+/// router's accounting stays 18-decimal after normalization.
 contract SinjohFeeRouter {
     using SafeTransferLib for address;
 
     uint16 public constant BPS = 10_000;
     uint16 public constant PROTOCOL_FEE_BPS = 100;
     uint8 public constant MAX_BUCKETS = 8;
+    uint8 public constant MAX_NORMALIZATIONS = 8;
     uint8 public constant MAX_ALLOCATIONS_PER_BUCKET = 16;
     uint16 public constant MAX_DYNAMIC_BYTES = 1_024;
     uint16 public constant MAX_CONFIG_BYTES = 16_384;
@@ -44,9 +56,7 @@ contract SinjohFeeRouter {
     error NonContract(address target);
     error ImmutableAllocation();
     error NativeBurnForbidden();
-    error InvalidPonsFactory();
-    error InvalidPonsFeeWallet();
-    error PonsLaunchAlreadyConfigured();
+    error NativeIntakeUnsupported();
 
     event Initialized(
         address indexed creator,
@@ -54,22 +64,8 @@ contract SinjohFeeRouter {
         address indexed weth,
         bytes32 configHash
     );
-    event SubjectBound(address indexed subject);
+    event SubjectBound(address indexed subject, address indexed binder);
     event LaunchBuyDelivered(address indexed subject, address indexed recipient, uint256 amount);
-    event PonsTokenLaunched(
-        address indexed factory,
-        address indexed locker,
-        address indexed subject,
-        uint256 value,
-        uint256 launchBuyAmount
-    );
-    event PonsFeesCollected(
-        address indexed locker,
-        address indexed subject,
-        uint256 amount0,
-        uint256 amount1,
-        address caller
-    );
     event Normalized(
         address indexed inputAsset, uint256 amountIn, uint256 wethOut, address indexed caller
     );
@@ -116,6 +112,11 @@ contract SinjohFeeRouter {
         bytes sinkConfig;
     }
 
+    struct NormalizationStorage {
+        RouterTypes.AssetRef asset;
+        RouteStorage route;
+    }
+
     struct BucketStorage {
         RouterTypes.AssetRef output;
         uint16 bps;
@@ -130,10 +131,14 @@ contract SinjohFeeRouter {
     bytes32 public configHash;
     bool public initialized;
     bool public bound;
-    address public ponsLaunchFactory;
-    address public ponsLocker;
+    /// @notice The one address besides the creator allowed to bind the subject.
+    /// Opaque to this contract; see RouterTypes.Config.
+    address public launchpadAdapter;
 
-    RouteStorage private _subjectToWeth;
+    NormalizationStorage[] private _normalizations;
+    /// @dev Resolved at bind, when a SUBJECT-kind ref finally has an address.
+    /// Stored as index+1 so zero reads as "no route".
+    mapping(address asset => uint256 indexPlusOne) private _normalizationIndex;
     BucketStorage[] private _buckets;
 
     mapping(address asset => bool supported) public isIntakeAsset;
@@ -177,62 +182,34 @@ contract SinjohFeeRouter {
         emit Initialized(creator, protocolFeeRecipient, weth, configHash);
     }
 
-    function bind(address newSubject) external onlyCreator {
+    /// @notice Binds the launched token. Callable once, by the creator or by
+    /// the configured launchpad adapter.
+    ///
+    /// @dev The adapter needs this because a launchpad may not produce a
+    /// predictable token address — pons v2, for instance, creates tokens with a
+    /// plain `new`, so nothing derived from the address can be committed before
+    /// the launch lands. The adapter learns the address in the launch
+    /// transaction and binds it there.
+    function bind(address newSubject) external {
+        if (msg.sender != creator && msg.sender != launchpadAdapter) revert Unauthorized();
         _bind(newSubject);
     }
 
-    /// @notice Launches the configured subject through Pons with this router as
-    /// both the onchain deployer and fee wallet.
-    /// @dev The Sinjoh creator remains the user configured at initialization.
-    /// Any developer-buy output received by the router is forwarded to that
-    /// creator before the transaction completes.
-    function launchPonsToken(
-        address factory,
-        IPonsV1LaunchFactory.LaunchParams calldata params,
-        uint256 launchConfigId,
-        uint256 dexId,
-        bytes32 salt
-    ) external payable onlyCreator nonReentrant returns (address launchedSubject) {
-        if (bound || ponsLaunchFactory != address(0)) {
-            revert PonsLaunchAlreadyConfigured();
-        }
-        if (factory == address(0) || factory.code.length == 0) revert InvalidPonsFactory();
-        if (params.feeWallet != address(this)) revert InvalidPonsFeeWallet();
-
-        address locker = IPonsV1LaunchFactory(factory).locker();
-        if (locker == address(0) || locker.code.length == 0) revert InvalidPonsFactory();
-
-        launchedSubject = IPonsV1LaunchFactory(factory).launchToken{ value: msg.value }(
-            params, launchConfigId, dexId, salt
-        );
-        ponsLaunchFactory = factory;
-        ponsLocker = locker;
-        _bind(launchedSubject);
-
-        uint256 launchBuyAmount = launchedSubject.safeBalanceOf(address(this));
-        if (launchBuyAmount != 0) {
-            launchedSubject.safeTransfer(creator, launchBuyAmount);
-            emit LaunchBuyDelivered(launchedSubject, creator, launchBuyAmount);
-        }
-        emit PonsTokenLaunched(factory, locker, launchedSubject, msg.value, launchBuyAmount);
-    }
-
-    /// @notice Permissionlessly collects this token's Pons creator fees into
-    /// the router. The router is authorized because it launched the token.
-    function collectPonsFees() external nonReentrant returns (uint256 amount0, uint256 amount1) {
-        if (!bound) revert NotBound();
-        address locker = ponsLocker;
-        if (locker == address(0)) revert InvalidPonsFactory();
-        (amount0, amount1) = IPonsV1Locker(locker).collectFees(subject);
-        emit PonsFeesCollected(locker, subject, amount0, amount1, msg.sender);
-    }
-
-    /// @notice Binds the launched token and returns Pons's first-buy output to
+    /// @notice Binds the subject and returns an exact developer-buy amount to
     /// the creator in the same transaction.
-    /// @dev Pons sends first-buy tokens to its configured fee wallet. For a
-    /// router-first launch that wallet is this router. The caller supplies the
-    /// exact pool-to-router transfer amount decoded from the launch receipt, so
-    /// any separately accrued creator fees remain available for normal sync.
+    ///
+    /// @dev Launchpad-neutral: it binds and forwards a caller-stated amount,
+    /// and names no launchpad. It exists for the creator-direct path, where a
+    /// launchpad delivers first-buy tokens to this router rather than to an
+    /// adapter. Without it those tokens would be indistinguishable from fee
+    /// revenue and the next `sync` would route them away from the creator.
+    ///
+    /// Adapter-mediated launches do not need this — the adapter is the fee
+    /// recipient and delivers the developer buy itself — but the two paths
+    /// coexist, so removing it would strand the creator-direct one.
+    ///
+    /// The caller supplies the exact amount decoded from the launch receipt, so
+    /// any separately accrued fees stay available for normal `sync`.
     function bindAndSendLaunchBuy(address newSubject, uint256 amount)
         external
         onlyCreator
@@ -255,6 +232,17 @@ contract SinjohFeeRouter {
         isIntakeAsset[newSubject] = true;
         isIntakeAsset[weth] = true;
 
+        // A SUBJECT-kind normalization has no address until now, so the lookup
+        // table is built here rather than at initialization.
+        uint256 normalizationLength = _normalizations.length;
+        for (uint256 i; i < normalizationLength; ++i) {
+            address asset = _resolve(_normalizations[i].asset);
+            if (asset == weth || asset == address(0)) revert InvalidAssetRef();
+            if (_normalizationIndex[asset] != 0) revert DuplicateAsset(asset);
+            _normalizationIndex[asset] = i + 1;
+            isIntakeAsset[asset] = true;
+        }
+
         uint256 length = _buckets.length;
         address[] memory outputs = new address[](length);
         for (uint256 i; i < length; ++i) {
@@ -264,14 +252,26 @@ contract SinjohFeeRouter {
             }
             outputs[i] = output;
         }
-        emit SubjectBound(newSubject);
+        emit SubjectBound(newSubject, msg.sender);
     }
 
-    /// @notice Accounts for newly received subject tokens or WETH.
-    /// Subject tokens are swapped to WETH before the fee and bucket split.
+    /// @notice Accounts for newly received fee assets. Anything that is not
+    /// already WETH is swapped to WETH through its configured normalization
+    /// route before the fee and bucket split.
+    ///
+    /// @dev Accepts any asset with a normalization route, not just the subject.
+    /// A launchpad that pays fees in a quote asset — USDG, an equity token —
+    /// funds this router in that asset, and the route converts it. The route's
+    /// `minAmountOut` is the caller's responsibility and must be computed in the
+    /// input asset's own decimals; a 6-decimal input with an 18-decimal
+    /// assumption misprices by twelve orders of magnitude.
     function sync(address asset) external nonReentrant returns (uint256 gross, uint256 fee) {
         if (!bound) revert NotBound();
-        if (asset != subject && asset != weth) revert UnsupportedAsset(asset);
+        // Native intake is deliberately unsupported: adapters wrap before
+        // forwarding, which keeps intake uniformly ERC-20 and every balance
+        // here measurable the same way.
+        if (asset == address(0)) revert NativeIntakeUnsupported();
+        if (asset != weth && _normalizationIndex[asset] == 0) revert UnsupportedAsset(asset);
 
         uint256 balance = _assetBalance(asset);
         uint256 liability = totalLiability[asset];
@@ -282,8 +282,11 @@ contract SinjohFeeRouter {
             return (0, 0);
         }
 
-        uint256 normalized =
-            asset == weth ? gross : _executeSwap(_subjectToWeth, subject, weth, gross, 0);
+        uint256 normalized = asset == weth
+            ? gross
+            : _executeSwap(
+                _normalizations[_normalizationIndex[asset] - 1].route, asset, weth, gross, 0
+            );
         emit Normalized(asset, gross, normalized, msg.sender);
 
         uint16 nextFeeRemainder;
@@ -402,28 +405,41 @@ contract SinjohFeeRouter {
         emit SinkFunded(bucketId, allocationId, allocation.destination, asset, amount, msg.sender);
     }
 
-    function intakeAssetCount() external pure returns (uint256) {
-        return 2;
+    /// @notice Every configured normalization asset, plus WETH.
+    function intakeAssetCount() external view returns (uint256) {
+        return _normalizations.length + 1;
     }
 
+    /// @dev Index 0 is always WETH, which needs no route. Higher indices walk
+    /// the configured normalizations in config order.
     function intakeAsset(uint256 index)
         external
         view
         returns (RouterTypes.AssetRef memory ref, address resolved)
     {
         if (index == 0) {
-            ref = RouterTypes.AssetRef(RouterTypes.AssetKind.SUBJECT, address(0));
-            resolved = subject;
-        } else if (index == 1) {
-            ref = RouterTypes.AssetRef(RouterTypes.AssetKind.FIXED_ERC20, weth);
-            resolved = weth;
-        } else {
-            revert InvalidAmount();
+            return (RouterTypes.AssetRef(RouterTypes.AssetKind.FIXED_ERC20, weth), weth);
         }
+        if (index > _normalizations.length) revert InvalidAmount();
+        ref = _normalizations[index - 1].asset;
+        if (bound) resolved = _resolve(ref);
     }
 
-    function normalizationInfo() external view returns (address adapter, bytes memory routeData) {
-        return (_subjectToWeth.adapter, _subjectToWeth.routeData);
+    function normalizationCount() external view returns (uint256) {
+        return _normalizations.length;
+    }
+
+    /// @notice The route that turns `asset` into WETH, or a zero adapter when
+    /// the asset has no route configured.
+    function normalizationInfo(address asset)
+        external
+        view
+        returns (address adapter, bytes memory routeData)
+    {
+        uint256 indexPlusOne = _normalizationIndex[asset];
+        if (indexPlusOne == 0) return (address(0), "");
+        RouteStorage storage route = _normalizations[indexPlusOne - 1].route;
+        return (route.adapter, route.routeData);
     }
 
     function bucketCount() external view returns (uint256) {
@@ -519,16 +535,38 @@ contract SinjohFeeRouter {
                 || config.protocolFeeRecipient == address(this) || config.weth == address(this)
         ) revert InvalidAddress();
         if (config.weth.code.length == 0) revert NonContract(config.weth);
+        if (config.launchpadAdapter == address(this)) revert InvalidAddress();
         uint256 bucketLength = config.buckets.length;
         if (bucketLength == 0) revert InvalidConfiguration();
         if (bucketLength > MAX_BUCKETS) revert TooManyItems();
-        _validateRoute(config.subjectToWeth, false);
+
+        uint256 normalizationLength = config.normalizations.length;
+        if (normalizationLength == 0 || normalizationLength > MAX_NORMALIZATIONS) {
+            revert InvalidConfiguration();
+        }
 
         creator = config.creator;
         protocolFeeRecipient = config.protocolFeeRecipient;
         weth = config.weth;
-        _subjectToWeth.adapter = config.subjectToWeth.adapter;
-        _subjectToWeth.routeData = config.subjectToWeth.routeData;
+        launchpadAdapter = config.launchpadAdapter;
+
+        for (uint256 i; i < normalizationLength; ++i) {
+            RouterTypes.Normalization calldata source = config.normalizations[i];
+            _validateAssetRef(source.asset);
+            // Native cannot be an intake asset, and WETH needs no route.
+            if (source.asset.kind == RouterTypes.AssetKind.NATIVE) revert InvalidAssetRef();
+            if (
+                source.asset.kind == RouterTypes.AssetKind.FIXED_ERC20
+                    && source.asset.token == config.weth
+            ) revert InvalidAssetRef();
+            _validateRoute(source.route, false);
+
+            _normalizations.push();
+            NormalizationStorage storage target = _normalizations[i];
+            target.asset = source.asset;
+            target.route.adapter = source.route.adapter;
+            target.route.routeData = source.route.routeData;
+        }
 
         uint256 bucketBps;
         for (uint256 i; i < bucketLength; ++i) {

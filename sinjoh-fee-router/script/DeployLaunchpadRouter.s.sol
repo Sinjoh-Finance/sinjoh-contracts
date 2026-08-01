@@ -4,19 +4,19 @@ pragma solidity 0.8.28;
 import { SinjohFeeRouter } from "../src/SinjohFeeRouter.sol";
 import { SinjohFeeRouterFactory } from "../src/SinjohFeeRouterFactory.sol";
 
-interface VmRouterOwnedPons {
+interface VmLaunchpadRouter {
     function addr(uint256 privateKey) external returns (address);
     function envUint(string calldata name) external returns (uint256);
     function startBroadcast(uint256 privateKey) external;
     function stopBroadcast() external;
 }
 
-contract DeployRouterOwnedPons {
+contract DeployLaunchpadRouter {
     uint256 internal constant ROBINHOOD_MAINNET_CHAIN_ID = 4_663;
     address internal constant EXPECTED_DEPLOYER = 0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49;
 
-    VmRouterOwnedPons internal constant vm =
-        VmRouterOwnedPons(address(uint160(uint256(keccak256("hevm cheat code")))));
+    VmLaunchpadRouter internal constant vm =
+        VmLaunchpadRouter(address(uint160(uint256(keccak256("hevm cheat code")))));
 
     error WrongChain(uint256 actual);
     error WrongDeployer(address actual);

@@ -98,11 +98,17 @@ contract SinjohFeeRouterInvariantTest is InvariantTestBase {
             route: RouterTypes.Route(address(0), ""),
             allocations: allocations
         });
+        RouterTypes.Normalization[] memory normalizations = new RouterTypes.Normalization[](1);
+        normalizations[0] = RouterTypes.Normalization({
+            asset: RouterTypes.AssetRef(RouterTypes.AssetKind.SUBJECT, address(0)),
+            route: RouterTypes.Route(address(adapter), hex"01")
+        });
         RouterTypes.Config memory config = RouterTypes.Config({
             creator: address(this),
             protocolFeeRecipient: PROTOCOL_RECIPIENT,
             weth: address(weth),
-            subjectToWeth: RouterTypes.Route(address(adapter), hex"01"),
+            launchpadAdapter: address(0),
+            normalizations: normalizations,
             buckets: buckets
         });
         router =
