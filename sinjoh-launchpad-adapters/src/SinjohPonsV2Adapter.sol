@@ -72,6 +72,7 @@ contract SinjohPonsV2Adapter is ISinjohLaunchpadAdapter {
     /// nothing has accrued. A keeper polling an idle launch must not see that
     /// as a failure, so it is caught and treated as a no-op.
     bytes4 private constant NO_BALANCE_SELECTOR = bytes4(keccak256("NoBalance()"));
+    bytes4 private constant ALREADY_GRADUATED_SELECTOR = bytes4(keccak256("AlreadyGraduated()"));
 
     address public immutable launchFactory;
     address public immutable feeEscrow;
@@ -297,9 +298,10 @@ contract SinjohPonsV2Adapter is ISinjohLaunchpadAdapter {
     /// escrow balance that is usually zero while the real fees sat on the curve
     /// indefinitely.
     ///
-    /// The sweep is best-effort: it reverts once the launch has graduated, and
-    /// after graduation fees arrive from the v4 hook rather than the curve. A
-    /// failed sweep must not block a claim.
+    /// The sweep's expected `AlreadyGraduated()` result is ignored, because
+    /// graduation has already moved the pending curve fees to escrow and later
+    /// fees arrive from the v4 hook. Every other sweep failure propagates so an
+    /// authorization or upstream configuration error cannot look successful.
     ///
     /// Native proceeds are wrapped to WETH after the escrow call returns, so
     /// the router's asset set and 18-decimal accounting are unchanged. Wrapping
@@ -387,17 +389,21 @@ contract SinjohPonsV2Adapter is ISinjohLaunchpadAdapter {
 
     /// @dev The adapter is the launch `deployer`, so pons lets it sweep its own
     /// curve. `buybackEnabled` is refused at launch precisely so this path can
-    /// never hit `InternalSwapRequiresOperator`. Every failure here is still
-    /// tolerated rather than propagated: a graduated curve reverts
-    /// `AlreadyGraduated`, and a claim of already-swept value must stay
-    /// possible regardless.
+    /// never hit `InternalSwapRequiresOperator`. Only the verified
+    /// `AlreadyGraduated()` failure is tolerated. Swallowing an authorization or
+    /// upstream configuration failure would make automation report success while
+    /// fees remain stuck on the curve.
     ///
     /// `minBuybackTokensOut` is zero because with buyback disabled the sweep
     /// performs no internal swap, so there is no output to floor.
     function _trySweepCurve() private {
         address curve_ = curve;
         if (curve_ == address(0)) return;
-        try IPonsV2BondingCurve(curve_).sweepFees(0) { } catch { }
+        try IPonsV2BondingCurve(curve_).sweepFees(0) { }
+        catch (bytes memory reason) {
+            if (_hasSelector(reason, ALREADY_GRADUATED_SELECTOR)) return;
+            _bubble(reason);
+        }
     }
 
     /// @dev An empty escrow reverts `NoBalance()`. That is the normal state of
@@ -421,11 +427,15 @@ contract SinjohPonsV2Adapter is ISinjohLaunchpadAdapter {
     }
 
     function _isNoBalance(bytes memory reason) private pure returns (bool) {
+        return _hasSelector(reason, NO_BALANCE_SELECTOR);
+    }
+
+    function _hasSelector(bytes memory reason, bytes4 selector) private pure returns (bool) {
         if (reason.length < 4) return false;
         // Truncation is the point: this reads the error selector off the front
         // of the revert data, and the length is checked immediately above.
         // forge-lint: disable-next-line(unsafe-typecast)
-        return bytes4(reason) == NO_BALANCE_SELECTOR;
+        return bytes4(reason) == selector;
     }
 
     function _bubble(bytes memory reason) private pure {

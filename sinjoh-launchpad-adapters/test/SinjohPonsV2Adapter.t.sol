@@ -117,6 +117,15 @@ contract SinjohPonsV2AdapterTest is TestBase {
         assertEq(again, address(adapter));
     }
 
+    function test_deployRetryRejectsADifferentRouter() public {
+        _deployAdapter();
+        MockRouter otherRouter = new MockRouter();
+
+        vm.prank(creator);
+        vm.expectRevert(SinjohPonsV2AdapterFactory.ConfigMismatch.selector);
+        adapterFactory.deploy(creator, address(otherRouter), USER_SALT);
+    }
+
     // ------------------------------------------------------------------
     // Launch guards
     // ------------------------------------------------------------------
@@ -386,7 +395,7 @@ contract SinjohPonsV2AdapterTest is TestBase {
         assertEq(nativeAmount, 1 ether);
     }
 
-    function test_collectSurvivesASweepItIsNotAllowedToMake() public {
+    function test_collectSurfacesAnUnexpectedSweepFailure() public {
         (SinjohPonsV2Adapter adapter,) = _launchNative();
         MockBondingCurve curve = MockBondingCurve(payable(adapter.curve()));
 
@@ -394,9 +403,9 @@ contract SinjohPonsV2AdapterTest is TestBase {
         escrow.credit{ value: 1 ether }(address(adapter));
 
         vm.prank(keeper);
-        uint256[] memory _c_nativeAmount = adapter.collect();
-        uint256 nativeAmount = _c_nativeAmount[0];
-        assertEq(nativeAmount, 1 ether);
+        vm.expectRevert(MockBondingCurve.NotFeeSweepOperator.selector);
+        adapter.collect();
+        assertEq(escrow.balanceOf(address(adapter)), 1 ether);
     }
 
     /// @dev Enabling buyback makes `buybackQuoteBalance` non-zero, which hands

@@ -9,6 +9,7 @@ import { SinjohV3RouteExecutionFactory } from "../src/SinjohV3RouteExecutionFact
 import { SinjohV3RouteGuardDeployer } from "../src/SinjohV3RouteGuardDeployer.sol";
 import { SinjohV3RouteTwapPriceGuard } from "../src/SinjohV3RouteTwapPriceGuard.sol";
 import { DeployV3RouteExecutionFactory } from "../script/DeployV3RouteExecutionFactory.s.sol";
+import { DeployV3RouteGuardDeployer } from "../script/DeployV3RouteGuardDeployer.s.sol";
 import { TestBase } from "./TestBase.sol";
 import { MockERC20 } from "./mocks/MockERC20.sol";
 import {
@@ -123,8 +124,10 @@ contract SinjohRouteExecutionTest is TestBase {
     function testDeploymentAddressMatchesTheAddressPinnedInTheManifest() public {
         DeployV3RouteExecutionFactory deployment = new DeployV3RouteExecutionFactory();
         (address guardDeployer, address factory) = deployment.predict();
+        DeployV3RouteGuardDeployer guardDeployment = new DeployV3RouteGuardDeployer();
 
         assertEq(guardDeployer, PINNED_GUARD_DEPLOYER);
+        assertEq(guardDeployment.predict(), PINNED_GUARD_DEPLOYER);
         assertEq(factory, PINNED_FACTORY);
 
         // The factory address commits to the full creation code and the guard

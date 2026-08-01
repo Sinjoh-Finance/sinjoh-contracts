@@ -127,7 +127,7 @@ approved equity token, and their fees arrive in that asset — neither `subject`
 normalization routes keyed by intake asset:
 
 ```solidity
-struct Normalization { address asset; Route route; }
+struct Normalization { AssetRef asset; Route route; address priceGuard; }
 Normalization[] normalizations;   // replaces `Route subjectToWeth`
 ```
 
@@ -138,10 +138,15 @@ existing behaviour rather than a new code path.
 
 **Decimals.** USDG is a 6-decimal asset. Nothing downstream of normalization changes,
 because every route outputs 18-decimal WETH and all router accounting is denominated
-in the output. The decimal exposure is confined to the route's `minAmountOut` and to
-the price guard, both of which must be computed in the input asset's own scale. A
-guard that assumes 18-decimal inputs would misprice a USDG leg by twelve orders of
-magnitude, so the guard takes the input decimals explicitly rather than inferring them.
+in the output. The decimal exposure is confined to the route's caller floor and
+immutable amount-aware price guard. Both receive the raw input amount, so their quote
+logic must preserve the input token's actual scale. A guard that assumes 18-decimal
+inputs would misprice a USDG leg by twelve orders of magnitude.
+
+The caller floor is only an additional constraint. Because anyone may call `sync`,
+the router always enforces the immutable guard's quote and takes the stricter of the
+two values; a caller cannot sandwich the full pending balance by supplying a weak
+floor.
 
 The intake set is not hardcoded. The adapter reads `approvedPairTokens` at launch and
 refuses a pair the factory has not approved, so the supported list tracks Pons without
@@ -341,6 +346,23 @@ New for v2:
     to the correct 18-decimal WETH amount, with a guard floor computed in USDG scale.
 20. An equity-paired launch does the same for an 18-decimal pair asset, confirming the
     decimal handling is not accidentally native-only.
+
+## Factory deployment
+
+The v1 and v2 factories are deployed separately so each Forge script remains below
+the EIP-170 runtime-size limit. Both scripts refuse the wrong chain or deployer, pin
+every immutable upstream dependency by current code hash, and verify the factory
+readbacks plus the implementation's initialization lock before returning.
+
+```sh
+DEPLOYER_PRIVATE_KEY=... forge script \
+  script/DeployPonsV1LaunchAdapterFactory.s.sol:DeployPonsV1LaunchAdapterFactory \
+  --rpc-url https://rpc.mainnet.chain.robinhood.com --broadcast
+
+DEPLOYER_PRIVATE_KEY=... forge script \
+  script/DeployPonsV2AdapterFactory.s.sol:DeployPonsV2AdapterFactory \
+  --rpc-url https://rpc.mainnet.chain.robinhood.com --broadcast
+```
 
 ## Robinhood Chain mainnet dependencies
 

@@ -59,7 +59,6 @@ contract PonsV2MainnetForkTest is TestBase {
         // 24672804 mid-review, and while it is false only whitelisted launchers
         // may launch. These tests exercise the adapter, not pons's uptime, so
         // the fork re-enables launches when the live flag happens to be off.
-        // `test_launchPauseStateIsObserved` records the real value.
         if (!IPonsV2LaunchFactory(LAUNCH_FACTORY).launchEnabled()) {
             vm.prank(PONS_OWNER);
             IPonsV2LaunchFactoryAdmin(LAUNCH_FACTORY).setLaunchEnabled(true);
@@ -97,6 +96,17 @@ contract PonsV2MainnetForkTest is TestBase {
 
     function _economics(address pairToken) internal view returns (bytes32) {
         return IPonsV2LaunchFactory(LAUNCH_FACTORY).previewLaunchEconomics(0, pairToken);
+    }
+
+    function _dealToken(address token, address to, uint256 amount) internal {
+        for (uint256 slot; slot < 16; ++slot) {
+            bytes32 key = keccak256(abi.encode(to, slot));
+            bytes32 previous = vm.load(token, key);
+            vm.store(token, key, bytes32(amount));
+            if (IERC20Like(token).balanceOf(to) == amount) return;
+            vm.store(token, key, previous);
+        }
+        revert("balance slot not found");
     }
 
     /// @dev The pinned dependency graph must agree with itself on chain. If
@@ -227,6 +237,28 @@ contract PonsV2MainnetForkTest is TestBase {
         address[] memory assets = adapter.intakeAssets();
         assertEq(assets.length, 1);
         assertEq(assets[0], USDG);
+
+        address trader = address(0xD00D);
+        uint256 quoteIn = 100e6;
+        _dealToken(USDG, trader, quoteIn);
+        vm.prank(trader);
+        IERC20Like(USDG).approve(curve, quoteIn);
+        vm.prank(trader);
+        IPonsV2BondingCurve(curve).buy(quoteIn, 1, trader);
+
+        assertTrue(IPonsV2BondingCurve(curve).quoteFeeBalance() > 0);
+        assertEq(IPonsV2FeeEscrow(FEE_ESCROW).balanceOfToken(address(adapter), USDG), 0);
+
+        vm.prank(keeper);
+        uint256[] memory amounts = adapter.collect();
+        assertTrue(amounts[0] > 0);
+        assertEq(IPonsV2BondingCurve(curve).quoteFeeBalance(), 0);
+        assertEq(IERC20Like(USDG).balanceOf(address(adapter)), amounts[0]);
+
+        vm.prank(keeper);
+        assertEq(adapter.forward(USDG), amounts[0]);
+        assertEq(IERC20Like(USDG).balanceOf(address(router)), amounts[0]);
+        assertEq(IERC20Like(USDG).balanceOf(address(adapter)), 0);
 
         // A USDG launch must never be able to forward WETH.
         vm.expectRevert(abi.encodeWithSelector(SinjohPonsV2Adapter.UnsupportedAsset.selector, WETH));

@@ -18,6 +18,16 @@ interface IWETHLike is IERC20Like {
     function deposit() external payable;
 }
 
+contract ForkNormalizationGuard {
+    function minimumOutput(address, address, address, uint256, bytes32, bytes calldata)
+        external
+        pure
+        returns (uint256, uint48)
+    {
+        return (1, type(uint48).max);
+    }
+}
+
 /// @notice The integration the unit suites cannot cover: the **real**
 /// `SinjohFeeRouter` driven by a **real** launchpad adapter against the **real**
 /// pons deployment on Robinhood Chain mainnet.
@@ -51,6 +61,7 @@ contract RouterIntegrationForkTest is TestBase {
     SinjohFeeRouter implementation;
     SinjohFeeRouterFactory routerFactory;
     SinjohPonsV1LaunchAdapterFactory adapterFactory;
+    ForkNormalizationGuard normalizationGuard;
 
     address creator = address(0xC4EA704);
     address keeper = address(0xBEEF);
@@ -60,6 +71,7 @@ contract RouterIntegrationForkTest is TestBase {
         implementation = new SinjohFeeRouter();
         routerFactory = new SinjohFeeRouterFactory(address(implementation));
         adapterFactory = new SinjohPonsV1LaunchAdapterFactory(V1_FACTORY, V1_LOCKER, WETH, CHAIN_ID);
+        normalizationGuard = new ForkNormalizationGuard();
         vm.deal(creator, 100 ether);
     }
 
@@ -91,7 +103,7 @@ contract RouterIntegrationForkTest is TestBase {
     /// pool depth on a brand-new token.
     function _config(address launchpadAdapter)
         internal
-        pure
+        view
         returns (RouterTypes.Config memory config)
     {
         RouterTypes.Allocation[] memory allocations = new RouterTypes.Allocation[](1);
@@ -112,7 +124,8 @@ contract RouterIntegrationForkTest is TestBase {
         RouterTypes.Normalization[] memory normalizations = new RouterTypes.Normalization[](1);
         normalizations[0] = RouterTypes.Normalization({
             asset: RouterTypes.AssetRef(RouterTypes.AssetKind.SUBJECT, address(0)),
-            route: RouterTypes.Route(SWAP_ADAPTER, abi.encode(uint24(10_000)))
+            route: RouterTypes.Route(SWAP_ADAPTER, abi.encode(uint24(10_000))),
+            priceGuard: address(normalizationGuard)
         });
 
         config = RouterTypes.Config({
@@ -275,6 +288,15 @@ contract RouterIntegrationForkTest is TestBase {
         adapter.launch{ value: launchFee }(
             _params(address(adapter)), 0, 0, keccak256("integration-5")
         );
+    }
+
+    function test_adapterRetryRejectsADifferentRouter() public {
+        (, SinjohPonsV1LaunchAdapter adapter) = _deployPair();
+
+        vm.prank(creator);
+        vm.expectRevert(SinjohPonsV1LaunchAdapterFactory.ConfigMismatch.selector);
+        adapterFactory.deploy(creator, address(implementation), USER_SALT);
+        assertTrue(address(adapter) != address(0));
     }
 
     function test_launchRejectsAFeeWalletOtherThanTheAdapter() public {

@@ -26,14 +26,7 @@ import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
 /// caller supplies no target, so there is no way to point this adapter at a
 /// pool other than the one it was deployed for.
 ///
-/// Two behavioural differences from the hookless adapter, both consequences of
-/// the hook being allowed to move value:
-///
-/// 1. A hook may return a delta that makes the pool consume less than the
-///    requested input. Spending *less* than authorized is safe, so this adapter
-///    settles exactly what was consumed and returns the remainder to the caller
-///    rather than reverting.
-/// 2. A hook may take its fee out of the output. The output floor is therefore
+/// A hook may take its fee out of the output. The output floor is therefore
 ///    the only meaningful protection, and it is enforced on what the caller
 ///    actually receives, after the hook has taken its cut.
 contract SinjohUniswapV4HookedSwapAdapter is ISinjohSwapAdapter, IUnlockCallback {
@@ -45,7 +38,6 @@ contract SinjohUniswapV4HookedSwapAdapter is ISinjohSwapAdapter, IUnlockCallback
     error InvalidAmount();
     error InvalidCallback();
     error Reentrancy();
-    error OverSpent(uint256 authorized, uint256 spent);
     error UnexpectedBalanceDelta(address asset, uint256 expected, uint256 actual);
     error InsufficientOutput(uint256 minimum, uint256 actual);
 
@@ -123,12 +115,7 @@ contract SinjohUniswapV4HookedSwapAdapter is ISinjohSwapAdapter, IUnlockCallback
         _activeMinimumOut = 0;
         _activePriceLimit = 0;
 
-        // A hook may leave part of the requested input unconsumed. Give it back
-        // rather than stranding it here, then assert the adapter is exactly as
-        // it started so nothing can accumulate across swaps.
-        if (amountSpent < amountIn) {
-            assetIn.safeTransfer(msg.sender, amountIn - amountSpent);
-        }
+        if (amountSpent != amountIn) revert InvalidAmount();
         uint256 adapterInputAfter = assetIn.safeBalanceOf(address(this));
         if (adapterInputAfter != adapterInputBefore) {
             revert UnexpectedBalanceDelta(assetIn, adapterInputBefore, adapterInputAfter);
@@ -177,9 +164,10 @@ contract SinjohUniswapV4HookedSwapAdapter is ISinjohSwapAdapter, IUnlockCallback
 
         uint256 amountSpent = uint256(-int256(inputDelta));
         uint256 amountOut = uint256(int256(outputDelta));
-        // Spending less than authorized is acceptable and refunded upstream;
-        // spending more never is.
-        if (amountSpent > _activeAmountIn) revert OverSpent(_activeAmountIn, amountSpent);
+        // Both production consumers debit the full requested input from their
+        // liability ledger. A partial fill would only make the caller revert on
+        // its own exact-input assertion, so fail at the adapter boundary.
+        if (amountSpent != _activeAmountIn) revert InvalidAmount();
         if (amountOut < _activeMinimumOut) revert InsufficientOutput(_activeMinimumOut, amountOut);
 
         Currency inputCurrency = Currency.wrap(assetIn);

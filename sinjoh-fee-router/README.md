@@ -4,11 +4,12 @@ Immutable, deterministic WETH-first fee routing for Sinjoh launch assets. The
 factory deploys EIP-1167 clones with CREATE2 and initializes each clone
 atomically from a canonical configuration.
 
-The router accepts only the launched token and WETH. Launched-token fees swap
-to WETH first. WETH is then split into buckets that can keep WETH, unwrap to
-native ETH, swap directly to one ERC-20, buy back the launched token, or fund
-the liquidity manager. Outputs can be sent to wallets, funded into a sink, or
-sent to the burn address.
+The router accepts WETH plus any intake asset named by an immutable
+normalization configuration. Non-WETH fees swap to WETH first under an
+amount-aware oracle guard. WETH is then split into buckets that can keep WETH,
+unwrap to native ETH, swap directly to one ERC-20, buy back the launched token,
+or fund the liquidity manager. Outputs can be sent to wallets, funded into a
+sink, or sent to the burn address.
 
 ## Local verification
 
@@ -32,7 +33,9 @@ Launching, fee claiming, and every launchpad-specific parameter live behind
 Fees reach the router by plain transfer and are recognised by `sync(asset)`,
 which accepts any asset with a configured normalization route — the subject
 token, or a quote asset the launchpad pays fees in. Adapters wrap native value
-before forwarding, so intake is uniformly ERC-20.
+before forwarding, so intake is uniformly ERC-20. Every non-WETH route also
+pins a price guard in the router's immutable config. A permissionless caller's
+floor can tighten that guard's quote but can never weaken it.
 
 ## Deployment
 

@@ -102,6 +102,7 @@ struct Bucket {
 struct Normalization {
     AssetRef asset;
     Route route;
+    address priceGuard;
 }
 
 struct Config {
@@ -130,8 +131,8 @@ function sync(address asset, uint256 minAmountOut) external returns (uint256 gro
 **The one-argument form is WETH-only.** WETH needs no conversion, so there is
 nothing for a floor to protect and requiring one would be noise on the most
 common call a keeper makes. Every other asset is swapped, so every other asset
-must state a floor; passing one to the WETH form reverts
-`NormalizationFloorRequired`.
+must use the two-argument form with a nonzero caller floor. Supplying a floor
+for WETH is allowed but ignored because no swap occurs.
 
 The refusal distinguishes its causes — `NativeIntakeUnsupported` for the zero
 address, `UnsupportedAsset` when no route is configured, and
@@ -140,8 +141,18 @@ floor — so a caller is not sent to fix the wrong thing.
 
 The floor is denominated in WETH, the swap's output, but must be derived from the
 input asset's own decimals. A 6-decimal quote asset read as 18 decimals misprices
-by twelve orders of magnitude, which is exactly the mistake the parameter exists
-to let a caller avoid.
+by twelve orders of magnitude.
+
+The caller floor is not the router's trust boundary: `sync` is permissionless,
+so an attacker could always supply a weak value. Each normalization therefore
+stores an immutable `priceGuard`. The router asks it for an amount-aware minimum
+for the full unaccounted balance and executes with the stricter of the guard
+quote and the caller floor. Zero or expired guard quotes fail closed.
+
+For the shared `ISinjohPriceGuard` interface, normalization supplies its input
+asset as both `subject` and `assetIn`. This deliberately binds the guard to the
+pair actually being swapped: a USDG-to-WETH normalization remains guardable even
+though the launched subject token is not one side of that pair.
 
 Decimals are confined to the route. Every route outputs 18-decimal WETH and all
 downstream accounting is denominated in the output, so nothing after
@@ -152,6 +163,7 @@ guard, both of which must be computed in the input asset's own scale — a
 Rules:
 
 - one to eight buckets;
+- zero to eight normalizations (zero is valid for a WETH-only intake);
 - one to sixteen allocations per bucket;
 - bucket basis points total 10,000;
 - every bucket’s allocation basis points total 10,000;

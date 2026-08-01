@@ -9,6 +9,7 @@ contract SinjohFeeRouterFactory {
     error InvalidImplementation();
     error CreatorMismatch();
     error ConfigMismatch();
+    error Unauthorized();
     error InitializationFailed(bytes reason);
 
     event RouterDeployed(
@@ -64,6 +65,7 @@ contract SinjohFeeRouterFactory {
         bytes32 userSalt,
         RouterTypes.Config calldata config
     ) external returns (address router) {
+        if (msg.sender != creator) revert Unauthorized();
         if (creator != config.creator) revert CreatorMismatch();
         bytes32 configHash = keccak256(abi.encode(config));
         bytes32 salt = _launchpadDerivedSalt(creator, userSalt);

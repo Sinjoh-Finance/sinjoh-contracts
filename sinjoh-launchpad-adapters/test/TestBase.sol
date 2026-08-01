@@ -13,6 +13,8 @@ interface Vm {
     function prank(address sender) external;
     function chainId(uint256 newChainId) external;
     function deal(address account, uint256 balance) external;
+    function load(address target, bytes32 slot) external view returns (bytes32);
+    function store(address target, bytes32 slot, bytes32 value) external;
     function createSelectFork(string calldata urlOrAlias) external returns (uint256);
     function envOr(string calldata name, string calldata defaultValue)
         external

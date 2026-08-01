@@ -140,16 +140,20 @@ Order matters only where noted; `REVENUE_COLLECTOR` must exist first.
 - [ ] 1. `DeployRevenueCollector` — no dependencies. Sets governance to
         `0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f` and the initial processor to
         that same address.
-- [ ] 2. `DeployFeeRouter` — emits the router implementation, the router
-        factory, and the simple swap adapter. **No longer emits a price guard.**
+- [ ] 2. `DeployFeeRouter` — emits the router implementation and router factory.
+- [ ] 2a. `DeploySimpleSwapAdapter` — emits the independently deployable simple
+        swap adapter. The scripts stay separate so both fit under EIP-170.
 - [ ] 3. `DeploySharedPriceGuard` — the one guard every launch points at.
 - [ ] 4. `DeployAirdropDistributor` — requires `REVENUE_COLLECTOR`.
 - [ ] 5. `DeployLiquidityManager` — requires `REVENUE_COLLECTOR`.
 - [ ] 6. `DeployPonsLiquidityManager` — requires `REVENUE_COLLECTOR`.
       **See open decision 1: on mainnet this is now identical to step 5.**
 - [ ] 7. `DeployPonsV1AdapterFactory` — no dependencies.
-- [ ] 8. `DeployV3ExecutionFactory` / `DeployV3RouteExecutionFactory` — optional
-        CREATE2 deployments. The EIP-2470 singleton is confirmed present on 4663.
+- [ ] 8. `DeployV3ExecutionFactory` — optional CREATE2 deployment.
+- [ ] 8a. `DeployV3RouteGuardDeployer`, then `DeployV3RouteExecutionFactory` —
+        optional ordered CREATE2 deployments. The split keeps each script under
+        EIP-170; the second fails closed until the first address has code. The
+        EIP-2470 singleton is confirmed present on 4663.
 - [ ] Record every address, transaction hash, and runtime code hash in a new
       `mainnet-deployments.json` (mirror the shape of `testnet-deployments.json`).
 

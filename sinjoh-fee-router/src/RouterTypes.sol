@@ -32,6 +32,12 @@ library RouterTypes {
     struct Normalization {
         AssetRef asset;
         Route route;
+        /// @notice Immutable oracle guard that computes an amount-aware minimum.
+        /// The caller floor may only make this stricter.
+        /// @dev The router supplies the normalization input asset as both the
+        /// guard's subject and assetIn, so pair-validating shared guards can
+        /// safely price quote-asset-to-WETH routes too.
+        address priceGuard;
     }
 
     struct Allocation {

@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import { TestBase } from "./TestBase.sol";
 import { MockERC20 } from "./mocks/MockERC20.sol";
+import { MockPriceGuard } from "./mocks/MockPriceGuard.sol";
 import { MockSink } from "./mocks/MockSink.sol";
 import { MockSwapAdapter } from "./mocks/MockSwapAdapter.sol";
 import { RouterTypes } from "../src/RouterTypes.sol";
@@ -22,6 +23,7 @@ contract SinjohFeeRouterTest is TestBase {
     MockERC20 internal quoteToken;
     MockSwapAdapter internal adapter;
     MockSwapAdapter internal quoteAdapter;
+    MockPriceGuard internal priceGuard;
     MockSink internal sink;
     SinjohFeeRouter internal implementation;
     SinjohFeeRouterFactory internal factory;
@@ -34,6 +36,7 @@ contract SinjohFeeRouterTest is TestBase {
         quoteToken = new MockERC20("Global Dollar", "USDG");
         adapter = new MockSwapAdapter();
         quoteAdapter = new MockSwapAdapter();
+        priceGuard = new MockPriceGuard(1, type(uint48).max);
         sink = new MockSink();
         implementation = new SinjohFeeRouter();
         factory = new SinjohFeeRouterFactory(address(implementation));
@@ -70,6 +73,13 @@ contract SinjohFeeRouterTest is TestBase {
         config.protocolFeeRecipient = NEW_WALLET;
         vm.expectRevert(SinjohFeeRouterFactory.ConfigMismatch.selector);
         factory.deployForLaunchpad(address(this), salt, config);
+    }
+
+    function testNobodyMayPreemptAnotherCreatorsLaunchpadRouter() public {
+        RouterTypes.Config memory config = _config();
+        vm.prank(address(0xBAD));
+        vm.expectRevert(SinjohFeeRouterFactory.Unauthorized.selector);
+        factory.deployForLaunchpad(address(this), bytes32("PREEMPT"), config);
     }
 
     /// @dev The router's entire launchpad surface. It never calls the adapter
@@ -132,7 +142,7 @@ contract SinjohFeeRouterTest is TestBase {
         assertEq(subjectToken.balanceOf(address(launchRouter)), 500);
 
         weth.mint(address(adapter), 500);
-        launchRouter.sync(address(subjectToken), 0);
+        launchRouter.sync(address(subjectToken), 1);
         assertEq(subjectToken.balanceOf(address(launchRouter)), 0);
     }
 
@@ -171,7 +181,7 @@ contract SinjohFeeRouterTest is TestBase {
         quoteToken.mint(address(quoteRouter), 1_000);
         weth.mint(address(quoteAdapter), 1_000 * 1e12);
 
-        (uint256 gross,) = quoteRouter.sync(address(quoteToken), 0);
+        (uint256 gross,) = quoteRouter.sync(address(quoteToken), 1);
 
         assertEq(gross, 1_000);
         assertEq(quoteToken.balanceOf(address(quoteRouter)), 0);
@@ -189,7 +199,8 @@ contract SinjohFeeRouterTest is TestBase {
         RouterTypes.Normalization[] memory normalizations = new RouterTypes.Normalization[](1);
         normalizations[0] = RouterTypes.Normalization({
             asset: RouterTypes.AssetRef(RouterTypes.AssetKind.FIXED_ERC20, address(quoteToken)),
-            route: RouterTypes.Route(address(quoteAdapter), hex"09")
+            route: RouterTypes.Route(address(quoteAdapter), hex"09"),
+            priceGuard: address(priceGuard)
         });
         config.normalizations = normalizations;
 
@@ -229,6 +240,33 @@ contract SinjohFeeRouterTest is TestBase {
         assertEq(router.totalLiability(address(weth)), 10_000);
     }
 
+    function testImmutableGuardCannotBeWeakenedByPermissionlessCaller() public {
+        subjectToken.mint(address(router), 10_000);
+        weth.mint(address(adapter), 10_000);
+        priceGuard.setQuote(10_001, type(uint48).max);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(SinjohFeeRouter.InsufficientOutput.selector, 10_001, 10_000)
+        );
+        router.sync(address(subjectToken), 1);
+    }
+
+    function testNormalizationRejectsExpiredGuardQuote() public {
+        subjectToken.mint(address(router), 10_000);
+        priceGuard.setQuote(10_000, uint48(block.timestamp - 1));
+
+        vm.expectRevert(SinjohFeeRouter.InvalidExpiry.selector);
+        router.sync(address(subjectToken), 1);
+    }
+
+    function testNormalizationRejectsZeroGuardQuote() public {
+        subjectToken.mint(address(router), 10_000);
+        priceGuard.setQuote(0, type(uint48).max);
+
+        vm.expectRevert(SinjohFeeRouter.InvalidMinimumOutput.selector);
+        router.sync(address(subjectToken), 1);
+    }
+
     /// @dev The floor is meaningless when no swap happens, and must not block.
     function testWethSyncIgnoresTheFloor() public {
         weth.mint(address(router), 10_000);
@@ -248,6 +286,30 @@ contract SinjohFeeRouterTest is TestBase {
             )
         );
         router.sync(address(subjectToken));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                SinjohFeeRouter.NormalizationFloorRequired.selector, address(subjectToken)
+            )
+        );
+        router.sync(address(subjectToken), 0);
+    }
+
+    function testWethOnlyRouterNeedsNoDummyNormalization() public {
+        RouterTypes.Config memory config = _config();
+        config.normalizations = new RouterTypes.Normalization[](0);
+        SinjohFeeRouter wethOnly =
+            SinjohFeeRouter(payable(factory.deploy(address(this), bytes32("WETH_ONLY"), config)));
+        wethOnly.bind(address(subjectToken));
+
+        assertEq(wethOnly.normalizationCount(), 0);
+        assertEq(wethOnly.intakeAssetCount(), 1);
+        assertTrue(wethOnly.isIntakeAsset(address(weth)));
+        assertTrue(!wethOnly.isIntakeAsset(address(subjectToken)));
+
+        weth.mint(address(wethOnly), 10_000);
+        wethOnly.sync(address(weth));
+        assertEq(wethOnly.totalLiability(address(weth)), 10_000);
     }
 
     /// @dev And the refusal says why. Telling a caller to supply a floor for an
@@ -280,7 +342,7 @@ contract SinjohFeeRouterTest is TestBase {
         subjectToken.mint(address(router), 10_000);
         weth.mint(address(adapter), 10_000);
 
-        (uint256 gross, uint256 fee) = router.sync(address(subjectToken), 0);
+        (uint256 gross, uint256 fee) = router.sync(address(subjectToken), 1);
 
         assertEq(gross, 10_000);
         assertEq(fee, 100);
@@ -436,7 +498,8 @@ contract SinjohFeeRouterTest is TestBase {
         normalizations = new RouterTypes.Normalization[](1);
         normalizations[0] = RouterTypes.Normalization({
             asset: RouterTypes.AssetRef(RouterTypes.AssetKind.SUBJECT, address(0)),
-            route: RouterTypes.Route(address(adapter), hex"01")
+            route: RouterTypes.Route(address(adapter), hex"01"),
+            priceGuard: address(priceGuard)
         });
     }
 
@@ -447,11 +510,13 @@ contract SinjohFeeRouterTest is TestBase {
         RouterTypes.Normalization[] memory normalizations = new RouterTypes.Normalization[](2);
         normalizations[0] = RouterTypes.Normalization({
             asset: RouterTypes.AssetRef(RouterTypes.AssetKind.SUBJECT, address(0)),
-            route: RouterTypes.Route(address(adapter), hex"01")
+            route: RouterTypes.Route(address(adapter), hex"01"),
+            priceGuard: address(priceGuard)
         });
         normalizations[1] = RouterTypes.Normalization({
             asset: RouterTypes.AssetRef(RouterTypes.AssetKind.FIXED_ERC20, address(quoteToken)),
-            route: RouterTypes.Route(address(quoteAdapter), hex"09")
+            route: RouterTypes.Route(address(quoteAdapter), hex"09"),
+            priceGuard: address(priceGuard)
         });
         config.normalizations = normalizations;
     }

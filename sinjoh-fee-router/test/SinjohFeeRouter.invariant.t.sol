@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import { InvariantTestBase } from "./TestBase.sol";
 import { MockERC20 } from "./mocks/MockERC20.sol";
+import { MockPriceGuard } from "./mocks/MockPriceGuard.sol";
 import { MockSwapAdapter } from "./mocks/MockSwapAdapter.sol";
 import { RouterTypes } from "../src/RouterTypes.sol";
 import { SinjohFeeRouter } from "../src/SinjohFeeRouter.sol";
@@ -35,7 +36,7 @@ contract FeeRouterHandler {
         uint256 amount = uint256(rawAmount) % 1e24 + 1;
         subject.mint(address(router), amount);
         weth.mint(address(adapter), amount);
-        router.sync(address(subject), 0);
+        router.sync(address(subject), 1);
         normalizedGross += amount;
     }
 
@@ -81,6 +82,7 @@ contract SinjohFeeRouterInvariantTest is InvariantTestBase {
         subject = new MockERC20("Subject", "SUB");
         weth = new MockERC20("Wrapped Ether", "WETH");
         adapter = new MockSwapAdapter();
+        MockPriceGuard priceGuard = new MockPriceGuard(1, type(uint48).max);
         SinjohFeeRouterFactory factory = new SinjohFeeRouterFactory(address(new SinjohFeeRouter()));
 
         RouterTypes.Allocation[] memory allocations = new RouterTypes.Allocation[](1);
@@ -101,7 +103,8 @@ contract SinjohFeeRouterInvariantTest is InvariantTestBase {
         RouterTypes.Normalization[] memory normalizations = new RouterTypes.Normalization[](1);
         normalizations[0] = RouterTypes.Normalization({
             asset: RouterTypes.AssetRef(RouterTypes.AssetKind.SUBJECT, address(0)),
-            route: RouterTypes.Route(address(adapter), hex"01")
+            route: RouterTypes.Route(address(adapter), hex"01"),
+            priceGuard: address(priceGuard)
         });
         RouterTypes.Config memory config = RouterTypes.Config({
             creator: address(this),

@@ -14,6 +14,7 @@ import { SinjohPonsV1LaunchAdapter } from "./SinjohPonsV1LaunchAdapter.sol";
 contract SinjohPonsV1LaunchAdapterFactory {
     error InitializationFailed(bytes reason);
     error AdapterMismatch(address expected, address actual);
+    error ConfigMismatch();
     error Unauthorized();
 
     event AdapterDeployed(
@@ -61,6 +62,11 @@ contract SinjohPonsV1LaunchAdapterFactory {
                 revert InitializationFailed(reason);
             }
             created = true;
+        } else {
+            SinjohPonsV1LaunchAdapter existing = SinjohPonsV1LaunchAdapter(payable(adapter));
+            if (existing.router() != router || existing.creator() != creator) {
+                revert ConfigMismatch();
+            }
         }
 
         emit AdapterDeployed(

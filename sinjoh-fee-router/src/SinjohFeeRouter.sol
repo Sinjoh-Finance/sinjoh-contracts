@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import { RouterTypes } from "./RouterTypes.sol";
 import { ISinjohSink } from "./interfaces/ISinjohSink.sol";
+import { ISinjohPriceGuard } from "./interfaces/ISinjohPriceGuard.sol";
 import { ISinjohSwapAdapter } from "./interfaces/ISinjohSwapAdapter.sol";
 import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
 
@@ -58,6 +59,8 @@ contract SinjohFeeRouter {
     error NativeBurnForbidden();
     error NativeIntakeUnsupported();
     error NormalizationFloorRequired(address asset);
+    error InvalidExpiry();
+    error InvalidMinimumOutput();
 
     event Initialized(
         address indexed creator,
@@ -116,6 +119,7 @@ contract SinjohFeeRouter {
     struct NormalizationStorage {
         RouterTypes.AssetRef asset;
         RouteStorage route;
+        address priceGuard;
     }
 
     struct BucketStorage {
@@ -288,17 +292,15 @@ contract SinjohFeeRouter {
         return _sync(asset, 0);
     }
 
-    /// @notice `sync` with an explicit floor on the normalization swap.
+    /// @notice `sync` with an additional caller floor on the normalization swap.
     ///
     /// @dev The floor is denominated in **WETH**, the swap's output, but must be
     /// derived from the input asset's own decimals. A 6-decimal quote asset read
-    /// as 18 decimals misprices by twelve orders of magnitude, which is exactly
-    /// the mistake this parameter exists to let a caller avoid.
+    /// as 18 decimals misprices by twelve orders of magnitude.
     ///
-    /// Bucket conversions already take a caller floor via `processBucket`;
-    /// normalization was the one unprotected leg, and generalizing intake from
-    /// "the subject token" to "any quote asset" widened that exposure enough to
-    /// be worth closing.
+    /// The immutable normalization guard remains the trust boundary because
+    /// this function is permissionless. The effective minimum is the stricter
+    /// of its amount-aware quote and this caller-supplied value.
     function sync(address asset, uint256 minAmountOut)
         external
         nonReentrant
@@ -320,6 +322,7 @@ contract SinjohFeeRouter {
         // here measurable the same way.
         if (asset == address(0)) revert NativeIntakeUnsupported();
         if (asset != weth && _normalizationIndex[asset] == 0) revert UnsupportedAsset(asset);
+        if (asset != weth && minAmountOut == 0) revert NormalizationFloorRequired(asset);
 
         uint256 balance = _assetBalance(asset);
         uint256 liability = totalLiability[asset];
@@ -330,15 +333,21 @@ contract SinjohFeeRouter {
             return (0, 0);
         }
 
-        uint256 normalized = asset == weth
-            ? gross
-            : _executeSwap(
-                _normalizations[_normalizationIndex[asset] - 1].route,
-                asset,
-                weth,
-                gross,
-                minAmountOut
-            );
+        uint256 normalized;
+        if (asset == weth) {
+            normalized = gross;
+        } else {
+            NormalizationStorage storage normalization =
+                _normalizations[_normalizationIndex[asset] - 1];
+            (uint256 guardMinimum, uint48 validUntil) = ISinjohPriceGuard(normalization.priceGuard)
+                .minimumOutput(
+                    asset, asset, weth, gross, keccak256(normalization.route.routeData), ""
+                );
+            if (validUntil < block.timestamp) revert InvalidExpiry();
+            if (guardMinimum == 0) revert InvalidMinimumOutput();
+            uint256 minimum = guardMinimum > minAmountOut ? guardMinimum : minAmountOut;
+            normalized = _executeSwap(normalization.route, asset, weth, gross, minimum);
+        }
         emit Normalized(asset, gross, normalized, msg.sender);
 
         uint16 nextFeeRemainder;
@@ -486,12 +495,13 @@ contract SinjohFeeRouter {
     function normalizationInfo(address asset)
         external
         view
-        returns (address adapter, bytes memory routeData)
+        returns (address adapter, address priceGuard, bytes memory routeData)
     {
         uint256 indexPlusOne = _normalizationIndex[asset];
-        if (indexPlusOne == 0) return (address(0), "");
-        RouteStorage storage route = _normalizations[indexPlusOne - 1].route;
-        return (route.adapter, route.routeData);
+        if (indexPlusOne == 0) return (address(0), address(0), "");
+        NormalizationStorage storage normalization = _normalizations[indexPlusOne - 1];
+        return
+            (normalization.route.adapter, normalization.priceGuard, normalization.route.routeData);
     }
 
     function bucketCount() external view returns (uint256) {
@@ -593,9 +603,7 @@ contract SinjohFeeRouter {
         if (bucketLength > MAX_BUCKETS) revert TooManyItems();
 
         uint256 normalizationLength = config.normalizations.length;
-        if (normalizationLength == 0 || normalizationLength > MAX_NORMALIZATIONS) {
-            revert InvalidConfiguration();
-        }
+        if (normalizationLength > MAX_NORMALIZATIONS) revert TooManyItems();
 
         creator = config.creator;
         protocolFeeRecipient = config.protocolFeeRecipient;
@@ -612,12 +620,17 @@ contract SinjohFeeRouter {
                     && source.asset.token == config.weth
             ) revert InvalidAssetRef();
             _validateRoute(source.route, false);
+            if (source.priceGuard == address(0) || source.priceGuard == address(this)) {
+                revert InvalidConfiguration();
+            }
+            if (source.priceGuard.code.length == 0) revert NonContract(source.priceGuard);
 
             _normalizations.push();
             NormalizationStorage storage target = _normalizations[i];
             target.asset = source.asset;
             target.route.adapter = source.route.adapter;
             target.route.routeData = source.route.routeData;
+            target.priceGuard = source.priceGuard;
         }
 
         uint256 bucketBps;
