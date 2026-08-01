@@ -167,6 +167,45 @@ sat on the curve indefinitely.
 threshold sweeps on its way through and the curve's own `sweepFees` then reverts
 `AlreadyGraduated`. Both paths are covered by fork tests.
 
+## A v4 TWAP price guard is not buildable for graduated pools
+
+`SinjohSharedV3TwapPriceGuard` reads a Uniswap v3 pool's `observe()` oracle. There is
+no equivalent to port to.
+
+Uniswap v4 core removed the built-in oracle — observations moved into hooks — and the
+**pons meme hook does not implement one**. Its full function list contains no
+`observe`, no observations array, no cardinality, nothing historical:
+
+```
+afterAddLiquidity, afterDonate, afterInitialize, afterRemoveLiquidity, afterSwap,
+beforeAddLiquidity, beforeDonate, beforeInitialize, beforeRemoveLiquidity, beforeSwap,
+buybackBurnBps, buybackVault, currentFeePolicy, factory, feeEscrow, feeSweepOperator,
+getHookPermissions, hookFeeBps, launches, maxInternalPriceImpactBps, owner,
+pendingBuyback, pendingCreatorTax, pendingFees, poolManager, protocolFeeRecipient,
+protocolFeeShareBps, registerPool
+```
+
+`StateView.getSlot0` gives spot `sqrtPriceX96` and nothing else, so a guard over a
+graduated pons v2 pool could only ever compare spot against spot — which a sandwich
+moves in the same transaction.
+
+Options, none of them free:
+
+1. **Caller-supplied floors only.** Already the fee router's posture after audit
+   finding F2 added `sync(asset, minAmountOut)`, and `processBucket` always took one.
+   The floor has to be computed off-chain by whoever calls, which puts the burden on
+   the keeper.
+2. **Route conversions through the v3 fork instead.** Works for pair assets — USDG and
+   the equity tokens have v3 pools — but not for a graduated launch token, whose only
+   market is its v4 pool.
+3. **Ask pons to add an oracle to the hook.** Out of our control and not something to
+   plan around.
+
+The practical consequence: the liquidity manager, which is the component that consults
+the guard, cannot mint into a graduated v2 pool under TWAP protection the way it does
+for v3. That is a v2-only limitation; v1 launches are unaffected because they graduate
+into v3 pools with working oracles.
+
 ## Blockers and breaking changes
 
 ### 1. Token addresses are not deterministic

@@ -28,10 +28,8 @@ contract DeployV3RouteExecutionFactory {
     address internal constant SINGLETON_FACTORY = 0xce0042B868300000d44A59004Da54A005ffdcf9f;
     bytes32 internal constant SINGLETON_FACTORY_CODE_HASH =
         0xc4d5542b53a8b779595a20a8ddd60e58a6c49d3c3decc2df83ced1c69c8ca807;
-    bytes32 internal constant GUARD_DEPLOYER_SALT =
-        keccak256("sinjoh.v3-route-guard-deployer.v1");
-    bytes32 internal constant FACTORY_SALT =
-        keccak256("sinjoh.v3-route-execution-factory.v1");
+    bytes32 internal constant GUARD_DEPLOYER_SALT = keccak256("sinjoh.v3-route-guard-deployer.v1");
+    bytes32 internal constant FACTORY_SALT = keccak256("sinjoh.v3-route-execution-factory.v1");
 
     VmV3RouteExecutionFactory internal constant vm =
         VmV3RouteExecutionFactory(address(uint160(uint256(keccak256("hevm cheat code")))));
@@ -62,7 +60,11 @@ contract DeployV3RouteExecutionFactory {
         (address predictedGuardDeployer, address predictedFactory) = predict();
 
         if (predictedGuardDeployer.code.length == 0) {
-            _deploy(type(SinjohV3RouteGuardDeployer).creationCode, GUARD_DEPLOYER_SALT, predictedGuardDeployer);
+            _deploy(
+                type(SinjohV3RouteGuardDeployer).creationCode,
+                GUARD_DEPLOYER_SALT,
+                predictedGuardDeployer
+            );
         }
         if (predictedFactory.code.length == 0) {
             _deploy(_factoryInitCode(predictedGuardDeployer), FACTORY_SALT, predictedFactory);
@@ -94,11 +96,7 @@ contract DeployV3RouteExecutionFactory {
     function _create2(bytes32 salt, bytes32 initCodeHash) private pure returns (address) {
         return address(
             uint160(
-                uint256(
-                    keccak256(
-                        abi.encodePacked(hex"ff", SINGLETON_FACTORY, salt, initCodeHash)
-                    )
-                )
+                uint256(keccak256(abi.encodePacked(hex"ff", SINGLETON_FACTORY, salt, initCodeHash)))
             )
         );
     }

@@ -131,8 +131,8 @@ contract SinjohV3RouteTwapPriceGuard is ISinjohPriceGuard {
     function activate() external {
         if (active) revert AlreadyActive();
         if (
-            firstPool.code.length == 0 || assetIn.code.length == 0
-                || assetOut.code.length == 0 || subject.code.length == 0
+            firstPool.code.length == 0 || assetIn.code.length == 0 || assetOut.code.length == 0
+                || subject.code.length == 0
         ) revert InvalidAddress();
 
         if (midAsset == address(0)) {
@@ -234,10 +234,7 @@ contract SinjohV3RouteTwapPriceGuard is ISinjohPriceGuard {
         }
     }
 
-    function _validatePool(address pool, address tokenA, address tokenB, uint24 fee)
-        private
-        view
-    {
+    function _validatePool(address pool, address tokenA, address tokenB, uint24 fee) private view {
         IUniswapV3Pool candidate = IUniswapV3Pool(pool);
         address token0 = tokenA < tokenB ? tokenA : tokenB;
         address token1 = tokenA < tokenB ? tokenB : tokenA;

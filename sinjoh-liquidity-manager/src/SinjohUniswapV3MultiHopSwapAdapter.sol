@@ -82,9 +82,8 @@ contract SinjohUniswapV3MultiHopSwapAdapter is ISinjohSwapAdapter {
     function activate() external {
         if (active) revert AlreadyActive();
         if (
-            firstPool.code.length == 0 || secondPool.code.length == 0
-                || assetIn.code.length == 0 || midAsset.code.length == 0
-                || assetOut.code.length == 0
+            firstPool.code.length == 0 || secondPool.code.length == 0 || assetIn.code.length == 0
+                || midAsset.code.length == 0 || assetOut.code.length == 0
         ) revert InvalidAddress();
 
         _validatePool(firstPool, assetIn, midAsset, firstPoolFee);
@@ -108,8 +107,8 @@ contract SinjohUniswapV3MultiHopSwapAdapter is ISinjohSwapAdapter {
         if (msg.value != 0) revert InvalidAmount();
         bytes memory expectedPath = path();
         if (
-            assetIn_ != assetIn || assetOut_ != assetOut || amountIn == 0
-                || minimumAmountOut == 0 || keccak256(routeData) != keccak256(expectedPath)
+            assetIn_ != assetIn || assetOut_ != assetOut || amountIn == 0 || minimumAmountOut == 0
+                || keccak256(routeData) != keccak256(expectedPath)
         ) revert InvalidRoute();
 
         uint256 adapterInputBefore = assetIn.safeBalanceOf(address(this));
@@ -154,10 +153,7 @@ contract SinjohUniswapV3MultiHopSwapAdapter is ISinjohSwapAdapter {
         }
     }
 
-    function _validatePool(address pool, address tokenA, address tokenB, uint24 fee)
-        private
-        view
-    {
+    function _validatePool(address pool, address tokenA, address tokenB, uint24 fee) private view {
         IUniswapV3Pool candidate = IUniswapV3Pool(pool);
         address token0 = tokenA < tokenB ? tokenA : tokenB;
         address token1 = tokenA < tokenB ? tokenB : tokenA;

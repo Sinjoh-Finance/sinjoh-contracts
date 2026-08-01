@@ -26,7 +26,9 @@ contract SinjohV3RouteGuardDeployer {
         bytes32 userSalt,
         SinjohV3RouteTwapPriceGuard.RouteGuard memory config
     ) external returns (address guard) {
-        if (creator == address(0)) revert InvalidCreator();
+        if (creator == address(0)) {
+            revert InvalidCreator();
+        }
         bytes32 salt = _guardSalt(creator, userSalt, config);
         guard = predictGuard(creator, userSalt, config);
         bool created;
@@ -42,11 +44,11 @@ contract SinjohV3RouteGuardDeployer {
         bytes32 userSalt,
         SinjohV3RouteTwapPriceGuard.RouteGuard memory config
     ) public view returns (address) {
-        if (creator == address(0)) revert InvalidCreator();
+        if (creator == address(0)) {
+            revert InvalidCreator();
+        }
         bytes32 initCodeHash = keccak256(
-            abi.encodePacked(
-                type(SinjohV3RouteTwapPriceGuard).creationCode, abi.encode(config)
-            )
+            abi.encodePacked(type(SinjohV3RouteTwapPriceGuard).creationCode, abi.encode(config))
         );
         return address(
             uint160(
