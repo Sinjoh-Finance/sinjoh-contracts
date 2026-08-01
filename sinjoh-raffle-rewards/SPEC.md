@@ -164,7 +164,7 @@ basis             = MIN_BALANCE
 weightWindowBlocks= one hour of L2 blocks
 recipientTaxBps   = as chosen before launch
 recycleTaxBps     = as chosen before launch
-randomnessTimeout = 7200         // covers VRF plus two CCIP legs with margin
+randomnessTimeout = 7200         // ~3x the ~35-45 min expected settlement
 claimWindow       = 604800
 ```
 
@@ -595,9 +595,11 @@ uncorrelated indices. The adapter enforces the invariant that makes batching sou
 — a request binds only to a beacon that has not yet been dispatched, so no
 commitment can ever attach to a word already in flight.
 
-No Sinjoh-operated key can bias or withhold the result. Latency is VRF
-confirmations plus two CCIP legs, typically 5 to 20 minutes, so `randomnessTimeout`
-is set to 7,200 seconds. Liveness depends on the CCIP lane and on both adapter gas
+No Sinjoh-operated key can bias or withhold the result. Latency is dominated by
+CCIP's wait for source-chain finality on **both** legs — Chainlink documents
+Arbitrum at roughly 17 minutes — so budget 35 to 45 minutes end to end, and set
+`randomnessTimeout` to 7,200 seconds for roughly three times the expected
+settlement. A timeout near the expected latency would abandon healthy rounds. Liveness depends on the CCIP lane and on both adapter gas
 balances; both are monitored operational dependencies, and both degrade to a
 skipped or abandoned round rather than a loss.
 
