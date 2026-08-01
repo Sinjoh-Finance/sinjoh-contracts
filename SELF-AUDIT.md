@@ -142,8 +142,36 @@ excluded from formatting so it stays diffable.
 
 1. Independent audit. The blind-spot problem above is structural.
 2. Static analysis — neither slither nor aderyn is installed in this environment.
-3. The off-chain prover and the raffle worker do not exist yet; both must reproduce
-   `EcvrfProver.sol` and `RaffleTree.sol` exactly, and the nonce rule matters —
-   reusing a nonce across two inputs leaks the secret key.
+3. ~~The off-chain prover and the raffle worker do not exist yet.~~ Both now exist
+   in `sinjoh-keeper` and are pinned to the Solidity references by committed
+   fixtures: proof components, tree root and proofs, and winning-index derivation.
+   What remains is the chain-connected loop — signing, submission, retries, and the
+   operational journal — around the pure logic that is built and tested.
 4. The ECVRF key must be generated on the host that will hold it, and must not be
    the attestor's host.
+
+## Offchain implementation
+
+The keeper now carries the pure half of the worker, each piece pinned to its
+Solidity counterpart by fixtures generated from that counterpart:
+
+| Module | Pinned against |
+|---|---|
+| `src/ecvrf/curve.ts`, `src/ecvrf/prover.ts` | proof fixtures from `EcvrfProver.sol`, plus viem's secp256k1 for public keys |
+| `src/raffle/tree.ts` | root, sum, and every proof from `RaffleTree.sol` |
+| `src/raffle/round.ts` | winning-index fixtures from the contract's own derivation |
+| `src/abis.ts` | function selectors read from the compiled artifacts |
+
+`src/raffle/tickets.ts` implements the `MIN_BALANCE` basis, with tests showing a
+balance borrowed into the snapshot block earns nothing while a point snapshot would
+have rewarded it. `src/raffle/sequencer.ts` holds the deadline rules, including
+that a missed seal is terminal rather than retried forever.
+
+Regenerate the fixtures with `forge test --match-contract GenerateFixtures` in each
+Solidity package and copy them into `sinjoh-keeper/test/fixtures`. A change to a
+domain separator or a struct layout will fail the keeper's tests, which is the
+point.
+
+What is still missing is the chain-connected loop around this logic: signing,
+submission, receipt reconciliation, retries, and the journal. The existing airdrop
+worker is the template.

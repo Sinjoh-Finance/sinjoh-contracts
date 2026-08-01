@@ -10,6 +10,10 @@ interface Vm {
     function prank(address sender) external;
     function roll(uint256 newHeight) external;
     function warp(uint256 newTimestamp) external;
+    function writeFile(string calldata path, string calldata data) external;
+    function toString(uint256 value) external pure returns (string memory);
+    function toString(bytes32 value) external pure returns (string memory);
+    function toString(address value) external pure returns (string memory);
     function createSelectFork(string calldata urlOrAlias) external returns (uint256);
     function createSelectFork(string calldata urlOrAlias, uint256 blockNumber)
         external

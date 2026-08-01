@@ -12,6 +12,8 @@ via_ir = true
 bytecode_hash = "none"
 cbor_metadata = false
 
+fs_permissions = [{ access = "read-write", path = "./test/fixtures" }]
+
 [fmt]
 # Vendored verbatim from smartcontractkit/chainlink-evm so it stays diffable upstream.
 ignore = ["src/libraries/VRF.sol"]

@@ -20,6 +20,8 @@ interface Vm {
     function skip(bool skipTest) external;
     function label(address account, string calldata newLabel) external;
     function addr(uint256 privateKey) external pure returns (address);
+    function writeFile(string calldata path, string calldata data) external;
+    function toString(uint256 value) external pure returns (string memory);
 }
 
 abstract contract TestBase {

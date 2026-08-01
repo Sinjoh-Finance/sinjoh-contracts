@@ -12,6 +12,8 @@ via_ir = true
 bytecode_hash = "none"
 cbor_metadata = false
 
+fs_permissions = [{ access = "read-write", path = "./test/fixtures" }]
+
 [fmt]
 line_length = 100
 tab_width = 4
