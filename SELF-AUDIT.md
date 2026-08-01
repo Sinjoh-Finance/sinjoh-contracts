@@ -191,19 +191,22 @@ Solidity package and copy them into `sinjoh-keeper/test/fixtures`. A change to a
 domain separator or a struct layout will fail the keeper's tests, which is the
 point.
 
-What is still missing is the chain-connected loop around this logic: signing,
-submission, receipt reconciliation, retries, and the journal. The existing airdrop
-worker is the template.
+The chain-connected loop now lives in `src/raffle/service.ts`,
+`src/randomness/service.ts`, and `src/transactions.ts`. It incrementally maintains
+cross-provider Transfer history, persists immutable round evidence, separates the
+attestor and ECVRF hosts, rechecks chain identity immediately before signing,
+reconciles receipts after restarts, and services claims, expiry, abandonment, and
+deferred credits. Its end-to-end tests use mocked clients and never submit live
+transactions.
 
 ## Still open before mainnet
 
 1. External security audit. The blind-spot problem above is structural.
 2. Static analysis — neither slither nor aderyn is installed in this environment.
-3. ~~The off-chain prover and the raffle worker do not exist yet.~~ Both now exist
-   in `sinjoh-keeper` and are pinned to the Solidity references by committed
-   fixtures: proof components, tree root and proofs, and winning-index derivation.
-   What remains is the chain-connected loop — signing, submission, retries, and the
-   operational journal — around the pure logic that is built and tested.
+3. ~~The off-chain prover and the raffle worker do not exist yet.~~ Both the pure
+   algorithms and chain-connected services now exist and have mocked lifecycle,
+   timeout, restart, and reconciliation tests. A full request-seal-prove-deliver
+   cycle with the real production key remains an operational pre-mainnet check.
 4. The ECVRF key must be generated on the host that will hold it, and must not be
    the attestor's host.
 5. The raffle Envio handlers code-generate and type-check, and their settlement
