@@ -50,6 +50,7 @@ contract SinjohPonsV1LaunchAdapter is ISinjohLaunchpadAdapter {
     event Initialized(address indexed router, address indexed creator);
     event Launched(address indexed subject, uint256 launchConfigId, uint256 dexId, uint256 value);
     event DeveloperBuyDelivered(address indexed subject, address indexed creator, uint256 amount);
+    event LaunchValueRefunded(address indexed creator, uint256 amount);
     event Collected(
         address indexed subject, uint256 subjectAmount, uint256 wethAmount, address indexed caller
     );
@@ -170,6 +171,18 @@ contract SinjohPonsV1LaunchAdapter is ISinjohLaunchpadAdapter {
         if (launchBuy != 0) {
             token.safeTransfer(creator, launchBuy);
             emit DeveloperBuyDelivered(token, creator, launchBuy);
+        }
+
+        // The whole msg.value goes upstream, and v1 may hand part of it back if
+        // the first buy consumes less than was sent. This adapter has no native
+        // forwarding path — v1 pays fees in pool assets — so anything left here
+        // would be stranded permanently. Return it in the same transaction,
+        // before any fee can accrue and be confused with it.
+        uint256 refund = address(this).balance;
+        if (refund != 0) {
+            (bool sent,) = payable(creator).call{ value: refund }("");
+            if (!sent) revert UnexpectedBalanceDelta(address(0), refund, 0);
+            emit LaunchValueRefunded(creator, refund);
         }
     }
 

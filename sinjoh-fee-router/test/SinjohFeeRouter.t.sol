@@ -178,6 +178,64 @@ contract SinjohFeeRouterTest is TestBase {
         assertEq(quoteRouter.totalLiability(address(weth)), 1_000 * 1e12);
     }
 
+    /// @dev Audit finding: `isIntakeAsset` used to mark the subject
+    /// unconditionally at bind, while `sync` only accepts assets with a
+    /// normalization route. A launch whose fees arrive purely in a quote asset
+    /// has no subject route, so the mapping advertised an asset that reverts —
+    /// and a keeper reading it would have called `sync(subject)` and failed.
+    function testIntakeAssetMapAgreesWithWhatSyncAccepts() public {
+        RouterTypes.Config memory config = _config();
+        // Fees arrive only as the quote asset; the subject is never a fee asset.
+        RouterTypes.Normalization[] memory normalizations = new RouterTypes.Normalization[](1);
+        normalizations[0] = RouterTypes.Normalization({
+            asset: RouterTypes.AssetRef(RouterTypes.AssetKind.FIXED_ERC20, address(quoteToken)),
+            route: RouterTypes.Route(address(quoteAdapter), hex"09")
+        });
+        config.normalizations = normalizations;
+
+        SinjohFeeRouter quoteOnly =
+            SinjohFeeRouter(payable(factory.deploy(address(this), bytes32("QUOTE_ONLY"), config)));
+        quoteOnly.bind(address(subjectToken));
+
+        assertTrue(quoteOnly.isIntakeAsset(address(quoteToken)));
+        assertTrue(quoteOnly.isIntakeAsset(address(weth)));
+        // The subject is not an intake asset here, and must not claim to be.
+        assertTrue(!quoteOnly.isIntakeAsset(address(subjectToken)));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(SinjohFeeRouter.UnsupportedAsset.selector, address(subjectToken))
+        );
+        quoteOnly.sync(address(subjectToken));
+    }
+
+    /// @dev Audit finding: normalization was the one swap leg with no caller
+    /// floor. `processBucket` already took one; `sync` hardcoded zero.
+    function testSyncFloorRejectsAnUnderpricedNormalization() public {
+        subjectToken.mint(address(router), 10_000);
+        weth.mint(address(adapter), 10_000);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(SinjohFeeRouter.InsufficientOutput.selector, 10_001, 10_000)
+        );
+        router.sync(address(subjectToken), 10_001);
+    }
+
+    function testSyncFloorAcceptsAnAdequateNormalization() public {
+        subjectToken.mint(address(router), 10_000);
+        weth.mint(address(adapter), 10_000);
+
+        (uint256 gross,) = router.sync(address(subjectToken), 10_000);
+        assertEq(gross, 10_000);
+        assertEq(router.totalLiability(address(weth)), 10_000);
+    }
+
+    /// @dev The floor is meaningless when no swap happens, and must not block.
+    function testWethSyncIgnoresTheFloor() public {
+        weth.mint(address(router), 10_000);
+        (uint256 gross,) = router.sync(address(weth), type(uint256).max);
+        assertEq(gross, 10_000);
+    }
+
     function testAssetWithoutANormalizationRouteIsRejected() public {
         payoutToken.mint(address(router), 1_000);
         vm.expectRevert(

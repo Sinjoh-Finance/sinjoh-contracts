@@ -229,7 +229,13 @@ contract SinjohFeeRouter {
 
         subject = newSubject;
         bound = true;
-        isIntakeAsset[newSubject] = true;
+        // WETH is always accepted; it is already normalized. Everything else is
+        // an intake asset only because a normalization route exists for it, so
+        // the loop below is the sole other source of truth. Marking the subject
+        // unconditionally would advertise an asset that `sync` rejects — a
+        // launch whose fees arrive purely in a quote asset has no subject route,
+        // and a keeper reading this mapping would call `sync(subject)` and
+        // revert.
         isIntakeAsset[weth] = true;
 
         // A SUBJECT-kind normalization has no address until now, so the lookup
@@ -259,13 +265,40 @@ contract SinjohFeeRouter {
     /// already WETH is swapped to WETH through its configured normalization
     /// route before the fee and bucket split.
     ///
+    /// @dev Unprotected overload, kept for callers that predate the floor. The
+    /// normalization swap runs with `minAmountOut = 0`, so it is only safe on a
+    /// route that cannot be sandwiched, or when the caller is willing to accept
+    /// whatever the route returns. Prefer `sync(asset, minAmountOut)`.
+    function sync(address asset) external nonReentrant returns (uint256 gross, uint256 fee) {
+        return _sync(asset, 0);
+    }
+
+    /// @notice `sync` with an explicit floor on the normalization swap.
+    ///
+    /// @dev The floor is denominated in **WETH**, the swap's output, but must be
+    /// derived from the input asset's own decimals. A 6-decimal quote asset read
+    /// as 18 decimals misprices by twelve orders of magnitude, which is exactly
+    /// the mistake this parameter exists to let a caller avoid.
+    ///
+    /// Bucket conversions already take a caller floor via `processBucket`;
+    /// normalization was the one unprotected leg, and generalizing intake from
+    /// "the subject token" to "any quote asset" widened that exposure enough to
+    /// be worth closing.
+    function sync(address asset, uint256 minAmountOut)
+        external
+        nonReentrant
+        returns (uint256 gross, uint256 fee)
+    {
+        return _sync(asset, minAmountOut);
+    }
+
     /// @dev Accepts any asset with a normalization route, not just the subject.
     /// A launchpad that pays fees in a quote asset — USDG, an equity token —
-    /// funds this router in that asset, and the route converts it. The route's
-    /// `minAmountOut` is the caller's responsibility and must be computed in the
-    /// input asset's own decimals; a 6-decimal input with an 18-decimal
-    /// assumption misprices by twelve orders of magnitude.
-    function sync(address asset) external nonReentrant returns (uint256 gross, uint256 fee) {
+    /// funds this router in that asset, and the route converts it.
+    function _sync(address asset, uint256 minAmountOut)
+        private
+        returns (uint256 gross, uint256 fee)
+    {
         if (!bound) revert NotBound();
         // Native intake is deliberately unsupported: adapters wrap before
         // forwarding, which keeps intake uniformly ERC-20 and every balance
@@ -285,7 +318,11 @@ contract SinjohFeeRouter {
         uint256 normalized = asset == weth
             ? gross
             : _executeSwap(
-                _normalizations[_normalizationIndex[asset] - 1].route, asset, weth, gross, 0
+                _normalizations[_normalizationIndex[asset] - 1].route,
+                asset,
+                weth,
+                gross,
+                minAmountOut
             );
         emit Normalized(asset, gross, normalized, msg.sender);
 
