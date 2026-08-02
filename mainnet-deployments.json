@@ -54,6 +54,27 @@
         "adapterFactory": "0x77748D07CAD323A7f6EFa54968aCF69de743be61"
       }
     },
+    "flapBuybackAdapter": {
+      "address": "0xf7d40EcD8cB38a43e898775bc382DB73B35B5574",
+      "deploymentTransaction": "0x61133ee7ebd68c62af34f068916c8f57593ce1dfc928f9558d228eb8de27dcae",
+      "deploymentBlock": 25580356,
+      "runtimeCodeHash": "0xf4f6c9dd4583fed53c9ac47b31f270563a3b23e3938354edfd924877279f02ec",
+      "purpose": "Converts WETH fee allocations into the launched Flap subject through the canonical Portal before and after graduation."
+    },
+    "flapBuybackPriceGuard": {
+      "address": "0xe19827483E32690012840b2b9bC6CBf9bE177Bf5",
+      "deploymentTransaction": "0xf072a0bd4ab04c41fe2cc586aeba78488ec041762ddc77311812dd425413d280",
+      "deploymentBlock": 25580376,
+      "runtimeCodeHash": "0x2a192b9123d71261cecf2180a472751c6f827416dd81227f770159d7d51f80b4",
+      "purpose": "Requires an amount- and router-bound five-minute signed floor in addition to the live Portal quote for every Flap buyback."
+    },
+    "flapV2LiquidityManager": {
+      "address": "0x4E330772F12955E752aa4Fd2ba6191d8bD7d782E",
+      "deploymentTransaction": "0x5ed435bf604fa818dd0fda032cea64f65bbc2f45a68faa08d448c558fb641c0d",
+      "deploymentBlock": 25580396,
+      "runtimeCodeHash": "0x135f907a56c2d21f7c19d0c8c6cbbafdf9e3542dd9ee7dd83baf58e3843eef39",
+      "purpose": "Accumulates WETH before graduation, then buys the Flap subject, adds canonical Flap V2 liquidity, and sends the LP tokens directly to the burn address."
+    },
     "revenueCollector": {
       "address": "0x5bb7582557f5be30b62c335ad3ccf4ba79e138c5",
       "deploymentTransaction": "0x387b2d49c1504c13fd64ceb8d48fe7bf1ad8c14e5c31d85551d33d994d8f75db",

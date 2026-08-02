@@ -16,6 +16,12 @@ interface Vm {
     function chainId(uint256 newChainId) external;
     function roll(uint256 newHeight) external;
     function deal(address account, uint256 balance) external;
+    function warp(uint256 newTimestamp) external;
+    function sign(uint256 privateKey, bytes32 digest)
+        external
+        returns (uint8 v, bytes32 r, bytes32 s);
+    function addr(uint256 privateKey) external returns (address keyAddr);
+    function etch(address target, bytes calldata newRuntimeBytecode) external;
     function load(address target, bytes32 slot) external view returns (bytes32);
     function store(address target, bytes32 slot, bytes32 value) external;
     function createSelectFork(string calldata urlOrAlias) external returns (uint256);

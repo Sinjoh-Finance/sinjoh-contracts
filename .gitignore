@@ -9,5 +9,6 @@
 **/broadcast/
 **/cache/
 **/out/
-supabase/.temp/
+**/supabase/.temp/
+.mcp.json
 .deployer.env
