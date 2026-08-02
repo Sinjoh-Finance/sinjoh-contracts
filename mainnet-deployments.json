@@ -68,6 +68,13 @@
       "runtimeCodeHash": "0x2a192b9123d71261cecf2180a472751c6f827416dd81227f770159d7d51f80b4",
       "purpose": "Requires an amount- and router-bound five-minute signed floor in addition to the live Portal quote for every Flap buyback."
     },
+    "flapPayoutPriceGuard": {
+      "address": "0x071d29A300C1b51db1BDe8BaA550B86E1892Dc5e",
+      "deploymentTransaction": "0x5269775231da35a18e5265c87f7baf2bb9c9a14cc2dabd31a7007d82df1fc787",
+      "deploymentBlock": 25640562,
+      "runtimeCodeHash": "0x29c75dd94d657c7a0ac709e7653c92c651bd02da3b0986105a4c39d0f0e6449f",
+      "purpose": "Requires an amount-, router-, subject-, and output-bound signed floor plus the live Flap Portal quote when routing fees into any Flap-supported payout token."
+    },
     "flapV2LiquidityManager": {
       "address": "0x4E330772F12955E752aa4Fd2ba6191d8bD7d782E",
       "deploymentTransaction": "0x5ed435bf604fa818dd0fda032cea64f65bbc2f45a68faa08d448c558fb641c0d",
