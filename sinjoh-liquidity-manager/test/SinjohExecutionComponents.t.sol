@@ -5,6 +5,7 @@ import { TickMath } from "@uniswap/v4-core/src/libraries/TickMath.sol";
 
 import { SinjohUniswapV3SwapAdapter } from "../src/SinjohUniswapV3SwapAdapter.sol";
 import { SinjohUniswapV4SwapAdapter } from "../src/SinjohUniswapV4SwapAdapter.sol";
+import { SinjohUniswapV4HookedSwapAdapter } from "../src/SinjohUniswapV4HookedSwapAdapter.sol";
 import { SinjohV3TwapPriceGuard } from "../src/SinjohV3TwapPriceGuard.sol";
 import { SinjohV3ExecutionFactory } from "../src/SinjohV3ExecutionFactory.sol";
 import { TestBase } from "./TestBase.sol";
@@ -47,6 +48,21 @@ contract SinjohExecutionComponentsTest is TestBase {
 
         vm.expectPartialRevert(SinjohUniswapV3SwapAdapter.InvalidRoute.selector);
         adapter.swap(address(subject), address(quote), 1 ether, 1 ether, abi.encode(uint160(0)));
+    }
+
+    function testHookedV4AdapterRejectsPartialInputConsumption() public {
+        address token0 = address(subject) < address(quote) ? address(subject) : address(quote);
+        address token1 = address(subject) < address(quote) ? address(quote) : address(subject);
+        MockV4ExecutionPoolManager manager = new MockV4ExecutionPoolManager(token0, token1);
+        manager.setUseBps(5_000);
+        SinjohUniswapV4HookedSwapAdapter adapter = new SinjohUniswapV4HookedSwapAdapter(
+            address(manager), address(this), address(quote), address(subject), 0, SPACING
+        );
+        subject.mint(address(manager), 100 ether);
+        quote.approve(address(adapter), 10 ether);
+
+        vm.expectPartialRevert(SinjohUniswapV4HookedSwapAdapter.InvalidAmount.selector);
+        adapter.swap(address(quote), address(subject), 10 ether, 1, abi.encode(uint160(0)));
     }
 
     function testExecutionFactoryPredeploysInactiveDependenciesDeterministically() public {

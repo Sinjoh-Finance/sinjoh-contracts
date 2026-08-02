@@ -142,10 +142,16 @@ contract MockV4ExecutionPoolManager {
     address private _input;
     uint256 private _amountIn;
     uint256 private _amountOut;
+    uint16 public useBps = 10_000;
 
     constructor(address token0_, address token1_) {
         token0 = token0_;
         token1 = token1_;
+    }
+
+    function setUseBps(uint16 useBps_) external {
+        require(useBps_ <= 10_000);
+        useBps = useBps_;
     }
 
     function unlock(bytes calldata data) external returns (bytes memory result) {
@@ -160,7 +166,7 @@ contract MockV4ExecutionPoolManager {
             Currency.unwrap(key.currency0) == token0 && Currency.unwrap(key.currency1) == token1
         );
         require(params.amountSpecified < 0);
-        _amountIn = uint256(-params.amountSpecified);
+        _amountIn = uint256(-params.amountSpecified) * useBps / 10_000;
         _amountOut = _amountIn;
         _input = params.zeroForOne ? token0 : token1;
         return params.zeroForOne

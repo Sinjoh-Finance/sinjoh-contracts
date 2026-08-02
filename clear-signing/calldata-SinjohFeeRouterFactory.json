@@ -20,9 +20,9 @@
   },
   "display": {
     "formats": {
-      "deployPons(address creator, bytes32 userSalt, (address creator, address protocolFeeRecipient, address weth, (address adapter, bytes routeData) subjectToWeth, ((uint8 kind, address token) output, uint16 bps, (address adapter, bytes routeData) route, (address destination, uint16 bps, bool isSink, bool creatorMayRepoint, bytes sinkConfig)[] allocations)[] buckets) config)": {
-        "$id": "deployPons",
-        "intent": "Deploy Pons fee router",
+      "deployForLaunchpad(address creator, bytes32 userSalt, (address creator, address protocolFeeRecipient, address weth, address launchpadAdapter, ((uint8 kind, address token) asset, (address adapter, bytes routeData) route, address priceGuard, uint128 maxAmountInPerCall)[] normalizations, ((uint8 kind, address token) output, uint16 bps, (address adapter, bytes routeData) route, address priceGuard, uint128 maxAmountInPerCall, (address destination, uint16 bps, bool isSink, bool creatorMayRepoint, bytes sinkConfig)[] allocations)[] buckets) config)": {
+        "$id": "deployForLaunchpad",
+        "intent": "Deploy agnostic fee router",
         "fields": [
           {
             "path": "creator",
@@ -43,12 +43,50 @@
             }
           },
           {
+            "path": "config.launchpadAdapter",
+            "format": "addressName",
+            "label": "Authorized binder",
+            "params": {
+              "types": ["eoa", "contract"],
+              "sources": ["local"]
+            }
+          },
+          {
             "path": "config.weth",
             "format": "tokenTicker",
             "label": "Routing base asset",
             "params": {
               "chainId": 4663
             }
+          },
+          {
+            "path": "config.normalizations",
+            "label": "Immutable intake routes",
+            "fields": [
+              {
+                "path": "asset.token",
+                "format": "addressName",
+                "label": "Intake token",
+                "params": {
+                  "types": ["contract"],
+                  "sources": ["local"]
+                }
+              },
+              {
+                "path": "priceGuard",
+                "format": "addressName",
+                "label": "Price guard",
+                "params": {
+                  "types": ["contract"],
+                  "sources": ["local"]
+                }
+              },
+              {
+                "path": "maxAmountInPerCall",
+                "format": "raw",
+                "label": "Sync input cap"
+              }
+            ]
           },
           {
             "path": "config.buckets",
@@ -67,6 +105,129 @@
                 "path": "bps",
                 "format": "raw",
                 "label": "Share (bps)"
+              },
+              {
+                "path": "priceGuard",
+                "format": "addressName",
+                "label": "Output price guard",
+                "params": {
+                  "types": ["contract"],
+                  "sources": ["local"]
+                }
+              },
+              {
+                "path": "maxAmountInPerCall",
+                "format": "raw",
+                "label": "Bucket input cap"
+              }
+            ]
+          },
+          {
+            "path": "userSalt",
+            "label": "Deployment salt",
+            "visible": "never"
+          }
+        ]
+      },
+      "deploy(address creator, bytes32 userSalt, (address creator, address protocolFeeRecipient, address weth, address launchpadAdapter, ((uint8 kind, address token) asset, (address adapter, bytes routeData) route, address priceGuard, uint128 maxAmountInPerCall)[] normalizations, ((uint8 kind, address token) output, uint16 bps, (address adapter, bytes routeData) route, address priceGuard, uint128 maxAmountInPerCall, (address destination, uint16 bps, bool isSink, bool creatorMayRepoint, bytes sinkConfig)[] allocations)[] buckets) config)": {
+        "$id": "deploy",
+        "intent": "Deploy configured fee router",
+        "fields": [
+          {
+            "path": "creator",
+            "format": "addressName",
+            "label": "Token creator",
+            "params": {
+              "types": ["eoa"],
+              "sources": ["local"]
+            }
+          },
+          {
+            "path": "config.protocolFeeRecipient",
+            "format": "addressName",
+            "label": "Protocol recipient",
+            "params": {
+              "types": ["eoa", "contract"],
+              "sources": ["local"]
+            }
+          },
+          {
+            "path": "config.launchpadAdapter",
+            "format": "addressName",
+            "label": "Authorized binder",
+            "params": {
+              "types": ["eoa", "contract"],
+              "sources": ["local"]
+            }
+          },
+          {
+            "path": "config.weth",
+            "format": "tokenTicker",
+            "label": "Routing base asset",
+            "params": {
+              "chainId": 4663
+            }
+          },
+          {
+            "path": "config.normalizations",
+            "label": "Immutable intake routes",
+            "fields": [
+              {
+                "path": "asset.token",
+                "format": "addressName",
+                "label": "Intake token",
+                "params": {
+                  "types": ["contract"],
+                  "sources": ["local"]
+                }
+              },
+              {
+                "path": "priceGuard",
+                "format": "addressName",
+                "label": "Price guard",
+                "params": {
+                  "types": ["contract"],
+                  "sources": ["local"]
+                }
+              },
+              {
+                "path": "maxAmountInPerCall",
+                "format": "raw",
+                "label": "Sync input cap"
+              }
+            ]
+          },
+          {
+            "path": "config.buckets",
+            "label": "Immutable routing buckets",
+            "fields": [
+              {
+                "path": "output.token",
+                "format": "addressName",
+                "label": "Output token",
+                "params": {
+                  "types": ["contract"],
+                  "sources": ["local"]
+                }
+              },
+              {
+                "path": "bps",
+                "format": "raw",
+                "label": "Share (bps)"
+              },
+              {
+                "path": "priceGuard",
+                "format": "addressName",
+                "label": "Output price guard",
+                "params": {
+                  "types": ["contract"],
+                  "sources": ["local"]
+                }
+              },
+              {
+                "path": "maxAmountInPerCall",
+                "format": "raw",
+                "label": "Bucket input cap"
               }
             ]
           },
