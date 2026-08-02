@@ -232,6 +232,52 @@ between.
 
 ## Adapters
 
+### `SinjohFlapAdapter`
+
+One predictable adapter clone launches exactly one native-quote Flap Tax Token V3
+through Robinhood Portal V6. The supported profile is deliberately narrow:
+
+- `TOKEN_TAXED_V3`, `V2_MIGRATOR`, `DEX0`, and the standard LP-fee profile;
+- native quote only, with extensions and permit data disabled;
+- 100% of the post-Flap creator allocation goes to the adapter (`mktBps = 10_000`),
+  and the adapter is also the permanent integrator commission receiver;
+- burn, dividend, and LP-side allocations are zero, so no creator revenue bypasses
+  the Sinjoh router.
+
+The Portal deploys the token as an EIP-1167 CREATE2 clone. `predictSubject(salt)`
+reproduces that address from the pinned Portal, Tax Token V3 implementation, and salt;
+launch refuses an occupied prediction or a returned token that differs from it. The
+adapter also commits to `portalConfigHash()`, which covers the Portal proxy bytecode,
+reported version, and native-quote configuration, then reads the created token and
+TaxProcessor back before binding the router.
+
+Flap's native-quote TaxProcessor pays both marketing and integrator commission as raw
+native currency. Its `dispatch()` is permissionless, so value may arrive before a
+keeper calls `collect()`. Collection therefore dispatches and wraps the adapter's
+entire native balance into the router's configured WETH, not merely the current call's
+balance delta. `receive()` intentionally performs no work because Flap caps receiver
+callbacks and converts failed native transfers into protocol-owned value.
+
+`feeRoutingIntact()` monitors all mutable upstream boundaries: token, Portal owner,
+quote/WETH identity, marketing receiver, commission receiver and bps, distribution,
+and Flap fee rate. It is an operational alarm, not a substitute for the launch-time
+validation.
+
+The router needs no subject normalizer for this path: the only intake asset is the
+router's WETH. `collect()` wraps, `forward(WETH)` transfers, and `router.sync(WETH)`
+applies the normal Sinjoh protocol fee and allocation policy.
+
+Robinhood testnet deployment is prepared by
+`script/DeploySinjohFlapTestnet.s.sol`. It pins all live dependency code hashes,
+deploys the adapter factory and mutually named router/adapter clones, predicts the
+required `7777` token address, launches, and verifies the resulting fee route. A
+developer buy is optional through `FLAP_DEVELOPER_BUY_WEI`; a non-zero buy requires
+`FLAP_MIN_DEVELOPER_BUY_OUT`.
+
+Robinhood mainnet preparation, pinned dependencies, fork acceptance gates, and the
+non-broadcast infrastructure/canary scripts are recorded in
+`FLAP_MAINNET_PREPARATION.md`.
+
 ### `SinjohPonsV2Adapter`
 
 Pinned to launch factory `0x7E1EAbd52Ae29598e6483F72dCf1a70b14284dB8`, fee escrow
