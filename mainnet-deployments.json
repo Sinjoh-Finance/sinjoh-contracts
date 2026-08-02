@@ -8,6 +8,52 @@
   "governance": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f",
   "deployedAt": "2026-07-30",
   "currentInfrastructure": {
+    "agnosticFeeRouterImplementation": {
+      "address": "0x06274b69d4Cd4D98Ed7Cf4f45Fd50137e8A184a6",
+      "deploymentTransaction": "0x36ab5e151677b0e59c3e7a03980d4ddc8e1a149c3e52cc98835d340673dbb815",
+      "deploymentBlock": 25493716,
+      "runtimeCodeHash": "0x00eecc775b2dff40c52bdd038cdccc19b5812a527aa811b359a55249c6987276",
+      "purpose": "Launchpad-agnostic SinjohFeeRouter implementation for per-launch clones.",
+      "verified": {
+        "initialized": true
+      }
+    },
+    "agnosticFeeRouterFactory": {
+      "address": "0xA1F721a697Dd03a45f264F53bCBFd121212318eD",
+      "deploymentTransaction": "0x97ae5ef3d8f80f0a8c5ffe2d169e3e0f651963eecb369a0f7f0e51f87662047e",
+      "deploymentBlock": 25493736,
+      "runtimeCodeHash": "0x9c409cacd26cd9e6acdf403ce14afa94c263a666886b2fec1a9e2af2063b4ca9",
+      "purpose": "Deploys deterministic launchpad-agnostic fee-router clones without creating any clone during this dark deployment.",
+      "verified": {
+        "implementation": "0x06274b69d4Cd4D98Ed7Cf4f45Fd50137e8A184a6"
+      }
+    },
+    "flapAdapterFactory": {
+      "address": "0x77748D07CAD323A7f6EFa54968aCF69de743be61",
+      "deploymentTransaction": "0x89e4b482f1e8666d0727c5bac134f50f1cce0cf08edee4e643963e36381e4c16",
+      "deploymentBlock": 25493756,
+      "runtimeCodeHash": "0xa2a389b5cfe46de37dca8bdd86d5fb72b6d2182ea6dfd31aaa55686797c88df1",
+      "purpose": "Deploys deterministic per-launch Sinjoh Flap adapters; no adapter clone or token was created during this dark deployment.",
+      "verified": {
+        "implementation": "0x4c34af31ef8962317497Cc558612a48443971243",
+        "portal": "0x26605f322f7fF986f381bB9A6e3f5DAb0bEaEb09",
+        "taxTokenImplementation": "0x7777C8743C88B3aff3cf262135beF2c8b2e83333",
+        "flapWrappedNative": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "deploymentChainId": 4663
+      }
+    },
+    "flapAdapterImplementation": {
+      "address": "0x4c34af31ef8962317497Cc558612a48443971243",
+      "deploymentTransaction": "0x89e4b482f1e8666d0727c5bac134f50f1cce0cf08edee4e643963e36381e4c16",
+      "deploymentBlock": 25493756,
+      "runtimeCodeHash": "0xc6ea11907684d3b6eca3cde221edbf03ec5f900f3ba5302d3324aeee962f23c0",
+      "purpose": "SinjohFlapAdapter implementation, initialized and self-deployed by the adapter factory constructor.",
+      "verified": {
+        "initialized": true,
+        "adapterFactory": "0x77748D07CAD323A7f6EFa54968aCF69de743be61"
+      }
+    },
     "revenueCollector": {
       "address": "0x5bb7582557f5be30b62c335ad3ccf4ba79e138c5",
       "deploymentTransaction": "0x387b2d49c1504c13fd64ceb8d48fe7bf1ad8c14e5c31d85551d33d994d8f75db",
