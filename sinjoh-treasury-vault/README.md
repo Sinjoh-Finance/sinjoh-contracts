@@ -36,7 +36,7 @@ proposal lifetime) governing one vault (3-day handoff delay, recovery rail disab
 forge script \
   script/DeployStandardTreasury.s.sol:DeployStandardTreasury \
   --rpc-url <robinhood-mainnet-rpc-url> \
-  --account 0xsinjoh-deployer \
+  --account sinjoh-deployer \
   --broadcast
 ```
 
