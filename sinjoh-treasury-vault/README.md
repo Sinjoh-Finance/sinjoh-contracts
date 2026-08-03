@@ -25,14 +25,15 @@ forge test
 
 OpenZeppelin Contracts is pinned to v5.6.1 under `lib/openzeppelin-contracts`.
 
-## Standard deployment
+## Deployment
 
-The deployment script verifies the chain ID and deploys the Standard preset — one Joint
-(2-of-3, 30-day proposal lifetime) governing one vault (3-day handoff delay, recovery rail
-disabled):
+The deployment script verifies the chain ID and deploys the permissionless
+`SinjohTreasuryFactory` once. Individual treasuries are created afterwards by anyone
+calling `createStandardTreasury([signer1, signer2, signer3])` — one Joint (2-of-3, 30-day
+proposal lifetime) governing one vault (3-day handoff delay, recovery rail disabled):
 
 ```sh
-SIGNER_1=0x... SIGNER_2=0x... SIGNER_3=0x... forge script \
+forge script \
   script/DeployStandardTreasury.s.sol:DeployStandardTreasury \
   --rpc-url <robinhood-mainnet-rpc-url> \
   --account 0xsinjoh-deployer \

@@ -63,8 +63,18 @@ funded by plain transfers with return addresses hardwired to the vault.
   no lower-quorum path, because a one-signer rotation path would let a single compromised key
   capture the module.
 
+## Factory
+
+`SinjohTreasuryFactory` is the permissionless entry point deployed once per chain. Anyone
+calls `createStandardTreasury` with three signer addresses; the factory deploys a fresh
+Joint and vault pair wired together with the frozen Standard parameters, records
+`jointForVault[vault]` so integrators can verify provenance on-chain, and emits
+`TreasuryCreated`. The factory holds no privileges over what it deploys and cannot be
+paused or upgraded. Treasuries wanting non-Standard elections (recovery rail, different
+delays) deploy the contracts directly instead of using the factory.
+
 ## Standard preset
 
-Standard = one `SinjohTreasuryVault` governed by one `SinjohJoint` (2-of-3). Reference
-parameters: three-day governor handoff delay, thirty-day proposal lifetime, recovery rail
-disabled unless the deployer names a recovery address at deployment.
+Standard = one `SinjohTreasuryVault` governed by one `SinjohJoint` (2-of-3), created
+through the factory. Frozen parameters: three-day governor handoff delay, thirty-day
+proposal lifetime, recovery rail disabled.

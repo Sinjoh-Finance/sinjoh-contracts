@@ -1,22 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { SinjohJoint } from "../src/SinjohJoint.sol";
-import { SinjohTreasuryVault } from "../src/SinjohTreasuryVault.sol";
+import { SinjohTreasuryFactory } from "../src/SinjohTreasuryFactory.sol";
 
 interface Vm {
-    function envAddress(string calldata name) external returns (address);
     function startBroadcast() external;
     function stopBroadcast() external;
 }
 
-/// @notice Deploys the Standard treasury preset: one `SinjohJoint` (2-of-3) governing one
-///         `SinjohTreasuryVault`. Signers are supplied through `SIGNER_1..3` environment
-///         variables; the recovery rail is disabled for Standard.
+/// @notice Deploys the permissionless Standard treasury factory. Individual treasuries are
+///         created later by anyone calling `createStandardTreasury` with their three signers.
 contract DeployStandardTreasury {
     uint256 internal constant ROBINHOOD_MAINNET_CHAIN_ID = 4_663;
-    uint256 internal constant GOVERNOR_HANDOFF_DELAY = 3 days;
-    uint256 internal constant PROPOSAL_TTL = 30 days;
     address internal constant ARBSYS = address(0x64);
     bytes32 internal constant ARBSYS_MARKER_HASH =
         0xbcc90f2d6dada5b18e155c17a1c0a55920aae94f39857d39d0d8ed07ae8f228b;
@@ -27,27 +22,19 @@ contract DeployStandardTreasury {
     error InvalidArbSys();
     error DeploymentFailed();
 
-    function run() external returns (SinjohJoint joint, SinjohTreasuryVault vault) {
+    function run() external returns (SinjohTreasuryFactory factory) {
         if (block.chainid != ROBINHOOD_MAINNET_CHAIN_ID) {
             revert WrongChain(block.chainid);
         }
         if (ARBSYS.codehash != ARBSYS_MARKER_HASH) revert InvalidArbSys();
 
-        address[3] memory signers =
-            [vm.envAddress("SIGNER_1"), vm.envAddress("SIGNER_2"), vm.envAddress("SIGNER_3")];
-
         vm.startBroadcast();
-        joint = new SinjohJoint(signers, PROPOSAL_TTL);
-        vault = new SinjohTreasuryVault(address(joint), GOVERNOR_HANDOFF_DELAY, address(0), 0);
+        factory = new SinjohTreasuryFactory();
         vm.stopBroadcast();
 
         if (
-            address(joint).code.length == 0 || address(vault).code.length == 0
-                || vault.governor() != address(joint)
-                || vault.GOVERNOR_HANDOFF_DELAY() != GOVERNOR_HANDOFF_DELAY
-                || vault.RECOVERY_ADDRESS() != address(0) || joint.PROPOSAL_TTL() != PROPOSAL_TTL
-                || !joint.isSigner(signers[0]) || !joint.isSigner(signers[1])
-                || !joint.isSigner(signers[2])
+            address(factory).code.length == 0 || factory.GOVERNOR_HANDOFF_DELAY() != 3 days
+                || factory.PROPOSAL_TTL() != 30 days
         ) {
             revert DeploymentFailed();
         }
