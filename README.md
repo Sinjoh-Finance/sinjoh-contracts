@@ -12,6 +12,7 @@ Solidity packages plus the offchain automation package:
 | [`sinjoh-pons-v1-adapter`](./sinjoh-pons-v1-adapter) | Collects or receives Pons v1 fees and forwards the subject token and WETH to a fixed fee router. |
 | [`sinjoh-launchpad-adapters`](./sinjoh-launchpad-adapters) | Launches through typed Pons v1/v2 adapters and forwards each launchpad's actual fee assets to the launchpad-agnostic router. |
 | [`sinjoh-revenue-collector`](./sinjoh-revenue-collector) | Provides a stable protocol-revenue endpoint and forwards assets to a governance-selected downstream processor without charging again. |
+| [`sinjoh-treasury-vault`](./sinjoh-treasury-vault) | Custodies treasury assets under one swappable governor address, paired with a 2-of-3 joint-account control system as the Standard governance module. |
 | [`sinjoh-keeper`](./sinjoh-keeper) | Automates permissionless routing and provides the isolated deterministic airdrop snapshot, attestation, and push workflow. |
 | [`sinjoh-indexer`](./sinjoh-indexer) | Projects factory and protocol events through one dynamically registered Envio indexer. |
 
@@ -39,7 +40,8 @@ for package in \
   sinjoh-liquidity-manager \
   sinjoh-pons-v1-adapter \
   sinjoh-launchpad-adapters \
-  sinjoh-revenue-collector
+  sinjoh-revenue-collector \
+  sinjoh-treasury-vault
 do
   (cd "$package" && forge fmt --check && forge test)
 done
