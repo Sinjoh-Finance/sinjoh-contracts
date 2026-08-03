@@ -39,3 +39,13 @@ forge script \
   --account 0xsinjoh-deployer \
   --broadcast
 ```
+
+## Robinhood mainnet deployment
+
+| Contract | Address |
+|---|---|
+| `SinjohTreasuryFactory` | `0x6C70e5ea0EfC774d4099De14Ab4383F6a44AAB2B` |
+
+Deployed at block 27152780
+(tx `0xe96c9411a7b7baf8d5e7d638efd88f9bb9c6e0a516c3af1414648d2431473de7`), verified
+on-chain: 3-day handoff delay, 30-day proposal TTL.
