@@ -5,10 +5,8 @@ import { SinjohJoint } from "../src/SinjohJoint.sol";
 import { SinjohTreasuryVault } from "../src/SinjohTreasuryVault.sol";
 
 interface Vm {
-    function addr(uint256 privateKey) external returns (address);
-    function envUint(string calldata name) external returns (uint256);
     function envAddress(string calldata name) external returns (address);
-    function startBroadcast(uint256 privateKey) external;
+    function startBroadcast() external;
     function stopBroadcast() external;
 }
 
@@ -35,11 +33,10 @@ contract DeployStandardTreasury {
         }
         if (ARBSYS.codehash != ARBSYS_MARKER_HASH) revert InvalidArbSys();
 
-        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address[3] memory signers =
             [vm.envAddress("SIGNER_1"), vm.envAddress("SIGNER_2"), vm.envAddress("SIGNER_3")];
 
-        vm.startBroadcast(deployerKey);
+        vm.startBroadcast();
         joint = new SinjohJoint(signers, PROPOSAL_TTL);
         vault = new SinjohTreasuryVault(address(joint), GOVERNOR_HANDOFF_DELAY, address(0), 0);
         vm.stopBroadcast();

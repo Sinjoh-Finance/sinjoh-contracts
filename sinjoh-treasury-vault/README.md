@@ -32,8 +32,9 @@ The deployment script verifies the chain ID and deploys the Standard preset — 
 disabled):
 
 ```sh
-DEPLOYER_PRIVATE_KEY=... SIGNER_1=0x... SIGNER_2=0x... SIGNER_3=0x... forge script \
+SIGNER_1=0x... SIGNER_2=0x... SIGNER_3=0x... forge script \
   script/DeployStandardTreasury.s.sol:DeployStandardTreasury \
-  --rpc-url <robinhood-rpc-url> \
+  --rpc-url <robinhood-mainnet-rpc-url> \
+  --account 0xsinjoh-deployer \
   --broadcast
 ```
