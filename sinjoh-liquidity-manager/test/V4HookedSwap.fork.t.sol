@@ -38,6 +38,12 @@ contract V4HookedSwapForkTest is TestBase {
         VmFork(address(uint160(uint256(keccak256("hevm cheat code")))));
 
     address constant POOL_MANAGER = 0x8366a39CC670B4001A1121B8F6A443A643e40951;
+    /// @dev The hook is frozen into a pool's key at graduation, so this pool
+    /// keeps the superseded deployment's hook forever. Launches through the
+    /// 2026-08 redeployed factory graduate under the new hook at
+    /// 0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044 — the swap adapter takes the
+    /// hook per construction, so per-launch wiring must use whichever hook the
+    /// launch's own factory named. See PONS-V2-FINDINGS.md.
     address constant MEME_HOOK = 0x8e99D2009D60A917e9B1c00C04C077b8c0c3a044;
 
     /// @dev A launch that has graduated (phase 2), paired against USDG.
