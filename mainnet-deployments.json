@@ -230,6 +230,169 @@
         "launchFactory": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
         "quoteSigner": "0xd89fB916dD031Da9b0A32e820307c2d41a7dDe09"
       }
+    },
+    "poolsTradeMerkleClaimFactory": {
+      "address": "0x0C8B3e001C8DbBDbe15089c887C9323E097F0a15",
+      "deploymentTransaction": "0x0a47c66195f17118339f49272f7057681333b5a0b0b998db2eedccbb1e7f4f0c",
+      "deploymentBlock": 28764635,
+      "runtimeCodeHash": "0x72f0dec290a37e999b78296312973a0f100f895f51d3ef6ee3bc7dce6594c450",
+      "purpose": "Byte-identical Sinjoh deployment of Uniswap's MerkleClaimFactory (liquidity-launcher commit dd8769c), which Uniswap has not deployed on Robinhood Chain. CREATE2 through the canonical deterministic deployer with a zero salt, so the address is a pure function of the vendored artifact. Enables atomic airdrop legs on Sinjoh pools.trade LBP launches.",
+      "verified": {
+        "create2Deployer": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+        "initCodeHash": "0xcef69a4a11cf3e3b89590abd4c0f57b914e17cf926ec386e2b1296767e6189b8"
+      }
+    },
+    "poolsTradeInstantAdapterFactoryCreatorFee": {
+      "address": "0xCD82f610b3949cfc8a787C9AdeC70cA2Af71b635",
+      "deploymentTransaction": "0x391dfec7c3da9c9fd4105f6231643c5b8147904a6f56ac933a5144ca0a74378e",
+      "deploymentBlock": 28764805,
+      "runtimeCodeHash": "0x9fa9112ee6a2cd0745d9d79aac0be99e0a0404b7d8dc73fe197b1442e6dd2e9b",
+      "purpose": "Deploys deterministic per-launch SinjohPoolsTradeInstantAdapter clones against the creator-fee InstantLaunchStrategy; no adapter clone or token was created during this dark deployment.",
+      "verified": {
+        "implementation": "0xa6e8d31422042FAd961F8a132a757A294dcdb425",
+        "launcher": "0x0000FffFBE8efE702c8703aE3477FF5dE3d319C0",
+        "tokenFactory": "0x000000e200088D55C39a11F609E5F667729ad49b",
+        "strategy": "0x23f8209572b4a1C2AD88A42749E830791Fb027f1",
+        "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "deploymentChainId": 4663
+      }
+    },
+    "poolsTradeInstantAdapterImplementationCreatorFee": {
+      "address": "0xa6e8d31422042FAd961F8a132a757A294dcdb425",
+      "deploymentTransaction": "0x391dfec7c3da9c9fd4105f6231643c5b8147904a6f56ac933a5144ca0a74378e",
+      "deploymentBlock": 28764805,
+      "runtimeCodeHash": "0x6cb1c44c00df96f34342caedb1c9a1e81668dac20415c43c1a198e3894558e04",
+      "purpose": "SinjohPoolsTradeInstantAdapter implementation (creator-fee variant), initialized and self-deployed by the adapter factory constructor.",
+      "verified": {
+        "initialized": true,
+        "adapterFactory": "0xCD82f610b3949cfc8a787C9AdeC70cA2Af71b635"
+      }
+    },
+    "poolsTradeInstantAdapterFactoryNoFee": {
+      "address": "0x44AD6f52a9edBE37975Afa37A699065DAaa7C0D8",
+      "deploymentTransaction": "0xe509e857c47496b954fdf175e36aa45921ae9c6c49465e9020f82b9f859833ea",
+      "deploymentBlock": 28764806,
+      "runtimeCodeHash": "0x4b1b81ffd967c4a52c228fa7bfc7ec2d2b39d96ea0e48b887d57e109317392a5",
+      "purpose": "Deploys deterministic per-launch SinjohPoolsTradeInstantAdapter clones against the no-creator-fee InstantLaunchStrategy; collect and forward are permanent no-ops on this variant by construction.",
+      "verified": {
+        "implementation": "0xD99F640b3dac6032471F5D7e509c54232BAc397d",
+        "launcher": "0x0000FffFBE8efE702c8703aE3477FF5dE3d319C0",
+        "tokenFactory": "0x000000e200088D55C39a11F609E5F667729ad49b",
+        "strategy": "0xAD44D55E7f8337C3cE113fBb591486E85be104b2",
+        "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "deploymentChainId": 4663
+      }
+    },
+    "poolsTradeInstantAdapterImplementationNoFee": {
+      "address": "0xD99F640b3dac6032471F5D7e509c54232BAc397d",
+      "deploymentTransaction": "0xe509e857c47496b954fdf175e36aa45921ae9c6c49465e9020f82b9f859833ea",
+      "deploymentBlock": 28764806,
+      "runtimeCodeHash": "0xacf894e26e9f2f87194a298b5fd66377163d502c66252e86ddc5f71a01b21449",
+      "purpose": "SinjohPoolsTradeInstantAdapter implementation (no-creator-fee variant), initialized and self-deployed by the adapter factory constructor.",
+      "verified": {
+        "initialized": true,
+        "adapterFactory": "0x44AD6f52a9edBE37975Afa37A699065DAaa7C0D8"
+      }
+    },
+    "poolsTradeLBPAdapterFactory": {
+      "address": "0x6A4D50D9469fed073c4445Dc4050cd29d1BE25D7",
+      "deploymentTransaction": "0x0e6f9d734452a06f079b7971d50d6972220a5b5a1901ff6dee085d0b79436ba8",
+      "deploymentBlock": 28764806,
+      "runtimeCodeHash": "0xf87731535792f63f7fe130e58a1ea057b707c2fc03b1df4092a3ff3f433e3d57",
+      "purpose": "Deploys deterministic per-launch SinjohPoolsTradeLBPAdapter clones and keeps the one-shot subject registry the pools.trade buyback route resolves launch-configured pool keys through.",
+      "verified": {
+        "implementation": "0xFcE43DE2ccB8e14b18e33236C04485ebb33F55c6",
+        "launcher": "0x0000FffFBE8efE702c8703aE3477FF5dE3d319C0",
+        "tokenFactory": "0x000000e200088D55C39a11F609E5F667729ad49b",
+        "lbpStrategy": "0x05d552391067389EE44fec3924157ed33F976000",
+        "tokenSplitter": "0x4F5E3FBb9745358A92Da5674305FAb8D2B8a73cE",
+        "merkleClaimFactory": "0x0C8B3e001C8DbBDbe15089c887C9323E097F0a15",
+        "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "deploymentChainId": 4663
+      }
+    },
+    "poolsTradeLBPAdapterImplementation": {
+      "address": "0xFcE43DE2ccB8e14b18e33236C04485ebb33F55c6",
+      "deploymentTransaction": "0x0e6f9d734452a06f079b7971d50d6972220a5b5a1901ff6dee085d0b79436ba8",
+      "deploymentBlock": 28764806,
+      "runtimeCodeHash": "0x452531108d0d2b6a65cc30de13c09ff95e84f62b3b3e192cf160758cc5fffdcd",
+      "purpose": "SinjohPoolsTradeLBPAdapter implementation, initialized and self-deployed by the adapter factory constructor.",
+      "verified": {
+        "initialized": true,
+        "adapterFactory": "0x6A4D50D9469fed073c4445Dc4050cd29d1BE25D7"
+      }
+    },
+    "poolsTradeBuybackAdapter": {
+      "address": "0x3B479157D9c566c00F885BDFfFC22D33193714C2",
+      "deploymentTransaction": "0xb19fcf8ef0713695142a1a411653499c01e4af7be81bd86cd296d1bddc9016cc",
+      "deploymentBlock": 28766995,
+      "runtimeCodeHash": "0x1acb612f21db2ca4401af4c4be61aff6be14f276dceab0b33ad28ecb5c24c409",
+      "purpose": "Singleton buyback route for pools.trade launches, both shapes: LBP launches resolve their recorded migrated pool key through the LBP adapter factory registry (native-quote only); everything else derives the static instant-launch key and confirms the pool exists via slot0.",
+      "verified": {
+        "instantStrategy": "0x23f8209572b4a1C2AD88A42749E830791Fb027f1",
+        "lbpAdapterFactory": "0x6A4D50D9469fed073c4445Dc4050cd29d1BE25D7",
+        "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+      }
+    },
+    "poolsTradeSellAdapter": {
+      "address": "0x192f324A9BF64C4c9f46aFF77d1A3C8d06c635a5",
+      "deploymentTransaction": "0x2089b37369dd31f72fd51b1f8f9c08100ecfc8ff75fe128c3417ebc402d2c4de",
+      "deploymentBlock": 28781908,
+      "purpose": "Singleton sell route for pools.trade subjects: the normalization direction (subject to WETH) LBP intake requires. Native-quote pools sell and wrap; custom-currency pools hop currency-to-WETH through the pinned SwapRouter02 with the v3 tier in routeData.",
+      "verified": {
+        "instantStrategy": "0x23f8209572b4a1C2AD88A42749E830791Fb027f1",
+        "lbpAdapterFactory": "0x6A4D50D9469fed073c4445Dc4050cd29d1BE25D7",
+        "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        "v3SwapRouter": "0xCaf681a66D020601342297493863E78C959E5cb2",
+        "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+      }
+    },
+    "poolsTradeSubjectPriceGuard": {
+      "address": "0x4c75DB11b1Eb18251E84A98049918D534176b5a2",
+      "deploymentTransaction": "0x1d036f8ecd80c84cf63befbc8181fa807ab48998ca9e0024001fd6258e1aeacb",
+      "deploymentBlock": 28781908,
+      "purpose": "Normalization guard for pools.trade subjects: v4 slot0 spot under a 5% haircut (v4 keeps no observations and cannot be quoted from view), composed with the shared v3 TWAP guard's quoteAtTwap for custom-currency legs. Normalization guards receive no caller data, so this quote plus the router's per-call cap and mandatory caller floor are the protection. Router configs MUST set a bounded normalization maxAmountInPerCall for the subject: unsold auction tokens can dwarf pool depth and an unbounded sync is refused by the haircut.",
+      "verified": {
+        "lbpAdapterFactory": "0x6A4D50D9469fed073c4445Dc4050cd29d1BE25D7",
+        "sharedTwapGuard": "0xfdd4f594A9f7cD17fEE0BBF2859F4eEA3265F328",
+        "haircutBps": 500,
+        "validityPeriod": 300
+      }
+    },
+    "poolsTradeBuybackPriceGuard": {
+      "address": "0xF786782FeB44fE7c125D8AB7d570ee7bc129F685",
+      "deploymentTransaction": "0x87b76bc36ba228d9b678bde93976b60cc5b6bbc65a0a3e18544375ed99c8e958",
+      "deploymentBlock": 28766995,
+      "runtimeCodeHash": "0x3af2e220dc9eb11097c28e6634d61d2f7da15be09cff4d655b7275d6878a0e98",
+      "purpose": "Pure signed floor (SinjohPoolsTradeBuybackFloor, five-minute maximum validity) for pools.trade buybacks; no on-chain quote exists on hookless or launch-hooked v4 pools, so the keeper's signer is the sole floor authority.",
+      "verified": {
+        "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "quoteSigner": "0xd89fB916dD031Da9b0A32e820307c2d41a7dDe09"
+      }
+    },
+    "ecvrfRandomness": {
+      "address": "0xD16BCD59ca33C1e85578Aa5d60a02C4E2231c491",
+      "deploymentTransaction": "0x1a39cbfcf856ca85bc0f22e57f1d8ace57611063a615958e571c6c68789d5a03",
+      "deploymentBlock": 28820824,
+      "runtimeCodeHash": "0x72ce584dc295ce6e9bfb87803e2445c44a79ced3e5461d894d5028c13f9f5d0b",
+      "purpose": "ECVRF randomness adapter for raffles. Immutable public key verified on-chain to hash to the prover account 0x8653117338aD8120FCC15A93452526e2695F8273; key held on the prover host, separate from the attestor.",
+      "verified": {
+        "deploymentChainId": 4663
+      }
+    },
+    "raffleFactory": {
+      "address": "0xd030064fb83d14c97c22a6b63bf376552eba7112",
+      "deploymentTransaction": "0x515680dc28784964c518ed5e491d1a7d2da5224404a11220d09b9fc71ac4f9e1",
+      "deploymentBlock": 28821627,
+      "runtimeCodeHash": "0x35a31cf01b7c0f2ade47c6228f984e0d984f0fcb24214c031efebc38f92a4a5a",
+      "implementation": "0x982F8B6612146E0963DFd18D74e1ffe4E110b47D",
+      "implementationRuntimeCodeHash": "0xde10e2dbff2714101c98b24ab7320e0b1038a370a72b96f84e63626ec156cf98",
+      "purpose": "SinjohRaffleRewardsFactory. Implementation initialization-locked; deploymentChainId 4663 verified on-chain.",
+      "verified": {
+        "deploymentChainId": 4663,
+        "implementationLocked": true
+      }
     }
   },
   "notDeployed": {
@@ -253,6 +416,20 @@
     "ponsV2LaunchForwarder": "0xe33E9E479dF8802cb0866d5d05258bEc4cF62948",
     "uniswapV4PoolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
     "uniswapV4PositionManager": "0x58daec3116aae6D93017bAAea7749052E8a04fA7",
+    "uniswapV4UniversalRouter": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
+    "poolsTradeLiquidityLauncher": "0x0000FffFBE8efE702c8703aE3477FF5dE3d319C0",
+    "poolsTradeUERC20Factory": "0x000000e200088D55C39a11F609E5F667729ad49b",
+    "poolsTradeInstantStrategyCreatorFee": "0x23f8209572b4a1C2AD88A42749E830791Fb027f1",
+    "poolsTradeInstantStrategyNoFee": "0xAD44D55E7f8337C3cE113fBb591486E85be104b2",
+    "poolsTradeFeeSplitterCreatorFee": "0xeFF166AAf189323c58dc27eD1206EB2C37FaACDf",
+    "poolsTradeFeeSplitterNoFee": "0x222D6d4f1ce59b0d48D5505114eC8Addc90A4359",
+    "poolsTradeBeneficiaryVault": "0xd35E9CA72F64C7F93BE30fad67524323396B36D7",
+    "poolsTradeCompoundingClaimRecipient": "0xf9526Dd3361fe0ba6b7a99533ed471D3E808E99a",
+    "poolsTradeLBPStrategy": "0x05d552391067389EE44fec3924157ed33F976000",
+    "poolsTradeCCAFactory": "0x000000001F26a0044BaA66024e7b6599c61963F8",
+    "poolsTradeInitializerHook": "0xD462a559337859369EF271814851A18F496ba000",
+    "poolsTradeTokenSplitter": "0x4F5E3FBb9745358A92Da5674305FAb8D2B8a73cE",
+    "poolsTradeNotes": "pools.trade is Uniswap's liquidity-launcher stack; contract sourcing and both launch shapes are documented in POOLS-TRADE-FINDINGS.md and sinjoh-launchpad-adapters/SPEC.md. Watch items: the CCA factory's protocolFeeController() is zero but mutable, and strategy addresses rotate with upstream versions.",
     "robinhoodStockBeacon": "0xe10b6f6B275de231345c20D14Ab812db62151b00",
     "robinhoodStockImplementation": "0xb35490d6f9163DE4F80d88dc75c3516eb64C5aE2",
     "ponsV2RaffleNotes": "A raffle over a Pons v2 launch must exclude the launch's bonding curve (predict pre-launch via PonsV2LaunchDeployer.predictLaunchAddresses; tooling in sinjoh-keeper/src/ponsv2 and sinjoh-fee-router PonsV2LaunchPrediction) plus ponsV2LaunchFactory, uniswapV4PoolManager, ponsV2BuybackVault, ponsV2MemeHook, and the launchpad adapter. Stocks are beacon proxies: see sinjoh-raffle-rewards/ROBINHOOD_STOCKS.md."
