@@ -5,9 +5,8 @@ import { SinjohRaffleRewardsFactory } from "../src/SinjohRaffleRewardsFactory.so
 
 interface Vm {
     function addr(uint256 privateKey) external returns (address);
-    function envUint(string calldata name) external returns (uint256);
     function envAddress(string calldata name) external returns (address);
-    function startBroadcast(uint256 privateKey) external;
+    function startBroadcast() external;
     function stopBroadcast() external;
 }
 
@@ -36,8 +35,9 @@ contract DeployRaffleRewardsFactory {
         address adapter = vm.envAddress("RANDOMNESS_ADAPTER");
         if (adapter.code.length == 0) revert AdapterHasNoCode(adapter);
 
-        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        vm.startBroadcast(deployerKey);
+        // Signing comes from forge's --account/--ledger machinery; the key
+        // never enters an environment variable.
+        vm.startBroadcast();
         factory = new SinjohRaffleRewardsFactory(block.chainid);
         vm.stopBroadcast();
 

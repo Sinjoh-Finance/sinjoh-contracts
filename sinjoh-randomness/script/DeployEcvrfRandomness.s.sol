@@ -5,7 +5,7 @@ import { SinjohEcvrfRandomness } from "../src/SinjohEcvrfRandomness.sol";
 
 interface Vm {
     function envUint(string calldata name) external returns (uint256);
-    function startBroadcast(uint256 privateKey) external;
+    function startBroadcast() external;
     function stopBroadcast() external;
 }
 
@@ -36,8 +36,9 @@ contract DeployEcvrfRandomness {
         uint256 publicKeyX = vm.envUint("ECVRF_PUBLIC_KEY_X");
         uint256 publicKeyY = vm.envUint("ECVRF_PUBLIC_KEY_Y");
 
-        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        vm.startBroadcast(deployerKey);
+        // Signing comes from forge's --account/--ledger machinery; the key
+        // never enters an environment variable.
+        vm.startBroadcast();
         adapter = new SinjohEcvrfRandomness(publicKeyX, publicKeyY, block.chainid);
         vm.stopBroadcast();
 
