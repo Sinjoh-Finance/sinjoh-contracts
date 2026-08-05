@@ -10,27 +10,25 @@ interface Vm {
     function stopBroadcast() external;
 }
 
-interface IArbSys {
-    function arbBlockNumber() external view returns (uint256);
-}
-
 /// @notice Deploys the raffle factory and its implementation.
 /// @dev `RANDOMNESS_ADAPTER` is a production smoke check for the intended adapter. Every raffle
 /// independently rejects a configured adapter without code during its immutable initialization.
 contract DeployRaffleRewardsFactory {
     uint256 internal constant ROBINHOOD_MAINNET_CHAIN_ID = 4_663;
-    address internal constant ARBSYS = address(0x64);
 
     Vm internal constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
 
     error WrongChain(uint256 actual);
-    error MissingArbSys();
     error AdapterHasNoCode(address adapter);
     error DeploymentFailed();
 
     function run() external returns (SinjohRaffleRewardsFactory factory) {
+        // The chain id is the only viable chain probe here. ArbSys cannot be
+        // consulted: it is node-implemented, its account holds a single
+        // INVALID opcode, and forge's pre-broadcast simulation runs in a
+        // local EVM where any call to it reverts — so an ArbSys check makes
+        // every simulated run fail unconditionally.
         if (block.chainid != ROBINHOOD_MAINNET_CHAIN_ID) revert WrongChain(block.chainid);
-        if (IArbSys(ARBSYS).arbBlockNumber() == 0) revert MissingArbSys();
 
         address adapter = vm.envAddress("RANDOMNESS_ADAPTER");
         if (adapter.code.length == 0) revert AdapterHasNoCode(adapter);
