@@ -412,14 +412,15 @@
           "TSLA",
           "COIN",
           "NVDA",
-          "MSTR"
+          "MSTR",
+          "GOOGL",
+          "AAPL"
         ],
-        "pending": {
-          "RDDT": "primed to 500 and seeded; five-minute window filling, auto-certifies",
-          "GOOGL": "primed to 500; history fills from organic trading, auto-certifies",
-          "AAPL": "primed to 500; history fills from organic trading, auto-certifies"
+        "certifiedProbeWeth": "0.01",
+        "excluded": {
+          "RDDT": "pool 0xA541\u2026b531 holds 3.4e16 liquidity \u2014 about 105,000x less than MSTR's \u2014 and cannot absorb any probe size inside the guard's 7.5% slippage bound. Oracle is primed and healthy; the pool needs real LP depth before RDDT can be a deliverable prize. Re-run the preflight after liquidity arrives; per-launch stock lists are immutable, so later launches can add RDDT once it certifies."
         },
-        "note": "All pools now hold oracle capacity (FinishRafflePoolSeeding broadcast, 2026-08-05); nothing is blocked. A certification loop re-runs PreflightStockRoutes and this record is updated to 8/8 when the windows fill. UI: read `certified` as the live Mystery Stock set \u2014 it only grows."
+        "note": "Seven routes passed real guarded swaps at the full 0.01 WETH probe. UI: read `certified` as the live Mystery Stock set."
       },
       "runtimeCodeHashes": {
         "guard500": "0xd0d2cf2912d6344ddfaf657911a1fb2a9a4e74ecd6e829d835c18dd342f9801e",
