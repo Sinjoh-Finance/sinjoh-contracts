@@ -52,6 +52,47 @@ Pons creator fees are then collected without trusting the caller:
 function collectPonsFees() external returns (uint256 amount0, uint256 amount1);
 ```
 
+Pons v2 launches use the copied factory ABI and its escrow:
+
+```solidity
+function launchPonsV2Token(
+    address factory,
+    IPonsV2LaunchFactory.TokenParams calldata params,
+    uint256 launchConfigId,
+    address pairToken
+) external payable returns (address subject, address curve);
+
+function claimPonsV2Fees() external returns (uint256 wethAmount);
+```
+
+`creatorTaxBps` is zero (disabled) or 1 to 5,000 bps. Launch rejects a value above
+Sinjoh's 5,000-bps ceiling or the factory's live `maxCreatorTaxBps()`. The call also
+checks the live launch fee, enablement/whitelist state, nonzero preview economics,
+and exact post-launch factory readback before binding. The tax rate is frozen by
+the upstream launch economics. The initial recipient is restricted to the creator
+or this router.
+
+When the router is recipient, the pair token must be native or the configured WETH.
+Anyone may call `claimPonsV2Fees`; native proceeds are wrapped immediately and exact
+balance deltas are checked. The keeper then calls `sync(WETH)`. Pons's escrow credit
+contains creator revenue as a whole, so Sinjoh does not pretend it can distinguish
+base creator revenue from the optional creator-tax share after receipt.
+
+Fees do not reach the escrow on their own. They accrue on the bonding curve, and the
+curve's `sweepFees` authorizes only its tracked fee recipient — this router — or Pons's
+rotatable sweep operator. `sweepPonsV2CurveFees()` is the permissionless passthrough:
+it forwards a sweep only when no buyback earmark is pending, because an earmarked sweep
+executes a curve-priced swap whose minimum output must come from Pons's trusted
+operator. Sinjoh launches disable buyback, so their earmark is always zero and the
+whole pipeline — curve sweep, escrow claim, `sync` — runs permissionlessly. The keeper
+proposes the sweep before the claim and simulation-gates both.
+
+The launch struct's trailing `salt` field is load-bearing twice over: it is part of the
+deployed factory's ABI (a copy without it encodes selectors that exist on no contract),
+and it makes the curve and token addresses computable before the launch is sent, which
+is what allows a raffle's immutable exclusion list to name the curve. Both properties
+are pinned by `SinjohFeeRouterV2.fork.t.sol` against the verified mainnet deployment.
+
 The historical one-time `bind` and `bindAndSendLaunchBuy` functions remain
 available for already deployed routers and do not change behavior.
 

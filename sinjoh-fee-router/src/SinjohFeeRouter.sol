@@ -3,6 +3,9 @@ pragma solidity 0.8.28;
 
 import { RouterTypes } from "./RouterTypes.sol";
 import { IPonsV1LaunchFactory, IPonsV1Locker } from "./interfaces/IPonsV1.sol";
+import {
+    IPonsV2BondingCurve, IPonsV2FeeEscrow, IPonsV2LaunchFactory
+} from "./interfaces/IPonsV2.sol";
 import { ISinjohSink } from "./interfaces/ISinjohSink.sol";
 import { ISinjohSwapAdapter } from "./interfaces/ISinjohSwapAdapter.sol";
 import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
@@ -13,6 +16,7 @@ contract SinjohFeeRouter {
 
     uint16 public constant BPS = 10_000;
     uint16 public constant PROTOCOL_FEE_BPS = 100;
+    uint16 public constant MAX_CREATOR_TRADE_TAX_BPS = 5_000;
     uint8 public constant MAX_BUCKETS = 8;
     uint8 public constant MAX_ALLOCATIONS_PER_BUCKET = 16;
     uint16 public constant MAX_DYNAMIC_BYTES = 1_024;
@@ -47,6 +51,12 @@ contract SinjohFeeRouter {
     error InvalidPonsFactory();
     error InvalidPonsFeeWallet();
     error PonsLaunchAlreadyConfigured();
+    error InvalidPonsV2Configuration();
+    error CreatorTaxTooHigh(uint256 requestedBps, uint256 allowedBps);
+    error InvalidCreatorFeeRecipient(address recipient);
+    error PonsV2FeesNotRoutedHere();
+    error PonsV2SweepRequiresOperator();
+    error NothingToSweep();
 
     event Initialized(
         address indexed creator,
@@ -69,6 +79,22 @@ contract SinjohFeeRouter {
         uint256 amount0,
         uint256 amount1,
         address caller
+    );
+    event PonsV2TokenLaunched(
+        address indexed factory,
+        address indexed subject,
+        address indexed curve,
+        address feeEscrow,
+        address pairToken,
+        uint16 creatorTaxBps,
+        address creatorFeeRecipient
+    );
+    event PonsV2FeesClaimed(
+        address indexed feeEscrow,
+        address indexed sourceAsset,
+        uint256 sourceAmount,
+        uint256 wethAmount,
+        address indexed caller
     );
     event Normalized(
         address indexed inputAsset, uint256 amountIn, uint256 wethOut, address indexed caller
@@ -132,6 +158,11 @@ contract SinjohFeeRouter {
     bool public bound;
     address public ponsLaunchFactory;
     address public ponsLocker;
+    address public ponsV2Curve;
+    address public ponsV2FeeEscrow;
+    address public ponsV2PairToken;
+    address public ponsV2CreatorFeeRecipient;
+    uint16 public creatorTradeTaxBps;
 
     RouteStorage private _subjectToWeth;
     BucketStorage[] private _buckets;
@@ -215,6 +246,140 @@ contract SinjohFeeRouter {
             emit LaunchBuyDelivered(launchedSubject, creator, launchBuyAmount);
         }
         emit PonsTokenLaunched(factory, locker, launchedSubject, msg.value, launchBuyAmount);
+    }
+
+    /// @notice Launches through Pons v2 with an optional creator trade tax.
+    /// @dev Zero disables the tax; otherwise Sinjoh accepts 1..5000 bps and also
+    /// enforces the selected Pons deployment's live cap. The initial fee recipient
+    /// is restricted to this launch's creator or this router. `snipeTaxExemptions`
+    /// passes the creator's declared opening-buy wallets through to the factory;
+    /// Pons itself always exempts this router and the fee recipient, so an empty
+    /// list is the common case.
+    function launchPonsV2Token(
+        address factory,
+        IPonsV2LaunchFactory.TokenParams calldata params,
+        uint256 launchConfigId,
+        address pairToken,
+        address[] calldata snipeTaxExemptions
+    ) external payable onlyCreator nonReentrant returns (address launchedSubject, address curve) {
+        if (bound || ponsLaunchFactory != address(0)) revert PonsLaunchAlreadyConfigured();
+        if (factory == address(0) || factory.code.length == 0) revert InvalidPonsFactory();
+        if (params.expectedEconomics == bytes32(0)) revert InvalidPonsV2Configuration();
+        if (params.creatorFeeRecipient != creator && params.creatorFeeRecipient != address(this)) {
+            revert InvalidCreatorFeeRecipient(params.creatorFeeRecipient);
+        }
+
+        uint256 requestedTaxBps = params.creatorTaxBps;
+        if (requestedTaxBps > MAX_CREATOR_TRADE_TAX_BPS) {
+            revert CreatorTaxTooHigh(requestedTaxBps, MAX_CREATOR_TRADE_TAX_BPS);
+        }
+
+        IPonsV2LaunchFactory pons = IPonsV2LaunchFactory(factory);
+        uint256 upstreamCap = pons.maxCreatorTaxBps();
+        if (requestedTaxBps > upstreamCap) {
+            revert CreatorTaxTooHigh(requestedTaxBps, upstreamCap);
+        }
+        if (!pons.launchEnabled() && !pons.whitelistedLaunchers(address(this))) {
+            revert InvalidPonsV2Configuration();
+        }
+        if (msg.value != pons.launchFee()) revert InvalidPonsV2Configuration();
+        if (pons.previewLaunchEconomics(launchConfigId, pairToken) != params.expectedEconomics) {
+            revert InvalidPonsV2Configuration();
+        }
+
+        address feeEscrow = pons.feeEscrow();
+        if (feeEscrow.code.length == 0) revert InvalidPonsV2Configuration();
+        if (
+            params.creatorFeeRecipient == address(this) && pairToken != address(0)
+                && pairToken != weth
+        ) {
+            revert UnsupportedAsset(pairToken);
+        }
+
+        (launchedSubject, curve) =
+            pons.launchToken{ value: msg.value }(params, launchConfigId, pairToken, snipeTaxExemptions);
+        IPonsV2LaunchFactory.LaunchedToken memory launched = pons.getLaunchedToken(launchedSubject);
+        if (
+            !launched.exists || launched.token != launchedSubject || launched.curve != curve
+                || launched.deployer != address(this)
+                || launched.creatorFeeRecipient != params.creatorFeeRecipient
+                || launched.pairToken != pairToken || launched.creatorTaxBps != params.creatorTaxBps
+        ) revert InvalidPonsV2Configuration();
+
+        ponsLaunchFactory = factory;
+        ponsV2Curve = curve;
+        ponsV2FeeEscrow = feeEscrow;
+        ponsV2PairToken = pairToken;
+        ponsV2CreatorFeeRecipient = params.creatorFeeRecipient;
+        creatorTradeTaxBps = params.creatorTaxBps;
+        _bind(launchedSubject);
+
+        emit PonsV2TokenLaunched(
+            factory,
+            launchedSubject,
+            curve,
+            feeEscrow,
+            pairToken,
+            params.creatorTaxBps,
+            params.creatorFeeRecipient
+        );
+    }
+
+    event PonsV2CurveFeesSwept(address indexed curve, uint256 pending, address indexed caller);
+
+    /// @notice Moves this launch's pending curve fees into the Pons escrow.
+    /// @dev Without this the pipeline stalls at the curve: `sweepFees` authorizes
+    /// only the tracked fee recipient — this router — or Pons's rotatable sweep
+    /// operator, so Sinjoh revenue would otherwise wait on a third party. Only a
+    /// sweep with no pending buyback earmark is forwarded: an earmarked sweep
+    /// executes a curve-priced swap whose minimum output must come from Pons's
+    /// trusted operator, not from a permissionless caller. Sinjoh launches
+    /// disable buyback, so the earmark stays zero and this path stays open.
+    function sweepPonsV2CurveFees() external nonReentrant returns (uint256 pending) {
+        address curve = ponsV2Curve;
+        if (curve == address(0)) revert InvalidPonsV2Configuration();
+        if (ponsV2CreatorFeeRecipient != address(this)) revert PonsV2FeesNotRoutedHere();
+        IPonsV2BondingCurve pons = IPonsV2BondingCurve(curve);
+        if (pons.buybackQuoteBalance() != 0) revert PonsV2SweepRequiresOperator();
+        pending = pons.quoteFeeBalance() + pons.creatorTaxBalance();
+        if (pending == 0) revert NothingToSweep();
+        pons.sweepFees(0);
+        emit PonsV2CurveFeesSwept(curve, pending, msg.sender);
+    }
+
+    /// @notice Claims Pons v2 creator revenue when this router is its recipient.
+    /// Native quote is wrapped immediately; WETH quote remains WETH. A later
+    /// permissionless `sync(weth)` applies normal Sinjoh accounting.
+    function claimPonsV2Fees() external nonReentrant returns (uint256 wethAmount) {
+        address feeEscrow = ponsV2FeeEscrow;
+        if (feeEscrow == address(0)) revert InvalidPonsV2Configuration();
+        if (ponsV2CreatorFeeRecipient != address(this)) revert PonsV2FeesNotRoutedHere();
+
+        address pairToken = ponsV2PairToken;
+        uint256 sourceAmount;
+        uint256 wethBefore = weth.safeBalanceOf(address(this));
+        if (pairToken == address(0)) {
+            uint256 nativeBefore = address(this).balance;
+            sourceAmount = IPonsV2FeeEscrow(feeEscrow).claim();
+            uint256 received = address(this).balance - nativeBefore;
+            if (received != sourceAmount) {
+                revert UnexpectedBalanceDelta(address(0), sourceAmount, received);
+            }
+            if (received != 0) {
+                (bool success,) = weth.call{ value: received }(abi.encodeWithSignature("deposit()"));
+                if (!success) revert InvalidPonsV2Configuration();
+                if (address(this).balance != nativeBefore) {
+                    revert UnexpectedBalanceDelta(address(0), nativeBefore, address(this).balance);
+                }
+            }
+        } else {
+            sourceAmount = IPonsV2FeeEscrow(feeEscrow).claimToken(pairToken);
+        }
+        wethAmount = weth.safeBalanceOf(address(this)) - wethBefore;
+        if (wethAmount != sourceAmount) {
+            revert UnexpectedBalanceDelta(weth, sourceAmount, wethAmount);
+        }
+        emit PonsV2FeesClaimed(feeEscrow, pairToken, sourceAmount, wethAmount, msg.sender);
     }
 
     /// @notice Permissionlessly collects this token's Pons creator fees into
