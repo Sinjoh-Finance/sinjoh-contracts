@@ -530,7 +530,8 @@ contract SinjohRaffleRewardsBranchesTest is TestBase {
             randomnessTimeout: 7_200,
             claimWindow: 604_800,
             basis: RaffleTypes.TicketBasis.MIN_BALANCE,
-            exclusions: exclusions
+            exclusions: exclusions,
+            stockRewards: new RaffleTypes.StockReward[](0)
         });
     }
 

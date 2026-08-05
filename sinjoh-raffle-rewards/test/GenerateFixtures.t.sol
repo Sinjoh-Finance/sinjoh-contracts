@@ -5,6 +5,12 @@ import { TestBase } from "./TestBase.sol";
 import { RaffleTree } from "./RaffleTree.sol";
 import { RaffleTypes } from "../src/RaffleTypes.sol";
 
+interface VmConfigFixture {
+    function writeFile(string calldata path, string calldata data) external;
+    function toString(bytes32 value) external pure returns (string memory);
+    function toString(bytes calldata value) external pure returns (string memory);
+}
+
 /// @notice Emits ticket-tree fixtures for the offchain worker to reproduce.
 /// @dev The worker's tree must be byte-identical to this one. A divergence produces roots no
 /// proof can satisfy, which would surface only as every claim reverting on a live raffle.
@@ -12,6 +18,57 @@ contract GenerateFixturesTest is TestBase {
     address internal constant RAFFLE = 0x00000000000000000000000000000000000ADde5;
     uint64 internal constant ROUND_ID = 7;
     uint64 internal constant SNAPSHOT_BLOCK = 123_456;
+
+    /// The launch tooling computes `configHash` off-chain to predict the raffle
+    /// address before deployment. This pins the canonical `abi.encode(Config)`
+    /// so the TypeScript encoding can never drift from the factory's.
+    function testWriteConfigHashFixture() public {
+        VmConfigFixture vmf = VmConfigFixture(address(uint160(uint256(keccak256("hevm cheat code")))));
+        address[] memory exclusions = new address[](2);
+        exclusions[0] = address(0x0000000000000000000000000000000000a11c00);
+        exclusions[1] = address(0x0000000000000000000000000000000000b0B000);
+        RaffleTypes.StockReward[] memory stockRewards = new RaffleTypes.StockReward[](1);
+        stockRewards[0] = RaffleTypes.StockReward({
+            asset: address(0x0000000000000000000000000000000000c0de00),
+            swapAdapter: address(0x0000000000000000000000000000000000C0De01),
+            priceGuard: address(0x0000000000000000000000000000000000c0De02),
+            routeData: abi.encode(uint24(10_000)),
+            guardData: ""
+        });
+        RaffleTypes.Config memory config = RaffleTypes.Config({
+            creator: address(0xAB01),
+            attestor: address(0xAB02),
+            randomness: address(0xAB03),
+            prizeAsset: address(0xAB04),
+            protocolFeeRecipient: address(0xAB05),
+            taxRecipient: address(0xAB06),
+            tokensPerTicket: 10_000e18,
+            maxTicketsPerHolder: 50,
+            minPrize: 1,
+            maxPrize: 0,
+            prizeBps: 500,
+            recipientTaxBps: 700,
+            recycleTaxBps: 300,
+            minConfirmations: 1,
+            winnersPerRound: 4,
+            minRoundInterval: 3_600,
+            weightWindowBlocks: 900,
+            randomnessTimeout: 7_200,
+            claimWindow: 604_800,
+            basis: RaffleTypes.TicketBasis.MIN_BALANCE,
+            exclusions: exclusions,
+            stockRewards: stockRewards
+        });
+        bytes memory encoded = abi.encode(config);
+        vmf.writeFile(
+            "test/fixtures/config-hash.json",
+            string.concat(
+                '{"description":"canonical abi.encode(RaffleTypes.Config) for the fixed config in GenerateFixtures.t.sol",',
+                '"encoded":"', vmf.toString(encoded),
+                '","configHash":"', vmf.toString(keccak256(encoded)), '"}'
+            )
+        );
+    }
 
     function testWriteTreeFixtures() public {
         RaffleTypes.Leaf[] memory leaves = new RaffleTypes.Leaf[](5);

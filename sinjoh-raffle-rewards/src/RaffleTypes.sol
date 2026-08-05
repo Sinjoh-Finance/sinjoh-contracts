@@ -19,6 +19,16 @@ library RaffleTypes {
         ABANDONED
     }
 
+    /// @notice One immutable, reviewed route from the pool asset into a possible stock prize.
+    /// @dev The price guard supplies the minimum output; callers never choose slippage.
+    struct StockReward {
+        address asset;
+        address swapAdapter;
+        address priceGuard;
+        bytes routeData;
+        bytes guardData;
+    }
+
     /// @notice Deployment configuration. Hashed to `configHash` and frozen at initialization.
     /// @dev The payout tax is two independent shares of each gross slot prize: one delivered to
     /// an immutable recipient, one returned to the prize pool. Either may be zero.
@@ -44,6 +54,9 @@ library RaffleTypes {
         uint32 claimWindow;
         TicketBasis basis;
         address[] exclusions;
+        /// Empty preserves the direct-prize-asset behavior. Nonempty enables per-slot VRF stock
+        /// selection and requires `prizeAsset` to be an ERC-20 funding asset (normally WETH).
+        StockReward[] stockRewards;
     }
 
     /// @dev The frozen configuration as stored. Exclusions live in a mapping instead.

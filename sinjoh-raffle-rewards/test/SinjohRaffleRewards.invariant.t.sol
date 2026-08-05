@@ -6,6 +6,7 @@ import { RaffleTree } from "./RaffleTree.sol";
 import { MockArbSys } from "./mocks/MockArbSys.sol";
 import { MockERC20 } from "./mocks/MockERC20.sol";
 import { MockRandomness } from "./mocks/MockRandomness.sol";
+import { MockStockPriceGuard, MockStockSwapAdapter } from "./mocks/MockStockExecution.sol";
 import { RaffleTypes } from "../src/RaffleTypes.sol";
 import { SinjohRaffleRewards } from "../src/SinjohRaffleRewards.sol";
 import { SinjohRaffleRewardsFactory } from "../src/SinjohRaffleRewardsFactory.sol";
@@ -28,18 +29,29 @@ contract RaffleHandler {
     MockRandomness public randomness;
     SinjohRaffleRewards public raffle;
 
+    /// @dev Zero on a direct-payout raffle. Set only by the stock-configured suite.
+    MockERC20 public stockA;
+    MockERC20 public stockB;
+
     uint256 public totalGrossIntake;
     uint256 public totalCommittedPrizes;
     uint256 public totalReturnedPrizes;
     uint64 public lastSnapshot = FIRST_SNAPSHOT;
     bool public holderRejecting;
+    bool public stockRejecting;
 
     /// @dev Wired after construction so the handler can be the raffle's immutable attestor.
+    /// @dev `stockA_`/`stockB_` are zero on a direct-payout raffle, and every stock entrypoint
+    /// below returns early. They are wired here rather than through their own setter because the
+    /// fuzzer targets every public function: a separate setter would let it enable stock mode on
+    /// the direct suite with addresses that hold no code.
     function initialize(
         SinjohRaffleRewards raffle_,
         MockERC20 subject_,
         MockERC20 asset_,
-        MockRandomness randomness_
+        MockRandomness randomness_,
+        MockERC20 stockA_,
+        MockERC20 stockB_
     ) external {
         // The fuzzer targets every public function here, so wiring is a no-op once done
         // rather than a revert.
@@ -48,7 +60,13 @@ contract RaffleHandler {
         subject = subject_;
         asset = asset_;
         randomness = randomness_;
+        stockA = stockA_;
+        stockB = stockB_;
         asset_.approve(address(raffle_), type(uint256).max);
+    }
+
+    function stockEnabled() public view returns (bool) {
+        return address(stockA) != address(0);
     }
 
     // ------------------------------------------------------------------
@@ -135,6 +153,49 @@ contract RaffleHandler {
         raffle.deliverOwed(holder);
     }
 
+    /// @notice Routes stock deliveries into the deferred path and back out again. A separate
+    /// holder from `toggleRejection` so both denominations can be deferred at once.
+    function toggleStockRejection(bool rejecting) external {
+        if (!stockEnabled()) return;
+        stockRejecting = rejecting;
+        stockA.setFailRecipient(HOLDER_C, rejecting);
+        stockB.setFailRecipient(HOLDER_C, rejecting);
+    }
+
+    function deliverStockOwedTo(uint8 which, bool second) external {
+        if (!stockEnabled()) return;
+        address holder = _holderAt(which);
+        address stock = address(second ? stockB : stockA);
+        if (raffle.stockOwed(holder, stock) == 0) return;
+        if (holder == HOLDER_C && stockRejecting) return;
+        raffle.deliverStockOwed(holder, stock);
+    }
+
+    /// @notice Settles a stock slot in the funding asset once the claim window's tail opens,
+    /// warping into it when the round is still early. Only the winner may invoke it.
+    function claimFundingSlot(uint64 rawRoundId, uint8 rawSlot) external {
+        if (!stockEnabled()) return;
+        uint64 roundId = _pick(rawRoundId);
+        if (roundId == 0) return;
+
+        (,,,,,, uint64 snapshot,, uint64 drawnAt, uint16 mask, RaffleTypes.RoundState state) =
+            raffle.rounds(roundId);
+        if (state != RaffleTypes.RoundState.DRAWN) return;
+        if (block.timestamp > uint256(drawnAt) + CLAIM_WINDOW) return;
+
+        uint8 slot = _firstUnpaidSlot(mask, rawSlot);
+        if (slot == type(uint8).max) return;
+
+        uint256 opensAt = raffle.fundingFallbackAt(roundId);
+        if (block.timestamp < opensAt) _warpTo(opensAt);
+
+        (,, RaffleTypes.ProofElement[][] memory proofs) = _tree(roundId, snapshot);
+        RaffleTypes.Leaf[] memory leaves = _leaves();
+        uint256 which = _ownerOf(leaves, raffle.winningIndex(roundId, slot));
+        _prank(leaves[which].holder);
+        raffle.claimFunding(roundId, slot, leaves[which], proofs[which]);
+    }
+
     function expireOrAbandon(uint64 rawRoundId, uint32 delay) external {
         uint64 roundId = _pick(rawRoundId);
         if (roundId == 0) return;
@@ -165,6 +226,11 @@ contract RaffleHandler {
 
     function owedToHolders() external view returns (uint256) {
         return raffle.owed(HOLDER_A) + raffle.owed(HOLDER_B) + raffle.owed(HOLDER_C);
+    }
+
+    function stockOwedToHolders(address stock) external view returns (uint256) {
+        return raffle.stockOwed(HOLDER_A, stock) + raffle.stockOwed(HOLDER_B, stock)
+            + raffle.stockOwed(HOLDER_C, stock);
     }
 
     // ------------------------------------------------------------------
@@ -207,9 +273,19 @@ contract RaffleHandler {
     }
 
     function _skip(uint256 seconds_) private {
+        _warpTo(block.timestamp + seconds_);
+    }
+
+    function _warpTo(uint256 timestamp) private {
         (bool ok,) = address(uint160(uint256(keccak256("hevm cheat code"))))
-            .call(abi.encodeWithSignature("warp(uint256)", block.timestamp + seconds_));
+            .call(abi.encodeWithSignature("warp(uint256)", timestamp));
         require(ok, "WARP_FAILED");
+    }
+
+    function _prank(address sender) private {
+        (bool ok,) = address(uint160(uint256(keccak256("hevm cheat code"))))
+            .call(abi.encodeWithSignature("prank(address)", sender));
+        require(ok, "PRANK_FAILED");
     }
 
     function _leaves() private pure returns (RaffleTypes.Leaf[] memory leaves) {
@@ -234,7 +310,9 @@ contract RaffleHandler {
     }
 }
 
-contract SinjohRaffleRewardsInvariantTest is InvariantTestBase {
+/// @dev Every invariant below holds for both payout shapes, so the stock suite inherits the whole
+/// set rather than restating it. Only the configuration and the stock-specific invariants differ.
+abstract contract RaffleInvariantBase is InvariantTestBase {
     address internal constant CREATOR = address(0xC0FFEE);
     address internal constant PROTOCOL_RECIPIENT = address(0xFEE1);
     address internal constant TAX_RECIPIENT = address(0x7A11);
@@ -275,7 +353,8 @@ contract SinjohRaffleRewardsInvariantTest is InvariantTestBase {
             randomnessTimeout: 7_200,
             claimWindow: 604_800,
             basis: RaffleTypes.TicketBasis.MIN_BALANCE,
-            exclusions: exclusions
+            exclusions: exclusions,
+            stockRewards: _configureStockRewards()
         });
 
         handler = new RaffleHandler();
@@ -284,8 +363,22 @@ contract SinjohRaffleRewardsInvariantTest is InvariantTestBase {
 
         vm.prank(CREATOR);
         raffle.bind(address(subject));
-        handler.initialize(raffle, subject, asset, randomness);
+        (MockERC20 stockA, MockERC20 stockB) = _stockPair();
+        handler.initialize(raffle, subject, asset, randomness, stockA, stockB);
         _targetedContracts.push(address(handler));
+    }
+
+    /// @dev Empty for the direct-payout suite; the stock suite deploys its routes here.
+    function _configureStockRewards()
+        internal
+        virtual
+        returns (RaffleTypes.StockReward[] memory)
+    {
+        return new RaffleTypes.StockReward[](0);
+    }
+
+    function _stockPair() internal view virtual returns (MockERC20, MockERC20) {
+        return (MockERC20(address(0)), MockERC20(address(0)));
     }
 
     /// Required test 20: balance always covers pool, reserves, deferred credits, fees, and tax.
@@ -342,5 +435,71 @@ contract SinjohRaffleRewardsInvariantTest is InvariantTestBase {
     function invariantProtocolFeeTracksIntake() public view {
         uint256 expected = handler.totalGrossIntake() * raffle.PROTOCOL_FEE_BPS() / raffle.BPS();
         assertEq(raffle.protocolOwed() + asset.balanceOf(PROTOCOL_RECIPIENT), expected);
+    }
+}
+
+contract SinjohRaffleRewardsInvariantTest is RaffleInvariantBase { }
+
+/// @notice The same raffle paying VRF-selected stocks: every slot claim routes through a guarded
+/// swap, deferred credits are denominated per stock, and the funding-asset fallback is reachable.
+contract SinjohRaffleRewardsStockInvariantTest is RaffleInvariantBase {
+    MockERC20 internal stockA;
+    MockERC20 internal stockB;
+
+    function _configureStockRewards()
+        internal
+        override
+        returns (RaffleTypes.StockReward[] memory rewards)
+    {
+        MockERC20 first = new MockERC20("Stock A", "A");
+        MockERC20 second = new MockERC20("Stock B", "B");
+        (stockA, stockB) =
+            address(first) < address(second) ? (first, second) : (second, first);
+        MockStockSwapAdapter adapter = new MockStockSwapAdapter();
+        MockStockPriceGuard guard = new MockStockPriceGuard();
+
+        rewards = new RaffleTypes.StockReward[](2);
+        rewards[0] = RaffleTypes.StockReward({
+            asset: address(stockA),
+            swapAdapter: address(adapter),
+            priceGuard: address(guard),
+            routeData: abi.encode(uint24(3_000)),
+            guardData: ""
+        });
+        rewards[1] = RaffleTypes.StockReward({
+            asset: address(stockB),
+            swapAdapter: address(adapter),
+            priceGuard: address(guard),
+            routeData: abi.encode(uint24(10_000)),
+            guardData: ""
+        });
+    }
+
+    function _stockPair() internal view override returns (MockERC20, MockERC20) {
+        return (stockA, stockB);
+    }
+
+    /// Required test 27: each stock's balance covers every credit denominated in it.
+    function invariantStockBalanceCoversItsCredits() public view {
+        assertTrue(stockA.balanceOf(address(raffle)) >= raffle.totalStockOwed(address(stockA)));
+        assertTrue(stockB.balanceOf(address(raffle)) >= raffle.totalStockOwed(address(stockB)));
+    }
+
+    /// Per-stock aggregates equal the sum of their per-holder credits, so a deferred stock
+    /// delivery is never lost or double counted across denominations.
+    function invariantStockCreditsMatchTheirAggregates() public view {
+        assertEq(
+            raffle.totalStockOwed(address(stockA)), handler.stockOwedToHolders(address(stockA))
+        );
+        assertEq(
+            raffle.totalStockOwed(address(stockB)), handler.stockOwedToHolders(address(stockB))
+        );
+    }
+
+    /// Stock never becomes pool funding: the raffle's accounting stays denominated in the
+    /// funding asset no matter how many slots settled in stock.
+    function invariantStockIsNeverCountedAsPoolValue() public view {
+        assertTrue(raffle.liabilities() <= asset.balanceOf(address(raffle)));
+        assertEq(raffle.stockRewardCount(), 2);
     }
 }

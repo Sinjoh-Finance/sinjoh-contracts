@@ -102,13 +102,21 @@ enum TicketBasis {
     MIN_BALANCE        // minimum raw balance across the weight window
 }
 
+struct StockReward {
+    address asset;                 // approved tokenized stock
+    address swapAdapter;           // immutable execution adapter
+    address priceGuard;            // immutable minimum-output oracle/guard
+    bytes routeData;               // immutable adapter route
+    bytes guardData;               // immutable guard parameters
+}
+
 struct Config {
     address creator;
     address attestor;
     address randomness;            // immutable randomness adapter
     address prizeAsset;            // address(0) = native ETH
     address protocolFeeRecipient;
-    address taxRecipient;          // required when recipientTaxBps != 0
+    address taxRecipient;          // creator or configured SinjohFeeRouter; required for recipient tax
     uint128 tokensPerTicket;       // raw subject units per ticket
     uint128 maxTicketsPerHolder;   // 0 = uncapped
     uint128 minPrize;              // raw prize units
@@ -124,6 +132,7 @@ struct Config {
     uint32  claimWindow;           // seconds after the draw
     TicketBasis basis;
     address[] exclusions;          // sorted, unique, nonzero, <= 32
+    StockReward[] stockRewards;    // sorted by asset, unique, <= 16; empty = direct payout
 }
 ```
 
@@ -143,7 +152,16 @@ Bounds, enforced at initialization:
 | `randomnessTimeout` | 900 to 86,400 seconds |
 | `claimWindow` | 3,600 to 2,592,000 seconds |
 | `exclusions` | sorted ascending, unique, nonzero, at most 32 |
+| `stockRewards` | at most 16; assets sorted ascending, unique, contract-backed, and different from `prizeAsset`; adapter and guard must contain code; route and guard data each at most 1,024 bytes |
 | addresses | creator, attestor, randomness, and protocol fee recipient nonzero; tax recipient nonzero when `recipientTaxBps != 0`; randomness and any ERC-20 prize asset must contain code |
+
+A nonempty stock list requires an ERC-20 `prizeAsset` (the production configuration uses WETH).
+The list and every route component are covered by `configHash` and cannot be replaced after
+initialization. The intended production launch configuration contains only the approved Sinjoh
+tokenized-stock set: AAPL, COIN, GME, GOOGL, MSTR, NVDA, RDDT, and TSLA, subject to every route
+passing the testnet-first gate in `TESTNET_STOCK_REWARDS.md` and the mainnet readiness gates in
+`ROBINHOOD_STOCKS.md` before deployment. Production guards use an immutable five-minute
+(`300`-second) TWAP.
 
 `configHash` is `keccak256` of the canonical encoding with `subject` as zero. It is
 stored and used by `fund()`.
@@ -152,6 +170,31 @@ The raffle always excludes `address(0)`,
 `0x000000000000000000000000000000000000dEaD`, itself, and the bound subject token.
 The configured list normally adds pools, launchpad curves and hooks, lockers,
 vesting, treasury, and escrow contracts.
+
+For a Pons v2 launch the subject-holding contracts are, and must all be configured:
+
+| Exclusion | Why it holds subject tokens | Known before launch? |
+|---|---|---|
+| bonding curve | the entire supply mints to it; pre-graduation it holds nearly all of it | per launch — computable via `PonsV2LaunchDeployer.predictLaunchAddresses` from the launch salt |
+| `PonsV2LaunchFactory` | holds the swept reserves between the `Swept` and `PoolCreated` graduation phases | static |
+| Uniswap V4 `PoolManager` | the singleton holds every graduated pool's liquidity | static |
+| `PonsV2BuybackVault` | bought-back tokens vest here for five years | static |
+| `PonsV2MemeHook` | transient balances during post-graduation internal swaps | static |
+
+The launch salt makes this order solvable: token and curve addresses are CREATE2-derived
+from the launch parameters, so the flow computes them first, builds the raffle
+configuration with the complete exclusion list, predicts the raffle address, and only
+then launches. This is implemented, not just specified:
+`sinjoh-fee-router/src/libraries/PonsV2LaunchPrediction.sol` (on-chain view, proven
+equal to a real launch on a mainnet fork), `sinjoh-fee-router/script/PredictPonsV2Launch.s.sol`
+(one command printing the addresses and this exclusion list),
+`sinjoh-keeper/src/ponsv2/predict.ts` and `raffle-launch.ts` (the UI-facing twins,
+fixture-pinned byte-for-byte to the Solidity encodings), and
+`sinjoh-integration/test/PonsV2RaffleLifecycle.fork.t.sol` (the full ordering rehearsed
+end to end against the live deployment, through a committed round paying a real holder). The Pons fee escrow never holds subject tokens (every curve fee is
+quote-denominated) and needs no exclusion. Without the curve exclusion the curve is the
+largest holder in every pre-graduation snapshot and the raffle is unusable; this is not
+an optional hardening.
 
 Reference launch values for an hourly raffle:
 
@@ -174,8 +217,21 @@ become insolvent through configuration alone.
 
 ## Deposits
 
-The prize asset is a single immutable asset. A second asset requires a second
-deployment.
+The accounting and funding asset is one immutable asset. When `stockRewards` is nonempty, it
+remains WETH until a winning slot is claimed; only that slot's net share becomes the selected
+stock. Direct deposits of stocks are not pool funding and are not credited by `sync()`.
+
+A raffle funded from Pons v2 creator revenue receives it through the launchpad adapter and
+the agnostic fee router: curve fees and the optional creator trade tax accrue
+quote-denominated on the curve; the adapter — the escrow's named recipient — sweeps the
+curve and claims the escrow permissionlessly (`collect()`), wraps native quote, and
+`forward()`s WETH to the router; `sync` and ordinary bucket allocation then fund the raffle
+sink. The raffle's `prizeAsset` is that same WETH. The creator tax needs no raffle-side
+accounting: by the time value arrives it is indistinguishable WETH revenue. The full
+production wiring — deployed adapter factory, deployed agnostic router factory, live Pons
+v2 — is rehearsed end to end in
+`sinjoh-integration/test/ProductionPonsV2Raffle.fork.t.sol`, which is also the reference
+implementation of the launch ordering an integrating UI must follow.
 
 ### Attributed funding
 
@@ -333,6 +389,17 @@ for `k` in `[0, winnersPerRound)`. Modulo bias is negligible because
 `totalTickets` is many orders of magnitude below `2**256`; it is stated rather than
 mitigated.
 
+With stock rewards enabled, the same VRF seed independently selects a route for every slot:
+
+```text
+stock(k) = uint256(
+    keccak256(abi.encode(SINJOH_RAFFLE_STOCK_V1, chainid, raffle, roundId, k, seed))
+) % stockRewards.length
+```
+
+The stock selection is fixed once randomness is delivered. It is independent of the ticket index
+domain, so choosing or proving a winner cannot change the selected stock.
+
 Slots are independent. The same holder may win more than one slot in a round, in
 proportion to their tickets. This is deliberate: removing replacement would either
 bias the distribution or require unbounded on-chain rejection sampling.
@@ -369,8 +436,9 @@ function claim(
 ) external returns (uint256 paid);
 ```
 
-`claim()` is permissionless — a keeper, an interface, or the winner may submit it.
-Payment always goes to `leaf.holder`.
+`claim()` is permissionless — a keeper, an interface, or the winner may submit it. The reference
+keeper submits every winning proof automatically. The winner does not need to connect, sign, pay
+gas, or perform a separate claim action. Payment always goes to `leaf.holder`.
 
 Rules:
 
@@ -383,7 +451,45 @@ Rules:
 6. the offset derived from the proof satisfies
    `offset <= index(slot) < offset + leaf.tickets`.
 
-The slot is marked paid before any transfer.
+The slot is marked paid before delivery. A stock swap failure reverts the claim and leaves the slot
+unpaid for a safe keeper retry; a post-swap delivery failure settles the slot and creates a durable
+stock-denominated credit.
+
+### 3a. Funding-asset fallback
+
+```solidity
+function claimFunding(
+    uint64 roundId,
+    uint8 slot,
+    Leaf calldata leaf,
+    ProofElement[] calldata proof
+) external returns (uint256 paid);
+
+function fundingFallbackAt(uint64 roundId) external view returns (uint256);
+```
+
+Every route component is immutable. A guard that stops quoting or an adapter that stops executing
+therefore stops being claimable permanently, and because the slot's stock is derived from the VRF
+seed the same fixed share of every future round is affected. Retrying alone does not resolve that
+case: the reserve would sit until `expireRound` returned it to the pool and the winner would
+receive nothing.
+
+`claimFunding` settles such a slot in the funding asset instead. It applies every rule above and
+adds two:
+
+7. the raffle has a nonempty stock list, and `block.timestamp >= fundingFallbackAt(roundId)`,
+   which is `drawnAt + claimWindow - claimWindow / STOCK_FALLBACK_DIVISOR` — the final quarter of
+   the claim window;
+8. `msg.sender == leaf.holder`.
+
+The two additions are what keep it from degrading the ordinary path. The window tail means a
+transient oracle failure or genuine slippage — `InsufficientOutput` is the honest signal that the
+prize is large relative to the pool — is retried for stock across the first three quarters rather
+than immediately downgraded. The sender restriction means the concession is the winner's to make: a
+keeper cannot force a funding-asset payout on a winner who is still willing to wait for stock.
+
+Settlement is otherwise identical to the direct-payout path, including the deferred-credit
+behavior, and emits `PrizePaid` or `PaymentDeferred` rather than their stock counterparts.
 
 ### 4. Expiry and abandonment
 
@@ -464,16 +570,13 @@ an empty interval that no index can select.
 
 ## Payment and tax
 
-Payment for one slot happens through an isolated external self-call, matching the
-distributor's failure isolation:
+For an empty stock list, payment remains a direct transfer of the configured prize asset through an
+isolated external self-call. With stock rewards enabled, tax and accounting are first applied in
+WETH, and only the winner's net is swapped:
 
 ```solidity
-function _payWinner(
-    uint64 roundId,
-    uint8 slot,
-    address holder,
-    uint256 slotPrize
-) external; // onlySelf
+function payWinner(address holder, uint256 amount) external; // onlySelf
+function payStockWinner(address holder, address asset, uint256 amount) external; // onlySelf
 ```
 
 The inner call:
@@ -488,9 +591,13 @@ The inner call:
 
 2. increases `taxOwed` by `recipientTax` and the available pool by `recycleTax`;
 3. decreases `reserved[roundId]` by `slotPrize`;
-4. transfers `net` to the holder;
-5. verifies the raffle's balance decreased by exactly `net`;
-6. asserts the round's paid total never exceeds its committed prize.
+4. for direct rewards, transfers `net` to the holder;
+5. for stock rewards, derives the slot's stock from VRF, obtains `minimumOutput` from that route's
+   immutable price guard, approves exactly `net`, swaps through the immutable adapter, clears the
+   approval, and verifies exact WETH spend plus output at or above the guard minimum;
+6. transfers the measured stock output to the holder;
+7. verifies exact delivery balance deltas and asserts the round's paid total never exceeds its
+   committed prize.
 
 If the transfer reverts, every inner state change rolls back and the outer call
 credits `owed[holder] += net`, emits `PaymentDeferred`, and still marks the slot
@@ -498,12 +605,25 @@ settled. Deferred value is delivered later by anyone:
 
 ```solidity
 function deliverOwed(address holder) external returns (uint256 amount);
+function deliverStockOwed(address holder, address asset) external returns (uint256 amount);
 function sendTax(uint256 amount) external;
 ```
 
 Neither call lets the caller choose a destination. `sendTax` can only reach the
 immutable `taxRecipient`; with a zero recipient share `taxOwed` never accrues, so
 the call has nothing to deliver.
+
+The launch flow offers exactly two recipient choices: the token creator or a
+preconfigured `SinjohFeeRouter`. The raffle remains independently deployable and
+stores only the immutable address; integration code must verify the selected router's
+creator, bound subject, and WETH/prize-asset configuration before deployment.
+
+Stock credits are recorded as `stockOwed[holder][asset]` and backed separately by
+`totalStockOwed[asset]`. Taxes and recycled value never change denomination: both stay in WETH.
+The claim caller supplies no slippage parameter and therefore cannot weaken the guard.
+
+A slot settled through `claimFunding` skips steps 5 and 6 and pays `net` in the funding asset. Tax
+and recycle shares are unaffected: they were already computed in WETH and never entered the swap.
 
 Both shares apply to the gross slot prize, before the winner's transfer, and each
 is floored independently so neither can round into the other. Any rounding dust
@@ -656,7 +776,8 @@ Once per `minRoundInterval`, for round `n`:
 13. Commit with the attestor signer, inside the confirmation and 255-block window.
 14. After `RandomnessReceived`, compute each slot's index, locate the owning leaf
     by interval, and submit `claim` for each slot.
-15. Reconcile `PrizePaid`, `PaymentDeferred`, `RoundExpired`, and `RoundAbandoned`.
+15. Reconcile direct and stock prize events, automatically retry either kind of deferred credit,
+    and reconcile `RoundExpired` and `RoundAbandoned`.
 
 If `totalTickets == 0` the round is skipped and no commitment is made. A skipped
 round consumes no reserve.
@@ -695,17 +816,24 @@ Execution maintains constant-time aggregates and never enumerates rounds or
 holders. Every unit held by the raffle belongs to exactly one of: available pool,
 a round reserve, a deferred winner credit, protocol fees, or payout tax.
 
+Each stock additionally satisfies `balance(stock) >= totalStockOwed[stock]`. Stock balances never
+enter WETH liabilities, so mixed decimal units are never summed together.
+
 ## Events
 
 ```solidity
 event RaffleInitialized(bytes32 indexed configHash, RaffleTypes.Settings configuration, address[] exclusions);
+event StockRewardConfigured(uint8 indexed index, address indexed asset, address swapAdapter, address priceGuard, bytes routeData, bytes guardData);
 event SubjectBound(address indexed subject);
 event Deposited(address indexed source, uint256 gross, uint256 fee, uint256 net, bool attributed);
 event RoundCommitted(uint64 indexed roundId, uint64 snapshotBlock, bytes32 snapshotBlockHash, bytes32 rootHash, uint256 totalTickets, uint256 prize, uint8 winnersPerRound, bytes32 requestId);
 event RandomnessReceived(uint64 indexed roundId, bytes32 requestId, uint256 seed);
 event PrizePaid(uint64 indexed roundId, uint8 indexed slot, address indexed holder, uint256 gross, uint256 recipientTax, uint256 recycleTax, uint256 net);
 event PaymentDeferred(uint64 indexed roundId, uint8 indexed slot, address indexed holder, uint256 gross, uint256 recipientTax, uint256 recycleTax, uint256 net, bytes reason);
+event StockPrizePaid(uint64 indexed roundId, uint8 indexed slot, address indexed holder, uint256 gross, uint256 recipientTax, uint256 recycleTax, uint256 fundingSpent, address payoutAsset, uint256 payoutAmount);
+event StockPaymentDeferred(uint64 indexed roundId, uint8 indexed slot, address indexed holder, uint256 gross, uint256 recipientTax, uint256 recycleTax, uint256 fundingSpent, address payoutAsset, uint256 payoutAmount, bytes reason);
 event OwedDelivered(address indexed holder, uint256 amount, address indexed caller);
+event StockOwedDelivered(address indexed holder, address indexed asset, uint256 amount, address indexed caller);
 event RoundExpired(uint64 indexed roundId, uint256 returned);
 event RoundAbandoned(uint64 indexed roundId, uint256 returned);
 event ProtocolFeeSent(address indexed recipient, uint256 amount, address indexed caller);
@@ -720,11 +848,11 @@ trace.
 The reference Envio indexer projects the complete on-chain event stream into a
 versioned schema with:
 
-- raffle configuration, exclusions, and derived ticket parameters;
+- raffle configuration, exclusions, immutable stock routes, and derived ticket parameters;
 - deposit history, split into attributed and swept, gross, fee, and net;
 - round metadata: snapshot block and hash, root, total tickets, prize, request ID,
   state, and timestamps;
-- seed and per-slot settlement resolution;
+- seed, per-slot stock selection, funding input, payout asset/output, and settlement resolution;
 - deferred credits, expired and abandoned reserves;
 - protocol fee and payout tax accrual and delivery.
 
@@ -740,8 +868,8 @@ compatibility tests.
 
 ## Security requirements
 
-- Reentrancy guard on `fund`, `sync`, `claim`, `deliverOwed`, `sendProtocolFee`,
-  and `sendTax`.
+- Reentrancy guard on `fund`, `sync`, `claim`, `claimFunding`, `deliverOwed`,
+  `deliverStockOwed`, `sendProtocolFee`, and `sendTax`.
 - Randomness requested strictly after the root is written, in the same
   transaction, and exactly once per round.
 - Randomness delivery accepted only from the immutable adapter, only once per
@@ -752,6 +880,8 @@ compatibility tests.
 - Ticket interval derived from the proof, never supplied by the caller.
 - Per-slot single payment, enforced before any transfer.
 - Exact balance-delta verification on every receipt and payment.
+- Caller-independent swap minimums from immutable price guards, exact approvals, immutable routes,
+  and exact funding/output balance-delta verification.
 - External self-call isolation for winner transfer failure.
 - L2 height and block hash read exclusively through `ArbSys`.
 - Cumulative 1% intake fee with an immutable recipient and permissionless exact
@@ -802,6 +932,17 @@ compatibility tests.
     statistical tolerance on fixed trees.
 24. Fork: a full hourly cycle against a real subject token on Robinhood Chain
     mainnet with a mocked randomness adapter, then with the selected live adapter.
+25. Per-slot stock selection matches the domain-separated VRF derivation and can select only a
+    configured approved asset.
+26. A guarded stock swap spends exactly the winner net, preserves WETH tax/recycle accounting, and
+    rejects output below the guard minimum.
+27. A rejected stock delivery creates an asset-specific solvent credit and permissionless retry;
+    it does not roll back another slot or enter WETH liabilities.
+28. A slot whose route quotes nothing is unclaimable for the first three quarters of the claim
+    window, and its winner — and only its winner — can settle it in the funding asset thereafter.
+29. A slot share too small to survive the tax split funds no swap and still consumes the slot.
+30. Invariant: with stock rewards enabled, every invariant above continues to hold, each stock's
+    balance covers its credits, and per-stock aggregates equal the sum of their per-holder credits.
 
 ## Standalone verification
 
@@ -829,7 +970,8 @@ document.
 3. ~~**Protocol intake fee.**~~ **Resolved:** kept at 1%, matching every other
    Sinjoh protocol. Value routed through a fee router is charged 1% there and 1%
    here, the same stacking the airdrop distributor already has.
-4. ~~**Payout tax destination.**~~ **Resolved:** both at once. `recipientTaxBps`
-   and `recycleTaxBps` are independent shares of each gross prize.
+4. ~~**Payout tax destination.**~~ **Resolved:** `recipientTaxBps` is sent to the
+   token creator or an optional configured `SinjohFeeRouter`; `recycleTaxBps` is
+   an independent share returned to the prize pool.
 5. **Prize asset.** One immutable asset per deployment. Multi-asset raffles are
    out of scope and would need their own specification.

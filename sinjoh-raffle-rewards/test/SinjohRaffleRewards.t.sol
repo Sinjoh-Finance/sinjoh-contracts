@@ -7,6 +7,11 @@ import { SafeTransferLib } from "../src/libraries/SafeTransferLib.sol";
 import { MockArbSys } from "./mocks/MockArbSys.sol";
 import { MockERC20 } from "./mocks/MockERC20.sol";
 import { MockRandomness, RejectingHolder } from "./mocks/MockRandomness.sol";
+import {
+    MockStockPriceGuard,
+    MockStockSwapAdapter,
+    MockTaxRouter
+} from "./mocks/MockStockExecution.sol";
 import { RaffleTypes } from "../src/RaffleTypes.sol";
 import { SinjohRaffleRewards } from "../src/SinjohRaffleRewards.sol";
 import { SinjohRaffleRewardsFactory } from "../src/SinjohRaffleRewardsFactory.sol";
@@ -115,6 +120,294 @@ contract SinjohRaffleRewardsTest is TestBase {
         config.prizeAsset = address(0xBEEF);
         vm.expectPartialRevert(SinjohRaffleRewardsFactory.InitializationFailed.selector);
         factory.deployRaffle(bytes32("prize-asset"), config);
+    }
+
+    function testStockRewardConfigurationIsFrozenAndCanonical() public {
+        MockERC20 stockA = new MockERC20("Stock A", "A");
+        MockERC20 stockB = new MockERC20("Stock B", "B");
+        MockStockSwapAdapter adapter = new MockStockSwapAdapter();
+        MockStockPriceGuard guard = new MockStockPriceGuard();
+        RaffleTypes.Config memory config = _stockConfig(stockA, stockB, adapter, guard);
+
+        SinjohRaffleRewards stockRaffle = _deploy(config, bytes32("stocks-config"));
+        assertEq(stockRaffle.stockRewardCount(), 2);
+        RaffleTypes.StockReward memory configured = stockRaffle.stockReward(0);
+        assertEq(configured.asset, config.stockRewards[0].asset);
+        assertEq(configured.swapAdapter, address(adapter));
+        assertEq(configured.priceGuard, address(guard));
+
+        RaffleTypes.StockReward memory first = config.stockRewards[0];
+        config.stockRewards[0] = config.stockRewards[1];
+        config.stockRewards[1] = first;
+        vm.expectPartialRevert(SinjohRaffleRewardsFactory.InitializationFailed.selector);
+        factory.deployRaffle(bytes32("stocks-unsorted"), config);
+
+        config = _baseConfig();
+        config.prizeAsset = address(0);
+        config.stockRewards = new RaffleTypes.StockReward[](1);
+        config.stockRewards[0] = RaffleTypes.StockReward({
+            asset: address(stockA),
+            swapAdapter: address(adapter),
+            priceGuard: address(guard),
+            routeData: "",
+            guardData: ""
+        });
+        vm.expectPartialRevert(SinjohRaffleRewardsFactory.InitializationFailed.selector);
+        factory.deployRaffle(bytes32("stocks-native"), config);
+
+        config = _stockConfig(stockA, stockB, adapter, guard);
+        config.stockRewards[0].swapAdapter = address(0xBEEF);
+        vm.expectPartialRevert(SinjohRaffleRewardsFactory.InitializationFailed.selector);
+        factory.deployRaffle(bytes32("stocks-adapter"), config);
+
+        config = _stockConfig(stockA, stockB, adapter, guard);
+        config.stockRewards[0].routeData = new bytes(1_025);
+        vm.expectPartialRevert(SinjohRaffleRewardsFactory.InitializationFailed.selector);
+        factory.deployRaffle(bytes32("stocks-route-size"), config);
+    }
+
+    function testVrfSelectsAndAutomaticallyPaysStockPerSlot() public {
+        (
+            SinjohRaffleRewards stockRaffle,
+            MockERC20 stockA,
+            MockERC20 stockB,
+            MockStockSwapAdapter adapter,
+            MockStockPriceGuard guard
+        ) = _deployStockRaffle("stocks-pay");
+        adapter;
+        guard;
+
+        uint256 funded = 1_000_000;
+        asset.approve(address(stockRaffle), funded);
+        stockRaffle.fund(address(subject), address(asset), funded, "");
+        RaffleTypes.Leaf[] memory leaves = _leaves();
+        (bytes32 root, uint256 totalTickets, RaffleTypes.ProofElement[][] memory proofs) =
+            _treeFor(stockRaffle, 1, FIRST_SNAPSHOT, leaves);
+        _arm(FIRST_SNAPSHOT);
+        vm.prank(ATTESTOR);
+        stockRaffle.commitRound(1, FIRST_SNAPSHOT, _hashFor(FIRST_SNAPSHOT), root, totalTickets);
+        (, bytes32 requestId,,,,,,,,,) = stockRaffle.rounds(1);
+        randomness.deliver(requestId, 777);
+
+        (uint256 selectedIndex, address selectedAsset) = stockRaffle.selectedStock(1, 0);
+        assertTrue(selectedIndex < 2);
+        assertTrue(selectedAsset == address(stockA) || selectedAsset == address(stockB));
+        uint256 winnerIndex = _winnerIndexOf(stockRaffle, 1, 0, leaves);
+        address winner = leaves[winnerIndex].holder;
+        uint256 gross = stockRaffle.slotPrize(1, 0);
+        uint256 recipientTax = gross * 700 / 10_000;
+        uint256 recycleTax = gross * 300 / 10_000;
+        uint256 fundingSpent = gross - recipientTax - recycleTax;
+
+        uint256 paid = stockRaffle.claim(1, 0, leaves[winnerIndex], proofs[winnerIndex]);
+        assertEq(paid, fundingSpent * 2);
+        assertEq(MockERC20(selectedAsset).balanceOf(winner), paid);
+        (, address persistedSelection) = stockRaffle.selectedStock(1, 0);
+        assertEq(persistedSelection, selectedAsset);
+        assertEq(stockRaffle.taxOwed(), recipientTax);
+        assertTrue(asset.balanceOf(address(stockRaffle)) >= stockRaffle.liabilities());
+    }
+
+    function testEveryWinningSlotUsesDomainSeparatedVrfStockSelection() public {
+        MockERC20 stockA = new MockERC20("Stock A", "A");
+        MockERC20 stockB = new MockERC20("Stock B", "B");
+        MockStockSwapAdapter adapter = new MockStockSwapAdapter();
+        MockStockPriceGuard guard = new MockStockPriceGuard();
+        RaffleTypes.Config memory config = _stockConfig(stockA, stockB, adapter, guard);
+        config.winnersPerRound = 4;
+        SinjohRaffleRewards stockRaffle = _deploy(config, bytes32("stocks-slots"));
+        vm.prank(CREATOR);
+        stockRaffle.bind(address(subject));
+        asset.approve(address(stockRaffle), 1_000_000);
+        stockRaffle.fund(address(subject), address(asset), 1_000_000, "");
+
+        RaffleTypes.Leaf[] memory leaves = _leaves();
+        (bytes32 root, uint256 totalTickets,) = _treeFor(stockRaffle, 1, FIRST_SNAPSHOT, leaves);
+        _arm(FIRST_SNAPSHOT);
+        vm.prank(ATTESTOR);
+        stockRaffle.commitRound(1, FIRST_SNAPSHOT, _hashFor(FIRST_SNAPSHOT), root, totalTickets);
+        (, bytes32 requestId,,,,,,,,,) = stockRaffle.rounds(1);
+        randomness.deliver(requestId, 1_234);
+        (,,,,, uint256 seed,,,,,) = stockRaffle.rounds(1);
+
+        for (uint8 slot; slot < 4; ++slot) {
+            uint256 expected = uint256(
+                keccak256(
+                    abi.encode(
+                        stockRaffle.STOCK_DOMAIN(),
+                        block.chainid,
+                        address(stockRaffle),
+                        uint64(1),
+                        slot,
+                        seed
+                    )
+                )
+            ) % 2;
+            (uint256 selected,) = stockRaffle.selectedStock(1, slot);
+            assertEq(selected, expected);
+        }
+    }
+
+    function testStockDeliveryFailureBecomesAssetSpecificOwedAndRetries() public {
+        (SinjohRaffleRewards stockRaffle, MockERC20 stockA, MockERC20 stockB,,) =
+            _deployStockRaffle("stocks-owed");
+        asset.approve(address(stockRaffle), 1_000_000);
+        stockRaffle.fund(address(subject), address(asset), 1_000_000, "");
+        RaffleTypes.Leaf[] memory leaves = _leaves();
+        (bytes32 root, uint256 totalTickets, RaffleTypes.ProofElement[][] memory proofs) =
+            _treeFor(stockRaffle, 1, FIRST_SNAPSHOT, leaves);
+        _arm(FIRST_SNAPSHOT);
+        vm.prank(ATTESTOR);
+        stockRaffle.commitRound(1, FIRST_SNAPSHOT, _hashFor(FIRST_SNAPSHOT), root, totalTickets);
+        (, bytes32 requestId,,,,,,,,,) = stockRaffle.rounds(1);
+        randomness.deliver(requestId, 888);
+        (, address selectedAsset) = stockRaffle.selectedStock(1, 0);
+        uint256 winnerIndex = _winnerIndexOf(stockRaffle, 1, 0, leaves);
+        address winner = leaves[winnerIndex].holder;
+        MockERC20 selected = selectedAsset == address(stockA) ? stockA : stockB;
+        selected.setFailRecipient(winner, true);
+
+        assertEq(stockRaffle.claim(1, 0, leaves[winnerIndex], proofs[winnerIndex]), 0);
+        uint256 credit = stockRaffle.stockOwed(winner, selectedAsset);
+        assertTrue(credit != 0);
+        assertEq(stockRaffle.totalStockOwed(selectedAsset), credit);
+
+        selected.setFailRecipient(winner, false);
+        assertEq(stockRaffle.deliverStockOwed(winner, selectedAsset), credit);
+        assertEq(selected.balanceOf(winner), credit);
+        assertEq(stockRaffle.stockOwed(winner, selectedAsset), 0);
+    }
+
+    function testStockSwapCannotUndercutGuardMinimum() public {
+        (
+            SinjohRaffleRewards stockRaffle,,,
+            MockStockSwapAdapter adapter,
+            MockStockPriceGuard guard
+        ) = _deployStockRaffle("stocks-minimum");
+        adapter.setOutputMultiplier(1e18);
+        asset.approve(address(stockRaffle), 1_000_000);
+        stockRaffle.fund(address(subject), address(asset), 1_000_000, "");
+        RaffleTypes.Leaf[] memory leaves = _leaves();
+        (bytes32 root, uint256 totalTickets, RaffleTypes.ProofElement[][] memory proofs) =
+            _treeFor(stockRaffle, 1, FIRST_SNAPSHOT, leaves);
+        _arm(FIRST_SNAPSHOT);
+        vm.prank(ATTESTOR);
+        stockRaffle.commitRound(1, FIRST_SNAPSHOT, _hashFor(FIRST_SNAPSHOT), root, totalTickets);
+        (, bytes32 requestId,,,,,,,,,) = stockRaffle.rounds(1);
+        randomness.deliver(requestId, 999);
+        uint256 winnerIndex = _winnerIndexOf(stockRaffle, 1, 0, leaves);
+
+        vm.expectPartialRevert(SinjohRaffleRewards.InsufficientOutput.selector);
+        stockRaffle.claim(1, 0, leaves[winnerIndex], proofs[winnerIndex]);
+        (,,,,,,,,, uint16 slotsPaidMask,) = stockRaffle.rounds(1);
+        assertEq(slotsPaidMask, 0);
+
+        adapter.setOutputMultiplier(2e18);
+        guard.setExpired(true);
+        vm.expectPartialRevert(SinjohRaffleRewards.QuoteExpired.selector);
+        stockRaffle.claim(1, 0, leaves[winnerIndex], proofs[winnerIndex]);
+        (,,,,,,,,, slotsPaidMask,) = stockRaffle.rounds(1);
+        assertEq(slotsPaidMask, 0);
+    }
+
+    /// A route that stops quoting is permanent: every component is immutable. Without the tail
+    /// fallback the reserve would sit unclaimable until `expireRound` returned it to the pool.
+    function testDeadStockRouteStillPaysTheWinnerInTheWindowTail() public {
+        (SinjohRaffleRewards stockRaffle,,,, MockStockPriceGuard guard) =
+            _deployStockRaffle("stocks-fallback");
+        asset.approve(address(stockRaffle), 1_000_000);
+        stockRaffle.fund(address(subject), address(asset), 1_000_000, "");
+        RaffleTypes.Leaf[] memory leaves = _leaves();
+        (bytes32 root, uint256 totalTickets, RaffleTypes.ProofElement[][] memory proofs) =
+            _treeFor(stockRaffle, 1, FIRST_SNAPSHOT, leaves);
+        _arm(FIRST_SNAPSHOT);
+        vm.prank(ATTESTOR);
+        stockRaffle.commitRound(1, FIRST_SNAPSHOT, _hashFor(FIRST_SNAPSHOT), root, totalTickets);
+        (, bytes32 requestId,,,,,,,,,) = stockRaffle.rounds(1);
+        randomness.deliver(requestId, 555);
+
+        uint256 winnerIndex = _winnerIndexOf(stockRaffle, 1, 0, leaves);
+        address winner = leaves[winnerIndex].holder;
+        uint256 gross = stockRaffle.slotPrize(1, 0);
+        uint256 recipientTax = gross * 700 / 10_000;
+        uint256 net = gross - recipientTax - gross * 300 / 10_000;
+
+        // The route is dead for the rest of the raffle's life.
+        guard.setExpired(true);
+        vm.expectPartialRevert(SinjohRaffleRewards.QuoteExpired.selector);
+        stockRaffle.claim(1, 0, leaves[winnerIndex], proofs[winnerIndex]);
+
+        // Stock is retried, not downgraded, for the first three quarters of the window.
+        vm.prank(winner);
+        vm.expectRevert(SinjohRaffleRewards.FallbackUnavailable.selector);
+        stockRaffle.claimFunding(1, 0, leaves[winnerIndex], proofs[winnerIndex]);
+
+        vm.warp(stockRaffle.fundingFallbackAt(1));
+
+        // A keeper cannot choose the downgrade on the winner's behalf.
+        vm.prank(address(0xCAFE));
+        vm.expectRevert(SinjohRaffleRewards.Unauthorized.selector);
+        stockRaffle.claimFunding(1, 0, leaves[winnerIndex], proofs[winnerIndex]);
+
+        uint256 balanceBefore = asset.balanceOf(winner);
+        vm.prank(winner);
+        assertEq(stockRaffle.claimFunding(1, 0, leaves[winnerIndex], proofs[winnerIndex]), net);
+        assertEq(asset.balanceOf(winner) - balanceBefore, net);
+        assertEq(stockRaffle.taxOwed(), recipientTax);
+        assertTrue(asset.balanceOf(address(stockRaffle)) >= stockRaffle.liabilities());
+
+        // The round's only slot is consumed, so it settles and rejects any further claim.
+        (,,,,,,,,, uint16 slotsPaidMask, RaffleTypes.RoundState state) = stockRaffle.rounds(1);
+        assertEq(slotsPaidMask, 1);
+        assertTrue(state == RaffleTypes.RoundState.SETTLED);
+        vm.prank(winner);
+        vm.expectRevert(SinjohRaffleRewards.InvalidRound.selector);
+        stockRaffle.claimFunding(1, 0, leaves[winnerIndex], proofs[winnerIndex]);
+    }
+
+    function testFundingFallbackIsRejectedWithoutStockRewards() public {
+        _fundPool(1_000_000);
+        RaffleTypes.Leaf[] memory leaves = _leaves();
+        (,, RaffleTypes.ProofElement[][] memory proofs) = _tree(1, FIRST_SNAPSHOT, leaves);
+        vm.warp(block.timestamp + 604_800);
+        vm.prank(leaves[0].holder);
+        vm.expectRevert(SinjohRaffleRewards.FallbackUnavailable.selector);
+        raffle.claimFunding(1, 0, leaves[0], proofs[0]);
+    }
+
+    /// A slot share too small to survive the tax split funds no swap at all.
+    function testZeroValueStockSlotSettlesWithoutSwapping() public {
+        MockERC20 stockA = new MockERC20("Stock A", "A");
+        MockERC20 stockB = new MockERC20("Stock B", "B");
+        MockStockSwapAdapter adapter = new MockStockSwapAdapter();
+        MockStockPriceGuard guard = new MockStockPriceGuard();
+        RaffleTypes.Config memory config = _stockConfig(stockA, stockB, adapter, guard);
+        config.winnersPerRound = 16;
+        SinjohRaffleRewards stockRaffle = _deploy(config, bytes32("stocks-dust"));
+        vm.prank(CREATOR);
+        stockRaffle.bind(address(subject));
+        asset.approve(address(stockRaffle), type(uint256).max);
+        stockRaffle.fund(address(subject), address(asset), 100, "");
+
+        RaffleTypes.Leaf[] memory leaves = _leaves();
+        (bytes32 root, uint256 totalTickets, RaffleTypes.ProofElement[][] memory proofs) =
+            _treeFor(stockRaffle, 1, FIRST_SNAPSHOT, leaves);
+        _arm(FIRST_SNAPSHOT);
+        vm.prank(ATTESTOR);
+        stockRaffle.commitRound(1, FIRST_SNAPSHOT, _hashFor(FIRST_SNAPSHOT), root, totalTickets);
+        (, bytes32 requestId,,,,,,,,,) = stockRaffle.rounds(1);
+        randomness.deliver(requestId, 4_242);
+
+        assertEq(stockRaffle.slotPrize(1, 15), 0);
+        (, address selectedAsset) = stockRaffle.selectedStock(1, 15);
+        uint256 index = _winnerIndexOf(stockRaffle, 1, 15, leaves);
+        assertEq(stockRaffle.claim(1, 15, leaves[index], proofs[index]), 0);
+        // Nothing was swapped and nothing became owed, but the slot is consumed.
+        assertEq(MockERC20(selectedAsset).balanceOf(address(stockRaffle)), 0);
+        assertEq(stockRaffle.stockOwed(leaves[index].holder, selectedAsset), 0);
+        index = _winnerIndexOf(stockRaffle, 1, 15, leaves);
+        vm.expectRevert(SinjohRaffleRewards.SlotAlreadyPaid.selector);
+        stockRaffle.claim(1, 15, leaves[index], proofs[index]);
     }
 
     // ------------------------------------------------------------------
@@ -444,6 +737,21 @@ contract SinjohRaffleRewardsTest is TestBase {
         assertEq(splitter.taxOwed(), 0);
     }
 
+    /// The frozen payout-tax destination may be a deployed SinjohFeeRouter rather than the creator.
+    function testPayoutTaxCanBeDeliveredToRouterContract() public {
+        MockTaxRouter taxRouter = new MockTaxRouter();
+        RaffleTypes.Config memory config = _baseConfig();
+        config.taxRecipient = address(taxRouter);
+        SinjohRaffleRewards routed = _bindNew(config, bytes32("router-tax"));
+
+        _runSingleRound(routed);
+        uint256 recipientTax = routed.taxOwed();
+        routed.sendTax(recipientTax);
+
+        assertEq(asset.balanceOf(address(taxRouter)), recipientTax);
+        assertEq(routed.taxOwed(), 0);
+    }
+
     /// A fully recycled tax needs no recipient and can never be delivered anywhere.
     function testFullyRecycledTaxNeedsNoRecipient() public {
         RaffleTypes.Config memory config = _baseConfig();
@@ -685,8 +993,54 @@ contract SinjohRaffleRewardsTest is TestBase {
             randomnessTimeout: 7_200,
             claimWindow: 604_800,
             basis: RaffleTypes.TicketBasis.MIN_BALANCE,
-            exclusions: exclusions
+            exclusions: exclusions,
+            stockRewards: new RaffleTypes.StockReward[](0)
         });
+    }
+
+    function _stockConfig(
+        MockERC20 stockA,
+        MockERC20 stockB,
+        MockStockSwapAdapter adapter,
+        MockStockPriceGuard guard
+    ) internal view returns (RaffleTypes.Config memory config) {
+        config = _baseConfig();
+        config.stockRewards = new RaffleTypes.StockReward[](2);
+        address lower = address(stockA) < address(stockB) ? address(stockA) : address(stockB);
+        address upper = address(stockA) < address(stockB) ? address(stockB) : address(stockA);
+        config.stockRewards[0] = RaffleTypes.StockReward({
+            asset: lower,
+            swapAdapter: address(adapter),
+            priceGuard: address(guard),
+            routeData: abi.encode(uint24(3_000)),
+            guardData: ""
+        });
+        config.stockRewards[1] = RaffleTypes.StockReward({
+            asset: upper,
+            swapAdapter: address(adapter),
+            priceGuard: address(guard),
+            routeData: abi.encode(uint24(10_000)),
+            guardData: ""
+        });
+    }
+
+    function _deployStockRaffle(bytes32 salt)
+        internal
+        returns (
+            SinjohRaffleRewards stockRaffle,
+            MockERC20 stockA,
+            MockERC20 stockB,
+            MockStockSwapAdapter adapter,
+            MockStockPriceGuard guard
+        )
+    {
+        stockA = new MockERC20("Stock A", "A");
+        stockB = new MockERC20("Stock B", "B");
+        adapter = new MockStockSwapAdapter();
+        guard = new MockStockPriceGuard();
+        stockRaffle = _deploy(_stockConfig(stockA, stockB, adapter, guard), salt);
+        vm.prank(CREATOR);
+        stockRaffle.bind(address(subject));
     }
 
     function _deploy(RaffleTypes.Config memory config, bytes32 salt)
