@@ -4,6 +4,11 @@ pragma solidity 0.8.28;
 /// @dev Every shape here is transcribed from verified on-chain source on
 /// Robinhood Chain mainnet, not from docs.ponsfamily.com/v2, which misstates
 /// several signatures. See PONS-V2-FINDINGS.md.
+///
+/// Transcribed from the 2026-08 redeployment at
+/// 0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e, which restored the CREATE2
+/// `salt`, added the decaying snipe tax with per-launch exemptions, and added
+/// the `launchTokenFor` trusted-forwarder path (not used here).
 
 interface IPonsV2LaunchFactory {
     struct Socials {
@@ -15,8 +20,11 @@ interface IPonsV2LaunchFactory {
     }
 
     /// @dev `creatorTaxBps` is uint16 on chain, not the uint256 the docs imply.
-    /// `feeWallet` and `salt` from v1 are gone; `creatorFeeRecipient` replaces
-    /// the former and there is no replacement for the latter.
+    /// `feeWallet` from v1 is gone; `creatorFeeRecipient` replaces it. The
+    /// redeployment restored `salt`: the token and curve are CREATE2-derived
+    /// from it together with every constructor argument, namespaced per
+    /// factory-authenticated initiating account, so the pair's addresses are
+    /// knowable before the launch is sent and cannot be squatted.
     struct TokenParams {
         string name;
         string symbol;
@@ -27,6 +35,7 @@ interface IPonsV2LaunchFactory {
         uint16 creatorTaxBps;
         bool buybackEnabled;
         bytes32 expectedEconomics;
+        bytes32 salt;
     }
 
     struct LaunchConfig {
@@ -39,12 +48,46 @@ interface IPonsV2LaunchFactory {
         bool enabled;
     }
 
+    /// @dev The factory's per-launch record. `poolFee` and `tickSpacing` are
+    /// snapshotted from the launch config at launch time, so a later config
+    /// edit can never change the pool a token graduates into — which is what
+    /// makes the graduated Uniswap v4 pool key reconstructible from this
+    /// record alone. `phase` is the on-chain `GraduationPhase` enum:
+    /// 0 NotGraduated (curve trading), 1 Swept (reserves drained, pool not
+    /// yet seeded), 2 PoolCreated (v4 pool live), 3 Rescued.
+    struct LaunchedToken {
+        address token;
+        address curve;
+        address deployer;
+        address creatorFeeRecipient;
+        address pairToken;
+        uint256 graduationThreshold;
+        uint24 poolFee;
+        int24 tickSpacing;
+        uint16 creatorTaxBps;
+        bool buybackEnabled;
+        uint8 phase;
+        uint256 sweptQuote;
+        uint256 sweptTokens;
+        uint256 sweptAt;
+        bool exists;
+    }
+
     /// @notice Reverts unless `msg.value` equals `launchFee()` exactly. There is
     /// no first-buy path; a developer buy is a separate call on the curve.
-    function launchToken(TokenParams calldata params, uint256 launchConfigId, address pairToken)
-        external
-        payable
-        returns (address token, address curve);
+    ///
+    /// @dev The overload with `snipeTaxExemptions` additionally marks the given
+    /// wallets exempt from the launch-window snipe tax before trading opens to
+    /// anyone else (at most 32, or the factory reverts `ExemptionListTooLong`).
+    /// The factory always exempts `msg.sender` and `creatorFeeRecipient` on its
+    /// own; the list is for a team's additional bundle wallets. Exemption keys
+    /// on the buy's `recipient`.
+    function launchToken(
+        TokenParams calldata params,
+        uint256 launchConfigId,
+        address pairToken,
+        address[] calldata snipeTaxExemptions
+    ) external payable returns (address token, address curve);
 
     function launchFee() external view returns (uint256);
 
@@ -67,11 +110,21 @@ interface IPonsV2LaunchFactory {
 
     function getLaunchConfig(uint256 id) external view returns (LaunchConfig memory);
 
+    /// @notice Empty (`exists = false`) for a token this factory never
+    /// launched; it returns the mapping default rather than reverting.
+    function getLaunchedToken(address token) external view returns (LaunchedToken memory);
+
     function maxCreatorTaxBps() external view returns (uint256);
 
     function feeEscrow() external view returns (address);
 
     function locker() external view returns (address);
+
+    /// @dev Immutable on the factory. Every pool graduated through it carries
+    /// this hook in its Uniswap v4 pool key.
+    function memeHook() external view returns (address);
+
+    function poolManager() external view returns (address);
 }
 
 interface IPonsV2BondingCurve {
@@ -125,4 +178,6 @@ interface IPonsV2FeeEscrow {
 
 interface IWETH {
     function deposit() external payable;
+
+    function withdraw(uint256 amount) external;
 }

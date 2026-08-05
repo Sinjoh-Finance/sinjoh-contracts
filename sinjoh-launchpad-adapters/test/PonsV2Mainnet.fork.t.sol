@@ -22,6 +22,17 @@ interface IPonsV2LaunchFactoryAdmin {
     function whitelistedLaunchers(address launcher) external view returns (bool);
 }
 
+interface IPonsV2SnipeTaxViews {
+    function snipeTaxStartBps() external view returns (uint256);
+    function snipeTaxSeconds() external view returns (uint256);
+}
+
+interface IPonsV2CurveSnipeViews {
+    function snipeTaxExempt(address account) external view returns (bool);
+    function currentSnipeTaxBps(address recipient) external view returns (uint256);
+    function creatorTaxBalance() external view returns (uint256);
+}
+
 /// @notice Runs the adapter against the real pons v2 deployment on Robinhood
 /// Chain mainnet.
 ///
@@ -33,8 +44,12 @@ interface IPonsV2LaunchFactoryAdmin {
 /// Requires network access. Run with:
 ///   forge test --match-path 'test/PonsV2Mainnet.fork.t.sol'
 contract PonsV2MainnetForkTest is TestBase {
-    address constant LAUNCH_FACTORY = 0x7E1EAbd52Ae29598e6483F72dCf1a70b14284dB8;
-    address constant FEE_ESCROW = 0xbc39B6502E1a6Ab36E4A5c5026A35F08342A0A9c;
+    // The 2026-08 redeployment. The original v2 factory at 0x7E1EAbd5… was
+    // paused at block 24672804 and superseded; the first launch through this
+    // factory that Sinjoh verified end-to-end is
+    // 0xf985da537a04c35fc720fcd9539e2ba12ffb7d59d6cd86c68a1072181c07c13c.
+    address constant LAUNCH_FACTORY = 0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e;
+    address constant FEE_ESCROW = 0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e;
     address constant WETH = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
     address constant USDG = 0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168;
     uint256 constant CHAIN_ID = 4663;
@@ -47,7 +62,7 @@ contract PonsV2MainnetForkTest is TestBase {
     address creator = address(0xC4EA704);
     address keeper = address(0xBEEF);
 
-    address constant PONS_OWNER = 0x0815A4881f9c4073a70fdF00600EbA54c5a5baAa;
+    address constant PONS_OWNER = 0xFdDE5a1E3cDF791Da71E49F817D70C7ceD72CC36;
 
     function setUp() public {
         vm.createSelectFork(vm.envOr("ROBINHOOD_RPC_URL", DEFAULT_RPC));
@@ -55,10 +70,11 @@ contract PonsV2MainnetForkTest is TestBase {
         router = new MockRouter();
         vm.deal(creator, 100 ether);
 
-        // pons toggles `launchEnabled` operationally — it went false at block
-        // 24672804 mid-review, and while it is false only whitelisted launchers
-        // may launch. These tests exercise the adapter, not pons's uptime, so
-        // the fork re-enables launches when the live flag happens to be off.
+        // pons toggles `launchEnabled` operationally — the previous factory
+        // went false at block 24672804 and stayed paused until this
+        // redeployment. While it is false only whitelisted launchers may
+        // launch. These tests exercise the adapter, not pons's uptime, so the
+        // fork re-enables launches when the live flag happens to be off.
         if (!IPonsV2LaunchFactory(LAUNCH_FACTORY).launchEnabled()) {
             vm.prank(PONS_OWNER);
             IPonsV2LaunchFactoryAdmin(LAUNCH_FACTORY).setLaunchEnabled(true);
@@ -92,6 +108,20 @@ contract PonsV2MainnetForkTest is TestBase {
         params.creatorTaxBps = 0;
         params.buybackEnabled = false;
         params.expectedEconomics = economics;
+        // Namespaced per initiating account — the adapter — whose salt space
+        // is empty on a fresh fork, so a fixed value cannot collide.
+        params.salt = USER_SALT;
+    }
+
+    function _none() internal pure returns (address[] memory) {
+        return new address[](0);
+    }
+
+    /// @dev Moves past the launch-window snipe tax (99% decaying across the
+    /// factory's `snipeTaxSeconds`, currently 5) so a third-party trade prices
+    /// cleanly. Tests about the tax itself stay inside the window instead.
+    function _warpPastSnipeWindow() internal {
+        vm.warp(block.timestamp + IPonsV2SnipeTaxViews(LAUNCH_FACTORY).snipeTaxSeconds() + 1);
     }
 
     function _economics(address pairToken) internal view returns (bytes32) {
@@ -160,7 +190,7 @@ contract PonsV2MainnetForkTest is TestBase {
 
         vm.prank(creator);
         (address token, address curve) =
-            adapter.launch{ value: launchFee + devBuy }(params, 0, address(0), devBuy, 1);
+            adapter.launch{ value: launchFee + devBuy }(params, 0, address(0), devBuy, 1, _none());
 
         assertTrue(token != address(0));
         assertTrue(curve != address(0));
@@ -188,7 +218,7 @@ contract PonsV2MainnetForkTest is TestBase {
         IPonsV2LaunchFactory.TokenParams memory params =
             _params(address(adapter), _economics(address(0)));
         vm.prank(creator);
-        (, address curve) = adapter.launch{ value: launchFee }(params, 0, address(0), 0, 0);
+        (, address curve) = adapter.launch{ value: launchFee }(params, 0, address(0), 0, 0, _none());
 
         // Independent trading generates the creator fee. Deliberately well
         // under the 4.2 ETH graduation threshold: a buy that crosses it
@@ -197,6 +227,7 @@ contract PonsV2MainnetForkTest is TestBase {
         // path, covered separately by test_buyThroughGraduationStillPaysFees.
         address trader = address(0xD00D);
         vm.deal(trader, 20 ether);
+        _warpPastSnipeWindow();
         vm.prank(trader);
         IPonsV2BondingCurve(curve).buy{ value: 0.5 ether }(0.5 ether, 1, trader);
 
@@ -229,7 +260,7 @@ contract PonsV2MainnetForkTest is TestBase {
 
         IPonsV2LaunchFactory.TokenParams memory params = _params(address(adapter), _economics(USDG));
         vm.prank(creator);
-        (, address curve) = adapter.launch{ value: launchFee }(params, 0, USDG, 0, 0);
+        (, address curve) = adapter.launch{ value: launchFee }(params, 0, USDG, 0, 0, _none());
 
         assertEq(IPonsV2BondingCurve(curve).pairToken(), USDG);
         assertTrue(!IPonsV2BondingCurve(curve).isNativeQuote());
@@ -241,6 +272,7 @@ contract PonsV2MainnetForkTest is TestBase {
         address trader = address(0xD00D);
         uint256 quoteIn = 100e6;
         _dealToken(USDG, trader, quoteIn);
+        _warpPastSnipeWindow();
         vm.prank(trader);
         IERC20Like(USDG).approve(curve, quoteIn);
         vm.prank(trader);
@@ -277,10 +309,13 @@ contract PonsV2MainnetForkTest is TestBase {
         IPonsV2LaunchFactory.TokenParams memory params =
             _params(address(adapter), _economics(address(0)));
         vm.prank(creator);
-        (, address curve) = adapter.launch{ value: launchFee }(params, 0, address(0), 0, 0);
+        (, address curve) = adapter.launch{ value: launchFee }(params, 0, address(0), 0, 0, _none());
 
         address whale = address(0xDECAF);
         vm.deal(whale, 100 ether);
+        // Inside the launch window a 99% snipe tax would eat most of the buy's
+        // quote leg and the net reserve movement would miss the threshold.
+        _warpPastSnipeWindow();
         vm.prank(whale);
         IPonsV2BondingCurve(curve).buy{ value: 10 ether }(10 ether, 1, whale);
 
@@ -307,7 +342,7 @@ contract PonsV2MainnetForkTest is TestBase {
         IPonsV2LaunchFactory.TokenParams memory params =
             _params(address(adapter), _economics(address(0)));
         vm.prank(creator);
-        adapter.launch{ value: launchFee }(params, 0, address(0), 0, 0);
+        adapter.launch{ value: launchFee }(params, 0, address(0), 0, 0, _none());
 
         // No trading yet: the curve sweep is a no-op and the escrow reverts
         // NoBalance(). Neither may surface as a failure to a keeper.
@@ -317,6 +352,83 @@ contract PonsV2MainnetForkTest is TestBase {
         uint256 tokenAmount = 0;
         assertEq(nativeAmount, 0);
         assertEq(tokenAmount, 0);
+    }
+
+    /// @dev The redeployment's launch window: the adapter (launch caller and
+    /// creator-fee recipient) is auto-exempt, so the atomic developer buy —
+    /// whose curve-side recipient is the adapter — clears untaxed in the launch
+    /// second; a declared bundle wallet clears untaxed too; an undeclared
+    /// sniper in the same second is quoted the full starting tax.
+    function test_snipeTaxExemptionsProtectDevBuyAndDeclaredWallets() public {
+        SinjohPonsV2Adapter adapter = _deployAdapter();
+        uint256 launchFee = IPonsV2LaunchFactory(LAUNCH_FACTORY).launchFee();
+        address bundleWallet = address(0xB0B);
+        address sniper = address(0x5A1);
+        address[] memory exemptions = new address[](1);
+        exemptions[0] = bundleWallet;
+
+        IPonsV2LaunchFactory.TokenParams memory params =
+            _params(address(adapter), _economics(address(0)));
+        vm.prank(creator);
+        (address token, address curve) = adapter.launch{ value: launchFee + 0.05 ether }(
+            params, 0, address(0), 0.05 ether, 1, exemptions
+        );
+
+        // The developer buy landed in the launch second and was not consumed
+        // by the 99% starting tax: at the config-0 phantom reserve of 1.68
+        // ETH, an untaxed 0.05 ETH clears well over 1% of supply, while a
+        // taxed one could not.
+        assertTrue(IERC20Like(token).balanceOf(creator) > 1e27 / 100);
+
+        IPonsV2CurveSnipeViews views = IPonsV2CurveSnipeViews(curve);
+        assertTrue(views.snipeTaxExempt(address(adapter)));
+        assertTrue(views.snipeTaxExempt(bundleWallet));
+        assertEq(views.currentSnipeTaxBps(bundleWallet), 0);
+        // Same second, undeclared wallet: quoted the full starting tax.
+        assertEq(
+            views.currentSnipeTaxBps(sniper),
+            IPonsV2SnipeTaxViews(LAUNCH_FACTORY).snipeTaxStartBps()
+        );
+    }
+
+    /// @dev The creator tax is charged on top of the base fee, bypasses the
+    /// protocol split entirely, and is credited to the curve's `deployer` —
+    /// which is the creator-fee recipient, i.e. this adapter. It must arrive
+    /// through the same collect-and-forward path as the base-fee share.
+    function test_creatorTaxAccruesAndFlowsThroughCollect() public {
+        SinjohPonsV2Adapter adapter = _deployAdapter();
+        uint256 launchFee = IPonsV2LaunchFactory(LAUNCH_FACTORY).launchFee();
+
+        IPonsV2LaunchFactory.TokenParams memory params =
+            _params(address(adapter), _economics(address(0)));
+        params.creatorTaxBps = 500;
+        vm.prank(creator);
+        (, address curve) = adapter.launch{ value: launchFee }(params, 0, address(0), 0, 0, _none());
+
+        address trader = address(0xD00D);
+        vm.deal(trader, 20 ether);
+        _warpPastSnipeWindow();
+        vm.prank(trader);
+        IPonsV2BondingCurve(curve).buy{ value: 1 ether }(1 ether, 1, trader);
+
+        // 5% creator tax against a 1% base fee: the tax bucket dominates.
+        uint256 tax = IPonsV2CurveSnipeViews(curve).creatorTaxBalance();
+        uint256 baseFee = IPonsV2BondingCurve(curve).quoteFeeBalance();
+        assertTrue(tax > 0);
+        assertTrue(baseFee > 0);
+        assertTrue(tax > baseFee);
+
+        vm.prank(keeper);
+        uint256[] memory amounts = adapter.collect();
+        // The adapter's claim spans its base-fee share plus the entire tax:
+        // strictly more than the tax alone, and both buckets emptied.
+        assertTrue(amounts[0] > tax);
+        assertEq(IPonsV2CurveSnipeViews(curve).creatorTaxBalance(), 0);
+        assertEq(IPonsV2BondingCurve(curve).quoteFeeBalance(), 0);
+        assertEq(IERC20Like(WETH).balanceOf(address(adapter)), amounts[0]);
+
+        vm.prank(keeper);
+        assertEq(adapter.forward(WETH), amounts[0]);
     }
 
     /// @dev A stale quote must stop the launch rather than execute on terms the
@@ -329,6 +441,6 @@ contract PonsV2MainnetForkTest is TestBase {
 
         vm.prank(creator);
         vm.expectRevert();
-        adapter.launch{ value: launchFee }(params, 0, address(0), 0, 0);
+        adapter.launch{ value: launchFee }(params, 0, address(0), 0, 0, _none());
     }
 }

@@ -6,11 +6,12 @@ import { SinjohPonsV2Adapter } from "./SinjohPonsV2Adapter.sol";
 
 /// @notice Deploys per-launch pons v2 adapters as EIP-1167 clones.
 ///
-/// @dev Unlike the v1 factory, the salt cannot include the subject token.
-/// `PonsV2LaunchDeployer` creates tokens with a plain `new`, so a v2 token
-/// address is nonce-derived and unknowable before the launch lands. The adapter
-/// is therefore deployed first, bound to the router, and learns its subject
-/// when it launches.
+/// @dev Unlike the v1 factory, the salt does not include the subject token.
+/// The redeployed `PonsV2LaunchDeployer` is CREATE2 again, so a v2 token
+/// address is predictable from the launch salt — but the launch salt is
+/// namespaced per initiating account, which is the adapter itself, so the
+/// adapter's address must exist first either way. The adapter is deployed
+/// first, bound to the router, and learns its subject when it launches.
 contract SinjohPonsV2AdapterFactory {
     error InitializationFailed(bytes reason);
     error AdapterMismatch(address expected, address actual);

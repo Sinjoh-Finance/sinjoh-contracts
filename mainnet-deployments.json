@@ -155,6 +155,56 @@
       "deploymentBlock": 23492626,
       "runtimeCodeHash": "0x1524070efa0fec4165da0d894d849925f4e38de401eff724362462201caecd23",
       "purpose": "SinjohPonsV1Adapter implementation, self-deployed by the adapter factory constructor."
+    },
+    "ponsV2AdapterFactory": {
+      "address": "0xdb02cC8bbEb1F4B0A98f974a8768c08370d1a821",
+      "deploymentTransaction": "0xe0c894d28a9ed06eddf8289a5c47b8018c9a7f1e6385eb231c24f069814bd8e1",
+      "deploymentBlock": 27908198,
+      "runtimeCodeHash": "0xf254cce14cd477f0d82639fb44eb985499fc7828de405b6323888ab5ee132917",
+      "purpose": "Deploys deterministic per-launch SinjohPonsV2Adapter clones for the redeployed pons v2; no adapter clone was created during this dark deployment.",
+      "verified": {
+        "implementation": "0xAEC5a42F08c144276e60272F55125926Cb425E1c",
+        "launchFactory": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+        "feeEscrow": "0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e",
+        "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "deploymentChainId": 4663
+      }
+    },
+    "ponsV2AdapterImplementation": {
+      "address": "0xAEC5a42F08c144276e60272F55125926Cb425E1c",
+      "deploymentTransaction": "0xe0c894d28a9ed06eddf8289a5c47b8018c9a7f1e6385eb231c24f069814bd8e1",
+      "deploymentBlock": 27908198,
+      "runtimeCodeHash": "0xf2cc5be90f21448acc4453566e2d4effcbc90e7332da62ba2a759cb6e7c90491",
+      "purpose": "SinjohPonsV2Adapter implementation, initialized and self-deployed by the adapter factory constructor.",
+      "verified": {
+        "initialized": true,
+        "adapterFactory": "0xdb02cC8bbEb1F4B0A98f974a8768c08370d1a821"
+      }
+    },
+    "ponsV2BuybackAdapter": {
+      "address": "0x39217172A3F07E827557093989039F968A571D43",
+      "deploymentTransaction": "0x03a0bda9918c38bc63d9a99459b443e68b753381501876480eb81ca942b043e7",
+      "deploymentBlock": 28093879,
+      "runtimeCodeHash": "0xbf53dc3ec1c40573955362ae5715d219daac4669497d7514f7a7ebff8684d3f8",
+      "purpose": "Singleton buyback route for pons v2 launches: converts a router's WETH bucket share into the launch token, routing by the factory's launch record at swap time - bonding curve before graduation, hooked Uniswap v4 pool after. Native-quote launches only.",
+      "verified": {
+        "launchFactory": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+        "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        "memeHook": "0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044",
+        "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+      }
+    },
+    "ponsV2BuybackPriceGuard": {
+      "address": "0x3a4c8fF885e1B502a66a82cbEC67817b55776f7D",
+      "deploymentTransaction": "0x1106c5cc370d27162e23d9f6c5ec3d8131d1259d8cc6ad497c38a3c8efd8d4d8",
+      "deploymentBlock": 28093879,
+      "runtimeCodeHash": "0x6c1c47639368323976954a66acae2b9c2e06942b60ae2dd367c83d207a2eaac2",
+      "purpose": "Pure signed floor (SinjohPonsV2BuybackFloor, five-minute maximum validity) for pons v2 buybacks; no on-chain quote exists on either side of graduation, so the keeper's signer is the sole floor authority.",
+      "verified": {
+        "launchFactory": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+        "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "quoteSigner": "0xd89fB916dD031Da9b0A32e820307c2d41a7dDe09"
+      }
     }
   },
   "notDeployed": {
@@ -168,6 +218,10 @@
     "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
     "v3Factory": "0x1f7d7550B1b028f7571E69A784071F0205FD2EfA",
     "v3PositionManager": "0x73991a25C818Bf1f1128dEAaB1492D45638DE0D3",
-    "swapRouter": "0xCaf681a66D020601342297493863E78C959E5cb2"
+    "swapRouter": "0xCaf681a66D020601342297493863E78C959E5cb2",
+    "ponsV2LaunchFactory": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+    "ponsV2LaunchDeployer": "0x3711ceA4feaDE896C913C68F01Eda97Cb06D1A42",
+    "ponsV2FeeEscrow": "0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e",
+    "ponsV2MemeHook": "0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044"
   }
 }

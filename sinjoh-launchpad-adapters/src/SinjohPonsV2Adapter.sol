@@ -149,12 +149,21 @@ contract SinjohPonsV2Adapter is ISinjohLaunchpadAdapter {
     /// For a native launch, `msg.value` must be `launchFee + developerBuy`. For
     /// a custom-pair launch, `msg.value` must be `launchFee` and the pair asset
     /// is pulled from the creator.
+    ///
+    /// The launch window carries a snipe tax that peaks in the launch second —
+    /// exactly when the developer buy lands. The factory exempts the launch
+    /// caller and the creator-fee recipient automatically, and both are this
+    /// adapter, so the developer buy (whose curve-side `recipient` is the
+    /// adapter) clears untaxed. `snipeTaxExemptions` is for the creator's
+    /// additional bundle wallets; undeclared buyers in the window pay the
+    /// decaying tax. The factory caps the list at 32 and that revert bubbles.
     function launch(
         IPonsV2LaunchFactory.TokenParams calldata params,
         uint256 launchConfigId,
         address pairToken_,
         uint256 developerBuy,
-        uint256 minTokensOut
+        uint256 minTokensOut,
+        address[] calldata snipeTaxExemptions
     ) external payable nonReentrant returns (address token, address curve_) {
         _assertChain();
         if (msg.sender != creator) revert Unauthorized();
@@ -203,8 +212,9 @@ contract SinjohPonsV2Adapter is ISinjohLaunchpadAdapter {
         uint256 requiredValue = native ? launchFee + developerBuy : launchFee;
         if (msg.value != requiredValue) revert NativeValueMismatch(requiredValue, msg.value);
 
-        (token, curve_) =
-            factory.launchToken{ value: launchFee }(params, launchConfigId, pairToken_);
+        (token, curve_) = factory.launchToken{ value: launchFee }(
+            params, launchConfigId, pairToken_, snipeTaxExemptions
+        );
         if (token == address(0) || curve_ == address(0)) revert LaunchReturnedNoToken();
 
         subject = token;
@@ -212,8 +222,10 @@ contract SinjohPonsV2Adapter is ISinjohLaunchpadAdapter {
         pairToken = pairToken_;
         emit Launched(token, curve_, pairToken_, launchConfigId, launchFee);
 
-        // The token address is only knowable now — v2 derives it from the
-        // deployer's nonce, so nothing could have been committed earlier.
+        // The redeployment restored CREATE2 launches, so the token address is
+        // predictable from `params.salt` — but binding here, from the launch
+        // transaction itself, still needs no prediction and cannot disagree
+        // with what actually deployed.
         ISinjohFeeRouter(router_).bind(token);
 
         if (developerBuy != 0) {

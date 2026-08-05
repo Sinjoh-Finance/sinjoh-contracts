@@ -51,6 +51,12 @@ contract MockWETH is MockERC20 {
     function deposit() external payable {
         balanceOf[msg.sender] += msg.value;
     }
+
+    function withdraw(uint256 amount) external {
+        balanceOf[msg.sender] -= amount;
+        (bool sent,) = payable(msg.sender).call{ value: amount }("");
+        require(sent, "withdraw failed");
+    }
 }
 
 contract MockFeeEscrow {
@@ -107,6 +113,11 @@ contract MockBondingCurve {
     uint256 public buybackQuoteBalance;
     bool public graduated;
 
+    /// @dev Mirrors the real curve: exemption keys on the buy's `recipient`
+    /// and is only settable through the factory.
+    mapping(address => bool) public snipeTaxExempt;
+    address public factory;
+
     constructor(
         address pairToken_,
         address deployer_,
@@ -117,10 +128,16 @@ contract MockBondingCurve {
         deployer = deployer_;
         creatorFeeRecipient = creatorFeeRecipient_;
         feeEscrow = feeEscrow_;
+        factory = msg.sender;
     }
 
     function initialize(address token_) external {
         token = token_;
+    }
+
+    function exemptFromSnipeTax(address account) external {
+        require(msg.sender == factory, "OnlyFactory");
+        snipeTaxExempt[account] = true;
     }
 
     function setClamp(uint256 clampTo_) external {
@@ -186,16 +203,23 @@ contract MockBondingCurve {
 
 contract MockLaunchFactory {
     error PairTokenNotApproved();
+    error ExemptionListTooLong();
 
     address public feeEscrow;
     uint256 public launchFee = 0.0005 ether;
     bool public launchEnabled = true;
     uint256 public maxCreatorTaxBps = 1000;
 
+    /// @dev Zero until a test wires them; the buyback adapter's constructor
+    /// requires both to be live contracts.
+    address public memeHook;
+    address public poolManager;
+
     mapping(address => bool) public approvedPairTokens;
     mapping(address => uint256) private _phantomQuote;
     mapping(address => uint256) private _graduationThreshold;
     mapping(address => uint8) private _decimals;
+    mapping(address => IPonsV2LaunchFactory.LaunchedToken) private _launchedTokens;
 
     address public lastToken;
     address public lastCurve;
@@ -205,6 +229,43 @@ contract MockLaunchFactory {
 
     constructor(address feeEscrow_) {
         feeEscrow = feeEscrow_;
+    }
+
+    function setGraduationInfrastructure(address memeHook_, address poolManager_) external {
+        memeHook = memeHook_;
+        poolManager = poolManager_;
+    }
+
+    /// @dev Mirrors the real factory's launch record for tokens the tests
+    /// fabricate directly instead of routing through `launchToken`.
+    function registerLaunch(
+        address token,
+        address curve,
+        address pairToken,
+        uint24 poolFee,
+        int24 tickSpacing,
+        uint8 phase
+    ) public {
+        IPonsV2LaunchFactory.LaunchedToken storage record = _launchedTokens[token];
+        record.token = token;
+        record.curve = curve;
+        record.pairToken = pairToken;
+        record.poolFee = poolFee;
+        record.tickSpacing = tickSpacing;
+        record.phase = phase;
+        record.exists = true;
+    }
+
+    function setPhase(address token, uint8 phase) external {
+        _launchedTokens[token].phase = phase;
+    }
+
+    function getLaunchedToken(address token)
+        external
+        view
+        returns (IPonsV2LaunchFactory.LaunchedToken memory)
+    {
+        return _launchedTokens[token];
     }
 
     function setLaunchEnabled(bool enabled) external {
@@ -237,10 +298,12 @@ contract MockLaunchFactory {
     function launchToken(
         IPonsV2LaunchFactory.TokenParams calldata params,
         uint256 launchConfigId,
-        address pairToken
+        address pairToken,
+        address[] calldata snipeTaxExemptions
     ) external payable returns (address token, address curve) {
         require(msg.value == launchFee, "LaunchFeeNotPaid");
         require(launchEnabled, "LaunchDisabled");
+        if (snipeTaxExemptions.length > 32) revert ExemptionListTooLong();
         if (pairToken != address(0) && !approvedPairTokens[pairToken]) {
             revert PairTokenNotApproved();
         }
@@ -259,10 +322,108 @@ contract MockLaunchFactory {
         deployed.initialize(address(launched));
         deployed.setClamp(nextClamp);
 
+        // Mirrors the real factory: the launch caller and the creator-fee
+        // recipient never count as snipers on their own launch, and the
+        // declared bundle wallets are exempted before trading opens.
+        deployed.exemptFromSnipeTax(msg.sender);
+        if (params.creatorFeeRecipient != msg.sender) {
+            deployed.exemptFromSnipeTax(params.creatorFeeRecipient);
+        }
+        for (uint256 i = 0; i < snipeTaxExemptions.length; ++i) {
+            deployed.exemptFromSnipeTax(snipeTaxExemptions[i]);
+        }
+
         lastToken = address(launched);
         lastCurve = address(deployed);
+        registerLaunch(address(launched), address(deployed), pairToken, 0, 200, 0);
         return (address(launched), address(deployed));
     }
+}
+
+interface IMockUnlockCallback {
+    function unlockCallback(bytes calldata data) external returns (bytes memory);
+}
+
+/// @dev Stands in for the Uniswap v4 singleton: `unlock` re-enters the caller,
+/// `swap` reports a packed BalanceDelta at a configurable rate, `settle`
+/// verifies native payment, and `take` mints the output. Records the pool key
+/// so tests can assert the adapter derived the graduated pool correctly.
+contract MockPoolManager {
+    struct PoolKey {
+        address currency0;
+        address currency1;
+        uint24 fee;
+        int24 tickSpacing;
+        address hooks;
+    }
+
+    struct SwapParams {
+        bool zeroForOne;
+        int256 amountSpecified;
+        uint160 sqrtPriceLimitX96;
+    }
+
+    uint256 public rate = 1000;
+    /// @dev When non-zero, the swap spends only this much input — the partial
+    /// fill the adapter must refuse.
+    uint256 public spendOverride;
+    /// @dev When non-zero, the swap reports this output regardless of rate.
+    uint256 public outputOverride;
+
+    bool public unlocked;
+    bool public settledDuringUnlock;
+    PoolKey public lastKey;
+    bool public lastZeroForOne;
+    int256 public lastAmountSpecified;
+
+    function setRate(uint256 rate_) external {
+        rate = rate_;
+    }
+
+    function setSpendOverride(uint256 spend) external {
+        spendOverride = spend;
+    }
+
+    function setOutputOverride(uint256 output) external {
+        outputOverride = output;
+    }
+
+    function unlock(bytes calldata data) external returns (bytes memory result) {
+        require(!unlocked, "AlreadyUnlocked");
+        unlocked = true;
+        result = IMockUnlockCallback(msg.sender).unlockCallback(data);
+        require(settledDuringUnlock, "CurrencyNotSettled");
+        unlocked = false;
+        settledDuringUnlock = false;
+    }
+
+    function swap(PoolKey calldata key, SwapParams calldata params, bytes calldata)
+        external
+        returns (int256 swapDelta)
+    {
+        require(unlocked, "ManagerLocked");
+        lastKey = key;
+        lastZeroForOne = params.zeroForOne;
+        lastAmountSpecified = params.amountSpecified;
+
+        uint256 requested = uint256(-params.amountSpecified);
+        uint256 spent = spendOverride != 0 ? spendOverride : requested;
+        uint256 output = outputOverride != 0 ? outputOverride : spent * rate;
+        swapDelta = (-int256(spent) << 128) | int256(output);
+    }
+
+    function settle() external payable returns (uint256 paid) {
+        require(unlocked, "ManagerLocked");
+        settledDuringUnlock = true;
+        return msg.value;
+    }
+
+    function take(address currency, address to, uint256 amount) external {
+        require(unlocked, "ManagerLocked");
+        MockERC20(currency).mint(to, amount);
+    }
+
+    receive() external payable { }
 }
 
 /// @dev Stands in for `SinjohFeeRouter`: records the bind and exposes the

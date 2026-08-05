@@ -163,10 +163,11 @@ a Sinjoh redeploy.
 
 ## Ordering
 
-v2 token addresses are **not** deterministic — `PonsV2LaunchDeployer` uses plain
-`new PonsV2…` with no salt and no CREATE2 — so nothing derived from the token address
-can be committed before the launch. Both the router and the adapter are CREATE2
-clones, so both are predictable without it.
+The 2026-08 redeployment restored CREATE2 launches: `TokenParams.salt` derives the
+token and curve addresses, namespaced per initiating account — which is the adapter,
+so the adapter must exist before the launch addresses are predictable either way.
+The ordering below therefore stays as designed, and the router still learns the
+subject from `bind` inside the launch transaction rather than from a prediction.
 
 1. predict adapter address from (adapterFactory, creator, userSalt);
 2. predict router address from (routerFactory, creator, userSalt);
@@ -280,14 +281,19 @@ non-broadcast infrastructure/canary scripts are recorded in
 
 ### `SinjohPonsV2Adapter`
 
-Pinned to launch factory `0x7E1EAbd52Ae29598e6483F72dCf1a70b14284dB8`, fee escrow
-`0xbc39B6502E1a6Ab36E4A5c5026A35F08342A0A9c`, and canonical WETH.
+Pinned to launch factory `0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e`, fee escrow
+`0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e`, and canonical WETH (the 2026-08
+redeployment; the original factory at `0x7E1EAbd5…` is paused and superseded).
 
-- `launch(TokenParams params, uint256 launchConfigId, address pairToken, uint256 devBuy, uint256 minTokensOut)`
+- `launch(TokenParams params, uint256 launchConfigId, address pairToken, uint256 devBuy, uint256 minTokensOut, address[] snipeTaxExemptions)`
   — requires `params.creatorFeeRecipient == address(this)`, requires
   `params.expectedEconomics == factory.previewLaunchEconomics(launchConfigId, pairToken)`
   so owner-updatable terms cannot move between quote and execution, sends exactly
-  `launchFee`, then performs the developer buy.
+  `launchFee`, then performs the developer buy. The launch window carries a snipe
+  tax (99% decaying across 5s at current settings); the factory auto-exempts the
+  adapter, so the developer buy clears untaxed, and `snipeTaxExemptions` (max 32)
+  declares the creator's additional bundle wallets. Exemption keys on the buy's
+  `recipient`.
 - `collect()` — `escrow.claim()` for a native launch, `escrow.claimToken(pairToken)`
   for a custom pair, then wraps native to WETH. Treats the escrow's `NoBalance()`
   revert as "nothing accrued", so a keeper poll on an idle launch is not an error.
@@ -316,6 +322,37 @@ permanent; exposing the handoff would make the routing guarantee revocable.
 `creatorTaxBps` is `uint16` and capped by the factory at `maxCreatorTaxBps` (currently
 1000). The adapter passes it through and lets the factory enforce the ceiling rather
 than duplicating a value that Pons can change.
+
+### `SinjohPonsV2BuybackAdapter` and `SinjohPonsV2BuybackPriceGuard`
+
+The buyback route for pons v2 launches: one singleton `ISinjohSwapAdapter` that
+converts a router's WETH bucket share into the launch token, plus the signed-floor
+guard `processBucket` consults. Pinned to the same launch factory and WETH as the
+launch adapter, plus the Uniswap v4 PoolManager
+`0x8366a39CC670B4001A1121B8F6A443A643e40951` (cross-checked against
+`factory.poolManager()` at construction) and the factory's immutable meme hook.
+
+- Routes carry no data. The adapter reads `factory.getLaunchedToken(assetOut)` at
+  swap time — the factory's immutable per-launch record — so a router config
+  written before the launch existed can never disagree with what deployed. Phase
+  `NotGraduated` buys on the bonding curve (`buy{value}` after unwrapping WETH);
+  phase `PoolCreated` swaps the graduated v4 pool through `unlock`, rebuilding the
+  factory's own pool key (native currency0, snapshotted `poolFee`/`tickSpacing`,
+  meme hook); `Swept`/`Rescued` revert `NoMarket` — during `Swept` anyone may call
+  the factory's permissionless `createGraduatedPool` to open the market.
+- Native-quote launches only. A custom-pair launch trades in its pair asset, which
+  the WETH bucket input cannot reach without a second conversion leg; the UI keeps
+  the bucket blocked for custom pairs.
+- A crossing buy near the graduation threshold is clamped and refunded by the
+  curve; the adapter refuses the partial fill (`UnexpectedBalance`) because the
+  router debits the full input and the floor was signed for it. Callers retry
+  smaller or wait for the pool.
+- The guard is pure signed floor (`SinjohPonsV2BuybackFloor`, five-minute maximum
+  validity, same digest shape as the Flap guards). Unlike Flap there is no
+  on-chain quote to cross-check: the curve exposes no quote view and the meme hook
+  implements no oracle, and quoting v4 requires the unlock flow, which cannot run
+  from a view context. The keeper's signer is the sole floor authority, which is
+  the documented posture for graduated v2 pools.
 
 ### `SinjohPonsV1LaunchAdapter`
 
@@ -423,10 +460,15 @@ DEPLOYER_PRIVATE_KEY=... forge script \
 
 | Contract | Address |
 |---|---|
-| pons v2 launch factory | `0x7E1EAbd52Ae29598e6483F72dCf1a70b14284dB8` |
-| pons v2 fee escrow | `0xbc39B6502E1a6Ab36E4A5c5026A35F08342A0A9c` |
-| pons v2 launch locker | `0x28b6F0116c7F234951cf0e67319ed53863Df2197` |
-| pons v2 meme hook | `0x8e99D2009D60A917e9B1c00C04C077b8c0c3a044` |
+| pons v2 launch factory | `0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e` |
+| pons v2 launch deployer | `0x3711ceA4feaDE896C913C68F01Eda97Cb06D1A42` |
+| pons v2 fee escrow | `0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e` |
+| pons v2 launch locker | `0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952` |
+| pons v2 meme hook | `0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044` |
+| pons v2 buyback vault | `0x42df2a798f82289E177311362e8f5ccC45c1219c` |
+| pons v2 graduation executor | `0xC7819B64A1dAECD7eC19856d026cb14EfBd89046` |
+| pons v2 launch forwarder (pons's own atomic router) | `0xe33E9E479dF8802cb0866d5d05258bEc4cF62948` |
+| superseded v2 factory (paused at block 24672804) | `0x7E1EAbd52Ae29598e6483F72dCf1a70b14284dB8` |
 | Uniswap v4 PoolManager | `0x8366a39CC670B4001A1121B8F6A443A643e40951` |
 | Uniswap v4 PositionManager | `0x58daec3116aae6D93017bAAea7749052E8a04fA7` |
 | WETH | `0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73` |

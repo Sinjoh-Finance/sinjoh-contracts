@@ -4,6 +4,69 @@ Source of truth: **verified contract source on Blockscout**, chain 4663, read 20
 The published docs at `docs.ponsfamily.com/v2` are wrong in several places (noted below).
 Where docs and ABI disagree, the ABI wins.
 
+## 2026-08-04 update: pons redeployed v2 — everything below the line describes the superseded deployment
+
+The pause recorded below ended in a **full redeployment**, not an unpause. Sinjoh's
+test launch `0xf985da537a04c35fc720fcd9539e2ba12ffb7d59d6cd86c68a1072181c07c13c`
+(token `0xf032a9178071F94AFedB562F79040894F371ae7b`, block 27883694) went through a
+new factory. Current addresses, all verified on Blockscout:
+
+| Contract | Address |
+|---|---|
+| Launch Factory | `0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e` |
+| Launch Deployer | `0x3711ceA4feaDE896C913C68F01Eda97Cb06D1A42` |
+| Fee Escrow | `0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e` |
+| Meme Hook | `0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044` |
+| Launch Locker | `0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952` |
+| Graduation Executor | `0xC7819B64A1dAECD7eC19856d026cb14EfBd89046` |
+| Buyback Vault | `0x42df2a798f82289E177311362e8f5ccC45c1219c` |
+| Launch Forwarder (new) | `0xe33E9E479dF8802cb0866d5d05258bEc4cF62948` |
+| Factory owner (changed) | `0xFdDE5a1E3cDF791Da71E49F817D70C7ceD72CC36` |
+
+PoolManager, PositionManager, Permit2, and WETH are unchanged. Live state:
+`launchEnabled = true`, launch fee 0.0005 ETH, config 0 economics unchanged
+(supply 1e27, 1% curve fee, 1.68 ETH phantom, 4.2 ETH graduation), fee policy
+snapshot `(30% protocol, 50% buybackBurn, 1% hook fee, 3% max impact)`,
+`maxCreatorTaxBps = 1000`. All eight pair assets re-approved with the same
+economics, USDG still 6 decimals.
+
+ABI changes against the superseded deployment:
+
+1. **CREATE2 is back.** `TokenParams` grew a trailing `bytes32 salt`; the deployer
+   uses CREATE2 namespaced per factory-authenticated initiating account, and
+   `PonsV2LaunchDeployer.predictLaunchAddresses` exists again. Old blocker #1
+   (non-deterministic token addresses) is resolved, though the adapter still binds
+   from within the launch transaction and needs no prediction.
+2. **Snipe tax.** 99% of a buy's quote leg in the launch second, decaying to zero
+   across 5 seconds (owner-tunable; the curve snapshots the factory's values at
+   launch). Keys on the buy's **recipient**. The factory auto-exempts the launch
+   caller and `creatorFeeRecipient` — both the Sinjoh adapter — so the atomic
+   developer buy is untaxed. A new `launchToken` overload takes
+   `address[] snipeTaxExemptions` (max 32) for a team's bundle wallets; snipe-tax
+   proceeds accrue into `quoteFeeBalance` and split like the base fee.
+3. **`launchTokenFor(params, configId, pairToken, originalDeployer, exemptions)`** —
+   restricted to the configured `launchForwarder` (pons's own atomic launch-and-buy
+   router). Not usable by Sinjoh, but it demonstrates the singleton-launcher pattern
+   the open question below contemplated.
+4. **`sweepFees(uint256 minBuybackTokensOut)`** now takes a mandatory floor when a
+   buyback would execute; with buyback disabled the adapter passes zero. Gating is
+   unchanged (deployer may sweep while no buyback balance is pending). The curve's
+   `deployer` slot **is** the creator-fee recipient: `_sweepFees` credits the
+   creator amount to `deployer`, and `setCreatorFeeRecipient` reassigns `deployer`,
+   so sweep rights follow the fee recipient — the 3-day timelocked protocol
+   override therefore moves both payout and sweep authority. This is the v2
+   analogue of v1's `feeRedirectIntact()` watch item.
+5. The whitelist survives (`launchEnabled || whitelistedLaunchers[originalDeployer]`);
+   only the new owner is whitelisted today. The singleton-launcher decision below is
+   still open, and still cheap-now-impossible-later.
+
+`SinjohPonsV2Adapter`, its factory, mocks, unit tests (37) and mainnet fork tests
+(12, including live snipe-tax-exemption and creator-tax coverage) were re-verified
+against this deployment on 2026-08-04. The superseded fee escrow at `0xbc39B650…`
+holds nothing of Sinjoh's; no migration is needed.
+
+---
+
 ## Deployment status
 
 Every v2 address has code. The docs line "launch factory and curves not yet live" is stale.
@@ -205,6 +268,14 @@ The practical consequence: the liquidity manager, which is the component that co
 the guard, cannot mint into a graduated v2 pool under TWAP protection the way it does
 for v3. That is a v2-only limitation; v1 launches are unaffected because they graduate
 into v3 pools with working oracles.
+
+**2026-08-04: option 1 is now built for buybacks.** `SinjohPonsV2BuybackAdapter` +
+`SinjohPonsV2BuybackPriceGuard` (sinjoh-launchpad-adapters) implement the buyback
+bucket as a phase-routed swap — bonding curve pre-graduation, hooked v4 pool after —
+under a pure signed floor, since no on-chain quote exists in either phase. The
+adapter derives everything from `factory.getLaunchedToken(token)` at swap time
+(native-quote launches only), so nothing launch-specific is baked into the immutable
+router config.
 
 ## Blockers and breaking changes
 
