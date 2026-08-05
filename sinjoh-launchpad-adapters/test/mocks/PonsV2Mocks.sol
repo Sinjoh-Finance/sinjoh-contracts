@@ -409,12 +409,36 @@ contract MockPoolManager {
         uint256 requested = uint256(-params.amountSpecified);
         uint256 spent = spendOverride != 0 ? spendOverride : requested;
         uint256 output = outputOverride != 0 ? outputOverride : spent * rate;
-        swapDelta = (-int256(spent) << 128) | int256(output);
+        // The spent leg is the swap's input currency: currency0 (upper 128
+        // bits) when zeroForOne, currency1 (lower) otherwise — matching the
+        // real singleton's packed BalanceDelta. The lower half must carry the
+        // negative amount as its two's-complement 128-bit slice, not a
+        // sign-extended full-width value that would flood the upper half.
+        swapDelta = params.zeroForOne
+            ? (-int256(spent) << 128) | int256(output)
+            : int256((uint256(output) << 128) | uint256(uint128(int128(-int256(spent)))));
+    }
+
+    /// @dev ERC20 settlement state for the real singleton's
+    /// sync → transfer → settle sequence.
+    address public syncedCurrency;
+    uint256 public syncedBalance;
+
+    function sync(address currency) external {
+        require(unlocked, "ManagerLocked");
+        syncedCurrency = currency;
+        syncedBalance = MockERC20(currency).balanceOf(address(this));
     }
 
     function settle() external payable returns (uint256 paid) {
         require(unlocked, "ManagerLocked");
         settledDuringUnlock = true;
+        if (syncedCurrency != address(0)) {
+            paid = MockERC20(syncedCurrency).balanceOf(address(this)) - syncedBalance;
+            syncedCurrency = address(0);
+            syncedBalance = 0;
+            return paid;
+        }
         return msg.value;
     }
 
