@@ -393,6 +393,11 @@
         "deploymentChainId": 4663,
         "implementationLocked": true
       }
+    },
+    "raffleOperations": {
+      "attestor": "0xbd5323053ca81c4fD208874Db73e1484819214d7",
+      "ecvrfProver": "0x8653117338aD8120FCC15A93452526e2695F8273",
+      "purpose": "Raffle operational accounts. The attestor commits snapshot roots (keeper env SINJOH_ATTESTOR_PRIVATE_KEY); the prover holds the ECVRF secret matching the adapter's immutable public key (SINJOH_ECVRF_SECRET_KEY). Deliberately distinct: their separation is what prevents single-operator outcome grinding."
     }
   },
   "notDeployed": {
