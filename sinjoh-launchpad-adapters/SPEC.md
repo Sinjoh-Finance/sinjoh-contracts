@@ -377,6 +377,171 @@ generalized router adoptable at all.
   adapter. Sinjoh's guarantee begins where value arrives, so interfaces must watch this
   and mark future fee flow inactive the moment it stops resolving here.
 
+### `SinjohPoolsTradeInstantAdapter`
+
+pools.trade is Uniswap Labs' launchpad on Robinhood Chain — the open-source
+liquidity-launcher stack. Contract sourcing, launch mechanics, and fee flow are
+recorded in `POOLS-TRADE-FINDINGS.md`; all shapes below are taken from verified
+on-chain source at the deployed commits.
+
+The instant shape has no curve and no graduation: one launcher `multicall`
+mints a fixed 1B-supply UERC20 and LPs it single-sided into a hookless
+native-ETH v4 pool, permanently locked in the FeeSplitter. Creator revenue is
+40% of the position's native LP fees, attributed to the launch's position
+tokenId in the UERC20BeneficiaryVault and claimable only by the owner of the
+transferable "FEEB" ERC-721.
+
+- `launch(name, symbol, metadata, distributionSalt, developerBuy, minTokensOut)`
+  — snapshots `positionManager.nextTokenId()`, multicalls
+  `createToken(recipient = launcher)` + `distributeToken(strategy, feeBeneficiary = adapter)`,
+  requires the returned token to equal `predictSubject(name, symbol)` (exact:
+  the UERC20 CREATE2 salt is `(name, symbol, decimals, launcher, graffiti)`
+  and the graffiti hashes the adapter), reads back both custody facts — the
+  position locked in the FeeSplitter and the FEEB NFT minted to the adapter —
+  binds the router, then performs the developer buy against the fresh pool by
+  swapping the v4 singleton directly. The pool is live from the launch call,
+  so the buy is un-front-runnable, and there is no launch fee and no snipe-tax
+  mechanic to route around.
+- `collect()` — `feeSplitter.collectFees([tokenId])` then
+  `vault.claim(tokenId, 0, 0)`, wrapping the claimed native to WETH. Neither
+  step reverts on zero accrual, so no error absorption exists on this path;
+  any upstream revert is real and propagates.
+- `intakeAssets()` — `[WETH]`. The subject is never a fee asset.
+- `feeRoutingIntact()` — the two custody facts above, re-read. Neither has a
+  legitimate way to change: the splitter has no withdrawal path and the
+  adapter never transfers the FEEB NFT (its transferability is this stack's
+  `transferCreatorFeeRecipient` analogue, and the adapter exposes no path to
+  it).
+
+The same bytecode serves the deployed no-creator-fee strategy variant
+(`beneficiaryVault() == 0`), pinned by a second factory deployment: the launch
+works identically, no FEEB NFT exists, `collect()` is a permanent no-op, and
+`intakeAssets()` is empty. Nothing is ever owed, and the adapter says so
+rather than pretending otherwise.
+
+### `SinjohPoolsTradeLBPAdapter`
+
+The auction shape: a ContinuousClearingAuction runs price discovery in any
+currency (native or ERC20), then permissionless migration moves the raise and
+a reserved LP supply into a v4 pool at the clearing price. Creator revenue is
+three streams, and the adapter is the named recipient of all of them:
+
+1. the non-LP raise share, swept to `recipient` at migration;
+2. the migrated LP position NFTs, minted to `positionRecipient`, whose fees
+   `collect` pulls with a zero-liquidity `DECREASE_LIQUIDITY` + `TAKE_PAIR`
+   plan for as long as the pool trades;
+3. unsold auction tokens, swept by `tokensRecipient` after the auction ends
+   (tolerating exactly `AuctionIsNotOver()` and `CannotSweepTokens()`).
+
+A failed migration refunds the raise and reserve to `recipient` — the adapter
+— so the failure path also lands in the router, with `migrationFailed`
+recorded so interfaces stop waiting for a pool.
+
+- `launch(LBPLaunchParams)` — typed auction economics (blocks, floor, steps,
+  brackets, pool fee/spacing/hook, position definitions) with every recipient
+  forced to the adapter and per-position `overridePositionRecipient` refused
+  outright. Side allocations ride the same multicall: optional
+  `(recipient, amount)` splits through the pinned TokenSplitter, and optional
+  merkle legs `(amount, merkleRoot, owner, endTime)` through the pinned
+  MerkleClaimFactory, each deploying and funding one of Uniswap's audited
+  merkle distributors atomically with the launch. Side totals must sum to
+  `totalSupply - auctionAmount`; merkle legs are salted per index so identical
+  legs cannot CREATE2-collide, and a leg's `owner` (who may withdraw unclaimed
+  tokens after `endTime`) must not be the adapter — unclaimed airdrop supply
+  is the creator's, not creator fees, and must stay outside the fee route. The
+  deployed auction is predicted through the CCA factory's own `getAddress` and
+  read back — token, currency, `tokensRecipient = adapter`,
+  `fundsRecipient = strategy`, and strategy registration — before the router
+  bind.
+- `migrate()` — wraps the strategy's permissionless `migrate`, records the
+  minted position tokenIds (all its — overrides were refused), and resolves
+  the real pool key from `getPoolAndPositionInfo`, which settles the
+  hookless-fallback ambiguity (a zero-hook launch migrates to the
+  strategy-hooked key when the hookless pool was front-initialized).
+  `registerPositions` recovers a migration executed directly on the strategy,
+  verifying ownership and the committed pool per id.
+- `intakeAssets()` — `[subject, WETH]` for a native auction,
+  `[subject, currency]` otherwise. The subject is a real fee asset here
+  (unsold tokens, token-side LP fees, reserve refunds), so the router needs a
+  subject normalization route, as with pons v1.
+
+The adapter's factory keeps a one-shot subject registry
+(`adapterForSubject`), written by the clone inside its launch transaction —
+the lookup the buyback route uses to resolve launch-configured pool keys.
+
+### `SinjohPoolsTradeBuybackAdapter` and `SinjohPoolsTradeBuybackPriceGuard`
+
+One singleton `ISinjohSwapAdapter` converts a router's WETH bucket share into
+any pools.trade launch token. Routes carry no data; the key derivation is read
+on-chain at swap time per shape: an LBP launch resolves through the factory
+registry to its adapter's recorded `Migrated` key (native-quote only — a
+custom-currency pool reverts `UnsupportedPair`), and anything else derives the
+static instant key (native currency0, pinned fee/spacing, no hook) and
+confirms the pool exists via a slot0 `extsload`. Unmigrated and
+failed-migration LBP launches revert `NoMarket`.
+
+The guard is the pure signed floor (`SinjohPoolsTradeBuybackFloor`,
+five-minute maximum validity, same digest shape and signer as the Flap and
+pons v2 guards). As there, no on-chain quote exists to cross-check: instant
+pools are hookless v4 with no oracle, LBP pools may carry launch-chosen hooks
+that implement none, and quoting v4 requires the unlock flow, which cannot
+run from a view context. A `GatedSwapHook`-gated pool reverts inside the hook
+until its gatekeeper approves swaps; callers treat that as no market yet.
+
+### `SinjohPoolsTradeSellAdapter` and `SinjohPoolsTradeSubjectPriceGuard`
+
+The normalization route for LBP launches, whose intake includes the subject
+itself. The router's `sync(subject, floor)` needs a sell-direction swap and an
+amount-aware guard — and normalization guards receive **no caller data**, so
+signed floors cannot serve there; the minimum must come from on-chain state.
+
+The sell adapter is one singleton for every launch: it resolves the market the
+same way the buyback adapter does (LBP registry first, static instant key with
+a slot0 existence read otherwise), sells the subject exact-in on v4, and
+delivers WETH. A native-quote pool wraps (`routeData` empty); a
+custom-currency pool hops currency-to-WETH through the pinned SwapRouter02
+(`routeData` = the abi-encoded v3 fee tier), mirroring the pons v2
+pair-buyback route in reverse. ERC20 settlement uses the singleton's
+sync-transfer-settle sequence.
+
+The guard prices the subject leg at the v4 pool's **spot** (slot0 via
+view-safe `extsload`) under an immutable haircut — a deliberately weaker
+oracle than the v3 TWAP guards, because v4 keeps no observations and quoting
+v4 properly requires the unlock flow, which cannot run from a view context.
+Three compensations, stated rather than hidden: the haircut bounds acceptable
+slippage, the router's `maxAmountInPerCall` bounds the value one manipulated
+call can touch, and the router requires a nonzero caller floor on every
+normalization sync, which the keeper derives from a simulated execution. A
+custom-currency launch composes the deployed shared v3 TWAP guard's
+`quoteAtTwap` for the currency leg and requires the route's v3 tier to equal
+the shared guard's tier, so the priced route and the executed route cannot
+diverge. Failed-migration and pre-migration launches quote `NoMarket`, which
+is correct: no pool exists, and the (worthless) subject refund of a failed
+migration is the one asset knowingly left unsyncable.
+
+Deployment, in order: `script/DeployPoolsTradeMerkleClaimFactory.s.sol`
+deploys Uniswap's MerkleClaimFactory — which Uniswap has not deployed on
+Robinhood Chain — as the byte-identical upstream artifact (vendored in
+`script/artifacts/`, hash-asserted before broadcast) through the canonical
+CREATE2 deployer with a zero salt, so the address
+`0x0C8B3e001C8DbBDbe15089c887C9323E097F0a15` is a pure function of the
+artifact and reproducible by anyone; then
+`script/DeployPoolsTradeAdapterFactories.s.sol` deploys the three adapter
+factories (instant creator-fee, instant no-fee, LBP) with all eight upstream
+dependencies pinned by code hash; then
+`script/DeployPoolsTradeBuybackInfrastructure.s.sol` deploys the buyback
+singleton and guard against the already-deployed LBP factory; then
+`script/DeployPoolsTradeNormalizationInfrastructure.s.sol` deploys the sell
+adapter and subject price guard the same way.
+
+pools.trade watch items, monitored rather than deferred: the CCA factory's
+`protocolFeeController()` is zero today but mutable (a future controller
+takes a cut of raises), and Uniswap rotates strategy deployments with
+versions — the launcher address itself changed once between v3.0.0 and
+v3.2.0. If Uniswap later publishes its own canonical MerkleClaimFactory at a
+different address, existing launches are unaffected (each distributor is a
+standalone contract) and new adapter factory deployments should repin.
+
 #### The already-deployed `SinjohPonsV1Adapter` cannot serve this role
 
 Those instances are immutable EIP-1167 clones with no launch entrypoint, and their
@@ -454,6 +619,21 @@ DEPLOYER_PRIVATE_KEY=... forge script \
 DEPLOYER_PRIVATE_KEY=... forge script \
   script/DeployPonsV2AdapterFactory.s.sol:DeployPonsV2AdapterFactory \
   --rpc-url https://rpc.mainnet.chain.robinhood.com --broadcast
+
+forge script \
+  script/DeployPoolsTradeMerkleClaimFactory.s.sol:DeployPoolsTradeMerkleClaimFactory \
+  --rpc-url https://rpc.mainnet.chain.robinhood.com \
+  --account sinjoh-deployer --broadcast
+
+forge script \
+  script/DeployPoolsTradeAdapterFactories.s.sol:DeployPoolsTradeAdapterFactories \
+  --rpc-url https://rpc.mainnet.chain.robinhood.com \
+  --account sinjoh-deployer --broadcast
+
+POOLS_TRADE_LBP_FACTORY=0x... forge script \
+  script/DeployPoolsTradeBuybackInfrastructure.s.sol:DeployPoolsTradeBuybackInfrastructure \
+  --rpc-url https://rpc.mainnet.chain.robinhood.com \
+  --account sinjoh-deployer --broadcast
 ```
 
 ## Robinhood Chain mainnet dependencies
@@ -474,6 +654,22 @@ DEPLOYER_PRIVATE_KEY=... forge script \
 | WETH | `0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73` |
 | pons v1 launch factory (legacy) | `0xA5aAb3F0c6EeadF30Ef1D3Eb997108E976351feB` |
 | pons v1 locker (legacy) | `0x736D76699C26D0d966744cAe304C000d471f7F35` |
+| pools.trade LiquidityLauncher v3.2.0 | `0x0000FffFBE8efE702c8703aE3477FF5dE3d319C0` |
+| pools.trade UERC20Factory v2.0.0 | `0x000000e200088D55C39a11F609E5F667729ad49b` |
+| pools.trade InstantLaunchStrategy (creator fee) | `0x23f8209572b4a1C2AD88A42749E830791Fb027f1` |
+| pools.trade InstantLaunchStrategy (no creator fee) | `0xAD44D55E7f8337C3cE113fBb591486E85be104b2` |
+| pools.trade FeeSplitter (creator fee) | `0xeFF166AAf189323c58dc27eD1206EB2C37FaACDf` |
+| pools.trade FeeSplitter (no creator fee) | `0x222D6d4f1ce59b0d48D5505114eC8Addc90A4359` |
+| pools.trade UERC20BeneficiaryVault | `0xd35E9CA72F64C7F93BE30fad67524323396B36D7` |
+| pools.trade CompoundingClaimRecipient | `0xf9526Dd3361fe0ba6b7a99533ed471D3E808E99a` |
+| pools.trade LBPStrategy v3.1.1 | `0x05d552391067389EE44fec3924157ed33F976000` |
+| pools.trade CCA factory | `0x000000001F26a0044BaA66024e7b6599c61963F8` |
+| pools.trade InitializerHook | `0xD462a559337859369EF271814851A18F496ba000` |
+| pools.trade TokenSplitter v3.2.0 | `0x4F5E3FBb9745358A92Da5674305FAb8D2B8a73cE` |
+| pools.trade UniversalRouterStrategy | `0x1242c9439d589cAE85E121B1f79f2aF51e91DCEE` |
+| pools.trade MerkleClaimFactory (Sinjoh's byte-identical deployment of the upstream artifact) | `0x0C8B3e001C8DbBDbe15089c887C9323E097F0a15` |
+| Uniswap v4 UniversalRouter | `0x8876789976dEcBfCbBbe364623C63652db8C0904` |
+| superseded pools.trade launcher v3.0.0 (legacy) | `0x00004c4ccc709Ef590F7C81102C0689F0263D4e9` |
 
 All v2 shapes in this spec are taken from verified on-chain source, not from
 `docs.ponsfamily.com/v2`, which misstates at least six event signatures. See

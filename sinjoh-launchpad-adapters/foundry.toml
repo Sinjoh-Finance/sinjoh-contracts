@@ -10,6 +10,7 @@ optimizer = true
 optimizer_runs = 20_000
 via_ir = true
 allow_paths = ["../sinjoh-fee-router"]
+fs_permissions = [{ access = "read", path = "script/artifacts" }]
 bytecode_hash = "none"
 cbor_metadata = false
 
