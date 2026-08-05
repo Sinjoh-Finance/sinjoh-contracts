@@ -1,0 +1,20 @@
+# Cross-package rehearsal harness. Deliberately not a package: it exists to
+# compose sinjoh-fee-router and sinjoh-raffle-rewards against the live Pons v2
+# deployment, which neither package may import on its own.
+[profile.default]
+src = "test"
+test = "test"
+out = "out"
+cache_path = "cache"
+solc_version = "0.8.28"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+bytecode_hash = "none"
+cbor_metadata = false
+allow_paths = ["../"]
+remappings = [
+    "router/=../sinjoh-fee-router/",
+    "raffle/=../sinjoh-raffle-rewards/",
+]

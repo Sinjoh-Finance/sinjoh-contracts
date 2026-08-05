@@ -95,5 +95,32 @@
     "v3Factory": "0x1f7d7550B1b028f7571E69A784071F0205FD2EfA",
     "v3PositionManager": "0x73991a25C818Bf1f1128dEAaB1492D45638DE0D3",
     "swapRouter": "0xCaf681a66D020601342297493863E78C959E5cb2"
+  },
+  "externalDependencies": {
+    "ponsV2": {
+      "verifiedAt": "2026-08-04",
+      "verification": "All sources verified on Blockscout; repo interface `sinjoh-fee-router/src/interfaces/IPonsV2.sol` checked selector-for-selector against them and exercised by SinjohFeeRouterV2.fork.t.sol with a real launch, trade, sweep, and claim.",
+      "launchFactory": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+      "launchDeployer": "0x3711ceA4feaDE896C913C68F01Eda97Cb06D1A42",
+      "feeEscrow": "0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e",
+      "memeHookAndFeePolicy": "0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044",
+      "buybackVault": "0x42df2a798f82289E177311362e8f5ccC45c1219c",
+      "locker": "0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952",
+      "launchForwarder": "0xe33E9E479dF8802cb0866d5d05258bEc4cF62948",
+      "uniswapV4PoolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "uniswapV4PositionManager": "0x58daec3116aae6D93017bAAea7749052E8a04fA7",
+      "liveTerms": {
+        "launchFeeWei": "500000000000000",
+        "maxCreatorTaxBps": 1000,
+        "launchConfig0GraduationThresholdWei": "4200000000000000000"
+      },
+      "raffleStaticExclusions": [
+        "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+        "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        "0x42df2a798f82289E177311362e8f5ccC45c1219c",
+        "0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044"
+      ],
+      "notes": "The per-launch bonding curve must also be excluded from any raffle; compute it pre-launch with PonsV2LaunchDeployer.predictLaunchAddresses using the launch salt. maxCreatorTaxBps is owner-mutable upstream; the router re-reads it in the launch transaction."
+    }
   }
 }

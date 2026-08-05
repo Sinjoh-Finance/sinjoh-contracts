@@ -1,7 +1,8 @@
 # Sinjoh
 
-Sinjoh is immutable launchpad infrastructure for Robinhood Chain, beginning with
-Pons v1. This monorepo contains seven independently deployable and auditable
+Sinjoh is immutable launchpad infrastructure for Robinhood Chain. Pons v1 remains
+the live integration; Pons v2 support is built behind deployment-manifest gates for
+its forthcoming testnet and mainnet contracts. This monorepo contains seven independently deployable and auditable
 Solidity packages plus the offchain automation package:
 
 | Package | Purpose |
@@ -12,13 +13,35 @@ Solidity packages plus the offchain automation package:
 | [`sinjoh-pons-v1-adapter`](./sinjoh-pons-v1-adapter) | Collects or receives Pons v1 fees and forwards the subject token and WETH to a fixed fee router. |
 | [`sinjoh-revenue-collector`](./sinjoh-revenue-collector) | Provides a stable protocol-revenue endpoint and forwards assets to a governance-selected downstream processor without charging again. |
 | [`sinjoh-keeper`](./sinjoh-keeper) | Automates permissionless routing and provides the isolated deterministic airdrop snapshot, attestation, and push workflow. |
-| [`sinjoh-raffle-rewards`](./sinjoh-raffle-rewards) | Pays holders of a subject token by lottery: one ticket per 10,000 tokens, hourly draws, prize reserved before any randomness exists. |
+| [`sinjoh-raffle-rewards`](./sinjoh-raffle-rewards) | Pays holders by lottery: hourly VRF draws with a pre-reserved WETH prize and optional per-slot swaps into an approved mystery stock. |
 | [`sinjoh-randomness`](./sinjoh-randomness) | Verifiable randomness from an ECVRF proof checked on-chain, for a chain with no VRF deployment. |
 | [`sinjoh-indexer`](./sinjoh-indexer) | Projects factory and protocol events through one dynamically registered Envio indexer. |
 
 The packages do not import one another's implementations. Composition uses copied
 interfaces and ordinary asset transfers. Each package has its own Foundry
 configuration, tests, specification, and deployment scripts.
+
+## Fee and tax boundaries
+
+For Pons v2 launches, the creator may choose a market-level creator tax of zero or 1 to 5,000
+basis points (0.01% to 50%). The launch transaction enforces both Sinjoh's 5,000-bps ceiling and
+the selected factory's live `maxCreatorTaxBps()`; the lower cap wins. This is Pons market
+accounting, not an ERC-20 fee-on-transfer tax, so ordinary wallet transfers remain untaxed.
+
+These separate charges must not be presented as one "trade tax":
+
+- Pons v1 currently launches each token into a 1%-fee Uniswap V3 pool. That LP fee is charged by the
+  pool on swaps and split upstream by Pons.
+- Pons v2 may additionally assess the creator's immutable launch-time trade tax. Its initial
+  recipient is either the creator directly or that launch's `SinjohFeeRouter`.
+- The Sinjoh fee router charges 1% when collected launch-fee revenue enters Sinjoh accounting. It
+  does not intercept or tax users' trades.
+- The liquidity manager charges 1% only from LP fees when they are collected, never from LP
+  principal or wallet transfers.
+- The raffle charges 1% on prize-pool funding and may also apply its separately configured,
+  immutable payout tax to a winning prize. Neither is a token trading tax.
+
+See the [Pons v2 protocol documentation](https://docs.ponsfamily.com/v2).
 
 ## Clone
 

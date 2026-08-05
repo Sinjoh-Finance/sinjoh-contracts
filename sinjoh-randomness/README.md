@@ -67,3 +67,17 @@ it stays diffable upstream. Its pinned provenance and checksum are recorded in
 [`VENDORED.md`](./VENDORED.md). Do not edit it.
 
 Consumer: [`sinjoh-raffle-rewards`](../sinjoh-raffle-rewards).
+
+## Testnet deployment
+
+Testnet is mandatory before mainnet. Generate a separate testnet ECVRF key and keep it off the
+attestor host, then deploy with the chain-locked script:
+
+```sh
+DEPLOYER_PRIVATE_KEY=... \
+ECVRF_PUBLIC_KEY_X=... \
+ECVRF_PUBLIC_KEY_Y=... \
+forge script script/DeployEcvrfRandomnessTestnet.s.sol:DeployEcvrfRandomnessTestnet \
+  --rpc-url https://rpc.testnet.chain.robinhood.com \
+  --broadcast
+```
