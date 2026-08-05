@@ -14,10 +14,10 @@ interface Vm {
     function warp(uint256 newTimestamp) external;
     function assume(bool condition) external;
     function bound(uint256 x, uint256 min, uint256 max) external returns (uint256 result);
-    function createSelectFork(string calldata urlOrAlias) external returns (uint256);
+    function createSelectFork(string calldata urlOrAlias) external returns (uint256 forkId);
     function envOr(string calldata name, string calldata defaultValue)
         external
-        returns (string memory);
+        returns (string memory value);
 }
 
 abstract contract TestBase {

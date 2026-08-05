@@ -8,6 +8,80 @@
   "governance": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f",
   "deployedAt": "2026-07-30",
   "currentInfrastructure": {
+    "agnosticFeeRouterImplementation": {
+      "address": "0x06274b69d4Cd4D98Ed7Cf4f45Fd50137e8A184a6",
+      "deploymentTransaction": "0x36ab5e151677b0e59c3e7a03980d4ddc8e1a149c3e52cc98835d340673dbb815",
+      "deploymentBlock": 25493716,
+      "runtimeCodeHash": "0x00eecc775b2dff40c52bdd038cdccc19b5812a527aa811b359a55249c6987276",
+      "purpose": "Launchpad-agnostic SinjohFeeRouter implementation for per-launch clones.",
+      "verified": {
+        "initialized": true
+      }
+    },
+    "agnosticFeeRouterFactory": {
+      "address": "0xA1F721a697Dd03a45f264F53bCBFd121212318eD",
+      "deploymentTransaction": "0x97ae5ef3d8f80f0a8c5ffe2d169e3e0f651963eecb369a0f7f0e51f87662047e",
+      "deploymentBlock": 25493736,
+      "runtimeCodeHash": "0x9c409cacd26cd9e6acdf403ce14afa94c263a666886b2fec1a9e2af2063b4ca9",
+      "purpose": "Deploys deterministic launchpad-agnostic fee-router clones without creating any clone during this dark deployment.",
+      "verified": {
+        "implementation": "0x06274b69d4Cd4D98Ed7Cf4f45Fd50137e8A184a6"
+      }
+    },
+    "flapAdapterFactory": {
+      "address": "0x77748D07CAD323A7f6EFa54968aCF69de743be61",
+      "deploymentTransaction": "0x89e4b482f1e8666d0727c5bac134f50f1cce0cf08edee4e643963e36381e4c16",
+      "deploymentBlock": 25493756,
+      "runtimeCodeHash": "0xa2a389b5cfe46de37dca8bdd86d5fb72b6d2182ea6dfd31aaa55686797c88df1",
+      "purpose": "Deploys deterministic per-launch Sinjoh Flap adapters; no adapter clone or token was created during this dark deployment.",
+      "verified": {
+        "implementation": "0x4c34af31ef8962317497Cc558612a48443971243",
+        "portal": "0x26605f322f7fF986f381bB9A6e3f5DAb0bEaEb09",
+        "taxTokenImplementation": "0x7777C8743C88B3aff3cf262135beF2c8b2e83333",
+        "flapWrappedNative": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "deploymentChainId": 4663
+      }
+    },
+    "flapAdapterImplementation": {
+      "address": "0x4c34af31ef8962317497Cc558612a48443971243",
+      "deploymentTransaction": "0x89e4b482f1e8666d0727c5bac134f50f1cce0cf08edee4e643963e36381e4c16",
+      "deploymentBlock": 25493756,
+      "runtimeCodeHash": "0xc6ea11907684d3b6eca3cde221edbf03ec5f900f3ba5302d3324aeee962f23c0",
+      "purpose": "SinjohFlapAdapter implementation, initialized and self-deployed by the adapter factory constructor.",
+      "verified": {
+        "initialized": true,
+        "adapterFactory": "0x77748D07CAD323A7f6EFa54968aCF69de743be61"
+      }
+    },
+    "flapBuybackAdapter": {
+      "address": "0xf7d40EcD8cB38a43e898775bc382DB73B35B5574",
+      "deploymentTransaction": "0x61133ee7ebd68c62af34f068916c8f57593ce1dfc928f9558d228eb8de27dcae",
+      "deploymentBlock": 25580356,
+      "runtimeCodeHash": "0xf4f6c9dd4583fed53c9ac47b31f270563a3b23e3938354edfd924877279f02ec",
+      "purpose": "Converts WETH fee allocations into the launched Flap subject through the canonical Portal before and after graduation."
+    },
+    "flapBuybackPriceGuard": {
+      "address": "0xe19827483E32690012840b2b9bC6CBf9bE177Bf5",
+      "deploymentTransaction": "0xf072a0bd4ab04c41fe2cc586aeba78488ec041762ddc77311812dd425413d280",
+      "deploymentBlock": 25580376,
+      "runtimeCodeHash": "0x2a192b9123d71261cecf2180a472751c6f827416dd81227f770159d7d51f80b4",
+      "purpose": "Requires an amount- and router-bound five-minute signed floor in addition to the live Portal quote for every Flap buyback."
+    },
+    "flapPayoutPriceGuard": {
+      "address": "0x071d29A300C1b51db1BDe8BaA550B86E1892Dc5e",
+      "deploymentTransaction": "0x5269775231da35a18e5265c87f7baf2bb9c9a14cc2dabd31a7007d82df1fc787",
+      "deploymentBlock": 25640562,
+      "runtimeCodeHash": "0x29c75dd94d657c7a0ac709e7653c92c651bd02da3b0986105a4c39d0f0e6449f",
+      "purpose": "Requires an amount-, router-, subject-, and output-bound signed floor plus the live Flap Portal quote when routing fees into any Flap-supported payout token."
+    },
+    "flapV2LiquidityManager": {
+      "address": "0x4E330772F12955E752aa4Fd2ba6191d8bD7d782E",
+      "deploymentTransaction": "0x5ed435bf604fa818dd0fda032cea64f65bbc2f45a68faa08d448c558fb641c0d",
+      "deploymentBlock": 25580396,
+      "runtimeCodeHash": "0x135f907a56c2d21f7c19d0c8c6cbbafdf9e3542dd9ee7dd83baf58e3843eef39",
+      "purpose": "Accumulates WETH before graduation, then buys the Flap subject, adds canonical Flap V2 liquidity, and sends the LP tokens directly to the burn address."
+    },
     "revenueCollector": {
       "address": "0x5bb7582557f5be30b62c335ad3ccf4ba79e138c5",
       "deploymentTransaction": "0x387b2d49c1504c13fd64ceb8d48fe7bf1ad8c14e5c31d85551d33d994d8f75db",
@@ -81,6 +155,81 @@
       "deploymentBlock": 23492626,
       "runtimeCodeHash": "0x1524070efa0fec4165da0d894d849925f4e38de401eff724362462201caecd23",
       "purpose": "SinjohPonsV1Adapter implementation, self-deployed by the adapter factory constructor."
+    },
+    "ponsV2AdapterFactory": {
+      "address": "0xdb02cC8bbEb1F4B0A98f974a8768c08370d1a821",
+      "deploymentTransaction": "0xe0c894d28a9ed06eddf8289a5c47b8018c9a7f1e6385eb231c24f069814bd8e1",
+      "deploymentBlock": 27908198,
+      "runtimeCodeHash": "0xf254cce14cd477f0d82639fb44eb985499fc7828de405b6323888ab5ee132917",
+      "purpose": "Deploys deterministic per-launch SinjohPonsV2Adapter clones for the redeployed pons v2; no adapter clone was created during this dark deployment.",
+      "verified": {
+        "implementation": "0xAEC5a42F08c144276e60272F55125926Cb425E1c",
+        "launchFactory": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+        "feeEscrow": "0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e",
+        "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "deploymentChainId": 4663
+      }
+    },
+    "ponsV2AdapterImplementation": {
+      "address": "0xAEC5a42F08c144276e60272F55125926Cb425E1c",
+      "deploymentTransaction": "0xe0c894d28a9ed06eddf8289a5c47b8018c9a7f1e6385eb231c24f069814bd8e1",
+      "deploymentBlock": 27908198,
+      "runtimeCodeHash": "0xf2cc5be90f21448acc4453566e2d4effcbc90e7332da62ba2a759cb6e7c90491",
+      "purpose": "SinjohPonsV2Adapter implementation, initialized and self-deployed by the adapter factory constructor.",
+      "verified": {
+        "initialized": true,
+        "adapterFactory": "0xdb02cC8bbEb1F4B0A98f974a8768c08370d1a821"
+      }
+    },
+    "ponsV2BuybackAdapter": {
+      "address": "0x39217172A3F07E827557093989039F968A571D43",
+      "deploymentTransaction": "0x03a0bda9918c38bc63d9a99459b443e68b753381501876480eb81ca942b043e7",
+      "deploymentBlock": 28093879,
+      "runtimeCodeHash": "0xbf53dc3ec1c40573955362ae5715d219daac4669497d7514f7a7ebff8684d3f8",
+      "purpose": "Singleton buyback route for pons v2 launches: converts a router's WETH bucket share into the launch token, routing by the factory's launch record at swap time - bonding curve before graduation, hooked Uniswap v4 pool after. Native-quote launches only.",
+      "verified": {
+        "launchFactory": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+        "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        "memeHook": "0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044",
+        "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+      }
+    },
+    "ponsV2BuybackPriceGuard": {
+      "address": "0x3a4c8fF885e1B502a66a82cbEC67817b55776f7D",
+      "deploymentTransaction": "0x1106c5cc370d27162e23d9f6c5ec3d8131d1259d8cc6ad497c38a3c8efd8d4d8",
+      "deploymentBlock": 28093879,
+      "runtimeCodeHash": "0x6c1c47639368323976954a66acae2b9c2e06942b60ae2dd367c83d207a2eaac2",
+      "purpose": "Pure signed floor (SinjohPonsV2BuybackFloor, five-minute maximum validity) for pons v2 buybacks; no on-chain quote exists on either side of graduation, so the keeper's signer is the sole floor authority.",
+      "verified": {
+        "launchFactory": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+        "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "quoteSigner": "0xd89fB916dD031Da9b0A32e820307c2d41a7dDe09"
+      }
+    },
+    "ponsV2PairBuybackAdapter": {
+      "address": "0xfAB57a5fE409B4503A1a09fD7DC80e6ffB85Abb8",
+      "deploymentTransaction": "0x52b095758edc3d998dbff2c6a23b01d3e3e593c1c8f79334c9040d8c71e8a2de",
+      "deploymentBlock": 28126079,
+      "runtimeCodeHash": "0x37fedab733793c3b192b44be34c45048b99915534b9e2a256cf9b518a7417a07",
+      "purpose": "Pair-capable pons v2 buyback route: WETH into any launch's market \u2014 native or custom pair \u2014 via the pinned v3 hop, the bonding curve, or the graduated v4 pool. Supersedes ponsV2BuybackAdapter for new routes.",
+      "verified": {
+        "launchFactory": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+        "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        "v3SwapRouter": "0xCaf681a66D020601342297493863E78C959E5cb2",
+        "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "memeHook": "0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044"
+      }
+    },
+    "ponsV2PairBuybackPriceGuard": {
+      "address": "0x69768f0b41A5A51aB23b23ccfbE9e3122Ac0DA8b",
+      "deploymentTransaction": "0x17579811baa9eb290ebe1a2a73534fecd1e93909edcf170a261418682ce5ec75",
+      "deploymentBlock": 28126079,
+      "runtimeCodeHash": "0x27a8a84e173e127965717c020a07bb304ab0eb7e3396d0b6e3fc720f536cea21",
+      "purpose": "Signed-floor guard for the pair-capable pons v2 buyback route.",
+      "verified": {
+        "launchFactory": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+        "quoteSigner": "0xd89fB916dD031Da9b0A32e820307c2d41a7dDe09"
+      }
     }
   },
   "notDeployed": {
@@ -94,33 +243,18 @@
     "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
     "v3Factory": "0x1f7d7550B1b028f7571E69A784071F0205FD2EfA",
     "v3PositionManager": "0x73991a25C818Bf1f1128dEAaB1492D45638DE0D3",
-    "swapRouter": "0xCaf681a66D020601342297493863E78C959E5cb2"
-  },
-  "externalDependencies": {
-    "ponsV2": {
-      "verifiedAt": "2026-08-04",
-      "verification": "All sources verified on Blockscout; repo interface `sinjoh-fee-router/src/interfaces/IPonsV2.sol` checked selector-for-selector against them and exercised by SinjohFeeRouterV2.fork.t.sol with a real launch, trade, sweep, and claim.",
-      "launchFactory": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
-      "launchDeployer": "0x3711ceA4feaDE896C913C68F01Eda97Cb06D1A42",
-      "feeEscrow": "0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e",
-      "memeHookAndFeePolicy": "0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044",
-      "buybackVault": "0x42df2a798f82289E177311362e8f5ccC45c1219c",
-      "locker": "0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952",
-      "launchForwarder": "0xe33E9E479dF8802cb0866d5d05258bEc4cF62948",
-      "uniswapV4PoolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
-      "uniswapV4PositionManager": "0x58daec3116aae6D93017bAAea7749052E8a04fA7",
-      "liveTerms": {
-        "launchFeeWei": "500000000000000",
-        "maxCreatorTaxBps": 1000,
-        "launchConfig0GraduationThresholdWei": "4200000000000000000"
-      },
-      "raffleStaticExclusions": [
-        "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
-        "0x8366a39CC670B4001A1121B8F6A443A643e40951",
-        "0x42df2a798f82289E177311362e8f5ccC45c1219c",
-        "0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044"
-      ],
-      "notes": "The per-launch bonding curve must also be excluded from any raffle; compute it pre-launch with PonsV2LaunchDeployer.predictLaunchAddresses using the launch salt. maxCreatorTaxBps is owner-mutable upstream; the router re-reads it in the launch transaction."
-    }
+    "swapRouter": "0xCaf681a66D020601342297493863E78C959E5cb2",
+    "ponsV2LaunchFactory": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+    "ponsV2LaunchDeployer": "0x3711ceA4feaDE896C913C68F01Eda97Cb06D1A42",
+    "ponsV2FeeEscrow": "0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e",
+    "ponsV2MemeHook": "0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044",
+    "ponsV2BuybackVault": "0x42df2a798f82289E177311362e8f5ccC45c1219c",
+    "ponsV2LaunchLocker": "0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952",
+    "ponsV2LaunchForwarder": "0xe33E9E479dF8802cb0866d5d05258bEc4cF62948",
+    "uniswapV4PoolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+    "uniswapV4PositionManager": "0x58daec3116aae6D93017bAAea7749052E8a04fA7",
+    "robinhoodStockBeacon": "0xe10b6f6B275de231345c20D14Ab812db62151b00",
+    "robinhoodStockImplementation": "0xb35490d6f9163DE4F80d88dc75c3516eb64C5aE2",
+    "ponsV2RaffleNotes": "A raffle over a Pons v2 launch must exclude the launch's bonding curve (predict pre-launch via PonsV2LaunchDeployer.predictLaunchAddresses; tooling in sinjoh-keeper/src/ponsv2 and sinjoh-fee-router PonsV2LaunchPrediction) plus ponsV2LaunchFactory, uniswapV4PoolManager, ponsV2BuybackVault, ponsV2MemeHook, and the launchpad adapter. Stocks are beacon proxies: see sinjoh-raffle-rewards/ROBINHOOD_STOCKS.md."
   }
 }

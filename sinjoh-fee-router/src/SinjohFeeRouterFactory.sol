@@ -6,9 +6,14 @@ import { SinjohFeeRouter } from "./SinjohFeeRouter.sol";
 import { Clones } from "./libraries/Clones.sol";
 
 contract SinjohFeeRouterFactory {
+    /// @notice Audited runtime hash for the only implementation this factory
+    /// version may clone. Update deliberately whenever router bytecode changes.
+    bytes32 public constant IMPLEMENTATION_CODEHASH = RouterTypes.IMPLEMENTATION_CODEHASH;
+
     error InvalidImplementation();
     error CreatorMismatch();
     error ConfigMismatch();
+    error Unauthorized();
     error InitializationFailed(bytes reason);
 
     event RouterDeployed(
@@ -23,7 +28,15 @@ contract SinjohFeeRouterFactory {
     address public immutable implementation;
 
     constructor(address implementation_) {
-        if (implementation_ == address(0) || implementation_.code.length == 0) {
+        if (
+            implementation_ == address(0) || implementation_.code.length == 0
+                || implementation_.codehash != IMPLEMENTATION_CODEHASH
+        ) {
+            revert InvalidImplementation();
+        }
+        (bool ok, bytes memory result) =
+            implementation_.staticcall(abi.encodeWithSignature("initialized()"));
+        if (!ok || result.length != 32 || !abi.decode(result, (bool))) {
             revert InvalidImplementation();
         }
         implementation = implementation_;
@@ -51,15 +64,23 @@ contract SinjohFeeRouterFactory {
         emit RouterDeployed(router, creator, userSalt, salt, configHash, created);
     }
 
-    /// @notice Deploys a deterministic router whose address can be predicted
-    /// before the Pons subject and pool addresses exist.
-    function deployPons(address creator, bytes32 userSalt, RouterTypes.Config calldata config)
-        external
-        returns (address router)
-    {
+    /// @notice Deploys a router whose address is predictable from
+    /// `(creator, userSalt)` alone, before the subject token exists.
+    ///
+    /// @dev Deliberately excludes the config from the salt. The config names a
+    /// launchpad adapter, and that adapter's own address must be predictable
+    /// before the router is deployed — folding the config in would make each
+    /// address depend on the other. Address stability is preserved instead by
+    /// rejecting a redeploy whose config differs from the one already stored.
+    function deployForLaunchpad(
+        address creator,
+        bytes32 userSalt,
+        RouterTypes.Config calldata config
+    ) external returns (address router) {
+        if (msg.sender != creator) revert Unauthorized();
         if (creator != config.creator) revert CreatorMismatch();
         bytes32 configHash = keccak256(abi.encode(config));
-        bytes32 salt = _ponsDerivedSalt(creator, userSalt);
+        bytes32 salt = _launchpadDerivedSalt(creator, userSalt);
         router = Clones.predictDeterministicAddress(implementation, salt, address(this));
 
         bool created;
@@ -87,8 +108,12 @@ contract SinjohFeeRouterFactory {
         return Clones.predictDeterministicAddress(implementation, salt, address(this));
     }
 
-    function predictPonsAddress(address creator, bytes32 userSalt) external view returns (address) {
-        bytes32 salt = _ponsDerivedSalt(creator, userSalt);
+    function predictLaunchpadAddress(address creator, bytes32 userSalt)
+        external
+        view
+        returns (address)
+    {
+        bytes32 salt = _launchpadDerivedSalt(creator, userSalt);
         return Clones.predictDeterministicAddress(implementation, salt, address(this));
     }
 
@@ -109,7 +134,11 @@ contract SinjohFeeRouterFactory {
         return keccak256(abi.encode(creator, userSalt, configHash));
     }
 
-    function _ponsDerivedSalt(address creator, bytes32 userSalt) private pure returns (bytes32) {
-        return keccak256(abi.encode("SINJOH_PONS_ROUTER_V1", creator, userSalt));
+    function _launchpadDerivedSalt(address creator, bytes32 userSalt)
+        private
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encode("SINJOH_LAUNCHPAD_ROUTER_V2", creator, userSalt));
     }
 }

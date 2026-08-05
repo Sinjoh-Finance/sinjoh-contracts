@@ -10,17 +10,17 @@ interface VmSimpleSwapAdapter {
     function stopBroadcast() external;
 }
 
-/// @notice Redeploys only the simple swap adapter after the SwapRouter02
-/// interface fix. The router implementation and factory are unchanged.
+/// @notice Deploys the reusable Robinhood Chain SwapRouter02 adapter used by
+/// reviewed direct-swap routes and WETH unwrapping.
 contract DeploySimpleSwapAdapter {
     uint256 internal constant ROBINHOOD_MAINNET_CHAIN_ID = 4_663;
     address internal constant EXPECTED_DEPLOYER = 0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49;
-    address internal constant PONS_SWAP_ROUTER = 0xCaf681a66D020601342297493863E78C959E5cb2;
-    address internal constant PONS_WETH = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
+    address internal constant SWAP_ROUTER = 0xCaf681a66D020601342297493863E78C959E5cb2;
+    address internal constant WETH = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
 
-    bytes32 internal constant PONS_SWAP_ROUTER_HASH =
+    bytes32 internal constant SWAP_ROUTER_HASH =
         0x6f36c378e272c6324c48f045182bcb54bd8ad654cf9ebd42e8893d52c4cb25dc;
-    bytes32 internal constant PONS_WETH_HASH =
+    bytes32 internal constant WETH_HASH =
         0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353;
 
     VmSimpleSwapAdapter internal constant vm =
@@ -35,19 +35,19 @@ contract DeploySimpleSwapAdapter {
         if (block.chainid != ROBINHOOD_MAINNET_CHAIN_ID) {
             revert WrongChain(block.chainid);
         }
-        _assertHash(PONS_SWAP_ROUTER, PONS_SWAP_ROUTER_HASH);
-        _assertHash(PONS_WETH, PONS_WETH_HASH);
+        _assertHash(SWAP_ROUTER, SWAP_ROUTER_HASH);
+        _assertHash(WETH, WETH_HASH);
 
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address deployer = vm.addr(deployerKey);
         if (deployer != EXPECTED_DEPLOYER) revert WrongDeployer(deployer);
 
         vm.startBroadcast(deployerKey);
-        swapAdapter = new SinjohSimpleSwapAdapter(PONS_SWAP_ROUTER, PONS_WETH);
+        swapAdapter = new SinjohSimpleSwapAdapter(SWAP_ROUTER, WETH);
         vm.stopBroadcast();
 
         if (address(swapAdapter).code.length == 0) revert DeploymentFailed();
-        if (swapAdapter.router() != PONS_SWAP_ROUTER || swapAdapter.weth() != PONS_WETH) {
+        if (swapAdapter.router() != SWAP_ROUTER || swapAdapter.weth() != WETH) {
             revert DeploymentFailed();
         }
     }

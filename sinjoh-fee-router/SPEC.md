@@ -19,7 +19,7 @@ An immutable per-launch router with one accounting asset: WETH.
 8. The launch UI does not offer burn allocations for RWA buckets.
 
 The router does not deploy per-launch adapters or guards. A shared adapter
-executes direct Pons v3 swaps and WETH unwrapping.
+executes direct Robinhood Chain v3 swaps and WETH unwrapping.
 
 ## Deployment and binding
 
@@ -27,74 +27,43 @@ executes direct Pons v3 swaps and WETH unwrapping.
 atomic. The historical `deploy` path derives its address from the creator, salt,
 and canonical config.
 
-New Pons launches use `predictPonsAddress` and `deployPons`. Their clone address
-depends only on the creator and user salt, breaking the otherwise circular
-dependency between the router configuration and Pons's future subject/pool
-addresses. Reusing a salt with a different configuration reverts.
+Launchpad-mediated launches use `predictLaunchpadAddress` and
+`deployForLaunchpad`. Their clone address depends only on the creator and user
+salt, which breaks the otherwise circular dependency between the router
+configuration and the adapter it names. Reusing a salt with a different
+configuration reverts.
+
+## The launchpad boundary
+
+**The router contains no launchpad-specific code.** It knows one address:
 
 ```solidity
-function launchPonsToken(
-    address factory,
-    IPonsV1LaunchFactory.LaunchParams calldata params,
-    uint256 launchConfigId,
-    uint256 dexId,
-    bytes32 salt
-) external payable returns (address subject);
+address public launchpadAdapter;
 ```
 
-This call is creator-only. It requires the router itself as `feeWallet`, calls
-Pons from the router, stores the reviewed factory and locker, binds the returned
-subject, and sends any developer-buy output to the Sinjoh creator atomically.
-
-Pons creator fees are then collected without trusting the caller:
+The router never calls it and never inspects it. The address grants exactly one
+right — to bind the subject, once:
 
 ```solidity
-function collectPonsFees() external returns (uint256 amount0, uint256 amount1);
+function bind(address newSubject) external;   // creator or launchpadAdapter
 ```
 
-Pons v2 launches use the copied factory ABI and its escrow:
+Everything launchpad-specific — how a token is launched, how fees are claimed,
+which asset they arrive in, what the launch parameters look like — lives behind
+`ISinjohLaunchpadAdapter` in `sinjoh-launchpad-adapters`. **Supporting a new
+launchpad means writing an adapter. It does not mean changing this contract.**
 
-```solidity
-function launchPonsV2Token(
-    address factory,
-    IPonsV2LaunchFactory.TokenParams calldata params,
-    uint256 launchConfigId,
-    address pairToken
-) external payable returns (address subject, address curve);
+`bind` is delegable to the adapter because a launchpad may not produce a
+predictable token address. Some launchpads create tokens dynamically, so nothing
+derived from the address can be committed before the launch lands; the adapter
+learns the address in the launch transaction and binds there.
 
-function claimPonsV2Fees() external returns (uint256 wethAmount);
-```
+A zero `launchpadAdapter` is valid and means only the creator may bind, which is
+correct for a launch the creator performs themselves.
 
-`creatorTaxBps` is zero (disabled) or 1 to 5,000 bps. Launch rejects a value above
-Sinjoh's 5,000-bps ceiling or the factory's live `maxCreatorTaxBps()`. The call also
-checks the live launch fee, enablement/whitelist state, nonzero preview economics,
-and exact post-launch factory readback before binding. The tax rate is frozen by
-the upstream launch economics. The initial recipient is restricted to the creator
-or this router.
-
-When the router is recipient, the pair token must be native or the configured WETH.
-Anyone may call `claimPonsV2Fees`; native proceeds are wrapped immediately and exact
-balance deltas are checked. The keeper then calls `sync(WETH)`. Pons's escrow credit
-contains creator revenue as a whole, so Sinjoh does not pretend it can distinguish
-base creator revenue from the optional creator-tax share after receipt.
-
-Fees do not reach the escrow on their own. They accrue on the bonding curve, and the
-curve's `sweepFees` authorizes only its tracked fee recipient — this router — or Pons's
-rotatable sweep operator. `sweepPonsV2CurveFees()` is the permissionless passthrough:
-it forwards a sweep only when no buyback earmark is pending, because an earmarked sweep
-executes a curve-priced swap whose minimum output must come from Pons's trusted
-operator. Sinjoh launches disable buyback, so their earmark is always zero and the
-whole pipeline — curve sweep, escrow claim, `sync` — runs permissionlessly. The keeper
-proposes the sweep before the claim and simulation-gates both.
-
-The launch struct's trailing `salt` field is load-bearing twice over: it is part of the
-deployed factory's ABI (a copy without it encodes selectors that exist on no contract),
-and it makes the curve and token addresses computable before the launch is sent, which
-is what allows a raffle's immutable exclusion list to name the curve. Both properties
-are pinned by `SinjohFeeRouterV2.fork.t.sol` against the verified mainnet deployment.
-
-The historical one-time `bind` and `bindAndSendLaunchBuy` functions remain
-available for already deployed routers and do not change behavior.
+Fees arrive by plain transfer. Adapters wrap native value before forwarding, so
+intake is uniformly ERC-20 and every balance is measured the same way;
+`sync(address(0))` reverts `NativeIntakeUnsupported`.
 
 ## Configuration
 
@@ -127,26 +96,87 @@ struct Bucket {
     AssetRef output;
     uint16 bps;
     Route route;
+    address priceGuard;
+    uint128 maxAmountInPerCall;
     Allocation[] allocations;
+}
+
+struct Normalization {
+    AssetRef asset;
+    Route route;
+    address priceGuard;
+    uint128 maxAmountInPerCall;
 }
 
 struct Config {
     address creator;
     address protocolFeeRecipient;
     address weth;
-    Route subjectToWeth;
+    address launchpadAdapter;
+    Normalization[] normalizations;
     Bucket[] buckets;
 }
 ```
 
+`normalizations` replaces the former single `subjectToWeth` leg. Fees do not
+always arrive as the subject token: a launchpad that pairs a launch against a
+quote asset pays fees in that asset instead, and that asset may not be 18
+decimals. `sync` accepts any asset with a configured route and converts it to
+WETH through that route; WETH itself passes through with no route.
+
+## Synchronizing
+
+```solidity
+function sync(address asset) external returns (uint256 gross, uint256 fee);
+function sync(address asset, uint256 minAmountOut) external returns (uint256 gross, uint256 fee);
+```
+
+**The one-argument form is WETH-only.** WETH needs no conversion, so there is
+nothing for a floor to protect and requiring one would be noise on the most
+common call a keeper makes. Every other asset is swapped, so every other asset
+must use the two-argument form with a nonzero caller floor. Supplying a floor
+for WETH is allowed but ignored because no swap occurs.
+
+The refusal distinguishes its causes — `NativeIntakeUnsupported` for the zero
+address, `UnsupportedAsset` when no route is configured, and
+`NormalizationFloorRequired` only when a route exists and the caller omitted the
+floor — so a caller is not sent to fix the wrong thing.
+
+The floor is denominated in WETH, the swap's output, but must be derived from the
+input asset's own decimals. A 6-decimal quote asset read as 18 decimals misprices
+by twelve orders of magnitude.
+
+The caller floor is not the router's trust boundary: `sync` is permissionless,
+so an attacker could always supply a weak value. Each normalization therefore
+stores an immutable `priceGuard`. The router asks it for an amount-aware minimum
+for at most `maxAmountInPerCall` of the unaccounted balance and executes with the
+stricter of the guard quote and the caller floor. Excess balance remains
+unaccounted for later bounded calls, so a donation cannot permanently exceed a
+guard's supported amount. Zero or expired guard quotes fail closed.
+
+For the shared `ISinjohPriceGuard` interface, normalization supplies its input
+asset as both `subject` and `assetIn`. This deliberately binds the guard to the
+pair actually being swapped: a USDG-to-WETH normalization remains guardable even
+though the launched subject token is not one side of that pair.
+
+Decimals are confined to the route. Every route outputs 18-decimal WETH and all
+downstream accounting is denominated in the output, so nothing after
+normalization changes. The exposure is the route's `minAmountOut` and the price
+guard, both of which must be computed in the input asset's own scale — a
+6-decimal input read as 18 decimals misprices by twelve orders of magnitude.
+
 Rules:
 
 - one to eight buckets;
+- zero to eight normalizations (zero is valid for a WETH-only intake);
 - one to sixteen allocations per bucket;
 - bucket basis points total 10,000;
 - every bucket’s allocation basis points total 10,000;
 - WETH output uses an empty identity route;
 - every other output uses a deployed adapter;
+- every ERC-20 output other than WETH uses a deployed immutable price guard;
+- native unwrap and WETH identity buckets use no guard and enforce exact value;
+- every bucket has a nonzero immutable per-call input cap;
 - route and sink configuration bytes are bounded;
 - resolved bucket outputs must be unique;
 - native ETH cannot use the burn address.
@@ -173,9 +203,12 @@ created by buyback buckets therefore cannot be mistaken for new fee intake.
 function sync(address asset) external returns (uint256 gross, uint256 fee);
 ```
 
-`asset` must be the bound subject or WETH. Subject intake swaps to WETH first.
-The protocol fee and all bucket shares are then denominated in WETH. The last
-bucket receives integer-division dust so every unit is assigned immediately.
+`asset` must be WETH or any bound configured normalization asset. Non-WETH intake
+swaps to WETH first. The protocol fee and all bucket shares are then denominated
+in WETH. Shares use house-monotone D'Hondt apportionment over lifetime cumulative
+totals, so splitting one sync into smaller calls cannot change any bucket's
+cumulative entitlement and no entitlement ever needs to decrease. Exact priority
+ties go to the earlier configured entry.
 
 ## Bucket processing
 
@@ -185,14 +218,19 @@ function processBucket(
     address inputAsset,
     uint256 amountIn,
     uint256 callerMinOut,
-    bytes calldata unused
+    bytes calldata guardData
 ) external returns (uint256 amountOut);
 ```
 
-`inputAsset` must be WETH. Any nonzero amount up to the bucket’s pending WETH
-may be processed. The immutable bucket route either keeps WETH or produces the
-configured output. The router verifies exact WETH spend and measures the actual
-output balance increase. The last allocation receives integer-division dust.
+`inputAsset` must be WETH. Any nonzero amount up to both the bucket’s pending WETH
+and immutable `maxAmountInPerCall` may be processed. The immutable bucket route either keeps WETH or produces the
+configured output. ERC-20 swaps execute against the stricter of the immutable
+guard quote and `callerMinOut`; zero and expired quotes fail closed. WETH
+identity needs no guard, and native unwrap requires at least exact one-to-one
+output. The router verifies exact WETH spend and measures the actual output
+balance increase. Allocations use the same house-monotone cumulative
+apportionment, so caller-selected processing tranches cannot redirect rounding
+value.
 
 Each bucket is independent. A failed asset swap does not block WETH sends,
 airdrops, buybacks, native ETH, LP, or another asset bucket.

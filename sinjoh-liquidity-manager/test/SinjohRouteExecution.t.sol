@@ -3,25 +3,27 @@ pragma solidity 0.8.28;
 
 import { TickMath } from "@uniswap/v4-core/src/libraries/TickMath.sol";
 
-import { SinjohUniswapV3MultiHopSwapAdapter } from
-    "../src/SinjohUniswapV3MultiHopSwapAdapter.sol";
+import { SinjohUniswapV3MultiHopSwapAdapter } from "../src/SinjohUniswapV3MultiHopSwapAdapter.sol";
 import { SinjohUniswapV3SwapAdapter } from "../src/SinjohUniswapV3SwapAdapter.sol";
 import { SinjohV3RouteExecutionFactory } from "../src/SinjohV3RouteExecutionFactory.sol";
 import { SinjohV3RouteGuardDeployer } from "../src/SinjohV3RouteGuardDeployer.sol";
 import { SinjohV3RouteTwapPriceGuard } from "../src/SinjohV3RouteTwapPriceGuard.sol";
 import { DeployV3RouteExecutionFactory } from "../script/DeployV3RouteExecutionFactory.s.sol";
+import { DeployV3RouteGuardDeployer } from "../script/DeployV3RouteGuardDeployer.s.sol";
 import { TestBase } from "./TestBase.sol";
 import { MockERC20 } from "./mocks/MockERC20.sol";
-import { MockV3MultiHopRouter, MockV3MultiPoolFactory, MockV3OraclePool } from
-    "./mocks/MockSwapInfrastructure.sol";
+import {
+    MockV3MultiHopRouter,
+    MockV3MultiPoolFactory,
+    MockV3OraclePool
+} from "./mocks/MockSwapInfrastructure.sol";
 
 /// @notice Covers the execution dependencies an "another token" or RWA fee
 /// bucket needs: the subject normalises through the quote asset in one atomic
 /// two-hop swap, and quote-asset fees take the direct pool.
 contract SinjohRouteExecutionTest is TestBase {
     uint256 internal constant EIP170_LIMIT = 24_576;
-    address internal constant PINNED_GUARD_DEPLOYER =
-        0xd9A2F73d97fb6EbAe65FEA981afe3BD252C8b530;
+    address internal constant PINNED_GUARD_DEPLOYER = 0xd9A2F73d97fb6EbAe65FEA981afe3BD252C8b530;
     address internal constant PINNED_FACTORY = 0x3c40C6B72630cdB07EBB5487A38fF0677E1360DB;
 
     uint24 internal constant SUBJECT_FEE = 10_000;
@@ -92,7 +94,8 @@ contract SinjohRouteExecutionTest is TestBase {
         address otherSalt =
             executionFactory.predictAssetRoute(address(this), keccak256("b"), route).subjectAdapter;
         address otherCreator =
-            executionFactory.predictAssetRoute(address(0xBEEF), keccak256("a"), route).subjectAdapter;
+            executionFactory.predictAssetRoute(address(0xBEEF), keccak256("a"), route)
+        .subjectAdapter;
 
         assertTrue(base != otherSalt);
         assertTrue(base != otherCreator);
@@ -106,8 +109,7 @@ contract SinjohRouteExecutionTest is TestBase {
     function testEveryDeployedContractFitsWithinTheEip170Limit() public {
         address guardDeployer = address(new SinjohV3RouteGuardDeployer());
         address factory = address(new SinjohV3RouteExecutionFactory(guardDeployer));
-        SinjohV3RouteExecutionFactory.AssetRouteDependencies memory dependencies =
-            _liveRoute();
+        SinjohV3RouteExecutionFactory.AssetRouteDependencies memory dependencies = _liveRoute();
 
         assertTrue(factory.code.length <= EIP170_LIMIT);
         assertTrue(guardDeployer.code.length <= EIP170_LIMIT);
@@ -122,8 +124,10 @@ contract SinjohRouteExecutionTest is TestBase {
     function testDeploymentAddressMatchesTheAddressPinnedInTheManifest() public {
         DeployV3RouteExecutionFactory deployment = new DeployV3RouteExecutionFactory();
         (address guardDeployer, address factory) = deployment.predict();
+        DeployV3RouteGuardDeployer guardDeployment = new DeployV3RouteGuardDeployer();
 
         assertEq(guardDeployer, PINNED_GUARD_DEPLOYER);
+        assertEq(guardDeployment.predict(), PINNED_GUARD_DEPLOYER);
         assertEq(factory, PINNED_FACTORY);
 
         // The factory address commits to the full creation code and the guard
@@ -271,8 +275,7 @@ contract SinjohRouteExecutionTest is TestBase {
 
     function testSubjectGuardQuotesBothHopsUnderOneBound() public {
         SinjohV3RouteExecutionFactory.AssetRouteDependencies memory dependencies = _liveRoute();
-        SinjohV3RouteTwapPriceGuard guard =
-            SinjohV3RouteTwapPriceGuard(dependencies.subjectGuard);
+        SinjohV3RouteTwapPriceGuard guard = SinjohV3RouteTwapPriceGuard(dependencies.subjectGuard);
 
         // Hop one halves, hop two halves again: a two-hop quote must compound.
         _setTicks(subjectPool, -6_932, -6_932);
@@ -283,12 +286,7 @@ contract SinjohRouteExecutionTest is TestBase {
         assertTrue(both < oneHop);
 
         (uint256 minOut, uint48 validUntil) = guard.minimumOutput(
-            address(subject),
-            address(subject),
-            address(asset),
-            1 ether,
-            guard.routeHash(),
-            ""
+            address(subject), address(subject), address(asset), 1 ether, guard.routeHash(), ""
         );
         assertEq(minOut, both * (10_000 - 500) / 10_000);
         assertTrue(validUntil > block.timestamp);
@@ -308,9 +306,7 @@ contract SinjohRouteExecutionTest is TestBase {
 
         // A router bound to some other subject must not reuse this guard.
         vm.expectPartialRevert(SinjohV3RouteTwapPriceGuard.InvalidRoute.selector);
-        guard.minimumOutput(
-            address(0xABCD), address(quote), address(asset), 1 ether, routeHash, ""
-        );
+        guard.minimumOutput(address(0xABCD), address(quote), address(asset), 1 ether, routeHash, "");
     }
 
     function testGuardIsOneDirectionalAndRouteHashBound() public {
@@ -336,8 +332,7 @@ contract SinjohRouteExecutionTest is TestBase {
 
     function testSubjectGuardFailsClosedWhenEitherPoolDislocates() public {
         SinjohV3RouteExecutionFactory.AssetRouteDependencies memory dependencies = _liveRoute();
-        SinjohV3RouteTwapPriceGuard guard =
-            SinjohV3RouteTwapPriceGuard(dependencies.subjectGuard);
+        SinjohV3RouteTwapPriceGuard guard = SinjohV3RouteTwapPriceGuard(dependencies.subjectGuard);
 
         _setTicks(subjectPool, 1_000, 0);
         vm.expectPartialRevert(SinjohV3RouteTwapPriceGuard.ExcessivePriceDeviation.selector);
@@ -351,8 +346,7 @@ contract SinjohRouteExecutionTest is TestBase {
 
     function testSubjectGuardFailsClosedUntilBothPoolsHaveHistory() public {
         SinjohV3RouteExecutionFactory.AssetRouteDependencies memory dependencies = _liveRoute();
-        SinjohV3RouteTwapPriceGuard guard =
-            SinjohV3RouteTwapPriceGuard(dependencies.subjectGuard);
+        SinjohV3RouteTwapPriceGuard guard = SinjohV3RouteTwapPriceGuard(dependencies.subjectGuard);
 
         assetPool.setCardinality(1);
         vm.expectPartialRevert(SinjohV3RouteTwapPriceGuard.OracleNotReady.selector);
@@ -361,8 +355,7 @@ contract SinjohRouteExecutionTest is TestBase {
 
     function testTwoHopGuardRefusesToAnchorAnExternalVenue() public {
         SinjohV3RouteExecutionFactory.AssetRouteDependencies memory dependencies = _liveRoute();
-        SinjohV3RouteTwapPriceGuard guard =
-            SinjohV3RouteTwapPriceGuard(dependencies.subjectGuard);
+        SinjohV3RouteTwapPriceGuard guard = SinjohV3RouteTwapPriceGuard(dependencies.subjectGuard);
 
         vm.expectPartialRevert(SinjohV3RouteTwapPriceGuard.InvalidRoute.selector);
         guard.validatePoolPrice(
@@ -390,8 +383,7 @@ contract SinjohRouteExecutionTest is TestBase {
         private
         returns (MockV3OraclePool pool)
     {
-        (address token0, address token1) =
-            tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
+        (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
         pool = new MockV3OraclePool(address(v3Factory), token0, token1, fee);
         v3Factory.setPool(tokenA, tokenB, fee, address(pool));
     }
@@ -402,11 +394,7 @@ contract SinjohRouteExecutionTest is TestBase {
     }
 
     /// @dev The shape the UI freezes before the subject or its pool exists.
-    function _futureRoute()
-        private
-        view
-        returns (SinjohV3RouteExecutionFactory.AssetRoute memory)
-    {
+    function _futureRoute() private view returns (SinjohV3RouteExecutionFactory.AssetRoute memory) {
         return SinjohV3RouteExecutionFactory.AssetRoute({
             router: address(router),
             factory: address(v3Factory),

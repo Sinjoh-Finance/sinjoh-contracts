@@ -9,7 +9,7 @@ specification).
 RH_RPC_URL=https://rpc.mainnet.chain.robinhood.com forge test
 ```
 
-`PonsV2RaffleLifecycle.fork.t.sol` is the reference implementation of the
+`ProductionPonsV2Raffle.fork.t.sol` is the reference implementation of the
 launch ordering: predict router → predict curve/token → build the raffle around
 the predicted curve → deploy raffle, then router naming it as sink → launch →
 verify every prediction → revenue to prize pool → committed round pays a real
