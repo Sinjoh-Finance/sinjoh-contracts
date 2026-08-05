@@ -30,3 +30,18 @@ DEPLOYER_PRIVATE_KEY=... REVENUE_COLLECTOR=... forge script \
   --rpc-url https://rpc.testnet.chain.robinhood.com \
   --broadcast
 ```
+
+The raffle's mystery-stock testnet mirror uses separate shared guards for V3 fee tiers `500`,
+`3000`, and `10000`, each with an immutable five-minute TWAP. The chain-locked deployment script
+checks the testnet factory runtime hash before broadcasting:
+
+```sh
+DEPLOYER_PRIVATE_KEY=... forge script \
+  script/DeployRafflePriceGuardsTestnet.s.sol:DeployRafflePriceGuardsTestnet \
+  --rpc-url https://rpc.testnet.chain.robinhood.com \
+  --broadcast
+```
+
+Pool priming is monotonic and normally one-time per pool and target observation cardinality. It
+allocates future capacity but does not create historical observations; swaps must populate the
+buffer for at least the complete five-minute window before guarded quotes are enabled.

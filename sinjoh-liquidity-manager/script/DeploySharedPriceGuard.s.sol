@@ -12,6 +12,9 @@ interface Vm {
 
 /// @notice Deploys the single price guard that every launch's liquidity
 /// configuration points at.
+/// @dev This is the existing liquidity-manager guard, not a raffle stock-reward
+/// guard. Raffle guards use a five-minute window and three fee tiers through a
+/// separate, testnet-first deployment path.
 contract DeploySharedPriceGuard {
     uint256 internal constant ROBINHOOD_MAINNET_CHAIN_ID = 4_663;
     address internal constant EXPECTED_DEPLOYER = 0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49;
