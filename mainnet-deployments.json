@@ -207,7 +207,7 @@
       }
     },
     "ponsV2PairBuybackAdapter": {
-      "address": "0xFaB57A5Fe409B4503A1A09FD7dc80E6FFb85AbB8",
+      "address": "0xfAB57a5fE409B4503A1a09fD7DC80e6ffB85Abb8",
       "deploymentTransaction": "0x52b095758edc3d998dbff2c6a23b01d3e3e593c1c8f79334c9040d8c71e8a2de",
       "deploymentBlock": 28126079,
       "runtimeCodeHash": "0x37fedab733793c3b192b44be34c45048b99915534b9e2a256cf9b518a7417a07",
@@ -221,7 +221,7 @@
       }
     },
     "ponsV2PairBuybackPriceGuard": {
-      "address": "0x69768F0b41A5A51ab23b23CCFbE9E3122ac0DA8B",
+      "address": "0x69768f0b41A5A51aB23b23ccfbE9e3122Ac0DA8b",
       "deploymentTransaction": "0x17579811baa9eb290ebe1a2a73534fecd1e93909edcf170a261418682ce5ec75",
       "deploymentBlock": 28126079,
       "runtimeCodeHash": "0x27a8a84e173e127965717c020a07bb304ab0eb7e3396d0b6e3fc720f536cea21",
