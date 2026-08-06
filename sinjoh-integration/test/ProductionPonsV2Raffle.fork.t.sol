@@ -5,7 +5,6 @@ import { IPonsV2LaunchFactory } from "router/src/interfaces/IPonsV2.sol";
 import { PonsV2LaunchPrediction } from "router/src/libraries/PonsV2LaunchPrediction.sol";
 import { RaffleTypes } from "raffle/src/RaffleTypes.sol";
 import { SinjohRaffleRewards } from "raffle/src/SinjohRaffleRewards.sol";
-import { SinjohRaffleRewardsFactory } from "raffle/src/SinjohRaffleRewardsFactory.sol";
 import { RaffleTree } from "raffle/test/RaffleTree.sol";
 import { MockArbSys } from "raffle/test/mocks/MockArbSys.sol";
 import { MockRandomness } from "raffle/test/mocks/MockRandomness.sol";
@@ -131,15 +130,27 @@ interface IWETHProd {
     function balanceOf(address account) external view returns (uint256);
 }
 
+interface IRaffleFactoryLive {
+    function deployRaffle(bytes32 userSalt, RaffleTypes.Config calldata config)
+        external
+        returns (address raffle);
+    function predictRaffle(address creator, bytes32 userSalt, bytes32 configHash)
+        external
+        view
+        returns (address raffle);
+    function hashConfig(RaffleTypes.Config calldata config) external pure returns (bytes32);
+}
+
 interface IERC20Prod {
     function balanceOf(address account) external view returns (uint256);
 }
 
 /// @notice The production raffle launch, end to end, against the contracts that
 /// are actually deployed on Robinhood Chain mainnet: the agnostic fee-router
-/// factory, the Pons v2 adapter factory, and the live Pons v2 launchpad. The
-/// only locally deployed Sinjoh contract is the raffle itself, because its
-/// factory is not on mainnet yet.
+/// factory, the live raffle factory, the Pons v2 adapter factory, and the live
+/// Pons v2 launchpad. No Sinjoh contract is compiled locally: the raffle comes
+/// from the deployed factory's clone of the deployed implementation, so what
+/// this exercises is the runtime a real launch gets.
 ///
 /// @dev This is the flow an integrating UI performs, in this exact order:
 ///
@@ -161,6 +172,7 @@ contract ProductionPonsV2RaffleForkTest {
     // Deployed Sinjoh infrastructure (mainnet-deployments.json).
     address internal constant AGNOSTIC_ROUTER_FACTORY = 0xA1F721a697Dd03a45f264F53bCBFd121212318eD;
     address internal constant PONS_V2_ADAPTER_FACTORY = 0xdb02cC8bbEb1F4B0A98f974a8768c08370d1a821;
+    address internal constant RAFFLE_FACTORY = 0xD030064fB83d14C97c22A6B63bF376552eBA7112;
     // Live Pons v2 + chain constants.
     address internal constant PONS_V2_FACTORY = 0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e;
     address internal constant WETH = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
@@ -172,7 +184,6 @@ contract ProductionPonsV2RaffleForkTest {
     error AssertionFailed(string reason);
 
     bool internal forked;
-    SinjohRaffleRewardsFactory internal raffleFactory;
     MockRandomness internal randomness;
     MockArbSys internal arbSys;
 
@@ -181,7 +192,6 @@ contract ProductionPonsV2RaffleForkTest {
         if (bytes(url).length == 0) return;
         vm.createSelectFork(url);
         forked = true;
-        raffleFactory = new SinjohRaffleRewardsFactory(block.chainid);
         randomness = new MockRandomness();
         MockArbSys implementation = new MockArbSys();
         vm.etch(ARBSYS, address(implementation).code);
@@ -217,15 +227,22 @@ contract ProductionPonsV2RaffleForkTest {
             PONS_V2_FACTORY, params, 0, address(0), predictedAdapter
         );
 
-        // 4. The raffle is configured around addresses that do not exist yet.
+        // 4. The raffle is configured around addresses that do not exist yet,
+        //    and deploys from the LIVE factory at its predicted address.
+        RaffleTypes.Config memory config =
+            _raffleConfig(_exclusions(pons, predictedCurve, predictedAdapter));
+        address predictedRaffle = IRaffleFactoryLive(RAFFLE_FACTORY).predictRaffle(
+            address(this),
+            bytes32("PROD_RAFFLE"),
+            IRaffleFactoryLive(RAFFLE_FACTORY).hashConfig(config)
+        );
         SinjohRaffleRewards raffle = SinjohRaffleRewards(
             payable(
-                raffleFactory.deployRaffle(
-                    bytes32("PROD_RAFFLE"),
-                    _raffleConfig(_exclusions(pons, predictedCurve, predictedAdapter))
-                )
+                IRaffleFactoryLive(RAFFLE_FACTORY).deployRaffle(bytes32("PROD_RAFFLE"), config)
             )
         );
+        _require(address(raffle) == predictedRaffle, "raffle prediction failed");
+        _require(raffle.isExcluded(predictedCurve), "predicted curve not excluded");
 
         // 5-6. Router names the adapter and the raffle sink; adapter wires to
         // the router. Both land on their predictions.
