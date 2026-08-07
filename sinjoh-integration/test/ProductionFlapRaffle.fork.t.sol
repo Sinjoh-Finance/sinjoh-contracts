@@ -445,7 +445,7 @@ contract ProductionFlapRaffleForkTest {
             maxTicketsPerHolder: 0,
             minPrize: 1,
             maxPrize: 0,
-            prizeBps: 500,
+            prizeBps: 10_000,
             recipientTaxBps: 700,
             recycleTaxBps: 300,
             minConfirmations: 1,

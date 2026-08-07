@@ -200,7 +200,7 @@ Reference launch values for an hourly raffle:
 
 ```text
 tokensPerTicket   = 10_000 * 10**18
-prizeBps          = 500          // 5% of the available pool each hour
+prizeBps          = 10_000       // 100% of the available pool each hour
 winnersPerRound   = 1
 minRoundInterval  = 3600
 basis             = MIN_BALANCE
@@ -211,8 +211,9 @@ randomnessTimeout = 3600         // seal is the only deadline; the rest can wait
 claimWindow       = 604800
 ```
 
-At 5% per round, roughly half of an unreplenished pool is paid out over 14 rounds.
-The prize is a share of the pool, never a fixed obligation, so the raffle cannot
+The product default pays the full available pool each round. A creator may
+explicitly choose a smaller recurring share before launch. The prize is a share
+of the pool, never a fixed obligation, so the raffle cannot
 become insolvent through configuration alone.
 
 ## Deposits
@@ -634,7 +635,8 @@ recycle the rest — a 10% tax configured as 700/300 sends 7% of every prize to 
 recipient and returns 3% to the pool. Setting one share to zero gives the pure
 delivery or pure self-sustaining behavior.
 
-Recycling slows the pool's decay. At `prizeBps = 500` with 300 bps recycled, 5% of
+For a creator who explicitly selects a recurring 5% prize, recycling slows the
+pool's decay. At `prizeBps = 500` with 300 bps recycled, 5% of
 the pool leaves each round and 0.15% returns, so the effective drain is 4.85% and
 the pool's half-life stretches from about 13.5 rounds to about 14. Every recycled
 unit is still paid to a holder, just in a later round.
