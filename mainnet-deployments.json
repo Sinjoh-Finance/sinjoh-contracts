@@ -8,7 +8,7 @@
   "governance": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f",
   "deployedAt": "2026-07-30",
   "letscashDependencies": {
-    "verifiedAtBlock": 33917943,
+    "verifiedAtBlock": 33989899,
     "factoryProxy": {
       "address": "0x5bd1Fbe78a78fe8236fa00CF48fbEBA74ae34661",
       "runtimeCodeHash": "0x51faa3f1aaa267eb4ffb4dd57f07a89edf3ffd618213bf35cf7f8254a07961e5"
@@ -52,6 +52,49 @@
     }
   },
   "currentInfrastructure": {
+    "letscashAdapterFactory": {
+      "address": "0x81f50D1695eeB6976b53f5dCc9E785Ff06C183DC",
+      "deploymentTransaction": "0x12019fe3d4097259fd2e5c2e3e12e63ea02c23e218dd8bccea7c351523ad2747",
+      "deploymentBlock": 33989899,
+      "runtimeCodeHash": "0xd5e2b73d1464ba5d8912ec7f999893e7369456a8b64f97160e9097969f02cac3",
+      "purpose": "Deploys deterministic creator-scoped letscash.fun adapters without creating a token or adapter clone during this dark deployment.",
+      "verified": {
+        "implementation": "0x0B825f7d00adB6bF03A7c7853F670F192D742cC4",
+        "launchFactory": "0x5bd1Fbe78a78fe8236fa00CF48fbEBA74ae34661",
+        "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        "hook": "0x75A54357D9C78a2Db19004a5FDc76c50F9242AEC",
+        "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "deploymentChainId": 4663
+      }
+    },
+    "letscashAdapterImplementation": {
+      "address": "0x0B825f7d00adB6bF03A7c7853F670F192D742cC4",
+      "deploymentTransaction": "0x12019fe3d4097259fd2e5c2e3e12e63ea02c23e218dd8bccea7c351523ad2747",
+      "deploymentBlock": 33989899,
+      "runtimeCodeHash": "0x15e9bdbf2be5d996731edaa189a797da85fd395e3f42e3671317534cd9eff131",
+      "purpose": "Initialized implementation for immutable per-launch letscash.fun fee-recipient clones.",
+      "verified": {
+        "initialized": true,
+        "adapterFactory": "0x81f50D1695eeB6976b53f5dCc9E785Ff06C183DC"
+      }
+    },
+    "letscashBuybackAdapter": {
+      "address": "0xb372e5E82C189b2c6BFBdD218956E3e198533D17",
+      "deploymentTransaction": "0x1fbe9b4a5a2432aa09d04eafaf19c28c74a959e61545efea2ee6668168fa1e5f",
+      "deploymentBlock": 33989899,
+      "runtimeCodeHash": "0x156272a01dad06df99f00d593d306fa3453a146d226d6115d3f2341f6fbf6695",
+      "purpose": "Converts capped WETH allocations into letscash.fun subjects through their verified native v4 pools."
+    },
+    "letscashBuybackPriceGuard": {
+      "address": "0x1fE014FDa9B4054a5Da3b52Be5031393F83eeC8d",
+      "deploymentTransaction": "0x35631fddf7914df4a425d3deda0ee35cf1e7275435a1131c3da82c1ccca0d85a",
+      "deploymentBlock": 33989899,
+      "runtimeCodeHash": "0xc33f13461992aabea2fe3c4e01999930bba3e71e4c86ce6189fce47d67347f68",
+      "purpose": "Requires an amount-, config-, router-, and time-bound signed floor for every letscash.fun buyback.",
+      "verified": {
+        "quoteSigner": "0xd89fB916dD031Da9b0A32e820307c2d41a7dDe09"
+      }
+    },
     "agnosticFeeRouterImplementation": {
       "address": "0x06274b69d4Cd4D98Ed7Cf4f45Fd50137e8A184a6",
       "deploymentTransaction": "0x36ab5e151677b0e59c3e7a03980d4ddc8e1a149c3e52cc98835d340673dbb815",
