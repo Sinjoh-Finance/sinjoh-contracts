@@ -7,6 +7,50 @@
   "deployer": "0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49",
   "governance": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f",
   "deployedAt": "2026-07-30",
+  "letscashDependencies": {
+    "verifiedAtBlock": 33917943,
+    "factoryProxy": {
+      "address": "0x5bd1Fbe78a78fe8236fa00CF48fbEBA74ae34661",
+      "runtimeCodeHash": "0x51faa3f1aaa267eb4ffb4dd57f07a89edf3ffd618213bf35cf7f8254a07961e5"
+    },
+    "factoryImplementation": {
+      "address": "0x3dfd73a63e15920add4b6c5c6a4b1b4b768b2c1a",
+      "runtimeCodeHash": "0xef0219f515c49723f589e3aa4748b6f99caa8ef8a3f03e4c1a2b4d977d80f731",
+      "eip1967ImplementationSlot": "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
+    },
+    "hook": {
+      "address": "0x75A54357D9C78a2Db19004a5FDc76c50F9242AEC",
+      "runtimeCodeHash": "0x5bbb7cb03abf34683d1f1e795e5e1a96573a0feee7c20c51f1cbf02139eb9003"
+    },
+    "poolManager": {
+      "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "runtimeCodeHash": "0xbd3881180b547f5fe817545743cfb4343e96b1bc6640dcd70c106b0066e95626"
+    },
+    "stateView": {
+      "address": "0xF3334192D15450CdD385c8B70e03f9A6bD9E673b",
+      "runtimeCodeHash": "0x7d9c591e0956fd89d98feb4ffcfe8bf1f7a62bd485edd979fa21d104b49878a6",
+      "purpose": "Reads letscash.fun v4 slot0 for price, market-cap, and chart surfaces."
+    },
+    "quoter": {
+      "address": "0x8Dc178eFB8111BB0973Dd9d722ebeFF267c98F94",
+      "runtimeCodeHash": "0xd707b1da8cb165e5ea35a3b4450d971eb562ec171e23492aa117036b78a868f6",
+      "purpose": "Quotes exact-input letscash.fun trades including hook fees."
+    },
+    "universalRouter": {
+      "address": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
+      "runtimeCodeHash": "0x2ce6aaaf9f4151f5e1cbf774668772f17f532ae11b15e9284fd0a072a8b0fbde",
+      "purpose": "Executes wallet-owned letscash.fun v4 buys and sells."
+    },
+    "permit2": {
+      "address": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+      "runtimeCodeHash": "0x5208783f52488f7d3493e5e38311ab707c1d75457fe472a19b0b4d57d66a7fca",
+      "purpose": "Pull authorization for letscash.fun token sells through the Universal Router."
+    },
+    "weth": {
+      "address": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+      "runtimeCodeHash": "0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353"
+    }
+  },
   "currentInfrastructure": {
     "agnosticFeeRouterImplementation": {
       "address": "0x06274b69d4Cd4D98Ed7Cf4f45Fd50137e8A184a6",

@@ -542,6 +542,65 @@ v3.2.0. If Uniswap later publishes its own canonical MerkleClaimFactory at a
 different address, existing launches are unaffected (each distributor is a
 standalone contract) and new adapter factory deployments should repin.
 
+### `SinjohLetsCashAdapter`
+
+One predictable clone owns the creator-fee stream of one native-quote
+letscash.fun vNext launch. The upstream factory requires
+`TokenParams.creator == msg.sender`, so the adapter cannot proxy the launch
+without replacing the human creator on-chain. The supported flow is therefore:
+
+1. predict and deploy the adapter and router;
+2. the creator calls `launchWithFeeSplit` directly with the adapter as the sole
+   recipient and 10,000 shares;
+3. the creator calls `adapter.activate(token, poolId, configId)`.
+
+Activation validates the factory config identity, immutable hook module, native
+quote, non-self-burn mode, token provenance, pool id, exact upstream fee terms,
+and the sole adapter recipient before binding the router. It deliberately does
+not re-check the factory's mutable global/config enabled switches after launch:
+an owner pause between an EOA's two transactions must not strand fees already
+assigned to the adapter. An EOA needs two transactions; a smart account may
+batch them. The second call is safe to retry until confirmed and cannot activate
+a launch routed anywhere else.
+
+The vNext hook's `claim(poolId)` pays raw ETH to its recorded creator. The
+permissionless adapter claims, wraps its entire ETH balance to WETH, and forwards
+WETH through the standard router seam. Treasury, raffle, airdrop, wallet, and
+other allocations are consequently the same router configuration used by the
+other launchpads.
+
+Fee ownership is deliberately one-way. letscash.fun permits only the current
+creator recipient to call `updateCreator`, and this adapter exposes no arbitrary
+call or update path. Once the launch records the adapter, neither the original
+creator nor Sinjoh can redirect that stream. A self-burn launch is rejected
+because its native letscash.fun burner recipient can never be redirected. This
+does not restrict buybacks or burns configured downstream through the Sinjoh
+router.
+
+Only native-quote configs are supported. Although the current factory also
+contains token-quote configs, they are outside this adapter's ETH-only profile.
+The factory is upgradeable, so activation verifies post-launch immutable token
+and hook state rather than trusting proxy behavior alone. The hook and pool
+custody are immutable dependencies pinned by address and runtime code hash.
+
+### `SinjohLetsCashBuybackAdapter` and `SinjohLetsCashBuybackPriceGuard`
+
+The buyback adapter converts router WETH to the letscash.fun subject in its
+native Uniswap v4 pool. Route data is exactly `abi.encode(configId)`; the adapter
+reconstructs the pool key from the current config and requires the immutable
+hook registry to contain the resulting pool id with matching fee economics.
+It unwraps WETH, settles the native side inside the PoolManager unlock callback,
+and returns the measured token output under the router's caller and guard floors.
+
+The guard accepts a five-minute signed, amount-aware floor bound to chain,
+guard, router, subject, assets, amount, and route-data hash. The keeper reads the
+buyback adapter's own slot0 quote, applies the configured slippage bound, and
+signs the floor. The quote accounts for the hook fee but intentionally leaves
+price impact to the slippage allowance and the swap's enforced minimum.
+Keeper manifests cap that allowance at 2,000 bps and must use conservative
+per-call amounts; the signature authenticates a current same-pool observation
+but does not turn slot0 into an independent oracle.
+
 #### The already-deployed `SinjohPonsV1Adapter` cannot serve this role
 
 Those instances are immutable EIP-1167 clones with no launch entrypoint, and their
@@ -634,12 +693,19 @@ POOLS_TRADE_LBP_FACTORY=0x... forge script \
   script/DeployPoolsTradeBuybackInfrastructure.s.sol:DeployPoolsTradeBuybackInfrastructure \
   --rpc-url https://rpc.mainnet.chain.robinhood.com \
   --account sinjoh-deployer --broadcast
+
+SINJOH_LETSCASH_QUOTE_SIGNER=0x... forge script \
+  script/DeployLetsCashInfrastructure.s.sol:DeployLetsCashInfrastructure \
+  --rpc-url https://rpc.mainnet.chain.robinhood.com \
+  --account sinjoh-deployer --broadcast
 ```
 
 ## Robinhood Chain mainnet dependencies
 
 | Contract | Address |
 |---|---|
+| letscash.fun factory proxy | `0x5bd1Fbe78a78fe8236fa00CF48fbEBA74ae34661` |
+| letscash.fun current vNext hook | `0x75A54357D9C78a2Db19004a5FDc76c50F9242AEC` |
 | pons v2 launch factory | `0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e` |
 | pons v2 launch deployer | `0x3711ceA4feaDE896C913C68F01Eda97Cb06D1A42` |
 | pons v2 fee escrow | `0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e` |

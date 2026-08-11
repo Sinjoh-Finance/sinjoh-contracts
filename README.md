@@ -1,11 +1,9 @@
 # Sinjoh
 
-Sinjoh is immutable launchpad infrastructure for Robinhood Chain. Pons v1 remains
-the live integration; Pons v2 support is built behind deployment-manifest gates for
-its forthcoming testnet and mainnet contracts. This monorepo contains seven independently deployable and auditable
-Sinjoh is immutable launchpad infrastructure for Robinhood Chain, beginning with
-Pons v1. This monorepo contains six independently deployable and auditable
-Solidity packages plus the offchain automation package:
+Sinjoh is immutable launchpad infrastructure for Robinhood Chain. Pons v1 is
+the live integration; Pons v2, Flap, Pools, and letscash.fun support are built
+behind deployment-manifest gates. This monorepo contains independently
+deployable and auditable Solidity packages plus offchain automation:
 
 | Package | Purpose |
 |---|---|
@@ -13,7 +11,7 @@ Solidity packages plus the offchain automation package:
 | [`sinjoh-airdrop-distributor`](./sinjoh-airdrop-distributor) | Charges 1% on funding, then pushes the net assets to subject-token holders using cumulative Merkle-sum commitments. |
 | [`sinjoh-liquidity-manager`](./sinjoh-liquidity-manager) | Converts one quote asset as needed, creates permanent full-range Uniswap v3/v4 liquidity, and charges 1% of LP fees collected. |
 | [`sinjoh-pons-v1-adapter`](./sinjoh-pons-v1-adapter) | Collects or receives Pons v1 fees and forwards the subject token and WETH to a fixed fee router. |
-| [`sinjoh-launchpad-adapters`](./sinjoh-launchpad-adapters) | Launches through typed Pons v1/v2 adapters and forwards each launchpad's actual fee assets to the launchpad-agnostic router. |
+| [`sinjoh-launchpad-adapters`](./sinjoh-launchpad-adapters) | Integrates Pons v1/v2, Flap, Pools, and letscash.fun and forwards each launchpad's actual fee assets to the launchpad-agnostic router. |
 | [`sinjoh-revenue-collector`](./sinjoh-revenue-collector) | Provides a stable protocol-revenue endpoint and forwards assets to a governance-selected downstream processor without charging again. |
 | [`sinjoh-treasury-vault`](./sinjoh-treasury-vault) | Custodies treasury assets under one swappable governor address, paired with a 2-of-3 joint-account control system as the Standard governance module. |
 | [`sinjoh-keeper`](./sinjoh-keeper) | Automates permissionless routing and provides the isolated deterministic airdrop snapshot, attestation, and push workflow. |
@@ -68,9 +66,8 @@ for package in \
   sinjoh-pons-v1-adapter \
   sinjoh-revenue-collector \
   sinjoh-raffle-rewards \
-  sinjoh-randomness
+  sinjoh-randomness \
   sinjoh-launchpad-adapters \
-  sinjoh-revenue-collector \
   sinjoh-treasury-vault
 do
   (cd "$package" && forge fmt --check && forge test)

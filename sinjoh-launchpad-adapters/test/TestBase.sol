@@ -6,6 +6,12 @@ pragma solidity 0.8.28;
 /// v2 adapter suite needs: chain-id control, funding, and revert matching on
 /// encoded error arguments.
 interface Vm {
+    struct Log {
+        bytes32[] topics;
+        bytes data;
+        address emitter;
+    }
+
     function expectRevert() external;
     function expectRevert(bytes4 selector) external;
     function expectRevert(bytes calldata revertData) external;
@@ -28,6 +34,8 @@ interface Vm {
     function createSelectFork(string calldata urlOrAlias, uint256 blockNumber)
         external
         returns (uint256);
+    function recordLogs() external;
+    function getRecordedLogs() external returns (Log[] memory logs);
     function envOr(string calldata name, string calldata defaultValue)
         external
         view
