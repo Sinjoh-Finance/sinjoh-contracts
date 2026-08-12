@@ -17,4 +17,5 @@ allow_paths = ["../"]
 remappings = [
     "router/=../sinjoh-fee-router/",
     "raffle/=../sinjoh-raffle-rewards/",
+    "adapters/=../sinjoh-launchpad-adapters/",
 ]
