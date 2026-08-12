@@ -125,7 +125,10 @@ degrades hardware-wallet clear signing to blind signing.
 - [ ] Provision a dedicated low-value keeper signer and separate Supabase keys
       for the routing keeper and airdrop worker (`INFRASTRUCTURE.md:38-40,66-67`).
 - [ ] Decide on `SINJOH_AIRDROP_AUTO_SUBMIT`. On mainnet it auto-commits Merkle
-      roots with the attestor key and pushes payment batches with no review.
+      roots with the attestor key and pushes payment batches with no review. If
+      unattended releases are intended, also set `SINJOH_AIRDROP_AUTO_ENQUEUE`
+      and choose its per-account interval; auto-enqueue refuses to run without
+      auto-submit.
 
 ---
 
