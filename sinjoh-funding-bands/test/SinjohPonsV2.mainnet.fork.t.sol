@@ -100,6 +100,8 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
     address internal constant PONS_FACTORY = 0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e;
     address internal constant PONS_HOOK = 0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044;
     address internal constant PONS_BUYBACK_ADAPTER = 0x39217172A3F07E827557093989039F968A571D43;
+    bytes32 internal constant SINJOH_ADAPTER_CODEHASH =
+        0xc68d29cb840cd761142664c1a2a348ddccfa4f957df86d54898b981c549b28c7;
     address internal constant PONS_OWNER = 0xFdDE5a1E3cDF791Da71E49F817D70C7ceD72CC36;
     address internal constant CREATOR = address(0xC4EA704);
     uint256 internal constant SIGNER_KEY = uint256(keccak256("funding-bands-fork-signer"));
@@ -117,11 +119,16 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
         (address subject,) = _launchAndGraduate();
 
         SinjohPonsV2LaunchVerifier verifier =
-            new SinjohPonsV2LaunchVerifier(PONS_FACTORY, PONS_HOOK, WETH);
+            new SinjohPonsV2LaunchVerifier(PONS_FACTORY, PONS_HOOK, WETH, SINJOH_ADAPTER_CODEHASH);
         SinjohV4SignedBandPriceGuard guard = new SinjohV4SignedBandPriceGuard(
-            V4_STATE_VIEW, V4_STATE_VIEW.codehash, V4_POOL_MANAGER.codehash, vm.addr(SIGNER_KEY)
+            V4_STATE_VIEW,
+            V4_STATE_VIEW.codehash,
+            V4_POOL_MANAGER.codehash,
+            address(this),
+            vm.addr(SIGNER_KEY)
         );
-        SinjohSignedEthUsdOracle oracle = new SinjohSignedEthUsdOracle(vm.addr(SIGNER_KEY));
+        SinjohSignedEthUsdOracle oracle =
+            new SinjohSignedEthUsdOracle(address(this), vm.addr(SIGNER_KEY));
         _publishEthUsd(oracle, ETH_USD_E8);
         SinjohFundingBands.ProfileInput[] memory profiles = new SinjohFundingBands.ProfileInput[](1);
         profiles[0] = SinjohFundingBands.ProfileInput({

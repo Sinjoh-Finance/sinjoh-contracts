@@ -2,13 +2,17 @@
 pragma solidity 0.8.28;
 
 import { SinjohSignedPrice } from "../src/libraries/SinjohSignedPrice.sol";
+import { SinjohRotatableQuoteSigner } from "../src/access/SinjohRotatableQuoteSigner.sol";
 import { ISinjohLaunchVerifier } from "../src/interfaces/ISinjohLaunchVerifier.sol";
 import { SinjohV4SignedBandPriceGuard } from "../src/profiles/SinjohV4SignedBandPriceGuard.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { TestBase } from "./TestBase.sol";
 import { MockV4PoolManager, MockV4StateView } from "./mocks/MockInfrastructure.sol";
 
 contract SinjohV4SignedBandPriceGuardTest is TestBase {
     uint256 internal constant SIGNER_KEY = uint256(keccak256("funding-bands-test-signer"));
+    uint256 internal constant NEXT_SIGNER_KEY = uint256(keccak256("next-funding-bands-signer"));
+    address internal constant GOVERNANCE = address(0xA11CE);
     bytes32 internal constant POOL_ID = keccak256("pool");
 
     MockV4PoolManager internal poolManager;
@@ -25,6 +29,7 @@ contract SinjohV4SignedBandPriceGuardTest is TestBase {
             address(stateView),
             address(stateView).codehash,
             address(poolManager).codehash,
+            GOVERNANCE,
             vm.addr(SIGNER_KEY)
         );
         launch = ISinjohLaunchVerifier.VerifiedLaunch({
@@ -111,6 +116,49 @@ contract SinjohV4SignedBandPriceGuardTest is TestBase {
         launch.venue = ISinjohLaunchVerifier.Venue.UNISWAP_V3;
         vm.expectRevert(SinjohV4SignedBandPriceGuard.InvalidLaunch.selector);
         guard.validateBelow(launch, boundary, true, evidence);
+    }
+
+    function testGovernanceCanRecoverTheQuoteSigner() public {
+        address nextSigner = vm.addr(NEXT_SIGNER_KEY);
+        vm.prank(address(0xBAD));
+        vm.expectRevert(
+            abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0xBAD))
+        );
+        guard.setQuoteSigner(nextSigner);
+
+        vm.prank(GOVERNANCE);
+        guard.setQuoteSigner(nextSigner);
+        assertEq(guard.quoteSigner(), nextSigner);
+
+        stateView.setTick(900);
+        bytes memory oldSignerEvidence = _evidence(true, false, 900);
+        vm.expectRevert(SinjohSignedPrice.InvalidSignature.selector);
+        guard.validateBelow(launch, 1_000, true, oldSignerEvidence);
+        guard.validateBelow(
+            launch,
+            1_000,
+            true,
+            _evidenceAt(true, false, 900, 1_000_000, 1_000_060, NEXT_SIGNER_KEY)
+        );
+    }
+
+    function testGovernanceRecoveryCannotBeRenounced() public {
+        vm.prank(GOVERNANCE);
+        vm.expectRevert(SinjohRotatableQuoteSigner.OwnershipRenunciationDisabled.selector);
+        guard.renounceOwnership();
+        assertEq(guard.owner(), GOVERNANCE);
+    }
+
+    function testGovernanceTransferRequiresAcceptance() public {
+        address nextGovernance = address(0xCAFE);
+        vm.prank(GOVERNANCE);
+        guard.transferOwnership(nextGovernance);
+        assertEq(guard.owner(), GOVERNANCE);
+        assertEq(guard.pendingOwner(), nextGovernance);
+
+        vm.prank(nextGovernance);
+        guard.acceptOwnership();
+        assertEq(guard.owner(), nextGovernance);
     }
 
     function _evidence(bool subjectIsToken0, bool above, int24 referenceTick)

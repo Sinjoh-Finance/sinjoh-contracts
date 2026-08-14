@@ -21,6 +21,7 @@ import {
     MockPonsV2Factory,
     MockPonsV2MemeHook,
     MockPonsV2Token,
+    MockSinjohPonsV2Adapter,
     MockV3Factory,
     MockV3Pool,
     MockV3PositionManager,
@@ -66,7 +67,9 @@ contract SinjohPonsV2ProfileTest is TestBase {
         curve = new MockPonsV2MemeHook();
         subject = new MockPonsV2Token(CREATOR, address(factory), address(curve));
         subject.mint(CREATOR, SUPPLY);
-        verifier = new SinjohPonsV2LaunchVerifier(address(factory), address(hook), address(weth));
+        verifier = new SinjohPonsV2LaunchVerifier(
+            address(factory), address(hook), address(weth), keccak256("trusted-adapter-runtime")
+        );
         guard = new MockBandPriceGuard();
         MockV3Pool v3Pool = new MockV3Pool();
         v3Factory = new MockV3Factory();
@@ -111,6 +114,41 @@ contract SinjohPonsV2ProfileTest is TestBase {
         assertEq(launch.poolId, PoolId.unwrap(key.toId()));
         assertEq(launch.launchSupply, SUPPLY);
         assertEq(uint256(launch.venue), uint256(ISinjohLaunchVerifier.Venue.UNISWAP_V4));
+    }
+
+    function testResolvesHumanCreatorThroughPinnedSinjohAdapterClone() public {
+        MockSinjohPonsV2Adapter adapter =
+            new MockSinjohPonsV2Adapter(CREATOR, address(factory), address(curve));
+        MockPonsV2Token adapterSubject =
+            new MockPonsV2Token(address(adapter), address(factory), address(curve));
+        adapter.setSubject(address(adapterSubject));
+        adapterSubject.mint(CREATOR, SUPPLY);
+        factory.setLaunch(
+            address(adapterSubject),
+            IPonsV2LaunchFactory.LaunchedToken({
+                token: address(adapterSubject),
+                curve: address(curve),
+                deployer: address(adapter),
+                creatorFeeRecipient: address(adapter),
+                pairToken: address(0),
+                graduationThreshold: 4.2e18,
+                poolFee: 0,
+                tickSpacing: 60,
+                creatorTaxBps: 100,
+                buybackEnabled: false,
+                phase: IPonsV2LaunchFactory.GraduationPhase.PoolCreated,
+                sweptQuote: 4.2e18,
+                sweptTokens: 200_000_000e18,
+                sweptAt: block.timestamp,
+                exists: true
+            })
+        );
+        SinjohPonsV2LaunchVerifier adapterVerifier = new SinjohPonsV2LaunchVerifier(
+            address(factory), address(hook), address(weth), address(adapter).codehash
+        );
+        ISinjohLaunchVerifier.VerifiedLaunch memory launch =
+            adapterVerifier.verify(address(adapterSubject), "");
+        assertEq(launch.creatorAtLaunch, CREATOR);
     }
 
     function testRejectsPreGraduationUnsupportedQuoteAndCounterfeitMetadata() public {
@@ -197,6 +235,7 @@ contract SinjohPonsV2ProfileTest is TestBase {
             address(stateView),
             address(stateView).codehash,
             address(v4PoolManager).codehash,
+            address(this),
             vm.addr(SIGNER_KEY)
         );
         SinjohFundingBands.ProfileInput[] memory profiles = new SinjohFundingBands.ProfileInput[](1);
@@ -243,6 +282,7 @@ contract SinjohPonsV2ProfileTest is TestBase {
             address(stateView),
             address(stateView).codehash,
             address(v4PoolManager).codehash,
+            address(this),
             vm.addr(SIGNER_KEY)
         );
         SinjohFundingBands.ProfileInput[] memory profiles = new SinjohFundingBands.ProfileInput[](1);

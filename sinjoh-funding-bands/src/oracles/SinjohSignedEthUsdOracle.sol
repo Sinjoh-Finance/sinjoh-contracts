@@ -2,11 +2,12 @@
 pragma solidity 0.8.28;
 
 import { IChainlinkAggregatorV3 } from "../interfaces/IChainlinkAggregatorV3.sol";
+import { SinjohRotatableQuoteSigner } from "../access/SinjohRotatableQuoteSigner.sol";
 import { SinjohSignedPrice } from "../libraries/SinjohSignedPrice.sol";
 
-/// @notice Immutable-signer, AggregatorV3-compatible ETH/USD snapshot source for
-/// Robinhood Chain, where a standard Chainlink AggregatorV3 feed is not configured.
-contract SinjohSignedEthUsdOracle is IChainlinkAggregatorV3 {
+/// @notice AggregatorV3-compatible ETH/USD snapshot source for Robinhood Chain,
+/// with a dedicated signer and a governance-controlled recovery path.
+contract SinjohSignedEthUsdOracle is IChainlinkAggregatorV3, SinjohRotatableQuoteSigner {
     uint256 private constant ROBINHOOD_CHAIN_ID = 4663;
     uint48 public constant MAXIMUM_VALIDITY = 5 minutes;
     uint48 public constant MAXIMUM_OBSERVATION_DELAY = 5 minutes;
@@ -15,23 +16,20 @@ contract SinjohSignedEthUsdOracle is IChainlinkAggregatorV3 {
     );
 
     error WrongChain(uint256 actual);
-    error InvalidAddress();
     error InvalidPrice();
     error NoData();
 
     event AnswerUpdated(uint256 indexed answerE8, uint256 indexed roundId, uint256 observedAt);
 
     uint8 public constant decimals = 8;
-    address public immutable quoteSigner;
-
     uint80 private _roundId;
     int256 private _answer;
     uint48 private _updatedAt;
 
-    constructor(address quoteSigner_) {
+    constructor(address initialGovernance, address initialQuoteSigner)
+        SinjohRotatableQuoteSigner(initialGovernance, initialQuoteSigner)
+    {
         if (block.chainid != ROBINHOOD_CHAIN_ID) revert WrongChain(block.chainid);
-        if (quoteSigner_ == address(0)) revert InvalidAddress();
-        quoteSigner = quoteSigner_;
     }
 
     function priceDigest(uint256 answerE8, uint48 observedAt, uint48 validAfter, uint48 validUntil)

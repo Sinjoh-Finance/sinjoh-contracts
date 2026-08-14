@@ -44,6 +44,13 @@ interface IPonsV2LauncherToken {
     function curve() external view returns (address);
 }
 
+interface ISinjohPonsV2AdapterView {
+    function creator() external view returns (address);
+    function subject() external view returns (address);
+    function launchFactory() external view returns (address);
+    function curve() external view returns (address);
+}
+
 /// @notice Resolves only graduated Pons v2 launches whose quote is native ETH or
 /// canonical WETH. The launch-time deployer remains the Funding Bands controller even
 /// if Pons later rotates the mutable creator-fee recipient.
@@ -56,14 +63,24 @@ contract SinjohPonsV2LaunchVerifier is ISinjohLaunchVerifier {
     IPonsV2LaunchFactory public immutable ponsFactory;
     address public immutable memeHook;
     address public immutable weth;
+    bytes32 public immutable sinjohAdapterCodehash;
 
-    constructor(address ponsFactory_, address memeHook_, address weth_) {
-        if (ponsFactory_.code.length == 0 || memeHook_.code.length == 0 || weth_.code.length == 0) {
+    constructor(
+        address ponsFactory_,
+        address memeHook_,
+        address weth_,
+        bytes32 sinjohAdapterCodehash_
+    ) {
+        if (
+            ponsFactory_.code.length == 0 || memeHook_.code.length == 0 || weth_.code.length == 0
+                || sinjohAdapterCodehash_ == bytes32(0)
+        ) {
             revert InvalidAddress();
         }
         ponsFactory = IPonsV2LaunchFactory(ponsFactory_);
         memeHook = memeHook_;
         weth = weth_;
+        sinjohAdapterCodehash = sinjohAdapterCodehash_;
     }
 
     function verify(address subject, bytes calldata launchData)
@@ -80,6 +97,18 @@ contract SinjohPonsV2LaunchVerifier is ISinjohLaunchVerifier {
                 || (record.pairToken != address(0) && record.pairToken != weth)
                 || record.tickSpacing <= 0
         ) revert InvalidLaunch();
+
+        address creator = record.deployer;
+        if (record.deployer.code.length != 0) {
+            if (record.deployer.codehash != sinjohAdapterCodehash) revert InvalidLaunch();
+            ISinjohPonsV2AdapterView adapter = ISinjohPonsV2AdapterView(record.deployer);
+            creator = adapter.creator();
+            if (
+                creator == address(0) || adapter.subject() != subject
+                    || adapter.launchFactory() != address(ponsFactory)
+                    || adapter.curve() != record.curve
+            ) revert InvalidLaunch();
+        }
 
         IPonsV2LauncherToken token = IPonsV2LauncherToken(subject);
         if (
@@ -101,7 +130,7 @@ contract SinjohPonsV2LaunchVerifier is ISinjohLaunchVerifier {
         PoolId poolId = key.toId();
 
         launch = VerifiedLaunch({
-            creatorAtLaunch: record.deployer,
+            creatorAtLaunch: creator,
             subject: subject,
             venue: Venue.UNISWAP_V4,
             quoteAsset: record.pairToken,

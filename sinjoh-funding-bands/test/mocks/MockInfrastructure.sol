@@ -291,6 +291,24 @@ contract MockPonsV2Token is MockERC20 {
     }
 }
 
+contract MockSinjohPonsV2Adapter {
+    address public immutable creator;
+    address public immutable launchFactory;
+    address public immutable curve;
+    address public subject;
+
+    constructor(address creator_, address launchFactory_, address curve_) {
+        creator = creator_;
+        launchFactory = launchFactory_;
+        curve = curve_;
+    }
+
+    function setSubject(address subject_) external {
+        require(subject == address(0), "SET");
+        subject = subject_;
+    }
+}
+
 /// @dev Pons v2's production hook enables beforeInitialize and afterSwap only.
 /// Liquidity actions therefore require no hook callback and use empty hook data.
 contract MockPonsV2MemeHook { }
