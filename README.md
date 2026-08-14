@@ -10,6 +10,7 @@ deployable and auditable Solidity packages plus offchain automation:
 | [`sinjoh-fee-router`](./sinjoh-fee-router) | Charges a 1% protocol fee on router intake, then routes the remaining assets through immutable buckets and allocations. |
 | [`sinjoh-airdrop-distributor`](./sinjoh-airdrop-distributor) | Charges 1% on funding, then pushes the net assets to subject-token holders using cumulative Merkle-sum commitments. |
 | [`sinjoh-liquidity-manager`](./sinjoh-liquidity-manager) | Converts one quote asset as needed, creates permanent full-range Uniswap v3/v4 liquidity, and charges 1% of LP fees collected. |
+| [`sinjoh-funding-bands`](./sinjoh-funding-bands) | Lets verified launch creators commit inventory to one-sided v3/v4 market-cap bands, then routes crossed WETH proceeds to the creator or a fee router. |
 | [`sinjoh-pons-v1-adapter`](./sinjoh-pons-v1-adapter) | Collects or receives Pons v1 fees and forwards the subject token and WETH to a fixed fee router. |
 | [`sinjoh-launchpad-adapters`](./sinjoh-launchpad-adapters) | Integrates Pons v1/v2, Flap, Pools, and letscash.fun and forwards each launchpad's actual fee assets to the launchpad-agnostic router. |
 | [`sinjoh-revenue-collector`](./sinjoh-revenue-collector) | Provides a stable protocol-revenue endpoint and forwards assets to a governance-selected downstream processor without charging again. |
@@ -63,6 +64,7 @@ for package in \
   sinjoh-fee-router \
   sinjoh-airdrop-distributor \
   sinjoh-liquidity-manager \
+  sinjoh-funding-bands \
   sinjoh-pons-v1-adapter \
   sinjoh-revenue-collector \
   sinjoh-raffle-rewards \

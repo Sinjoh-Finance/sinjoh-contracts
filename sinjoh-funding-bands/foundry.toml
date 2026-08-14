@@ -1,0 +1,37 @@
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+cache_path = "cache"
+libs = ["../sinjoh-liquidity-manager/lib"]
+remappings = [
+  "@openzeppelin/contracts/=../sinjoh-liquidity-manager/lib/v4-core/lib/openzeppelin-contracts/contracts/",
+  "@uniswap/v3-core/=../sinjoh-liquidity-manager/lib/v3-core/",
+  "@uniswap/v3-periphery/=../sinjoh-liquidity-manager/lib/v3-periphery/",
+  "@uniswap/v4-core/=../sinjoh-liquidity-manager/lib/v4-periphery/lib/v4-core/",
+  "@uniswap/v4-periphery/=../sinjoh-liquidity-manager/lib/v4-periphery/",
+  "permit2/=../sinjoh-liquidity-manager/lib/v4-periphery/lib/permit2/"
+]
+solc_version = "0.8.28"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 20_000
+via_ir = true
+bytecode_hash = "none"
+cbor_metadata = false
+
+[fmt]
+line_length = 100
+tab_width = 4
+bracket_spacing = true
+int_types = "long"
+quote_style = "double"
+
+[fuzz]
+runs = 1_000
+
+[invariant]
+runs = 256
+depth = 64
+fail_on_revert = false
