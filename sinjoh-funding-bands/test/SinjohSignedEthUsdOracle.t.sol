@@ -2,11 +2,15 @@
 pragma solidity 0.8.28;
 
 import { SinjohSignedPrice } from "../src/libraries/SinjohSignedPrice.sol";
+import { SinjohRotatableQuoteSigner } from "../src/access/SinjohRotatableQuoteSigner.sol";
 import { SinjohSignedEthUsdOracle } from "../src/oracles/SinjohSignedEthUsdOracle.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { TestBase } from "./TestBase.sol";
 
 contract SinjohSignedEthUsdOracleTest is TestBase {
     uint256 internal constant SIGNER_KEY = uint256(keccak256("eth-usd-test-signer"));
+    uint256 internal constant NEXT_SIGNER_KEY = uint256(keccak256("next-eth-usd-signer"));
+    address internal constant GOVERNANCE = address(0xA11CE);
     uint256 internal constant SECP256K1N =
         0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141;
     bytes32 internal constant PRICE_TYPEHASH = keccak256(
@@ -18,7 +22,7 @@ contract SinjohSignedEthUsdOracleTest is TestBase {
     function setUp() public {
         vm.chainId(4663);
         vm.warp(1_000_000);
-        oracle = new SinjohSignedEthUsdOracle(vm.addr(SIGNER_KEY));
+        oracle = new SinjohSignedEthUsdOracle(GOVERNANCE, vm.addr(SIGNER_KEY));
     }
 
     function testPublishesAggregatorCompatibleCompleteRounds() public {
@@ -69,7 +73,31 @@ contract SinjohSignedEthUsdOracleTest is TestBase {
 
         vm.chainId(1);
         vm.expectRevert(abi.encodeWithSelector(SinjohSignedEthUsdOracle.WrongChain.selector, 1));
-        new SinjohSignedEthUsdOracle(vm.addr(SIGNER_KEY));
+        new SinjohSignedEthUsdOracle(GOVERNANCE, vm.addr(SIGNER_KEY));
+    }
+
+    function testGovernanceCanRecoverTheQuoteSigner() public {
+        address nextSigner = vm.addr(NEXT_SIGNER_KEY);
+        vm.prank(address(0xBAD));
+        vm.expectRevert(
+            abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(0xBAD))
+        );
+        oracle.setQuoteSigner(nextSigner);
+
+        vm.prank(GOVERNANCE);
+        oracle.setQuoteSigner(nextSigner);
+        assertEq(oracle.quoteSigner(), nextSigner);
+
+        vm.expectRevert(SinjohSignedPrice.InvalidSignature.selector);
+        _update(1_900e8, 999_990, 1_000_000, 1_000_060, SIGNER_KEY);
+        _update(1_900e8, 999_990, 1_000_000, 1_000_060, NEXT_SIGNER_KEY);
+    }
+
+    function testGovernanceRecoveryCannotBeRenounced() public {
+        vm.prank(GOVERNANCE);
+        vm.expectRevert(SinjohRotatableQuoteSigner.OwnershipRenunciationDisabled.selector);
+        oracle.renounceOwnership();
+        assertEq(oracle.owner(), GOVERNANCE);
     }
 
     function testRejectsMalleableMalformedAndInvalidVSignatures() public {

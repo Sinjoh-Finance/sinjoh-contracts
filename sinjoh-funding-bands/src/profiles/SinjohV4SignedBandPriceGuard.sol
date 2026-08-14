@@ -6,11 +6,13 @@ import { PoolId } from "@uniswap/v4-core/src/types/PoolId.sol";
 import { IV4StateView } from "../SinjohFundingBands.sol";
 import { ISinjohFundingBandPriceGuard } from "../interfaces/ISinjohFundingBandPriceGuard.sol";
 import { ISinjohLaunchVerifier } from "../interfaces/ISinjohLaunchVerifier.sol";
+import { SinjohRotatableQuoteSigner } from "../access/SinjohRotatableQuoteSigner.sol";
 import { SinjohSignedPrice } from "../libraries/SinjohSignedPrice.sol";
 
 /// @notice A v4 Funding Bands guard that combines canonical pool spot with a
-/// short-lived, independently sourced reference tick signed by an immutable signer.
-contract SinjohV4SignedBandPriceGuard is ISinjohFundingBandPriceGuard {
+/// short-lived, independently sourced reference tick signed by a dedicated,
+/// governance-recoverable signer.
+contract SinjohV4SignedBandPriceGuard is ISinjohFundingBandPriceGuard, SinjohRotatableQuoteSigner {
     uint48 public constant MAXIMUM_VALIDITY = 5 minutes;
     bytes32 public constant PRICE_TYPEHASH = keccak256(
         "SinjohFundingBandPrice(uint256 chainId,address guard,address manager,bytes32 poolId,bool subjectIsToken0,bool above,int24 referenceTick,uint48 validAfter,uint48 validUntil)"
@@ -24,7 +26,6 @@ contract SinjohV4SignedBandPriceGuard is ISinjohFundingBandPriceGuard {
 
     IV4StateView public immutable stateView;
     address public immutable poolManager;
-    address public immutable quoteSigner;
     bytes32 public immutable stateViewCodehash;
     bytes32 public immutable poolManagerCodehash;
 
@@ -32,12 +33,12 @@ contract SinjohV4SignedBandPriceGuard is ISinjohFundingBandPriceGuard {
         address stateView_,
         bytes32 stateViewCodehash_,
         bytes32 poolManagerCodehash_,
-        address quoteSigner_
-    ) {
-        if (
-            stateView_.code.length == 0 || stateView_.codehash != stateViewCodehash_
-                || quoteSigner_ == address(0)
-        ) revert InvalidAddress();
+        address initialGovernance,
+        address initialQuoteSigner
+    ) SinjohRotatableQuoteSigner(initialGovernance, initialQuoteSigner) {
+        if (stateView_.code.length == 0 || stateView_.codehash != stateViewCodehash_) {
+            revert InvalidAddress();
+        }
         address poolManager_ = IV4StateView(stateView_).poolManager();
         if (
             poolManager_.code.length == 0 || poolManager_.codehash != poolManagerCodehash_
@@ -45,7 +46,6 @@ contract SinjohV4SignedBandPriceGuard is ISinjohFundingBandPriceGuard {
         ) revert InvalidAddress();
         stateView = IV4StateView(stateView_);
         poolManager = poolManager_;
-        quoteSigner = quoteSigner_;
         stateViewCodehash = stateViewCodehash_;
         poolManagerCodehash = poolManagerCodehash_;
     }
