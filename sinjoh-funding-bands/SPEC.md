@@ -155,9 +155,8 @@ function create(
 ) external returns (bytes32 accountId);
 ```
 
-`launchData` and `guardData` are each capped at 1,024 bytes. `guardData` carries the
-profile-specific reference-price evidence required to prove every lower boundary is
-above the current market during registration.
+`launchData` and `guardData` are each capped at 1,024 bytes. `guardData` is reserved
+for profile-specific price evidence. It must be empty for the autonomous Pons v2 guard.
 
 Registration:
 
@@ -165,8 +164,7 @@ Registration:
 2. verifies `msg.sender` is the launch creator;
 3. snapshots supply and ETH/USD;
 4. converts market caps to usable ticks;
-5. validates the current spot and manipulation-resistant reference price are below every
-   band;
+5. validates the profile price guard is below every band;
 6. freezes all configuration;
 7. emits every requested and effective boundary.
 
@@ -196,9 +194,12 @@ Rules:
 - Fee-on-transfer and rebasing tokens are unsupported.
 - Direct token transfers create no credit and are stranded.
 - Funding and position mint or increase happen atomically.
-- A band may receive later deposits only while both the guarded reference and pool spot
-  remain below its economic lower boundary.
-- Once price enters or passes a band, that band can never receive more inventory.
+- A band may receive later deposits only while its profile price guard remains below
+  its economic lower boundary.
+- Funding is rejected while price is at or above the lower boundary. If price
+  later returns below it before settlement, the creator may add inventory after
+  the profile guard passes again; the deployed pools do not expose a reliable
+  protocol-wide record of every historical crossing.
 - Deposited inventory cannot be withdrawn, reassigned, or moved to another band.
 - Callers cannot provide a pool, ticks, recipient, hook, route, or PositionManager.
 - Approvals are exact and reset to zero after execution.
@@ -222,6 +223,12 @@ inventory, or making an arbitrary external call.
 ## Settlement guard
 
 ```solidity
+function armSettlement(
+    address subject,
+    uint8 bandId,
+    bytes calldata guardData
+) external;
+
 function settle(
     address subject,
     uint8 bandId,
@@ -229,18 +236,26 @@ function settle(
 ) external;
 ```
 
-Settlement is permissionless. A launch-profile-specific guard must prove:
+Settlement is permissionless. The v3 profile uses canonical pool observations and a
+bounded TWAP.
 
-- pool spot has crossed the economic upper boundary;
-- a manipulation-resistant reference price has also crossed it;
-- the observation is fresh;
-- the pool is unlocked and initialized;
-- the position's principal is entirely quote currency at the validated price.
+The deployed Pons v2 hook exposes current v4 state but no historical observations.
+For v4, the manager therefore requires two independent successful upper-boundary
+checks:
 
-The v3 profile uses canonical pool observations and a bounded TWAP. Each v4 profile must
-use the launchpad hook's verified observation mechanism or another immutable
-manipulation-resistant reference. A generic spot-only v4 profile is forbidden. If a
-launchpad cannot provide a safe reference, its profile cannot be activated.
+1. `armSettlement` records the first crossed canonical-pool observation;
+2. `settle` rejects the same transaction and the next 15 minutes;
+3. after 15 minutes, `settle` must observe the pool still crossed;
+4. the confirmation does not expire while price remains above the band;
+5. if price falls below, permissionless `disarmSettlement` resets the confirmation
+   and the next crossing starts a fresh 15-minute delay; and
+6. any later deposit clears an existing confirmation before increasing liquidity.
+
+This blocks a one-transaction flash-price crossing and introduces no signer,
+publisher, administrator, or hosted-service dependency. It does not claim that v4
+supplies a continuous TWAP: an adversary able to move the real pool at both observation
+times can still force conversion. That residual economic risk must be included in audit
+and launch disclosures.
 
 Settlement then:
 
@@ -384,7 +399,7 @@ Pons v2, pools.trade, and letscash.fun each require an independent profile and t
 13. Deposited inventory cannot be withdrawn or reassigned.
 14. Fee-on-transfer funding reverts without credit.
 15. Direct transfers cannot be attributed to a creator or band.
-16. Spot-only manipulation cannot satisfy the settlement guard.
+16. A one-transaction spot manipulation cannot both arm and settle a v4 band.
 17. Settlement before the validated upper crossing reverts.
 18. Valid settlement removes all liquidity and closes the position.
 19. Native ETH proceeds are wrapped into canonical WETH.

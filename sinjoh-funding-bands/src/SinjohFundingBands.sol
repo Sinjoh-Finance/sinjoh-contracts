@@ -51,6 +51,7 @@ contract SinjohFundingBands is ReentrancyGuard {
     uint8 private constant MAX_BANDS = 10;
     uint16 private constant MAX_DYNAMIC_BYTES = 1_024;
     uint48 private constant DEADLINE_WINDOW = 300;
+    uint48 public constant V4_SETTLEMENT_DELAY = 15 minutes;
 
     error WrongChain(uint256 actual);
     error InvalidAddress();
@@ -66,6 +67,8 @@ contract SinjohFundingBands is ReentrancyGuard {
     error InvalidAmount();
     error InvalidState();
     error InvalidPosition();
+    error SettlementNotArmed();
+    error SettlementConfirmationPending();
     error UnexpectedNFT();
     error UnexpectedBalanceDelta(address asset, uint256 expected, uint256 actual);
     error Insolvent(address asset);
@@ -132,6 +135,7 @@ contract SinjohFundingBands is ReentrancyGuard {
         uint256 subjectResidual;
         uint256 cumulativeRealizedWeth;
         uint256 protocolFeeCharged;
+        uint48 settlementArmedAt;
     }
 
     event ProfileFrozen(uint8 indexed profileId, address indexed verifier, address indexed guard);
@@ -176,6 +180,10 @@ contract SinjohFundingBands is ReentrancyGuard {
         uint256 netWeth,
         uint256 subjectProceeds
     );
+    event BandSettlementArmed(
+        bytes32 indexed accountId, uint8 indexed bandId, uint48 armedAt, uint48 executableAt
+    );
+    event BandSettlementDisarmed(bytes32 indexed accountId, uint8 indexed bandId);
     event ProceedsSent(
         bytes32 indexed accountId,
         uint8 indexed bandId,
@@ -305,7 +313,8 @@ contract SinjohFundingBands is ReentrancyGuard {
         if (supply != launch.launchSupply) revert InvalidLaunch();
         uint8 subjectDecimals = IERC20Metadata(subject).decimals();
         if (subjectDecimals > 36) revert InvalidLaunch();
-        (uint256 ethUsdE8, uint48 oracleUpdatedAt) = _snapshotEthUsd();
+        (uint256 ethUsdE8, uint48 oracleUpdatedAt) =
+            FundingBandMath.snapshotEthUsd(ethUsdOracle, maxOracleAge);
 
         Account storage account = _accounts[subject];
         account.creator = msg.sender;
@@ -353,7 +362,8 @@ contract SinjohFundingBands is ReentrancyGuard {
                 liquidity: 0,
                 subjectResidual: 0,
                 cumulativeRealizedWeth: 0,
-                protocolFeeCharged: 0
+                protocolFeeCharged: 0,
+                settlementArmedAt: 0
             });
         }
 
@@ -412,6 +422,66 @@ contract SinjohFundingBands is ReentrancyGuard {
         _assertSolvent(subject);
     }
 
+    /// @notice Records the first independent crossing observation for a v4 band.
+    /// @dev Pons v2's v4 hook has no historical oracle. Requiring another onchain
+    /// observation after a fixed delay prevents a one-transaction spot manipulation
+    /// from both crossing and settling a band. Anyone may arm an objectively crossed band.
+    function armSettlement(address subject, uint8 bandId, bytes calldata guardData)
+        external
+        nonReentrant
+    {
+        Account storage account = _accounts[subject];
+        if (!account.exists) revert AccountNotFound();
+        if (bandId >= account.bandCount || guardData.length > MAX_DYNAMIC_BYTES) {
+            revert InvalidBand();
+        }
+        if (account.launch.venue != ISinjohLaunchVerifier.Venue.UNISWAP_V4) {
+            revert InvalidState();
+        }
+        Band storage band = _bands[subject][bandId];
+        if (band.status != BandStatus.ACTIVE || band.positionId == 0 || band.liquidity == 0) {
+            revert InvalidState();
+        }
+
+        uint48 now48 = _timestamp48();
+        uint48 armedAt = band.settlementArmedAt;
+        if (armedAt != 0) revert InvalidState();
+        bool subjectIsToken0 = _subjectIsToken0(account.launch);
+        int24 upperBoundary = subjectIsToken0 ? band.tickUpper : band.tickLower;
+        _profiles[account.profileId].priceGuard
+            .validateAbove(account.launch, upperBoundary, subjectIsToken0, guardData);
+
+        band.settlementArmedAt = now48;
+        emit BandSettlementArmed(_accountId(subject), bandId, now48, now48 + V4_SETTLEMENT_DELAY);
+    }
+
+    /// @notice Invalidates an armed v4 band after price returns below its upper boundary.
+    /// @dev Permissionless so the shared keeper or any observer can reset the hold.
+    function disarmSettlement(address subject, uint8 bandId, bytes calldata guardData)
+        external
+        nonReentrant
+    {
+        Account storage account = _accounts[subject];
+        if (!account.exists) revert AccountNotFound();
+        if (bandId >= account.bandCount || guardData.length > MAX_DYNAMIC_BYTES) {
+            revert InvalidBand();
+        }
+        if (account.launch.venue != ISinjohLaunchVerifier.Venue.UNISWAP_V4) {
+            revert InvalidState();
+        }
+        Band storage band = _bands[subject][bandId];
+        if (
+            band.status != BandStatus.ACTIVE || band.positionId == 0 || band.liquidity == 0
+                || band.settlementArmedAt == 0
+        ) revert InvalidState();
+        bool subjectIsToken0 = _subjectIsToken0(account.launch);
+        int24 upperBoundary = subjectIsToken0 ? band.tickUpper : band.tickLower;
+        _profiles[account.profileId].priceGuard
+            .validateBelow(account.launch, upperBoundary, subjectIsToken0, guardData);
+        band.settlementArmedAt = 0;
+        emit BandSettlementDisarmed(_accountId(subject), bandId);
+    }
+
     function settle(address subject, uint8 bandId, bytes calldata guardData) external nonReentrant {
         Account storage account = _accounts[subject];
         if (!account.exists) revert AccountNotFound();
@@ -421,6 +491,14 @@ contract SinjohFundingBands is ReentrancyGuard {
         Band storage band = _bands[subject][bandId];
         if (band.status != BandStatus.ACTIVE || band.positionId == 0 || band.liquidity == 0) {
             revert InvalidState();
+        }
+        if (account.launch.venue == ISinjohLaunchVerifier.Venue.UNISWAP_V4) {
+            uint48 armedAt = band.settlementArmedAt;
+            if (armedAt == 0) revert SettlementNotArmed();
+            uint48 now48 = _timestamp48();
+            if (now48 < armedAt + V4_SETTLEMENT_DELAY) {
+                revert SettlementConfirmationPending();
+            }
         }
         bool subjectIsToken0 = _subjectIsToken0(account.launch);
         int24 upperBoundary = subjectIsToken0 ? band.tickUpper : band.tickLower;
@@ -453,6 +531,7 @@ contract SinjohFundingBands is ReentrancyGuard {
         uint256 incrementalFee = cumulativeFee - band.protocolFeeCharged;
         band.protocolFeeCharged = cumulativeFee;
         band.liquidity = 0;
+        band.settlementArmedAt = 0;
         band.status = BandStatus.SETTLED;
 
         uint256 netWeth = realizedWeth - incrementalFee;
@@ -548,6 +627,10 @@ contract SinjohFundingBands is ReentrancyGuard {
         int24 lowerBoundary = subjectIsToken0 ? band.tickLower : band.tickUpper;
         _profiles[account.profileId].priceGuard
             .validateBelow(account.launch, lowerBoundary, subjectIsToken0, guardData);
+        if (band.settlementArmedAt != 0) {
+            band.settlementArmedAt = 0;
+            emit BandSettlementDisarmed(_accountId(subject), item.bandId);
+        }
 
         uint160 sqrtLower = TickMath.getSqrtPriceAtTick(band.tickLower);
         uint160 sqrtUpper = TickMath.getSqrtPriceAtTick(band.tickUpper);
@@ -709,34 +792,13 @@ contract SinjohFundingBands is ReentrancyGuard {
         ) revert InvalidConfiguration();
     }
 
-    function _snapshotEthUsd() private view returns (uint256 answerE8, uint48 updatedAt48) {
-        (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) =
-            ethUsdOracle.latestRoundData();
-        if (
-            answer <= 0 || updatedAt == 0
-                // Timestamp comparison intentionally rejects future-dated oracle rounds.
-                // forge-lint: disable-next-line(block-timestamp)
-                || updatedAt > block.timestamp || answeredInRound < roundId
-        ) revert InvalidOracleRound();
-        // Timestamp comparison is the intended oracle staleness bound.
+    function _timestamp48() private view returns (uint48 value) {
+        // Timestamp is deliberately bounded before storage in the compact band struct.
         // forge-lint: disable-next-line(block-timestamp)
-        if (block.timestamp - updatedAt > maxOracleAge) revert StaleOracleRound();
-        uint8 decimals = ethUsdOracle.decimals();
-        if (decimals > 36 || updatedAt > type(uint48).max) revert InvalidOracleRound();
-        // The negative and zero cases were rejected above.
+        if (block.timestamp > type(uint48).max) revert InvalidState();
+        // Checked immediately above.
         // forge-lint: disable-next-line(unsafe-typecast)
-        uint256 unsignedAnswer = uint256(answer);
-        if (decimals < 8) {
-            answerE8 = unsignedAnswer * (10 ** (8 - decimals));
-        } else if (decimals > 8) {
-            answerE8 = unsignedAnswer / (10 ** (decimals - 8));
-        } else {
-            answerE8 = unsignedAnswer;
-        }
-        if (answerE8 == 0) revert InvalidOracleRound();
-        // `updatedAt` was bounded to uint48 above.
-        // forge-lint: disable-next-line(unsafe-typecast)
-        updatedAt48 = uint48(updatedAt);
+        value = uint48(block.timestamp);
     }
 
     function _poolKey(ISinjohLaunchVerifier.VerifiedLaunch memory launch)

@@ -7,9 +7,9 @@ import { PoolId } from "@uniswap/v4-core/src/types/PoolId.sol";
 import { FundingBandMath } from "../src/FundingBandMath.sol";
 import { IV4StateView, SinjohFundingBands } from "../src/SinjohFundingBands.sol";
 import { ISinjohLaunchVerifier } from "../src/interfaces/ISinjohLaunchVerifier.sol";
-import { SinjohSignedEthUsdOracle } from "../src/oracles/SinjohSignedEthUsdOracle.sol";
+import { SinjohV3EthUsdOracle } from "../src/oracles/SinjohV3EthUsdOracle.sol";
 import { SinjohPonsV2LaunchVerifier } from "../src/profiles/SinjohPonsV2LaunchVerifier.sol";
-import { SinjohV4SignedBandPriceGuard } from "../src/profiles/SinjohV4SignedBandPriceGuard.sol";
+import { SinjohV4DelayedBandPriceGuard } from "../src/profiles/SinjohV4DelayedBandPriceGuard.sol";
 import { TestBase } from "./TestBase.sol";
 
 interface IPonsV2LaunchFactoryFork {
@@ -91,6 +91,7 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
     string internal constant DEFAULT_RPC = "https://rpc.mainnet.chain.robinhood.com";
 
     address internal constant WETH = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
+    address internal constant USDG = 0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168;
     address internal constant V3_FACTORY = 0x1f7d7550B1b028f7571E69A784071F0205FD2EfA;
     address internal constant V3_POSITION_MANAGER = 0x73991a25C818Bf1f1128dEAaB1492D45638DE0D3;
     address internal constant V4_POSITION_MANAGER = 0x58daec3116aae6D93017bAAea7749052E8a04fA7;
@@ -104,12 +105,14 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
         0xc68d29cb840cd761142664c1a2a348ddccfa4f957df86d54898b981c549b28c7;
     address internal constant PONS_OWNER = 0xFdDE5a1E3cDF791Da71E49F817D70C7ceD72CC36;
     address internal constant CREATOR = address(0xC4EA704);
-    uint256 internal constant SIGNER_KEY = uint256(keccak256("funding-bands-fork-signer"));
-    uint256 internal constant ETH_USD_E8 = 1_900e8;
 
     receive() external payable { }
 
     function testPonsV2RealHookMintIncreaseCrossAndNativeSettlement() public {
+        _exerciseLifecycle();
+    }
+
+    function _exerciseLifecycle() private {
         vm.createSelectFork(vm.envOr("ROBINHOOD_RPC_URL", DEFAULT_RPC));
         if (!IPonsV2LaunchFactoryFork(PONS_FACTORY).launchEnabled()) {
             vm.prank(PONS_OWNER);
@@ -120,16 +123,13 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
 
         SinjohPonsV2LaunchVerifier verifier =
             new SinjohPonsV2LaunchVerifier(PONS_FACTORY, PONS_HOOK, WETH, SINJOH_ADAPTER_CODEHASH);
-        SinjohV4SignedBandPriceGuard guard = new SinjohV4SignedBandPriceGuard(
-            V4_STATE_VIEW,
-            V4_STATE_VIEW.codehash,
-            V4_POOL_MANAGER.codehash,
-            address(this),
-            vm.addr(SIGNER_KEY)
+        SinjohV4DelayedBandPriceGuard guard = new SinjohV4DelayedBandPriceGuard(
+            V4_STATE_VIEW, V4_STATE_VIEW.codehash, V4_POOL_MANAGER.codehash
         );
-        SinjohSignedEthUsdOracle oracle =
-            new SinjohSignedEthUsdOracle(address(this), vm.addr(SIGNER_KEY));
-        _publishEthUsd(oracle, ETH_USD_E8);
+        SinjohV3EthUsdOracle oracle =
+            new SinjohV3EthUsdOracle(V3_FACTORY, WETH, USDG, 100, 15 minutes, 500, 1e18);
+        (, int256 ethUsdAnswer,,,) = oracle.latestRoundData();
+        assertTrue(ethUsdAnswer > 1_000e8 && ethUsdAnswer < 5_000e8);
         SinjohFundingBands.ProfileInput[] memory profiles = new SinjohFundingBands.ProfileInput[](1);
         profiles[0] = SinjohFundingBands.ProfileInput({
             verifier: address(verifier), priceGuard: address(guard), hookData: ""
@@ -150,13 +150,26 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
 
         ISinjohLaunchVerifier.VerifiedLaunch memory launch = verifier.verify(subject, "");
         assertEq(launch.creatorAtLaunch, CREATOR);
+        assertEq(launch.quoteAsset, address(0));
         assertTrue(launch.poolId != bytes32(0));
         (uint160 sqrtPriceX96, int24 spotTick,,) =
             IV4StateView(V4_STATE_VIEW).getSlot0(PoolId.wrap(launch.poolId));
         assertTrue(sqrtPriceX96 != 0);
 
-        (uint128 lowerMarketCap, uint128 upperMarketCap, int24 lowerBoundary, int24 upperBoundary) =
-            _bandAboveSpot(launch.launchSupply, launch.tickSpacing, spotTick);
+        (
+            uint128 lowerMarketCap,
+            uint128 upperMarketCap,
+            int24 lowerBoundary,
+            int24 upperBoundary
+        ) = _bandAboveSpot(
+            launch.launchSupply,
+            launch.tickSpacing,
+            spotTick,
+            // The live oracle answer was bounded to a positive range above.
+            // forge-lint: disable-next-line(unsafe-typecast)
+            uint256(ethUsdAnswer),
+            false
+        );
         assertTrue(spotTick > lowerBoundary);
         SinjohFundingBands.BandConfig[] memory configs = new SinjohFundingBands.BandConfig[](1);
         configs[0] = SinjohFundingBands.BandConfig({
@@ -166,9 +179,8 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
             feeRouter: address(0)
         });
 
-        bytes memory belowEvidence = _evidence(guard, manager, launch.poolId, false, spotTick);
         vm.prank(CREATOR);
-        manager.create(subject, 0, configs, "", belowEvidence);
+        manager.create(subject, 0, configs, "", "");
 
         uint128 firstDeposit = 5e23;
         uint128 secondDeposit = 5e23;
@@ -178,10 +190,10 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
         SinjohFundingBands.BandFunding[] memory funding = new SinjohFundingBands.BandFunding[](1);
         funding[0] = SinjohFundingBands.BandFunding({ bandId: 0, amount: firstDeposit });
         vm.prank(CREATOR);
-        manager.fund(subject, funding, belowEvidence);
+        manager.fund(subject, funding, "");
         funding[0].amount = secondDeposit;
         vm.prank(CREATOR);
-        manager.fund(subject, funding, belowEvidence);
+        manager.fund(subject, funding, "");
         SinjohFundingBands.Band memory active = manager.getBand(subject, 0);
         assertTrue(active.positionId != 0 && active.liquidity != 0);
 
@@ -192,8 +204,9 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
 
         (, int24 crossedTick,,) = IV4StateView(V4_STATE_VIEW).getSlot0(PoolId.wrap(launch.poolId));
         assertTrue(crossedTick <= upperBoundary);
-        bytes memory aboveEvidence = _evidence(guard, manager, launch.poolId, true, crossedTick);
-        manager.settle(subject, 0, aboveEvidence);
+        manager.armSettlement(subject, 0, "");
+        vm.warp(block.timestamp + manager.V4_SETTLEMENT_DELAY());
+        manager.settle(subject, 0, "");
 
         SinjohFundingBands.Band memory settled = manager.getBand(subject, 0);
         assertEq(uint256(settled.status), uint256(SinjohFundingBands.BandStatus.SETTLED));
@@ -223,9 +236,9 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
             factory.launchToken{ value: launchFee }(params, 0, address(0), new address[](0));
         vm.warp(block.timestamp + IPonsV2SnipeTaxViewsFork(PONS_FACTORY).snipeTaxSeconds() + 1);
 
+        address whale = address(0xDECAF);
         vm.prank(CREATOR);
         IPonsV2BondingCurveFork(curve).buy{ value: 1 ether }(1 ether, 1, CREATOR);
-        address whale = address(0xDECAF);
         vm.deal(whale, 20 ether);
         vm.prank(whale);
         IPonsV2BondingCurveFork(curve).buy{ value: 10 ether }(10 ether, 1, whale);
@@ -233,7 +246,13 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
         IPonsV2FactoryGraduationFork(PONS_FACTORY).createGraduatedPool(token);
     }
 
-    function _bandAboveSpot(uint256 supply, int24 spacing, int24 spotTick)
+    function _bandAboveSpot(
+        uint256 supply,
+        int24 spacing,
+        int24 spotTick,
+        uint256 ethUsdE8,
+        bool subjectIsToken0
+    )
         private
         pure
         returns (
@@ -248,9 +267,11 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
         while (low < high) {
             uint128 middle = low + (high - low) / 2;
             FundingBandMath.ConvertedRange memory candidate = FundingBandMath.convertRange(
-                middle, middle + middle / 10 + 1, supply, ETH_USD_E8, spacing, false
+                middle, middle + middle / 10 + 1, supply, ethUsdE8, spacing, subjectIsToken0
             );
-            if (spotTick > candidate.tickUpper) {
+            bool below =
+                subjectIsToken0 ? spotTick < candidate.tickLower : spotTick > candidate.tickUpper;
+            if (below) {
                 high = middle;
             } else {
                 low = middle + 1;
@@ -259,36 +280,9 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
         lowerMarketCap = low + low / 10;
         upperMarketCap = lowerMarketCap + lowerMarketCap / 5;
         FundingBandMath.ConvertedRange memory range = FundingBandMath.convertRange(
-            lowerMarketCap, upperMarketCap, supply, ETH_USD_E8, spacing, false
+            lowerMarketCap, upperMarketCap, supply, ethUsdE8, spacing, subjectIsToken0
         );
-        lowerBoundary = range.tickUpper;
-        upperBoundary = range.tickLower;
-    }
-
-    function _evidence(
-        SinjohV4SignedBandPriceGuard guard,
-        SinjohFundingBands manager,
-        bytes32 poolId,
-        bool above,
-        int24 referenceTick
-    ) private returns (bytes memory) {
-        uint48 validAfter = uint48(block.timestamp);
-        uint48 validUntil = uint48(block.timestamp + 60);
-        bytes32 digest = guard.priceDigest(
-            address(manager), poolId, false, above, referenceTick, validAfter, validUntil
-        );
-        bytes32 ethDigest = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", digest));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(SIGNER_KEY, ethDigest);
-        return abi.encode(referenceTick, validAfter, validUntil, abi.encodePacked(r, s, v));
-    }
-
-    function _publishEthUsd(SinjohSignedEthUsdOracle oracle, uint256 answerE8) private {
-        uint48 observedAt = uint48(block.timestamp);
-        uint48 validAfter = observedAt;
-        uint48 validUntil = observedAt + 60;
-        bytes32 digest = oracle.priceDigest(answerE8, observedAt, validAfter, validUntil);
-        bytes32 ethDigest = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", digest));
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(SIGNER_KEY, ethDigest);
-        oracle.update(answerE8, observedAt, validAfter, validUntil, abi.encodePacked(r, s, v));
+        lowerBoundary = subjectIsToken0 ? range.tickLower : range.tickUpper;
+        upperBoundary = subjectIsToken0 ? range.tickUpper : range.tickLower;
     }
 }

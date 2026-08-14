@@ -417,10 +417,103 @@ contract SinjohFundingBandsTest is TestBase {
         vm.deal(address(v4PoolManager), grossNative);
         v4PositionManager.setSettlement(active.positionId, grossNative, 0);
         _setAbove();
+        manager.armSettlement(address(subject), 0, "");
+        vm.warp(block.timestamp + manager.V4_SETTLEMENT_DELAY());
         manager.settle(address(subject), 0, "");
         assertEq(manager.protocolOwed(), 0.25e18);
         assertEq(manager.proceedsOwed(address(subject), 0, address(weth)), 24.75e18);
         assertEq(weth.balanceOf(address(manager)), grossNative);
+    }
+
+    function testV4SettlementRequiresHoldAndDisarmsAfterPriceReversal() public {
+        _setV4NativeLaunch(CREATOR);
+        _setBelow();
+        _create(_configs(1));
+        subject.approveAs(CREATOR, address(manager), 10e18);
+        vm.prank(CREATOR);
+        manager.fund(address(subject), _funding(0, 10e18), "");
+
+        _setAbove();
+        vm.expectRevert(SinjohFundingBands.SettlementNotArmed.selector);
+        manager.settle(address(subject), 0, "");
+        manager.armSettlement(address(subject), 0, "");
+        assertEq(manager.getBand(address(subject), 0).settlementArmedAt, block.timestamp);
+
+        vm.expectRevert(SinjohFundingBands.SettlementConfirmationPending.selector);
+        manager.settle(address(subject), 0, "");
+        vm.warp(block.timestamp + manager.V4_SETTLEMENT_DELAY());
+        _setBelow();
+        vm.expectRevert();
+        manager.settle(address(subject), 0, "");
+        manager.disarmSettlement(address(subject), 0, "");
+        assertEq(manager.getBand(address(subject), 0).settlementArmedAt, 0);
+
+        _setAbove();
+        manager.armSettlement(address(subject), 0, "");
+        vm.warp(block.timestamp + manager.V4_SETTLEMENT_DELAY());
+        manager.settle(address(subject), 0, "");
+        assertEq(
+            uint256(manager.getBand(address(subject), 0).status),
+            uint256(SinjohFundingBands.BandStatus.SETTLED)
+        );
+    }
+
+    function testV4SettlementConfirmationDoesNotExpireWhilePriceRemainsAbove() public {
+        _setV4NativeLaunch(CREATOR);
+        _setBelow();
+        _create(_configs(1));
+        subject.approveAs(CREATOR, address(manager), 10e18);
+        vm.prank(CREATOR);
+        manager.fund(address(subject), _funding(0, 10e18), "");
+        _setAbove();
+        manager.armSettlement(address(subject), 0, "");
+        vm.warp(block.timestamp + 30 days);
+        manager.settle(address(subject), 0, "");
+        assertEq(
+            uint256(manager.getBand(address(subject), 0).status),
+            uint256(SinjohFundingBands.BandStatus.SETTLED)
+        );
+    }
+
+    function testV4FundingAfterPriceReversalRequiresFreshConfirmation() public {
+        _setV4NativeLaunch(CREATOR);
+        _setBelow();
+        _create(_configs(1));
+        subject.approveAs(CREATOR, address(manager), 20e18);
+        vm.prank(CREATOR);
+        manager.fund(address(subject), _funding(0, 10e18), "");
+
+        _setAbove();
+        manager.armSettlement(address(subject), 0, "");
+        uint256 originalArmedAt = block.timestamp;
+
+        vm.warp(block.timestamp + 5 minutes);
+        _setBelow();
+        vm.prank(CREATOR);
+        manager.fund(address(subject), _funding(0, 10e18), "");
+        assertEq(manager.getBand(address(subject), 0).settlementArmedAt, 0);
+
+        vm.warp(originalArmedAt + manager.V4_SETTLEMENT_DELAY());
+        _setAbove();
+        vm.expectRevert(SinjohFundingBands.SettlementNotArmed.selector);
+        manager.settle(address(subject), 0, "");
+
+        manager.armSettlement(address(subject), 0, "");
+        vm.warp(block.timestamp + manager.V4_SETTLEMENT_DELAY());
+        manager.settle(address(subject), 0, "");
+    }
+
+    function testV3SettlementDoesNotRequireArming() public {
+        _create(_configs(1));
+        subject.approveAs(CREATOR, address(manager), 10e18);
+        vm.prank(CREATOR);
+        manager.fund(address(subject), _funding(0, 10e18), "");
+        _setAbove();
+        manager.settle(address(subject), 0, "");
+        assertEq(
+            uint256(manager.getBand(address(subject), 0).status),
+            uint256(SinjohFundingBands.BandStatus.SETTLED)
+        );
     }
 
     function testOnlyCanonicalV4PoolManagerMaySendNativeEth() public {

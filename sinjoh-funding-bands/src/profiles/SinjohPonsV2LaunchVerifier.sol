@@ -36,6 +36,8 @@ interface IPonsV2LaunchFactory {
     }
 
     function getLaunchedToken(address token) external view returns (LaunchedToken memory);
+    function memeHook() external view returns (address);
+    function poolManager() external view returns (address);
 }
 
 interface IPonsV2LauncherToken {
@@ -51,8 +53,8 @@ interface ISinjohPonsV2AdapterView {
     function curve() external view returns (address);
 }
 
-/// @notice Resolves only graduated Pons v2 launches whose quote is native ETH or
-/// canonical WETH. The launch-time deployer remains the Funding Bands controller even
+/// @notice Resolves only graduated Pons v2 launches whose quote is native ETH.
+/// The launch-time deployer remains the Funding Bands controller even
 /// if Pons later rotates the mutable creator-fee recipient.
 contract SinjohPonsV2LaunchVerifier is ISinjohLaunchVerifier {
     using PoolIdLibrary for PoolKey;
@@ -62,6 +64,7 @@ contract SinjohPonsV2LaunchVerifier is ISinjohLaunchVerifier {
 
     IPonsV2LaunchFactory public immutable ponsFactory;
     address public immutable memeHook;
+    address public immutable poolManager;
     address public immutable weth;
     bytes32 public immutable sinjohAdapterCodehash;
 
@@ -77,8 +80,14 @@ contract SinjohPonsV2LaunchVerifier is ISinjohLaunchVerifier {
         ) {
             revert InvalidAddress();
         }
-        ponsFactory = IPonsV2LaunchFactory(ponsFactory_);
+        IPonsV2LaunchFactory factory = IPonsV2LaunchFactory(ponsFactory_);
+        address poolManager_ = factory.poolManager();
+        if (factory.memeHook() != memeHook_ || poolManager_.code.length == 0) {
+            revert InvalidAddress();
+        }
+        ponsFactory = factory;
         memeHook = memeHook_;
+        poolManager = poolManager_;
         weth = weth_;
         sinjohAdapterCodehash = sinjohAdapterCodehash_;
     }
@@ -89,13 +98,15 @@ contract SinjohPonsV2LaunchVerifier is ISinjohLaunchVerifier {
         returns (VerifiedLaunch memory launch)
     {
         if (launchData.length != 0) revert InvalidLaunch();
+        if (ponsFactory.memeHook() != memeHook || ponsFactory.poolManager() != poolManager) {
+            revert InvalidLaunch();
+        }
         IPonsV2LaunchFactory.LaunchedToken memory record = ponsFactory.getLaunchedToken(subject);
         if (
             !record.exists || record.token != subject || record.curve.code.length == 0
                 || record.deployer == address(0)
                 || record.phase != IPonsV2LaunchFactory.GraduationPhase.PoolCreated
-                || (record.pairToken != address(0) && record.pairToken != weth)
-                || record.tickSpacing <= 0
+                || record.pairToken != address(0) || record.tickSpacing <= 0
         ) revert InvalidLaunch();
 
         address creator = record.deployer;

@@ -267,6 +267,13 @@ contract MockPonsV1Factory is IPonsV1LaunchFactory {
 
 contract MockPonsV2Factory is IPonsV2LaunchFactory {
     mapping(address => LaunchedToken) private _records;
+    address public memeHook;
+    address public poolManager;
+
+    function setInfrastructure(address memeHook_, address poolManager_) external {
+        memeHook = memeHook_;
+        poolManager = poolManager_;
+    }
 
     function setLaunch(address token, LaunchedToken calldata record) external {
         _records[token] = record;

@@ -15,10 +15,11 @@ liquidity, or another immutable routing policy.
 - Uniswap v3 and v4 mint, increase, full settlement, and position closure paths.
 - Native v4 quote proceeds wrapped into the manager's immutable WETH.
 - Frozen per-profile v4 hook data passed to mint, increase, and burn actions.
-- Dual spot/reference guard boundary; no generic spot-only v4 profile exists.
-- A bytecode-pinned v4 spot plus fifteen-minute signed-reference guard for Pons v2.
-- A governance-recoverable, AggregatorV3-compatible ETH/USD oracle for Robinhood Chain.
-- Separate rotatable guard and oracle signing authorities; neither authority can move funds.
+- A bytecode-pinned, autonomous v4 spot guard for Pons v2.
+- Two crossed v4 observations separated by 15 minutes; an observed reversal or
+  later deposit clears confirmation and requires a fresh crossing.
+- An ownerless ETH/USD adapter using the canonical WETH/USDG Uniswap v3 15-minute
+  TWAP, a spot-deviation bound, and a minimum-liquidity floor.
 - Exactly 1% charged on cumulative realized WETH, with subject fees delivered in kind.
 - Audited Fee Router clone runtime-hash pinning; metadata-compatible impostors are rejected.
 - Permissionless pull delivery to the immutable creator/router and protocol recipient.
@@ -47,7 +48,7 @@ invariants.
 | Profile | Implementation | Activation status |
 |---|---|---|
 | Pons v1 / Uniswap v3 | `SinjohPonsV1LaunchVerifier` + `SinjohV3TwapBandPriceGuard` | Source-complete; Robinhood mainnet fork fixture and bytecode-hash signoff still required. |
-| Pons v2 / Uniswap v4 | `SinjohPonsV2LaunchVerifier` + `SinjohV4SignedBandPriceGuard` | Live fork suite passes launch, graduation, adapter-created launch ownership, mint, increase, hooked swap, burn, native receipt, WETH wrap, and fee accounting. |
+| Pons v2 / Uniswap v4 | `SinjohPonsV2LaunchVerifier` + `SinjohV4DelayedBandPriceGuard` | Native-ETH quote only. Live fork suite passes the autonomous oracle, launch, graduation, mint, increase, hooked swap, delayed crossing confirmation, burn, native receipt, WETH wrap, and fee accounting. Exact deployment rehearsal remains. |
 | pools.trade / Uniswap v4 | Core-compatible verifier/guard boundary | Not activatable until the live launcher record, strategy/hook behavior, and observation source pass the fork suite. |
 | letscash.fun / Uniswap v4 | Core-compatible verifier/guard boundary | Not activatable until the canonical live contracts and hook observation mechanism pass the fork suite. |
 
@@ -80,18 +81,10 @@ dependency and profile contract before broadcasting, then reads back every immut
 profile address, and hook-data hash from the deployed manager. A mismatch aborts the
 deployment workflow instead of printing an apparently successful address.
 
-`script/deploy-pons-v2-production.sh` is the reviewed Robinhood-mainnet path. It
-pins the live Pons v2 factory, hook, Sinjoh adapter-clone runtime hash, Uniswap
-infrastructure, Fee Router runtime hash, and protocol recipient. It deploys the
-oracle, verifier, guard, linked libraries, and manager; verifies all readbacks;
-and emits addresses, runtime hashes, and transaction hashes as JSON.
-
-The production guard reconstructs a fifteen-minute time-weighted tick from two
-independently configured archive RPCs and signs only when both histories agree.
-The oracle takes a bounded midpoint from fresh Coinbase and Kraken ETH/USD data.
-The signer roles are distinct and recoverable through two-step governance.
-Funding Bands must remain disabled in the UI whenever either service is unhealthy,
-the manager runtime hash differs, or its frozen verifier/guard profile differs.
+Mainnet deployment remains intentionally out of scope until every enabled profile
+passes the compatibility requirements in [`SPEC.md`](./SPEC.md).
+No Safe, reference signer, publisher, hosted service, or privileged operator is
+required for Pons v2 band validation or ETH/USD snapshots.
 
 See [`PONS_V2_COMPATIBILITY.md`](./PONS_V2_COMPATIBILITY.md) for the local and live-fork
 Pons v2 test boundary, [`UI-INTEGRATION.md`](./UI-INTEGRATION.md) for the Pons create,

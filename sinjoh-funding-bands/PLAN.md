@@ -34,13 +34,12 @@
 
 ## Activation gate
 
-The Pons v2 verifier, signed-reference guard, and signed ETH/USD adapter now pass
-both the local lifecycle suite and a disposable Robinhood mainnet fork against the
-current deployed factory, hook, buyback adapter, PositionManager, StateView,
-PoolManager, Permit2, and WETH. Pons v2 is mechanically compatible after
-graduation, but production activation still requires the offchain reference-price
-and ETH/USD publication service, signer custody/rotation procedures, an exact-input
-deployment rehearsal, and independent audit signoff.
+The Pons v2 verifier, autonomous delayed-crossing guard, and onchain WETH/USDG
+TWAP adapter pass both the local lifecycle suite and a disposable Robinhood mainnet
+fork against the current deployed factory, hook, buyback adapter, v3/v4
+infrastructure, Permit2, WETH, and USDG. Pons v2 is mechanically compatible after
+graduation without any signer or publisher. Production activation still requires an
+exact-input deployment rehearsal and independent audit signoff.
 
 Pons v1 still requires a Robinhood fork fixture and exact-bytecode signoff.
 pools.trade and letscash.fun require launch verifiers, hook-specific guards, and

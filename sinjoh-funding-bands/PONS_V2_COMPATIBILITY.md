@@ -19,8 +19,9 @@ The production-facing verifier models these Pons v2 facts:
   fee, tick spacing, and shared `PonsV2MemeHook`.
 - The launch token must independently report the same factory, deployer, and
   bonding curve as the factory record.
-- Native ETH and canonical WETH quotes are accepted. Other Pons v2 quote assets
-  are rejected by this release.
+- Only native ETH quotes are accepted. The live Pons v2 factory currently rejects
+  WETH with `PairTokenNotApproved()`; enabling it later requires a new reviewed
+  immutable profile and live-fork lifecycle.
 - Pons v2's hook enables `beforeInitialize` and `afterSwap`, but no add/remove
   liquidity callback. Funding Bands therefore freezes empty v4 hook data for
   this profile.
@@ -39,10 +40,12 @@ holder can voluntarily burn their own tokens before activation.
    metadata, and non-empty launch data.
 3. Native-ETH Pons v2 mint, later increase, full burn/settlement, ETH wrapping,
    exact 1% protocol fee, and creator snapshotting.
-4. WETH-quoted Pons v2 mint, increase, full settlement, subject-fee delivery,
-   and exact 1% protocol fee.
-5. The full ten-band Pons v2 create-and-fund batch using one context-bound signed
-   below-price observation.
+4. Rejection of WETH-quoted records until the live Pons v2 factory supports them.
+5. The full ten-band Pons v2 create-and-fund batch using the autonomous canonical
+   v4 spot guard.
+6. Two crossed observations separated by the immutable 15-minute delay, rejection
+   before the delay, persistent eligibility above the band, disarming below it,
+   and mandatory re-arming after later funding.
 
 The mock PositionManager rejects the test if Funding Bands supplies the wrong
 Pons hook or any non-empty hook data. The lifecycle tests therefore exercise the
@@ -61,11 +64,13 @@ Pons v2 deployment after graduation. `test/SinjohPonsV2.mainnet.fork.t.sol`
 launches and graduates a fresh token through the real Pons contracts, registers
 and funds a band twice, crosses it with a real hooked v4 swap, burns the position,
 receives native ETH from the canonical PoolManager, wraps it, and verifies the
-1% fee and liabilities. `SinjohV4SignedBandPriceGuard` supplies the production
-spot-plus-signed-reference model.
+1% fee and liabilities. `SinjohV4DelayedBandPriceGuard` reads canonical v4 spot;
+the manager requires a second crossed observation 15 minutes later. Eligibility
+does not expire while observed price remains above the band; a below-band observation
+or later funding disarms it.
 
-This is still not an audit or deployment authorization. The live fork uses the
-production `SinjohSignedEthUsdOracle` model rather than a mock, but the offchain
-reference-tick and ETH/USD publishers, signer custody, Fee Router runtime hash,
-and all deployment inputs must be operationally rehearsed and independently
-reviewed before an immutable deployment.
+The fork also uses `SinjohV3EthUsdOracle` against the live canonical WETH/USDG
+v3 pool: a 15-minute TWAP, 5% maximum spot/TWAP deviation, and `1e18` raw
+liquidity floor. No signer or publisher is involved. This is still not an audit
+or deployment authorization; the Fee Router runtime hash and all exact deployment
+inputs must be rehearsed and independently reviewed before immutable deployment.

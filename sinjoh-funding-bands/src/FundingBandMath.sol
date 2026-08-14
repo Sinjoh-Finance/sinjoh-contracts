@@ -5,6 +5,8 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { FullMath } from "@uniswap/v4-core/src/libraries/FullMath.sol";
 import { TickMath } from "@uniswap/v4-core/src/libraries/TickMath.sol";
 
+import { IChainlinkAggregatorV3 } from "./interfaces/IChainlinkAggregatorV3.sol";
+
 library FundingBandMath {
     uint256 private constant Q128 = 1 << 128;
     uint256 private constant Q192 = 1 << 192;
@@ -13,6 +15,8 @@ library FundingBandMath {
     error InvalidMathInput();
     error PriceOutOfRange();
     error CollapsedRange();
+    error InvalidOracleRound();
+    error StaleOracleRound();
 
     struct ConvertedRange {
         int24 tickLower;
@@ -81,6 +85,40 @@ library FundingBandMath {
             _wethPerSubjectX128AtSqrt(converted.lowerSqrtPriceX96, subjectIsToken0);
         converted.upperWethPerSubjectX128 =
             _wethPerSubjectX128AtSqrt(converted.upperSqrtPriceX96, subjectIsToken0);
+    }
+
+    function snapshotEthUsd(IChainlinkAggregatorV3 oracle, uint48 maxOracleAge)
+        external
+        view
+        returns (uint256 answerE8, uint48 updatedAt48)
+    {
+        (uint80 roundId, int256 answer,, uint256 updatedAt, uint80 answeredInRound) =
+            oracle.latestRoundData();
+        if (
+            answer <= 0 || updatedAt == 0
+                // Timestamp comparison intentionally rejects future-dated oracle rounds.
+                // forge-lint: disable-next-line(block-timestamp)
+                || updatedAt > block.timestamp || answeredInRound < roundId
+        ) revert InvalidOracleRound();
+        // Timestamp comparison is the intended oracle staleness bound.
+        // forge-lint: disable-next-line(block-timestamp)
+        if (block.timestamp - updatedAt > maxOracleAge) revert StaleOracleRound();
+        uint8 decimals = oracle.decimals();
+        if (decimals > 36 || updatedAt > type(uint48).max) revert InvalidOracleRound();
+        // The negative and zero cases were rejected above.
+        // forge-lint: disable-next-line(unsafe-typecast)
+        uint256 unsignedAnswer = uint256(answer);
+        if (decimals < 8) {
+            answerE8 = unsignedAnswer * (10 ** (8 - decimals));
+        } else if (decimals > 8) {
+            answerE8 = unsignedAnswer / (10 ** (decimals - 8));
+        } else {
+            answerE8 = unsignedAnswer;
+        }
+        if (answerE8 == 0) revert InvalidOracleRound();
+        // `updatedAt` was bounded to uint48 above.
+        // forge-lint: disable-next-line(unsafe-typecast)
+        updatedAt48 = uint48(updatedAt);
     }
 
     function _wethPerSubjectX128(uint256 marketCapUsdE8, uint256 supply, uint256 ethUsdE8)

@@ -66,12 +66,10 @@ After graduation, show a creator-only **Activate Funding Bands** task on the
 token page and Profile page. The current contract requires:
 
 1. ERC-20 approval for the selected subject-token amount.
-2. A fresh profile `guardData` quote for the graduated pool.
-3. `SinjohFundingBands.create(...)` to freeze the profile and band definitions.
-4. `SinjohFundingBands.fund(...)` to place the inventory.
+2. `SinjohFundingBands.create(...)` to freeze the profile and band definitions.
+3. `SinjohFundingBands.fund(...)` to place the inventory.
 
-The UI should present this as one guided operation with three wallet steps (the
-guard quote is not a wallet transaction) and
+The UI should present this as one guided operation with three wallet steps and
 resume safely after any interruption. A future `createAndFund` entry point could
 reduce this to approval plus one protocol transaction, but the UI must not assume
 that function exists today.
@@ -91,11 +89,16 @@ trades:
 - inventory deposited and current subject/WETH composition;
 - immutable destination with a creator or Fee Router label;
 - gross realized WETH, 1% protocol fee, net WETH, and delivery state;
-- permissionless Settle and Send proceeds actions when available.
+- **Arm settlement** once the upper edge is crossed;
+- the 15-minute confirmation countdown and persistent eligible state while price
+  remains above the band, with a reset when a below-band state is observed or
+  more inventory is funded;
+- permissionless **Settle** and **Send proceeds** actions when available.
 
-For the creator, an active band may expose **Add tokens** only while both the
-profile reference price and pool spot are below its lower boundary. Once the
-boundary is entered, disable the action permanently and explain why.
+For the creator, an active band may expose **Add tokens** only while the profile
+guard is below its lower boundary. Once the boundary is entered, disable the
+action; it may be re-enabled if the guard later confirms price has returned below
+the lower boundary before settlement.
 
 ## Profile page
 
@@ -115,13 +118,16 @@ mutable creator-fee recipient. If those addresses differ, label both explicitly.
 The frontend needs:
 
 - Pons v2 launch phase, pair asset, immutable deployer, and graduated pool data;
-- Funding Bands `AccountCreated`, `BandConfigured`, `BandFunded`, `BandSettled`,
-  `ProceedsSent`, and `ProtocolFeeSent` events in the indexer;
+- Funding Bands `AccountCreated`, `BandConfigured`, `BandFunded`,
+  `BandSettlementArmed`, `BandSettlementDisarmed`, `BandSettled`, `ProceedsSent`,
+  and `ProtocolFeeSent` events in the indexer;
 - `getAccount`, `getBand`, `proceedsOwed`, `totalLiability`, and `protocolOwed`;
 - current ETH/USD for previews, while making clear the onchain snapshot is taken
   only when `create` executes;
-- a fresh signed Pons v2 reference tick for `create`, `fund`, and `settle`; one
-  below-price observation can validate every band in a batched create or fund;
+- canonical v4 spot for Pons v2 `create`, `fund`, `armSettlement`, and `settle`;
+  `guardData` is empty for this profile;
+- `settlementArmedAt` and `V4_SETTLEMENT_DELAY` to render pending and executable
+  settlement states, plus `BandSettlementDisarmed` when price falls below;
 - Fee Router `creator`, `subject`, and intake-asset validation before allowing a
   router destination, plus equality with the manager's immutable
   `feeRouterCodehash`.

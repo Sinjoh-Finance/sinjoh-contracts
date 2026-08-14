@@ -13,6 +13,7 @@ import {
     SinjohPonsV2LaunchVerifier
 } from "../src/profiles/SinjohPonsV2LaunchVerifier.sol";
 import { SinjohV4SignedBandPriceGuard } from "../src/profiles/SinjohV4SignedBandPriceGuard.sol";
+import { SinjohV4DelayedBandPriceGuard } from "../src/profiles/SinjohV4DelayedBandPriceGuard.sol";
 import { TestBase } from "./TestBase.sol";
 import {
     MockBandPriceGuard,
@@ -65,6 +66,8 @@ contract SinjohPonsV2ProfileTest is TestBase {
         factory = new MockPonsV2Factory();
         hook = new MockPonsV2MemeHook();
         curve = new MockPonsV2MemeHook();
+        v4PoolManager = new MockV4PoolManager();
+        factory.setInfrastructure(address(hook), address(v4PoolManager));
         subject = new MockPonsV2Token(CREATOR, address(factory), address(curve));
         subject.mint(CREATOR, SUPPLY);
         verifier = new SinjohPonsV2LaunchVerifier(
@@ -76,7 +79,6 @@ contract SinjohPonsV2ProfileTest is TestBase {
         v3Factory.setPool(address(v3Pool));
         v3PositionManager = new MockV3PositionManager();
         permit2 = new MockPermit2();
-        v4PoolManager = new MockV4PoolManager();
         v4PositionManager = new MockV4PositionManager(permit2, v4PoolManager);
         v4PositionManager.setExpectedHook(address(hook));
         v4PositionManager.setExpectedHookData("");
@@ -151,6 +153,21 @@ contract SinjohPonsV2ProfileTest is TestBase {
         assertEq(launch.creatorAtLaunch, CREATOR);
     }
 
+    function testVerifierRejectsFactoryInfrastructureMismatch() public {
+        factory.setInfrastructure(address(curve), address(v4PoolManager));
+        vm.expectRevert(SinjohPonsV2LaunchVerifier.InvalidAddress.selector);
+        new SinjohPonsV2LaunchVerifier(
+            address(factory), address(hook), address(weth), keccak256("trusted-adapter-runtime")
+        );
+
+        MockV4PoolManager otherPoolManager = new MockV4PoolManager();
+        factory.setInfrastructure(address(hook), address(otherPoolManager));
+        SinjohPonsV2LaunchVerifier pinnedVerifier = new SinjohPonsV2LaunchVerifier(
+            address(factory), address(hook), address(weth), keccak256("trusted-adapter-runtime")
+        );
+        assertEq(pinnedVerifier.poolManager(), address(otherPoolManager));
+    }
+
     function testRejectsPreGraduationUnsupportedQuoteAndCounterfeitMetadata() public {
         _setRecord(
             address(0), IPonsV2LaunchFactory.GraduationPhase.NotGraduated, CREATOR, FEE_RECIPIENT
@@ -198,6 +215,10 @@ contract SinjohPonsV2ProfileTest is TestBase {
         vm.deal(address(v4PoolManager), grossNative);
         v4PositionManager.setSettlement(active.positionId, grossNative, 0);
         _setAbove(address(0));
+        manager.armSettlement(address(subject), 0, "");
+        vm.expectRevert(SinjohFundingBands.SettlementConfirmationPending.selector);
+        manager.settle(address(subject), 0, "");
+        vm.warp(block.timestamp + manager.V4_SETTLEMENT_DELAY());
         manager.settle(address(subject), 0, "");
 
         assertEq(manager.protocolOwed(), 0.25e18);
@@ -205,29 +226,103 @@ contract SinjohPonsV2ProfileTest is TestBase {
         assertEq(weth.balanceOf(address(manager)), grossNative);
     }
 
-    function testWethQuotedPonsV2Lifecycle() public {
+    function testRejectsWethQuotedPonsV2UntilFactorySupportsIt() public {
         _setRecord(
             address(weth), IPonsV2LaunchFactory.GraduationPhase.PoolCreated, CREATOR, FEE_RECIPIENT
         );
-        _setBelow(address(weth));
-        _createAndFundTwice();
-        SinjohFundingBands.Band memory active = manager.getBand(address(subject), 0);
+        vm.expectRevert(SinjohPonsV2LaunchVerifier.InvalidLaunch.selector);
+        verifier.verify(address(subject), "");
+    }
 
-        uint256 grossWeth = 50e18;
-        uint256 subjectFees = 2e18;
-        weth.mint(address(v4PositionManager), grossWeth);
-        bool subjectIsToken0 = address(subject) < address(weth);
-        v4PositionManager.setSettlement(
-            active.positionId,
-            subjectIsToken0 ? subjectFees : grossWeth,
-            subjectIsToken0 ? grossWeth : subjectFees
+    function testPonsV2LifecycleWithProductionAutonomousGuard() public {
+        SinjohV4DelayedBandPriceGuard productionGuard = new SinjohV4DelayedBandPriceGuard(
+            address(stateView), address(stateView).codehash, address(v4PoolManager).codehash
         );
-        _setAbove(address(weth));
-        manager.settle(address(subject), 0, "");
+        SinjohFundingBands.ProfileInput[] memory profiles = new SinjohFundingBands.ProfileInput[](1);
+        profiles[0] = SinjohFundingBands.ProfileInput({
+            verifier: address(verifier), priceGuard: address(productionGuard), hookData: ""
+        });
+        SinjohFundingBands signedManager = new SinjohFundingBands(
+            address(weth),
+            address(v3Factory),
+            address(v3PositionManager),
+            address(v4PositionManager),
+            address(stateView),
+            address(permit2),
+            address(oracle),
+            keccak256("fee-router-codehash"),
+            PROTOCOL,
+            1 hours,
+            profiles
+        );
+        stateView.setTick(800_000);
+        vm.prank(CREATOR);
+        signedManager.create(address(subject), 0, _configs(), "", "");
+        vm.prank(CREATOR);
+        subject.approve(address(signedManager), 100e18);
+        vm.prank(CREATOR);
+        signedManager.fund(address(subject), _funding(100e18), "");
 
-        assertEq(manager.protocolOwed(), 0.5e18);
-        assertEq(manager.proceedsOwed(address(subject), 0, address(weth)), 49.5e18);
-        assertEq(manager.proceedsOwed(address(subject), 0, address(subject)), subjectFees);
+        SinjohFundingBands.Band memory active = signedManager.getBand(address(subject), 0);
+        vm.deal(address(v4PoolManager), 20e18);
+        v4PositionManager.setSettlement(active.positionId, 20e18, 0);
+        stateView.setTick(-800_000);
+        signedManager.armSettlement(address(subject), 0, "");
+        vm.warp(block.timestamp + signedManager.V4_SETTLEMENT_DELAY());
+        signedManager.settle(address(subject), 0, "");
+
+        assertEq(signedManager.protocolOwed(), 0.2e18);
+        assertEq(signedManager.proceedsOwed(address(subject), 0, address(weth)), 19.8e18);
+    }
+
+    function testPonsV2MaximumTenBandsUseAutonomousSpotGuard() public {
+        SinjohV4DelayedBandPriceGuard productionGuard = new SinjohV4DelayedBandPriceGuard(
+            address(stateView), address(stateView).codehash, address(v4PoolManager).codehash
+        );
+        SinjohFundingBands.ProfileInput[] memory profiles = new SinjohFundingBands.ProfileInput[](1);
+        profiles[0] = SinjohFundingBands.ProfileInput({
+            verifier: address(verifier), priceGuard: address(productionGuard), hookData: ""
+        });
+        SinjohFundingBands signedManager = new SinjohFundingBands(
+            address(weth),
+            address(v3Factory),
+            address(v3PositionManager),
+            address(v4PositionManager),
+            address(stateView),
+            address(permit2),
+            address(oracle),
+            keccak256("fee-router-codehash"),
+            PROTOCOL,
+            1 hours,
+            profiles
+        );
+        SinjohFundingBands.BandConfig[] memory configs = new SinjohFundingBands.BandConfig[](10);
+        SinjohFundingBands.BandFunding[] memory funding = new SinjohFundingBands.BandFunding[](10);
+        for (uint8 i; i < 10; ++i) {
+            uint128 lower = uint128((100_000 + uint256(i) * 200_000) * 1e8);
+            configs[i] = SinjohFundingBands.BandConfig({
+                lowerMarketCapUsdE8: lower,
+                upperMarketCapUsdE8: lower + 100_000e8,
+                destination: SinjohFundingBands.Destination.CREATOR,
+                feeRouter: address(0)
+            });
+            funding[i] = SinjohFundingBands.BandFunding({ bandId: i, amount: 1e18 });
+        }
+
+        stateView.setTick(800_000);
+        vm.prank(CREATOR);
+        signedManager.create(address(subject), 0, configs, "", "");
+        vm.prank(CREATOR);
+        subject.approve(address(signedManager), 10e18);
+        vm.prank(CREATOR);
+        signedManager.fund(address(subject), funding, "");
+
+        assertEq(signedManager.getAccount(address(subject)).bandCount, 10);
+        for (uint8 i; i < 10; ++i) {
+            SinjohFundingBands.Band memory band = signedManager.getBand(address(subject), i);
+            assertEq(uint256(band.status), uint256(SinjohFundingBands.BandStatus.ACTIVE));
+            assertTrue(band.positionId != 0 && band.liquidity != 0);
+        }
     }
 
     function testPonsV2LifecycleWithProductionSignedGuardModel() public {
@@ -271,6 +366,9 @@ contract SinjohPonsV2ProfileTest is TestBase {
         stateView.setTick(-800_000);
         bytes memory aboveEvidence =
             _signedEvidence(signedGuard, signedManager, false, true, -800_000);
+        signedManager.armSettlement(address(subject), 0, aboveEvidence);
+        vm.warp(block.timestamp + signedManager.V4_SETTLEMENT_DELAY());
+        aboveEvidence = _signedEvidence(signedGuard, signedManager, false, true, -800_000);
         signedManager.settle(address(subject), 0, aboveEvidence);
 
         assertEq(signedManager.protocolOwed(), 0.2e18);
@@ -369,6 +467,16 @@ contract SinjohPonsV2ProfileTest is TestBase {
                 exists: true
             })
         );
+    }
+
+    function testVerifierFailsClosedIfFactoryInfrastructureChanges() public {
+        factory.setInfrastructure(address(curve), address(v4PoolManager));
+        vm.expectRevert(SinjohPonsV2LaunchVerifier.InvalidLaunch.selector);
+        verifier.verify(address(subject), "");
+
+        factory.setInfrastructure(address(hook), address(new MockV4PoolManager()));
+        vm.expectRevert(SinjohPonsV2LaunchVerifier.InvalidLaunch.selector);
+        verifier.verify(address(subject), "");
     }
 
     function _configs() private pure returns (SinjohFundingBands.BandConfig[] memory configs) {
