@@ -239,23 +239,23 @@ function settle(
 Settlement is permissionless. The v3 profile uses canonical pool observations and a
 bounded TWAP.
 
-The deployed Pons v2 hook exposes current v4 state but no historical observations.
-For v4, the manager therefore requires two independent successful upper-boundary
-checks:
+The deployed Pons v2 hook exposes current v4 state but no historical accumulator.
+For v4, the manager and confirmation guard therefore combine live state with a
+cross-checked replay of canonical `Swap` events:
 
-1. `armSettlement` records the first crossed canonical-pool observation;
-2. `settle` rejects the same transaction and the next 15 minutes;
-3. after 15 minutes, `settle` must observe the pool still crossed;
-4. the confirmation does not expire while price remains above the band;
-5. if price falls below, permissionless `disarmSettlement` resets the confirmation
-   and the next crossing starts a fresh 15-minute delay; and
-6. any later deposit clears an existing confirmation before increasing liquidity.
+1. `armSettlement` records the first live crossed StateView observation;
+2. the observer independently compares Alchemy archive state with Envio Swap history;
+3. every finalized reversal below the boundary clears the guard timer, including a
+   dip and recovery that occur entirely between observer cycles;
+4. a later crossing starts a fresh 15-minute confirmation;
+5. after fifteen uninterrupted minutes, the guard records permanent eligibility;
+6. `settle` requires both the manager hold and permanent guard confirmation; and
+7. after confirmation, neither price movement nor permissionless disarm can revoke
+   eligibility or impose an execution deadline.
 
-This blocks a one-transaction flash-price crossing and introduces no signer,
-publisher, administrator, or hosted-service dependency. It does not claim that v4
-supplies a continuous TWAP: an adversary able to move the real pool at both observation
-times can still force conversion. That residual economic risk must be included in audit
-and launch disclosures.
+The rotatable observer cannot custody inventory, settle without confirmed history,
+or change a destination. If the observer or either history provider is unavailable,
+confirmation fails closed and the band remains active.
 
 Settlement then:
 

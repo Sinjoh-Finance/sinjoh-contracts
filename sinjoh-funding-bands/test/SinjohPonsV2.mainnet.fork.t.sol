@@ -9,7 +9,9 @@ import { IV4StateView, SinjohFundingBands } from "../src/SinjohFundingBands.sol"
 import { ISinjohLaunchVerifier } from "../src/interfaces/ISinjohLaunchVerifier.sol";
 import { SinjohV3EthUsdOracle } from "../src/oracles/SinjohV3EthUsdOracle.sol";
 import { SinjohPonsV2LaunchVerifier } from "../src/profiles/SinjohPonsV2LaunchVerifier.sol";
-import { SinjohV4DelayedBandPriceGuard } from "../src/profiles/SinjohV4DelayedBandPriceGuard.sol";
+import {
+    SinjohV4ConfirmedBandPriceGuard
+} from "../src/profiles/SinjohV4ConfirmedBandPriceGuard.sol";
 import { TestBase } from "./TestBase.sol";
 
 interface IPonsV2LaunchFactoryFork {
@@ -89,6 +91,7 @@ interface IPonsV2SnipeTaxViewsFork {
 /// its real meme hook, and the canonical Uniswap v4 singleton on a state fork.
 contract SinjohPonsV2MainnetForkTest is TestBase {
     string internal constant DEFAULT_RPC = "https://rpc.mainnet.chain.robinhood.com";
+    uint256 internal constant SIGNER_KEY = uint256(keccak256("funding-bands-observer"));
 
     address internal constant WETH = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
     address internal constant USDG = 0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168;
@@ -123,8 +126,12 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
 
         SinjohPonsV2LaunchVerifier verifier =
             new SinjohPonsV2LaunchVerifier(PONS_FACTORY, PONS_HOOK, WETH, SINJOH_ADAPTER_CODEHASH);
-        SinjohV4DelayedBandPriceGuard guard = new SinjohV4DelayedBandPriceGuard(
-            V4_STATE_VIEW, V4_STATE_VIEW.codehash, V4_POOL_MANAGER.codehash
+        SinjohV4ConfirmedBandPriceGuard guard = new SinjohV4ConfirmedBandPriceGuard(
+            V4_STATE_VIEW,
+            V4_STATE_VIEW.codehash,
+            V4_POOL_MANAGER.codehash,
+            address(this),
+            vm.addr(SIGNER_KEY)
         );
         SinjohV3EthUsdOracle oracle =
             new SinjohV3EthUsdOracle(V3_FACTORY, WETH, USDG, 100, 15 minutes, 500, 1e18);
@@ -205,7 +212,24 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
         (, int24 crossedTick,,) = IV4StateView(V4_STATE_VIEW).getSlot0(PoolId.wrap(launch.poolId));
         assertTrue(crossedTick <= upperBoundary);
         manager.armSettlement(subject, 0, "");
-        vm.warp(block.timestamp + manager.V4_SETTLEMENT_DELAY());
+        SinjohV4ConfirmedBandPriceGuard.Observation[] memory observations =
+            new SinjohV4ConfirmedBandPriceGuard.Observation[](1);
+        observations[0] = SinjohV4ConfirmedBandPriceGuard.Observation({
+            manager: address(manager),
+            poolId: launch.poolId,
+            subjectIsToken0: false,
+            boundaryTick: upperBoundary,
+            above: true
+        });
+        vm.prank(vm.addr(SIGNER_KEY));
+        guard.observe(observations);
+
+        vm.expectRevert(SinjohFundingBands.SettlementConfirmationPending.selector);
+        manager.settle(subject, 0, "");
+
+        vm.warp(block.timestamp + 15 minutes);
+        vm.prank(vm.addr(SIGNER_KEY));
+        guard.observe(observations);
         manager.settle(subject, 0, "");
 
         SinjohFundingBands.Band memory settled = manager.getBand(subject, 0);

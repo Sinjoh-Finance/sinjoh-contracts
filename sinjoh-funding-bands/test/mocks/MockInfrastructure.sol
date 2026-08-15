@@ -180,6 +180,21 @@ contract MockBandPriceGuard is ISinjohFundingBandPriceGuard {
             require(spotTick <= boundaryTick && referenceTick <= boundaryTick, "NOT_ABOVE");
         }
     }
+
+    function validateArm(
+        ISinjohLaunchVerifier.VerifiedLaunch calldata,
+        int24 boundaryTick,
+        bool subjectIsToken0,
+        bytes calldata guardData
+    ) external view {
+        require(!stale, "STALE");
+        if (enforceGuardData) require(keccak256(guardData) == expectedGuardDataHash, "GUARD_DATA");
+        if (subjectIsToken0) {
+            require(spotTick >= boundaryTick && referenceTick >= boundaryTick, "NOT_ABOVE");
+        } else {
+            require(spotTick <= boundaryTick && referenceTick <= boundaryTick, "NOT_ABOVE");
+        }
+    }
 }
 
 contract MockFeeRouter {

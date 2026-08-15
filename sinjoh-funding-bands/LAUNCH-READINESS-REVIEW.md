@@ -12,9 +12,10 @@ full position burn, native ETH receipt from the canonical PoolManager, WETH
 wrapping, exact 1% fee accounting, and liability crediting on a disposable
 Robinhood mainnet fork.
 
-Pons v2 no longer depends on a Safe, reference signer, ETH/USD signer, publisher,
-hosted service, owner, or mutable administrator. The protocol reads canonical
-onchain state and fails closed when its price checks are unavailable.
+Pons v2 no longer depends on a Safe, ETH/USD signer, or price publisher. An
+operational observer cross-checks independent archive state and event history,
+and can only advance or reset confirmation state. It cannot move inventory or
+proceeds, change bands, or bypass the immutable 15-minute requirement.
 
 ## Critical defects corrected
 
@@ -29,10 +30,9 @@ onchain state and fails closed when its price checks are unavailable.
    runtime hashes before broadcast and reads back every manager immutable and profile.
 5. **Fee Router impostors:** destinations must match the approved runtime code hash,
    creator, subject, and intake assets.
-6. **Pons v2 settlement manipulation:** the production guard reads canonical v4
-   StateView, while the manager requires two crossed observations separated by 15
-   minutes. Eligibility persists above the band and is reset by a below-band observation
-   or any later deposit.
+6. **Pons v2 settlement manipulation:** the production guard compares Alchemy
+   archive state with Envio's canonical v4 Swap history. Hidden reversals restart
+   the 15-minute window; uninterrupted confirmation becomes permanently eligible.
 7. **ETH/USD availability:** the ownerless `SinjohV3EthUsdOracle` derives ETH/USD
    from the canonical WETH/USDG v3 pool using a full 15-minute TWAP, a 5% maximum
    spot/TWAP deviation, and a `1e18` minimum raw-liquidity floor.
@@ -49,7 +49,7 @@ onchain state and fails closed when its price checks are unavailable.
 | Launch identity | Immutable Pons v2 record plus token self-attestation; only `PoolCreated`; native ETH only | Passed locally and on live fork |
 | Pool identity | Reconstructed `PoolKey`/`PoolId`; pinned StateView and PoolManager | Passed locally and on live fork |
 | ETH/USD | Canonical WETH/USDG v3 pool; 15-minute TWAP; spot deviation and liquidity checks | Passed locally and on live fork |
-| Band crossing | Canonical v4 spot observed twice, 15 minutes apart; observed reversal or later funding resets it | Reversal/funding passed locally; delayed settlement passed on live fork |
+| Band crossing | Live v4 spot plus byte-identical archive/event replay; every reversal resets the 15-minute window; final confirmation has no expiry | Hidden reversal passed locally; delayed settlement passed on live fork |
 | Creator inventory | Exact transfer delta; fee-on-transfer rejected; approvals cleared | Passed |
 | v4 actions | Core constructs pool, ticks, liquidity, recipient, hook, and action payloads | Passed with real Pons hook |
 | Native proceeds | Only canonical PoolManager may send ETH; exact delta is wrapped into WETH | Passed with real PoolManager |
@@ -59,8 +59,8 @@ onchain state and fails closed when its price checks are unavailable.
 
 ## Verification evidence
 
-- **53 tests passed, zero failed:** core lifecycle/security, Pons v1, Pons v2,
-  autonomous v4 guard, autonomous ETH/USD oracle, fuzzing, invariants, and one
+- **80 tests passed, zero failed:** core lifecycle/security, Pons v1, Pons v2,
+  history-confirmed v4 guard, autonomous ETH/USD oracle, fuzzing, invariants, and one
   live Pons v2 mainnet-fork lifecycle.
 - **Three accounting invariants passed** over 393,216 intensified calls:
   aggregate liabilities equal detailed ledgers, liabilities never exceed balances,
@@ -99,7 +99,7 @@ history, and liquidity value immediately before deployment.
 ## Remaining launch gates
 
 1. **Independent audit:** audit the exact commit, linked libraries, no-rescue
-   custody model, v4 action encodings, two-observation settlement design, TWAP
+   custody model, v4 action encodings, history-confirmed settlement design, TWAP
    adapter, and Fee Router clone.
 2. **Exact deployment rehearsal:** deploy the final artifacts on a fresh fork,
    compare runtime bytecode and all immutables, execute one complete band, and
@@ -107,15 +107,16 @@ history, and liquidity value immediately before deployment.
 3. **Frontend/indexer:** support the automated keeper's arm/disarm/settle states,
    their events, empty Pons v2 `guardData`, executable tick-rounded boundaries,
    and interrupted approval/create/fund flows.
-4. **Monitoring:** watch WETH/USDG liquidity and observation health, failed
-   settlements, liability versus balance, dependency code hashes, and undelivered
-   proceeds. Monitoring is informational; it does not control protocol liveness.
+4. **Monitoring:** watch WETH/USDG liquidity, archive/event agreement, observer
+   health, failed settlements, liability versus balance, dependency code hashes,
+   and undelivered proceeds. Observer failure must alert immediately because it
+   safely pauses new confirmations.
 
 ## Residual risks and scope limits
 
-- Pons v2's hook has no historical tick accumulator. The delayed guard blocks a
-  single-transaction manipulation, but it is not a continuous TWAP. An adversary
-  able to move the real pool at both observation times may still force conversion.
+- Pons v2's hook has no historical tick accumulator. Confirmation therefore depends
+  on independent archive/event providers and the observer's liveness. Disagreement
+  or downtime fails closed and delays settlement rather than accepting partial history.
 - ETH/USD inherits USDG's dollar-peg risk and the WETH/USDG pool's market depth.
   The TWAP, spot-deviation check, and liquidity floor reduce manipulation risk but
   cannot eliminate stablecoin or market risk.

@@ -45,7 +45,7 @@ contract SinjohV4DelayedBandPriceGuard is ISinjohFundingBandPriceGuard {
         int24 boundaryTick,
         bool subjectIsToken0,
         bytes calldata guardData
-    ) external view {
+    ) public view virtual {
         int24 spotTick = _spotTick(launch, guardData);
         bool below = subjectIsToken0 ? spotTick < boundaryTick : spotTick > boundaryTick;
         if (!below) revert BoundaryNotCrossed();
@@ -56,7 +56,21 @@ contract SinjohV4DelayedBandPriceGuard is ISinjohFundingBandPriceGuard {
         int24 boundaryTick,
         bool subjectIsToken0,
         bytes calldata guardData
-    ) external view {
+    ) public view virtual {
+        int24 spotTick = _spotTick(launch, guardData);
+        bool above = subjectIsToken0 ? spotTick >= boundaryTick : spotTick <= boundaryTick;
+        if (!above) revert BoundaryNotCrossed();
+    }
+
+    /// @notice Validates the live crossing used to start the manager's hold timer.
+    /// @dev Confirmation-aware guards override `validateAbove` for final settlement
+    /// while retaining this canonical spot check for the initial arm operation.
+    function validateArm(
+        ISinjohLaunchVerifier.VerifiedLaunch calldata launch,
+        int24 boundaryTick,
+        bool subjectIsToken0,
+        bytes calldata guardData
+    ) external view virtual {
         int24 spotTick = _spotTick(launch, guardData);
         bool above = subjectIsToken0 ? spotTick >= boundaryTick : spotTick <= boundaryTick;
         if (!above) revert BoundaryNotCrossed();
@@ -65,7 +79,7 @@ contract SinjohV4DelayedBandPriceGuard is ISinjohFundingBandPriceGuard {
     function _spotTick(
         ISinjohLaunchVerifier.VerifiedLaunch calldata launch,
         bytes calldata guardData
-    ) private view returns (int24 spotTick) {
+    ) internal view returns (int24 spotTick) {
         if (guardData.length != 0) revert InvalidGuardData();
         if (
             launch.venue != ISinjohLaunchVerifier.Venue.UNISWAP_V4 || launch.poolId == bytes32(0)

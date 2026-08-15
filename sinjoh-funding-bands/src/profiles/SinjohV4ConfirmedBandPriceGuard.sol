@@ -1,0 +1,158 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.28;
+
+import { SafeCast } from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+
+import { ISinjohLaunchVerifier } from "../interfaces/ISinjohLaunchVerifier.sol";
+import { SinjohRotatableQuoteSigner } from "../access/SinjohRotatableQuoteSigner.sol";
+import { SinjohV4DelayedBandPriceGuard } from "./SinjohV4DelayedBandPriceGuard.sol";
+
+/// @notice Pons v2 guard that makes settlement permanently eligible only after
+/// an independent observer proves fifteen uninterrupted minutes above a band.
+/// @dev The observer reconstructs every canonical v4 Swap from two independent
+/// providers. Live create/fund/arm checks remain autonomous StateView reads.
+contract SinjohV4ConfirmedBandPriceGuard is
+    SinjohV4DelayedBandPriceGuard,
+    SinjohRotatableQuoteSigner
+{
+    using SafeCast for uint256;
+
+    uint48 public constant CONFIRMATION_PERIOD = 15 minutes;
+    uint256 public constant MAX_OBSERVATIONS_PER_BATCH = 64;
+
+    struct Observation {
+        address manager;
+        bytes32 poolId;
+        bool subjectIsToken0;
+        int24 boundaryTick;
+        bool above;
+    }
+
+    struct Confirmation {
+        uint48 armedAt;
+        uint48 confirmedAt;
+    }
+
+    error UnauthorizedObserver(address observer);
+    error InvalidObservation();
+    error ConfirmationPending(bytes32 confirmationKey);
+    error ConfirmationFinalized(bytes32 confirmationKey);
+    error UnexpectedGuardData();
+
+    event BandConfirmationArmed(
+        bytes32 indexed confirmationKey,
+        address indexed manager,
+        bytes32 indexed poolId,
+        bool subjectIsToken0,
+        int24 boundaryTick,
+        uint48 armedAt
+    );
+    event BandConfirmationDisarmed(bytes32 indexed confirmationKey, uint48 disarmedAt);
+    event BandConfirmationFinalized(bytes32 indexed confirmationKey, uint48 confirmedAt);
+
+    mapping(bytes32 confirmationKey => Confirmation value) private _confirmations;
+
+    constructor(
+        address stateView_,
+        bytes32 stateViewCodehash_,
+        bytes32 poolManagerCodehash_,
+        address initialGovernance,
+        address initialObserver
+    )
+        SinjohV4DelayedBandPriceGuard(stateView_, stateViewCodehash_, poolManagerCodehash_)
+        SinjohRotatableQuoteSigner(initialGovernance, initialObserver)
+    { }
+
+    /// @notice Applies ordered price-side transitions reconstructed from the
+    /// canonical Swap stream. Governance may rotate only the observer address.
+    function observe(Observation[] calldata observations) external {
+        if (msg.sender != quoteSigner) revert UnauthorizedObserver(msg.sender);
+        if (observations.length == 0 || observations.length > MAX_OBSERVATIONS_PER_BATCH) {
+            revert InvalidObservation();
+        }
+        uint48 observedAt = block.timestamp.toUint48();
+        for (uint256 i; i < observations.length; ++i) {
+            Observation calldata observation = observations[i];
+            if (
+                observation.manager.code.length == 0 || observation.poolId == bytes32(0)
+                    || observation.manager == address(this)
+            ) revert InvalidObservation();
+            bytes32 key = confirmationKey(
+                observation.manager,
+                observation.poolId,
+                observation.subjectIsToken0,
+                observation.boundaryTick
+            );
+            Confirmation storage state = _confirmations[key];
+            if (state.confirmedAt != 0) continue;
+
+            if (!observation.above) {
+                if (state.armedAt != 0) {
+                    state.armedAt = 0;
+                    emit BandConfirmationDisarmed(key, observedAt);
+                }
+                continue;
+            }
+            if (state.armedAt == 0) {
+                state.armedAt = observedAt;
+                emit BandConfirmationArmed(
+                    key,
+                    observation.manager,
+                    observation.poolId,
+                    observation.subjectIsToken0,
+                    observation.boundaryTick,
+                    observedAt
+                );
+                continue;
+            }
+            if (block.timestamp >= uint256(state.armedAt) + CONFIRMATION_PERIOD) {
+                state.confirmedAt = observedAt;
+                emit BandConfirmationFinalized(key, observedAt);
+            }
+        }
+    }
+
+    function confirmationKey(
+        address manager,
+        bytes32 poolId,
+        bool subjectIsToken0,
+        int24 boundaryTick
+    ) public pure returns (bytes32) {
+        return keccak256(abi.encode(manager, poolId, subjectIsToken0, boundaryTick));
+    }
+
+    function confirmation(address manager, bytes32 poolId, bool subjectIsToken0, int24 boundaryTick)
+        external
+        view
+        returns (Confirmation memory)
+    {
+        return _confirmations[confirmationKey(manager, poolId, subjectIsToken0, boundaryTick)];
+    }
+
+    /// @dev Once finalized, a permissionless caller cannot revoke the manager's
+    /// permanent settlement eligibility by invoking its below-band disarm path.
+    function validateBelow(
+        ISinjohLaunchVerifier.VerifiedLaunch calldata launch,
+        int24 boundaryTick,
+        bool subjectIsToken0,
+        bytes calldata guardData
+    ) public view override {
+        bytes32 key = confirmationKey(msg.sender, launch.poolId, subjectIsToken0, boundaryTick);
+        if (_confirmations[key].confirmedAt != 0) revert ConfirmationFinalized(key);
+        super.validateBelow(launch, boundaryTick, subjectIsToken0, guardData);
+    }
+
+    function validateAbove(
+        ISinjohLaunchVerifier.VerifiedLaunch calldata launch,
+        int24 boundaryTick,
+        bool subjectIsToken0,
+        bytes calldata guardData
+    ) public view override {
+        if (guardData.length != 0) revert UnexpectedGuardData();
+        // Run the pinned dependency and launch checks without requiring spot to
+        // remain above: finalized eligibility intentionally has no expiry.
+        _spotTick(launch, guardData);
+        bytes32 key = confirmationKey(msg.sender, launch.poolId, subjectIsToken0, boundaryTick);
+        if (_confirmations[key].confirmedAt == 0) revert ConfirmationPending(key);
+    }
+}

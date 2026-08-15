@@ -15,11 +15,12 @@ liquidity, or another immutable routing policy.
 - Uniswap v3 and v4 mint, increase, full settlement, and position closure paths.
 - Native v4 quote proceeds wrapped into the manager's immutable WETH.
 - Frozen per-profile v4 hook data passed to mint, increase, and burn actions.
-- A bytecode-pinned, autonomous v4 spot guard for Pons v2.
-- Two crossed v4 observations separated by 15 minutes; an observed reversal or
-  later deposit clears confirmation and requires a fresh crossing.
+- A bytecode-pinned v4 guard that requires fifteen uninterrupted minutes above a band.
+- Permanent onchain settlement eligibility after confirmation; no execution expiry.
+- Reversal detection from independently cross-checked canonical v4 Swap history.
 - An ownerless ETH/USD adapter using the canonical WETH/USDG Uniswap v3 15-minute
   TWAP, a spot-deviation bound, and a minimum-liquidity floor.
+- A governance-recoverable observer authority that cannot move inventory or proceeds.
 - Exactly 1% charged on cumulative realized WETH, with subject fees delivered in kind.
 - Audited Fee Router clone runtime-hash pinning; metadata-compatible impostors are rejected.
 - Permissionless pull delivery to the immutable creator/router and protocol recipient.
@@ -48,7 +49,7 @@ invariants.
 | Profile | Implementation | Activation status |
 |---|---|---|
 | Pons v1 / Uniswap v3 | `SinjohPonsV1LaunchVerifier` + `SinjohV3TwapBandPriceGuard` | Source-complete; Robinhood mainnet fork fixture and bytecode-hash signoff still required. |
-| Pons v2 / Uniswap v4 | `SinjohPonsV2LaunchVerifier` + `SinjohV4DelayedBandPriceGuard` | Native-ETH quote only. Live fork suite passes the autonomous oracle, launch, graduation, mint, increase, hooked swap, delayed crossing confirmation, burn, native receipt, WETH wrap, and fee accounting. Exact deployment rehearsal remains. |
+| Pons v2 / Uniswap v4 | `SinjohPonsV2LaunchVerifier` + `SinjohV4ConfirmedBandPriceGuard` | Live fork suite passes launch, graduation, adapter-created launch ownership, mint, increase, hooked swap, continuous confirmation, burn, native receipt, WETH wrap, and fee accounting. |
 | pools.trade / Uniswap v4 | Core-compatible verifier/guard boundary | Not activatable until the live launcher record, strategy/hook behavior, and observation source pass the fork suite. |
 | letscash.fun / Uniswap v4 | Core-compatible verifier/guard boundary | Not activatable until the canonical live contracts and hook observation mechanism pass the fork suite. |
 
@@ -81,10 +82,22 @@ dependency and profile contract before broadcasting, then reads back every immut
 profile address, and hook-data hash from the deployed manager. A mismatch aborts the
 deployment workflow instead of printing an apparently successful address.
 
-Mainnet deployment remains intentionally out of scope until every enabled profile
-passes the compatibility requirements in [`SPEC.md`](./SPEC.md).
-No Safe, reference signer, publisher, hosted service, or privileged operator is
-required for Pons v2 band validation or ETH/USD snapshots.
+`script/deploy-pons-v2-production.sh` is the reviewed Robinhood-mainnet path. It
+pins the live Pons v2 factory, hook, Sinjoh adapter-clone runtime hash, Uniswap
+infrastructure, Fee Router runtime hash, and protocol recipient. It deploys the
+ownerless v3 TWAP oracle, verifier, confirmation guard, linked libraries, and manager; verifies all readbacks;
+and emits addresses, runtime hashes, and transaction hashes as JSON.
+
+The production observer cross-checks Alchemy archive state against Envio's
+independent PoolManager event history. A crossing arms a fifteen-minute timer;
+any intervening reversal disarms it, while an uninterrupted period finalizes
+settlement eligibility permanently onchain. The event stream catches dips that
+start and recover entirely between keeper cycles. Below-band create/fund checks
+remain canonical StateView spot checks.
+The sole observer role is recoverable through two-step governance and cannot
+move inventory, settle a band without confirmed history, or redirect proceeds.
+Funding Bands must remain disabled in the UI whenever the observer service is unhealthy,
+the manager runtime hash differs, or its frozen verifier/guard profile differs.
 
 See [`PONS_V2_COMPATIBILITY.md`](./PONS_V2_COMPATIBILITY.md) for the local and live-fork
 Pons v2 test boundary, [`UI-INTEGRATION.md`](./UI-INTEGRATION.md) for the Pons create,

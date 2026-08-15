@@ -80,7 +80,7 @@ contract SinjohV4SignedBandPriceGuard is ISinjohFundingBandPriceGuard, SinjohRot
         int24 boundaryTick,
         bool subjectIsToken0,
         bytes calldata guardData
-    ) external view {
+    ) external view virtual {
         (int24 spotTick, int24 referenceTick) =
             _validatedTicks(launch, subjectIsToken0, false, guardData);
         bool below = subjectIsToken0
@@ -94,7 +94,21 @@ contract SinjohV4SignedBandPriceGuard is ISinjohFundingBandPriceGuard, SinjohRot
         int24 boundaryTick,
         bool subjectIsToken0,
         bytes calldata guardData
-    ) external view {
+    ) external view virtual {
+        (int24 spotTick, int24 referenceTick) =
+            _validatedTicks(launch, subjectIsToken0, true, guardData);
+        bool above = subjectIsToken0
+            ? spotTick >= boundaryTick && referenceTick >= boundaryTick
+            : spotTick <= boundaryTick && referenceTick <= boundaryTick;
+        if (!above) revert BoundaryNotCrossed();
+    }
+
+    function validateArm(
+        ISinjohLaunchVerifier.VerifiedLaunch calldata launch,
+        int24 boundaryTick,
+        bool subjectIsToken0,
+        bytes calldata guardData
+    ) external view virtual {
         (int24 spotTick, int24 referenceTick) =
             _validatedTicks(launch, subjectIsToken0, true, guardData);
         bool above = subjectIsToken0
@@ -108,16 +122,8 @@ contract SinjohV4SignedBandPriceGuard is ISinjohFundingBandPriceGuard, SinjohRot
         bool subjectIsToken0,
         bool above,
         bytes calldata guardData
-    ) private view returns (int24 spotTick, int24 referenceTick) {
-        if (
-            launch.venue != ISinjohLaunchVerifier.Venue.UNISWAP_V4 || launch.poolId == bytes32(0)
-                || launch.pool != address(0)
-        ) revert InvalidLaunch();
-        if (
-            address(stateView).codehash != stateViewCodehash
-                || poolManager.codehash != poolManagerCodehash
-                || stateView.poolManager() != poolManager
-        ) revert DependencyChanged();
+    ) internal view returns (int24 spotTick, int24 referenceTick) {
+        _validateLaunch(launch);
 
         uint48 validAfter;
         uint48 validUntil;
@@ -144,5 +150,17 @@ contract SinjohV4SignedBandPriceGuard is ISinjohFundingBandPriceGuard, SinjohRot
         uint160 sqrtPriceX96;
         (sqrtPriceX96, spotTick,,) = stateView.getSlot0(PoolId.wrap(launch.poolId));
         if (sqrtPriceX96 == 0) revert PoolNotInitialized();
+    }
+
+    function _validateLaunch(ISinjohLaunchVerifier.VerifiedLaunch calldata launch) internal view {
+        if (
+            launch.venue != ISinjohLaunchVerifier.Venue.UNISWAP_V4 || launch.poolId == bytes32(0)
+                || launch.pool != address(0)
+        ) revert InvalidLaunch();
+        if (
+            address(stateView).codehash != stateViewCodehash
+                || poolManager.codehash != poolManagerCodehash
+                || stateView.poolManager() != poolManager
+        ) revert DependencyChanged();
     }
 }

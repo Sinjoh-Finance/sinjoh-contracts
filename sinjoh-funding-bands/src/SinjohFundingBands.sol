@@ -37,6 +37,15 @@ interface IV4PositionManagerState {
     function poolManager() external view returns (address);
 }
 
+interface IV4FundingBandArmGuard {
+    function validateArm(
+        ISinjohLaunchVerifier.VerifiedLaunch calldata launch,
+        int24 boundaryTick,
+        bool subjectIsToken0,
+        bytes calldata guardData
+    ) external view;
+}
+
 interface IWETH is IERC20 {
     function deposit() external payable;
 }
@@ -448,8 +457,8 @@ contract SinjohFundingBands is ReentrancyGuard {
         if (armedAt != 0) revert InvalidState();
         bool subjectIsToken0 = _subjectIsToken0(account.launch);
         int24 upperBoundary = subjectIsToken0 ? band.tickUpper : band.tickLower;
-        _profiles[account.profileId].priceGuard
-            .validateAbove(account.launch, upperBoundary, subjectIsToken0, guardData);
+        IV4FundingBandArmGuard(address(_profiles[account.profileId].priceGuard))
+            .validateArm(account.launch, upperBoundary, subjectIsToken0, guardData);
 
         band.settlementArmedAt = now48;
         emit BandSettlementArmed(_accountId(subject), bandId, now48, now48 + V4_SETTLEMENT_DELAY);

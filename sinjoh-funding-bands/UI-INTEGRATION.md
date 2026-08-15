@@ -124,10 +124,10 @@ The frontend needs:
 - `getAccount`, `getBand`, `proceedsOwed`, `totalLiability`, and `protocolOwed`;
 - current ETH/USD for previews, while making clear the onchain snapshot is taken
   only when `create` executes;
-- canonical v4 spot for Pons v2 `create`, `fund`, `armSettlement`, and `settle`;
-  `guardData` is empty for this profile;
-- `settlementArmedAt` and `V4_SETTLEMENT_DELAY` to render pending and executable
-  settlement states, plus `BandSettlementDisarmed` when price falls below;
+- canonical v4 spot for Pons v2 `create`, `fund`, and `armSettlement`, with
+  empty `guardData` for this profile;
+- guard confirmation state to render waiting, active countdown, and permanent
+  settlement eligibility; `settlementArmedAt` remains the manager hold timestamp;
 - Fee Router `creator`, `subject`, and intake-asset validation before allowing a
   router destination, plus equality with the manager's immutable
   `feeRouterCodehash`.

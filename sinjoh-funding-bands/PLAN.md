@@ -34,7 +34,7 @@
 
 ## Activation gate
 
-The Pons v2 verifier, autonomous delayed-crossing guard, and onchain WETH/USDG
+The Pons v2 verifier, history-confirmed crossing guard, and onchain WETH/USDG
 TWAP adapter pass both the local lifecycle suite and a disposable Robinhood mainnet
 fork against the current deployed factory, hook, buyback adapter, v3/v4
 infrastructure, Permit2, WETH, and USDG. Pons v2 is mechanically compatible after
