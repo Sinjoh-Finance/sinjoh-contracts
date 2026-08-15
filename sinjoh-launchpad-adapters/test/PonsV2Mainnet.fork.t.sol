@@ -118,7 +118,7 @@ contract PonsV2MainnetForkTest is TestBase {
     }
 
     /// @dev Moves past the launch-window snipe tax (99% decaying across the
-    /// factory's `snipeTaxSeconds`, currently 5) so a third-party trade prices
+    /// factory's live `snipeTaxSeconds`) so a third-party trade prices
     /// cleanly. Tests about the tax itself stay inside the window instead.
     function _warpPastSnipeWindow() internal {
         vm.warp(block.timestamp + IPonsV2SnipeTaxViews(LAUNCH_FACTORY).snipeTaxSeconds() + 1);

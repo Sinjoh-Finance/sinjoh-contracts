@@ -1,8 +1,11 @@
 # Pons v2 — verified on-chain findings
 
-Source of truth: **verified contract source on Blockscout**, chain 4663, read 2026-07-31.
-The published docs at `docs.ponsfamily.com/v2` are wrong in several places (noted below).
-Where docs and ABI disagree, the ABI wins.
+Sources of truth: the pinned [official Pons v2 source
+commit](https://github.com/ponsdotdev/ponsfamily/commit/836f0f97f9a9569855876570d6778501c163c883)
+and [verified live factory source on
+Blockscout](https://robinhoodchain.blockscout.com/address/0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e),
+chain 4663. The public Pons docs currently describe v1 and are not authoritative
+for v2. Where docs and the deployed ABI disagree, the verified ABI wins.
 
 ## 2026-08-04 update: pons redeployed v2 — everything below the line describes the superseded deployment
 
@@ -19,6 +22,7 @@ new factory. Current addresses, all verified on Blockscout:
 | Meme Hook | `0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044` |
 | Launch Locker | `0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952` |
 | Graduation Executor | `0xC7819B64A1dAECD7eC19856d026cb14EfBd89046` |
+| Graduation Guard | `0xf5695117b99B6f6401e67d4195BD653628176C6C` |
 | Buyback Vault | `0x42df2a798f82289E177311362e8f5ccC45c1219c` |
 | Launch Forwarder (new) | `0xe33E9E479dF8802cb0866d5d05258bEc4cF62948` |
 | Factory owner (changed) | `0xFdDE5a1E3cDF791Da71E49F817D70C7ceD72CC36` |
@@ -38,9 +42,9 @@ ABI changes against the superseded deployment:
    (non-deterministic token addresses) is resolved, though the adapter still binds
    from within the launch transaction and needs no prediction.
 2. **Snipe tax.** 99% of a buy's quote leg in the launch second, decaying to zero
-   across 5 seconds (owner-tunable; the curve snapshots the factory's values at
-   launch). Keys on the buy's **recipient**. The factory auto-exempts the launch
-   caller and `creatorFeeRecipient` — both the Sinjoh adapter — so the atomic
+   across 3 seconds as read on 2026-08-14. This is owner-tunable; the curve snapshots
+   the factory's values at launch. Keys on the buy's **recipient**. The factory
+   auto-exempts the launch caller and `creatorFeeRecipient` — both the Sinjoh adapter — so the atomic
    developer buy is untaxed. A new `launchToken` overload takes
    `address[] snipeTaxExemptions` (max 32) for a team's bundle wallets; snipe-tax
    proceeds accrue into `quoteFeeBalance` and split like the base fee.

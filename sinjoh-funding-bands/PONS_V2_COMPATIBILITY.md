@@ -7,7 +7,10 @@ mainnet transaction or wallet was used.
 ## Source model
 
 The compatibility harness follows the official `ponsdotdev/ponsfamily` source at
-commit `836f0f97f9a9569855876570d6778501c163c883`.
+[commit `836f0f97f9a9569855876570d6778501c163c883`](https://github.com/ponsdotdev/ponsfamily/commit/836f0f97f9a9569855876570d6778501c163c883)
+and pins the verified live [factory](https://robinhoodchain.blockscout.com/address/0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e)
+and [hook](https://robinhoodchain.blockscout.com/address/0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044)
+runtime code hashes.
 
 The production-facing verifier models these Pons v2 facts:
 

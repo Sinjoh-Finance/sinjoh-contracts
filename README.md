@@ -1,7 +1,7 @@
 # Sinjoh
 
-Sinjoh is immutable launchpad infrastructure for Robinhood Chain. Pons v1 is
-the live integration; Pons v2, Flap, Pools, and letscash.fun support are built
+Sinjoh is immutable launchpad infrastructure for Robinhood Chain. Pons v1 and
+Pons v2 are live integrations; Flap, Pools, and letscash.fun support remains
 behind deployment-manifest gates. This monorepo contains independently
 deployable and auditable Solidity packages plus offchain automation:
 
@@ -44,7 +44,12 @@ These separate charges must not be presented as one "trade tax":
 - The raffle charges 1% on prize-pool funding and may also apply its separately configured,
   immutable payout tax to a winning prize. Neither is a token trading tax.
 
-See the [Pons v2 protocol documentation](https://docs.ponsfamily.com/v2).
+Pons's public documentation currently describes v1 and is not authoritative for
+the deployed v2 ABI. Use the pinned [official Pons v2 source
+commit](https://github.com/ponsdotdev/ponsfamily/commit/836f0f97f9a9569855876570d6778501c163c883)
+and the verified live [factory](https://robinhoodchain.blockscout.com/address/0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e)
+and [hook](https://robinhoodchain.blockscout.com/address/0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044)
+when checking v2 behavior.
 
 ## Clone
 
