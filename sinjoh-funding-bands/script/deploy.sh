@@ -125,6 +125,18 @@ done
 verify_hashes "$DEPENDENCIES" "$DEPENDENCY_HASHES"
 verify_hashes "$PROFILE_ADDRESSES" "$PROFILE_HASHES"
 
+deployer_address="$(cast wallet address --private-key "$DEPLOYER_PRIVATE_KEY")"
+escrow_json="$(forge create src/SinjohFundingBandsLaunchEscrow.sol:SinjohFundingBandsLaunchEscrow \
+  --constructor-args "${profile_addresses[0]}" "$deployer_address" \
+  --rpc-url "$ROBINHOOD_RPC_URL" \
+  --private-key "$DEPLOYER_PRIVATE_KEY" \
+  --broadcast --json)"
+escrow_address="$(jq -r '.deployedTo' <<< "$escrow_json")"
+if [[ -z "$escrow_address" || "$escrow_address" == "null" ]]; then
+  echo "SinjohFundingBandsLaunchEscrow deployment did not return an address" >&2
+  exit 1
+fi
+
 math_json="$(forge create src/FundingBandMath.sol:FundingBandMath \
   --rpc-url "$ROBINHOOD_RPC_URL" \
   --private-key "$DEPLOYER_PRIVATE_KEY" \
@@ -158,6 +170,7 @@ manager_json="$(forge create src/SinjohFundingBands.sol:SinjohFundingBands \
     "${dependency_addresses[6]}" \
     "$FEE_ROUTER_CODEHASH" \
     "$PROTOCOL_FEE_RECIPIENT" \
+    "$escrow_address" \
     "$MAX_ORACLE_AGE" \
     "$PROFILES" \
   --rpc-url "$ROBINHOOD_RPC_URL" \
@@ -177,6 +190,9 @@ verify_address_getter "$manager_address" "v4StateView()(address)" "${dependency_
 verify_address_getter "$manager_address" "permit2()(address)" "${dependency_addresses[5]}"
 verify_address_getter "$manager_address" "ethUsdOracle()(address)" "${dependency_addresses[6]}"
 verify_address_getter "$manager_address" "protocolFeeRecipient()(address)" "$PROTOCOL_FEE_RECIPIENT"
+verify_address_getter "$manager_address" "launchEscrow()(address)" "$escrow_address"
+verify_address_getter "$escrow_address" "verifier()(address)" "${profile_addresses[0]}"
+verify_address_getter "$escrow_address" "manager()(address)" "0x0000000000000000000000000000000000000000"
 
 actual_fee_router_codehash="$(cast call "$manager_address" 'feeRouterCodehash()(bytes32)' \
   --rpc-url "$ROBINHOOD_RPC_URL")"
@@ -209,7 +225,15 @@ for ((profile_index = 0; profile_index < profile_count; profile_index++)); do
     "$actual_hook_hash" "${profile_hook_data_hashes[$profile_index]}"
 done
 
+# The one-time escrow binding is the final deployment write, after every
+# independently verifiable dependency, immutable, profile, and timing check.
+cast send "$escrow_address" 'bindManager(address)' "$manager_address" \
+  --rpc-url "$ROBINHOOD_RPC_URL" \
+  --private-key "$DEPLOYER_PRIVATE_KEY" --json >/dev/null
+verify_address_getter "$escrow_address" "manager()(address)" "$manager_address"
+
 echo "FundingBandMath: $math_address"
 echo "FundingBandV4: $v4_library_address"
+echo "SinjohFundingBandsLaunchEscrow: $escrow_address"
 echo "SinjohFundingBands: $manager_address"
 echo "SinjohFundingBands code hash: $(cast codehash "$manager_address" --rpc-url "$ROBINHOOD_RPC_URL")"

@@ -20,13 +20,19 @@ deploying ongoing revenue flow into permanent full-range liquidity.
 - Native ETH collected from v4 is wrapped into canonical WETH.
 - One verified creator account and one band set per launched subject.
 - Between one and ten immutable bands per account.
-- Creator-only registration and funding.
+- Atomic launch-time inventory escrow for the production Pons v2 profile.
+- Permissionless post-graduation activation of an escrowed launch plan.
+- Creator-only direct registration and later top-up funding; the bound launch
+  escrow is the only exception for initial account creation and funding.
 - Permissionless settlement and proceeds delivery.
 
-For Pons v2, registration and funding are available only after the canonical
-launch record reaches `GraduationPhase.PoolCreated`; before graduation there is
-no Uniswap v4 pool in which to place a funding band. A launch UI may persist an
-offchain draft, but that draft is not committed inventory.
+For Pons v2, the reviewed adapter freezes the complete plan and transfers the
+selected share of the first developer buy into `SinjohFundingBandsLaunchEscrow`
+in the launch transaction. Position creation and funding become available only
+after the canonical launch record reaches `GraduationPhase.PoolCreated`, because
+no Uniswap v4 pool exists before graduation. Activation is permissionless and
+atomic: either every saved band is created and funded or the inventory remains
+in escrow for a safe retry. An offchain draft alone is not committed inventory.
 
 A launch profile is not production-supported until its deployed factory, pool identity,
 hook behavior, and creator records pass Robinhood mainnet fork tests. Sharing the
@@ -57,7 +63,7 @@ struct VerifiedLaunch {
 }
 ```
 
-Registration requires:
+Direct creator registration requires:
 
 - `msg.sender == creatorAtLaunch`;
 - the launch record comes from an immutable supported verifier;
@@ -66,17 +72,19 @@ Registration requires:
 - quote currency is canonical WETH or native ETH;
 - the pool is initialized;
 - launch supply is nonzero;
-- the subject is a standard, fixed-balance ERC-20;
+- the subject uses standard ERC-20 balance accounting and is not rebasing or
+  fee-on-transfer;
 - the deployment chain ID is `4663`.
 
 The launch creator is snapshotted permanently. Later launchpad creator or fee-recipient
 changes do not transfer control of the Funding Bands account.
 
 Pons v2's launch record does not retain the token's original configured supply.
-After verifying the factory record and the token's factory, deployer, and curve
-self-attestation, its profile snapshots the current ERC-20 `totalSupply()` at
-registration. Any voluntary holder burn before registration therefore reduces
-the market-cap denominator used for that account.
+The escrow path snapshots `totalSupply()` inside the launch transaction and
+passes that immutable value into activation. Holder burns between launch and
+activation are allowed and do not change the denominator; any supply increase
+causes activation to fail closed while leaving inventory in escrow. A legacy
+direct creator registration snapshots the current supply at registration.
 
 Supported verifier addresses are frozen when `SinjohFundingBands` is deployed. Supporting
 another launchpad requires a new deployment.
@@ -158,7 +166,7 @@ function create(
 `launchData` and `guardData` are each capped at 1,024 bytes. `guardData` is reserved
 for profile-specific price evidence. It must be empty for the autonomous Pons v2 guard.
 
-Registration:
+Direct creator registration:
 
 1. resolves the canonical launch and creator;
 2. verifies `msg.sender` is the launch creator;
@@ -169,6 +177,11 @@ Registration:
 7. emits every requested and effective boundary.
 
 Registration may occur without immediately funding every band.
+
+For an escrowed subject, direct registration is rejected even when called by the
+creator. Only the bound escrow may create it, and the escrow must supply the exact
+launch-time supply snapshot. This prevents a creator transaction from racing or
+blocking the automatic launch plan.
 
 ## Funding
 
@@ -187,7 +200,8 @@ function fund(
 
 Rules:
 
-- Only the snapshotted creator may fund.
+- Only the snapshotted creator may top up a band. The bound escrow may fund the
+  exact initial allocation during its atomic activation call.
 - A call contains between one and ten unique band IDs.
 - Every amount is nonzero.
 - Exact balance-delta accounting is required.
@@ -247,8 +261,8 @@ cross-checked replay of canonical `Swap` events:
 2. the observer independently compares Alchemy archive state with Envio Swap history;
 3. every finalized reversal below the boundary clears the guard timer, including a
    dip and recovery that occur entirely between observer cycles;
-4. a later crossing starts a fresh 30-second confirmation;
-5. after thirty uninterrupted seconds, the guard records permanent eligibility;
+4. a later crossing starts a fresh 15-second confirmation;
+5. after fifteen uninterrupted seconds, the guard records permanent eligibility;
 6. `settle` requires both the manager hold and permanent guard confirmation; and
 7. after confirmation, neither price movement nor permissionless disarm can revoke
    eligibility or impose an execution deadline.

@@ -15,6 +15,34 @@ interface ISinjohFeeRouter {
     function bind(address subject) external;
 }
 
+interface ISinjohPonsV2AdapterFactoryView {
+    function fundingBandsEscrow() external view returns (address);
+}
+
+interface ISinjohFundingBandsLaunchEscrow {
+    enum Destination {
+        CREATOR,
+        FEE_ROUTER
+    }
+
+    struct BandConfig {
+        uint128 lowerMarketCapUsdE8;
+        uint128 upperMarketCapUsdE8;
+        Destination destination;
+        address feeRouter;
+    }
+
+    function prepareFromLaunch(
+        address subject,
+        uint8 profileId,
+        uint16 inventoryBps,
+        BandConfig[] calldata configs,
+        uint16[] calldata allocationBps,
+        uint256 developerBuyTokens,
+        bytes calldata launchData
+    ) external returns (uint256 escrowedInventory);
+}
+
 /// @notice Launches on pons v2 and forwards its creator fees to one immutable
 /// `SinjohFeeRouter`.
 ///
@@ -48,6 +76,16 @@ contract SinjohPonsV2Adapter is ISinjohLaunchpadAdapter {
     error LaunchReturnedNoToken();
     error RouterDidNotNameAdapter(address named);
     error BuybackMustBeDisabled();
+    error InvalidFundingBandsPlan();
+    error FundingBandsEscrowMismatch(uint256 expected, uint256 actual);
+
+    struct FundingBandsPlan {
+        address escrow;
+        uint8 profileId;
+        uint16 inventoryBps;
+        ISinjohFundingBandsLaunchEscrow.BandConfig[] configs;
+        uint16[] allocationBps;
+    }
 
     event Initialized(address indexed router, address indexed creator);
     event Launched(
@@ -59,6 +97,12 @@ contract SinjohPonsV2Adapter is ISinjohLaunchpadAdapter {
     );
     event DeveloperBuyDelivered(
         address indexed subject, address indexed creator, uint256 quoteIn, uint256 tokensOut
+    );
+    event DeveloperBuyEscrowed(
+        address indexed subject,
+        address indexed escrow,
+        uint256 developerBuyTokens,
+        uint256 escrowedInventory
     );
     event DeveloperBuyRefunded(address indexed asset, address indexed creator, uint256 amount);
     event Collected(
@@ -78,6 +122,7 @@ contract SinjohPonsV2Adapter is ISinjohLaunchpadAdapter {
     address public immutable feeEscrow;
     address public immutable weth;
     uint256 public immutable deploymentChainId;
+    address public immutable adapterFactory;
 
     address public router;
     address public creator;
@@ -105,6 +150,7 @@ contract SinjohPonsV2Adapter is ISinjohLaunchpadAdapter {
         feeEscrow = feeEscrow_;
         weth = weth_;
         deploymentChainId = chainId_;
+        adapterFactory = msg.sender;
         initialized = true;
     }
 
@@ -122,6 +168,7 @@ contract SinjohPonsV2Adapter is ISinjohLaunchpadAdapter {
 
     function initialize(address router_, address creator_) external {
         if (initialized) revert AlreadyInitialized();
+        if (msg.sender != adapterFactory) revert Unauthorized();
         initialized = true;
         if (
             router_.code.length == 0 || creator_ == address(0) || router_ == address(this)
@@ -165,6 +212,70 @@ contract SinjohPonsV2Adapter is ISinjohLaunchpadAdapter {
         uint256 minTokensOut,
         address[] calldata snipeTaxExemptions
     ) external payable nonReentrant returns (address token, address curve_) {
+        uint256 tokensOut;
+        (token, curve_, tokensOut) = _launch(
+            params, launchConfigId, pairToken_, developerBuy, minTokensOut, snipeTaxExemptions
+        );
+        if (tokensOut != 0) token.safeTransfer(creator, tokensOut);
+        emit DeveloperBuyDelivered(token, creator, developerBuy, tokensOut);
+    }
+
+    /// @notice Launches and atomically escrows the configured share of the
+    /// developer buy before delivering the remainder to the creator.
+    function launchWithFundingBands(
+        IPonsV2LaunchFactory.TokenParams calldata params,
+        uint256 launchConfigId,
+        address pairToken_,
+        uint256 developerBuy,
+        uint256 minTokensOut,
+        address[] calldata snipeTaxExemptions,
+        FundingBandsPlan calldata plan
+    ) external payable nonReentrant returns (address token, address curve_) {
+        if (
+            plan.escrow.code.length == 0
+                || plan.escrow
+                    != ISinjohPonsV2AdapterFactoryView(adapterFactory).fundingBandsEscrow()
+                || plan.inventoryBps == 0 || developerBuy == 0 || plan.configs.length == 0
+                || plan.configs.length != plan.allocationBps.length
+        ) revert InvalidFundingBandsPlan();
+
+        uint256 tokensOut;
+        (token, curve_, tokensOut) = _launch(
+            params, launchConfigId, pairToken_, developerBuy, minTokensOut, snipeTaxExemptions
+        );
+        if (tokensOut == 0) revert InvalidDeveloperBuy();
+
+        uint256 beforeBalance = token.safeBalanceOf(address(this));
+        token.safeApprove(plan.escrow, tokensOut);
+        uint256 escrowed = ISinjohFundingBandsLaunchEscrow(plan.escrow)
+            .prepareFromLaunch(
+                token,
+                plan.profileId,
+                plan.inventoryBps,
+                plan.configs,
+                plan.allocationBps,
+                tokensOut,
+                ""
+            );
+        token.safeApprove(plan.escrow, 0);
+        uint256 spent = beforeBalance - token.safeBalanceOf(address(this));
+        if (escrowed == 0 || spent != escrowed || escrowed > tokensOut) {
+            revert FundingBandsEscrowMismatch(escrowed, spent);
+        }
+        uint256 delivered = tokensOut - escrowed;
+        if (delivered != 0) token.safeTransfer(creator, delivered);
+        emit DeveloperBuyEscrowed(token, plan.escrow, tokensOut, escrowed);
+        emit DeveloperBuyDelivered(token, creator, developerBuy, delivered);
+    }
+
+    function _launch(
+        IPonsV2LaunchFactory.TokenParams calldata params,
+        uint256 launchConfigId,
+        address pairToken_,
+        uint256 developerBuy,
+        uint256 minTokensOut,
+        address[] calldata snipeTaxExemptions
+    ) private returns (address token, address curve_, uint256 tokensOut) {
         _assertChain();
         if (msg.sender != creator) revert Unauthorized();
         if (launched) revert AlreadyLaunched();
@@ -229,7 +340,7 @@ contract SinjohPonsV2Adapter is ISinjohLaunchpadAdapter {
         ISinjohFeeRouter(router_).bind(token);
 
         if (developerBuy != 0) {
-            _developerBuy(token, curve_, pairToken_, native, developerBuy, minTokensOut);
+            tokensOut = _developerBuy(token, curve_, pairToken_, native, developerBuy, minTokensOut);
         }
     }
 
@@ -244,7 +355,7 @@ contract SinjohPonsV2Adapter is ISinjohLaunchpadAdapter {
         bool native,
         uint256 developerBuy,
         uint256 minTokensOut
-    ) private {
+    ) private returns (uint256 tokensOut) {
         address creator_ = creator;
         uint256 tokensBefore = token.safeBalanceOf(address(this));
 
@@ -269,11 +380,7 @@ contract SinjohPonsV2Adapter is ISinjohLaunchpadAdapter {
         // v2 clamps an oversized buy and refunds the difference, so the tokens
         // actually received can be fewer than any quote taken a moment earlier.
         // Measure rather than trust.
-        uint256 tokensOut = token.safeBalanceOf(address(this)) - tokensBefore;
-        if (tokensOut != 0) {
-            token.safeTransfer(creator_, tokensOut);
-        }
-        emit DeveloperBuyDelivered(token, creator_, developerBuy, tokensOut);
+        tokensOut = token.safeBalanceOf(address(this)) - tokensBefore;
 
         _refundClamp(creator_, pairToken_, native);
     }

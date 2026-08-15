@@ -1,21 +1,21 @@
 # Funding Bands launch-readiness review
 
-Review date: 2026-08-14
+Review date: 2026-08-15
 
 ## Verdict
 
-**Pons v2 protocol mechanics: PASS after internal adversarial audit. Exact deployment rehearsal remains.**
+**Pons v2 protocol mechanics: PASS after internal adversarial audit. Production deployment and post-deploy canary remain.**
 
 The Pons v2 path completed a fresh launch, graduation, two deposits into one real
 Uniswap v4 position, a real hooked swap across the band, delayed confirmation,
 full position burn, native ETH receipt from the canonical PoolManager, WETH
-wrapping, exact 1% fee accounting, and liability crediting on a disposable
-Robinhood mainnet fork.
+wrapping, exact 1% fee accounting, liability crediting, Fee Router delivery,
+and separate protocol-fee delivery on a disposable Robinhood mainnet fork.
 
 Pons v2 no longer depends on a Safe, ETH/USD signer, or price publisher. An
 operational observer cross-checks independent archive state and event history,
 and can only advance or reset confirmation state. It cannot move inventory or
-proceeds, change bands, or bypass the immutable 30-second requirement.
+proceeds, change bands, or bypass the immutable 15-second requirement.
 
 ## Critical defects corrected
 
@@ -32,7 +32,7 @@ proceeds, change bands, or bypass the immutable 30-second requirement.
    creator, subject, and intake assets.
 6. **Pons v2 settlement manipulation:** the production guard compares Alchemy
    archive state with Envio's canonical v4 Swap history. Hidden reversals restart
-   the 30-second window; uninterrupted confirmation becomes permanently eligible.
+   the 15-second window; uninterrupted confirmation becomes permanently eligible.
 7. **ETH/USD availability:** the ownerless `SinjohV3EthUsdOracle` derives ETH/USD
    from the canonical WETH/USDG v3 pool using a full 15-minute TWAP, a 5% maximum
    spot/TWAP deviation, and a `1e18` minimum raw-liquidity floor.
@@ -41,6 +41,19 @@ proceeds, change bands, or bypass the immutable 30-second requirement.
 9. **Keeper trust boundary:** startup pins the reviewed manager address and runtime
    hash, then verifies the account subject, creator binding, profile, venue, band
    count, quote asset, and settlement delay before planning any call.
+10. **Launch-time custody:** the first developer buy now transfers the selected
+    inventory directly from the launch adapter into a dedicated escrow. The escrow
+    freezes every band, allocation, Creator destination, and Router destination,
+    then permissionlessly creates and fully funds the ladder after graduation.
+11. **Supply and activation races:** the escrow preserves the launch supply used
+    for market-cap conversion, allows ordinary post-launch burns, rejects supply
+    inflation, and prevents a creator from pre-creating a conflicting account.
+12. **Automation isolation:** Funding Bands uses its own operator key and durable
+    journal. The shared fee-routing planner rejects Funding Bands accounts and has
+    no Funding Bands lifecycle executor.
+13. **Canonical escrow at the launch boundary:** the reviewed adapter factory is
+    one-time bound to the new escrow. The adapter rejects an unbound or substituted
+    escrow before calling the upstream Pons factory.
 
 ## Data-flow results
 
@@ -49,31 +62,37 @@ proceeds, change bands, or bypass the immutable 30-second requirement.
 | Launch identity | Immutable Pons v2 record plus token self-attestation; only `PoolCreated`; native ETH only | Passed locally and on live fork |
 | Pool identity | Reconstructed `PoolKey`/`PoolId`; pinned StateView and PoolManager | Passed locally and on live fork |
 | ETH/USD | Canonical WETH/USDG v3 pool; 15-minute TWAP; spot deviation and liquidity checks | Passed locally and on live fork |
-| Band crossing | Live v4 spot plus byte-identical archive/event replay; every reversal resets the 30-second window; final confirmation has no expiry | Hidden reversal passed locally; delayed settlement passed on live fork |
-| Creator inventory | Exact transfer delta; fee-on-transfer rejected; approvals cleared | Passed |
+| Band crossing | Live v4 spot plus byte-identical archive/event replay; every reversal resets the 15-second window; final confirmation has no expiry | Hidden reversal passed locally; delayed settlement passed on live fork |
+| First developer buy | Native ETH only; positive buy required; exact returned inventory is split in basis points | Passed locally and on live fork |
+| Launch escrow | Factory-bound exact address; exact transfer delta; fee-on-transfer rejected; all bands and destinations verified before custody | Passed locally and on live fork |
+| Automatic activation | Permissionless, atomic create-and-fund after canonical graduation; creator cannot race preparation | Passed locally and on live fork |
 | v4 actions | Core constructs pool, ticks, liquidity, recipient, hook, and action payloads | Passed with real Pons hook |
 | Native proceeds | Only canonical PoolManager may send ETH; exact delta is wrapped into WETH | Passed with real PoolManager |
-| Fee Router | Runtime hash plus creator, subject, WETH intake, and subject intake | Passed, including counterfeit rejection |
-| Proceeds | Pull ledger, fixed recipients, failure-safe retries, solvency checks | Passed |
+| Fee Router | Runtime hash plus creator, subject, WETH intake, and subject intake | Passed before custody, including counterfeit rejection |
+| Proceeds | Per-band immutable recipient, mixed Creator/Router ladders, failure-safe retries, solvency checks | Passed locally and on live fork |
 | Protocol fee | Exactly 1% of cumulative realized WETH; no subject-token fee | Passed unit and invariant tests |
 
 ## Verification evidence
 
-- **80 tests passed, zero failed:** core lifecycle/security, Pons v1, Pons v2,
-  history-confirmed v4 guard, autonomous ETH/USD oracle, fuzzing, invariants, and one
-  live Pons v2 mainnet-fork lifecycle.
-- **Three accounting invariants passed** over 393,216 intensified calls:
+- **90 Funding Bands tests passed, zero failed:** core lifecycle/security, Pons v1,
+  Pons v2, history-confirmed v4 guard, autonomous ETH/USD oracle, fuzzing,
+  invariants, and one live Pons v2 mainnet-fork lifecycle.
+- **Three accounting invariants passed** over 49,152 calls in the standard release gate:
   aggregate liabilities equal detailed ledgers, liabilities never exceed balances,
   and the protocol fee remains exactly 1% of gross WETH.
-- **10,000 market-cap conversion fuzz cases passed** across supply, ETH/USD,
-  market-cap, tick spacing, and both token orientations in the intensified suite.
+- **1,000 market-cap conversion fuzz cases passed** across supply, ETH/USD,
+  market-cap, tick spacing, and both token orientations in the standard release gate.
+- **41 focused Pons v2 adapter tests, 155 keeper tests, 79 Fee Router tests, and
+  229 UI tests passed.**
 - Maximum ten-band creation and funding passed for v3 and Pons v2/v4.
 - `forge fmt --check`, compilation, and `git diff --check` pass.
-- `SinjohFundingBands` runtime is 24,066 bytes, 510 bytes below EIP-170.
+- `SinjohFundingBands` runtime is 24,523 bytes, 53 bytes below EIP-170. Any
+  bytecode change requires a fresh size check before deployment.
 
 The live test uses production contracts—not a mock—for the Pons factory, bonding
-curve, meme hook, buyback adapter, v4 PositionManager, StateView, PoolManager,
-Permit2, WETH, USDG, and the WETH/USDG v3 pool.
+curve, meme hook, fee escrow, v4 PositionManager, StateView, PoolManager,
+Permit2, WETH, USDG, and the WETH/USDG v3 pool. It does not impersonate the Pons
+owner or alter the live launch gate.
 
 ## Live dependencies used by the fork
 
@@ -98,19 +117,20 @@ history, and liquidity value immediately before deployment.
 
 ## Remaining launch gates
 
-1. **Independent audit:** audit the exact commit, linked libraries, no-rescue
+1. **Final diff audit:** audit the exact commit, linked libraries, no-rescue
    custody model, v4 action encodings, history-confirmed settlement design, TWAP
    adapter, and Fee Router clone.
-2. **Exact deployment rehearsal:** deploy the final artifacts on a fresh fork,
-   compare runtime bytecode and all immutables, execute one complete band, and
-   preserve the manifest.
-3. **Frontend/indexer:** support the automated keeper's arm/disarm/settle states,
-   their events, empty Pons v2 `guardData`, executable tick-rounded boundaries,
-   and interrupted approval/create/fund flows.
-4. **Monitoring:** watch WETH/USDG liquidity, archive/event agreement, observer
+2. **Production deployment:** deploy the reviewed 15-second generation, bind the
+   escrow once, verify runtime hashes and every immutable, then publish one
+   canonical manifest with no legacy-manager fallback.
+3. **Service and UI rollout:** configure the dedicated operator, require fresh
+   observer readiness before any new Funding Bands launch, and publish the exact
+   contract generation to the UI and metadata verifier.
+4. **Monitoring and canary:** watch WETH/USDG liquidity, archive/event agreement, observer
    health, failed settlements, liability versus balance, dependency code hashes,
-   and undelivered proceeds. Observer failure must alert immediately because it
-   safely pauses new confirmations.
+   and undelivered proceeds; then run a production read-only canary. Observer
+   failure must alert immediately because it safely pauses new launches and new
+   confirmations.
 
 ## Residual risks and scope limits
 
@@ -120,7 +140,7 @@ history, and liquidity value immediately before deployment.
 - ETH/USD inherits USDG's dollar-peg risk and the WETH/USDG pool's market depth.
   The TWAP, spot-deviation check, and liquidity floor reduce manipulation risk but
   cannot eliminate stablecoin or market risk.
-- Pons v1 passes local tests but still lacks a live Robinhood fork lifecycle.
+- Pons v1 launches are disabled in production and are outside this Pons v2 release.
 - pools.trade and letscash.fun do not yet have production verifiers/guards or
   fork tests and must not be enabled or advertised as supported.
 - The public RPC does not provide a reliable pinned archival fixture. Rerun the

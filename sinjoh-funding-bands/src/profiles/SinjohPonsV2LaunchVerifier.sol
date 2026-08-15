@@ -8,6 +8,7 @@ import { PoolId, PoolIdLibrary } from "@uniswap/v4-core/src/types/PoolId.sol";
 import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 
 import { ISinjohLaunchVerifier } from "../interfaces/ISinjohLaunchVerifier.sol";
+import { ISinjohPrelaunchVerifier } from "../interfaces/ISinjohPrelaunchVerifier.sol";
 
 interface IPonsV2LaunchFactory {
     enum GraduationPhase {
@@ -56,7 +57,7 @@ interface ISinjohPonsV2AdapterView {
 /// @notice Resolves only graduated Pons v2 launches whose quote is native ETH.
 /// The launch-time deployer remains the Funding Bands controller even
 /// if Pons later rotates the mutable creator-fee recipient.
-contract SinjohPonsV2LaunchVerifier is ISinjohLaunchVerifier {
+contract SinjohPonsV2LaunchVerifier is ISinjohLaunchVerifier, ISinjohPrelaunchVerifier {
     using PoolIdLibrary for PoolKey;
 
     error InvalidAddress();
@@ -97,7 +98,7 @@ contract SinjohPonsV2LaunchVerifier is ISinjohLaunchVerifier {
         view
         returns (VerifiedLaunch memory launch)
     {
-        if (launchData.length != 0) revert InvalidLaunch();
+        if (launchData.length != 0 && launchData.length != 32) revert InvalidLaunch();
         if (ponsFactory.memeHook() != memeHook || ponsFactory.poolManager() != poolManager) {
             revert InvalidLaunch();
         }
@@ -126,8 +127,12 @@ contract SinjohPonsV2LaunchVerifier is ISinjohLaunchVerifier {
             token.deployer() != record.deployer || token.launchFactory() != address(ponsFactory)
                 || token.curve() != record.curve
         ) revert InvalidLaunch();
-        uint256 launchSupply = IERC20(subject).totalSupply();
-        if (launchSupply == 0) revert InvalidLaunch();
+        uint256 currentSupply = IERC20(subject).totalSupply();
+        uint256 launchSupply =
+            launchData.length == 0 ? currentSupply : abi.decode(launchData, (uint256));
+        if (currentSupply == 0 || launchSupply == 0 || currentSupply > launchSupply) {
+            revert InvalidLaunch();
+        }
 
         address token0 = subject < record.pairToken ? subject : record.pairToken;
         address token1 = subject < record.pairToken ? record.pairToken : subject;
@@ -151,6 +156,46 @@ contract SinjohPonsV2LaunchVerifier is ISinjohLaunchVerifier {
             hooks: memeHook,
             poolId: PoolId.unwrap(poolId),
             launchSupply: launchSupply
+        });
+    }
+
+    /// @notice Verifies the adapter-originated launch while the Pons curve is
+    /// still live. This binds escrowed inventory to the actual subject,
+    /// immutable launch deployer, human creator, curve, and launch supply.
+    function verifyPreparation(address subject, address adapter_, bytes calldata launchData)
+        external
+        view
+        returns (VerifiedPreparation memory preparation)
+    {
+        if (launchData.length != 0 || adapter_ == address(0)) revert InvalidLaunch();
+        if (ponsFactory.memeHook() != memeHook || ponsFactory.poolManager() != poolManager) {
+            revert InvalidLaunch();
+        }
+        IPonsV2LaunchFactory.LaunchedToken memory record = ponsFactory.getLaunchedToken(subject);
+        if (
+            !record.exists || record.token != subject || record.curve.code.length == 0
+                || record.deployer != adapter_ || record.pairToken != address(0)
+                || record.phase != IPonsV2LaunchFactory.GraduationPhase.NotGraduated
+                || adapter_.codehash != sinjohAdapterCodehash
+        ) revert InvalidLaunch();
+
+        ISinjohPonsV2AdapterView adapter = ISinjohPonsV2AdapterView(adapter_);
+        address creator = adapter.creator();
+        if (
+            creator == address(0) || adapter.subject() != subject
+                || adapter.launchFactory() != address(ponsFactory)
+                || adapter.curve() != record.curve
+        ) revert InvalidLaunch();
+
+        IPonsV2LauncherToken token = IPonsV2LauncherToken(subject);
+        if (
+            token.deployer() != adapter_ || token.launchFactory() != address(ponsFactory)
+                || token.curve() != record.curve
+        ) revert InvalidLaunch();
+        uint256 launchSupply = IERC20(subject).totalSupply();
+        if (launchSupply == 0) revert InvalidLaunch();
+        preparation = VerifiedPreparation({
+            creatorAtLaunch: creator, subject: subject, launchSupply: launchSupply
         });
     }
 }

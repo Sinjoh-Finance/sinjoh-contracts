@@ -9,6 +9,10 @@ import { FullMath } from "@uniswap/v4-core/src/libraries/FullMath.sol";
 
 import { FundingBandMath } from "../src/FundingBandMath.sol";
 import { SinjohFundingBands } from "../src/SinjohFundingBands.sol";
+import {
+    ISinjohFundingBandsEscrowManager,
+    SinjohFundingBandsLaunchEscrow
+} from "../src/SinjohFundingBandsLaunchEscrow.sol";
 import { ISinjohLaunchVerifier } from "../src/interfaces/ISinjohLaunchVerifier.sol";
 import { TestBase } from "./TestBase.sol";
 import {
@@ -49,6 +53,7 @@ contract SinjohFundingBandsTest is TestBase {
     MockV4PositionManager internal v4PositionManager;
     MockV4StateView internal v4StateView;
     SinjohFundingBands internal manager;
+    SinjohFundingBandsLaunchEscrow internal launchEscrow;
 
     function setUp() public {
         vm.chainId(4663);
@@ -73,6 +78,7 @@ contract SinjohFundingBandsTest is TestBase {
         profiles[0] = SinjohFundingBands.ProfileInput({
             verifier: address(verifier), priceGuard: address(guard), hookData: hex"1234"
         });
+        launchEscrow = new SinjohFundingBandsLaunchEscrow(address(verifier), address(this));
         manager = new SinjohFundingBands(
             address(weth),
             address(v3Factory),
@@ -83,9 +89,11 @@ contract SinjohFundingBandsTest is TestBase {
             address(oracle),
             address(new MockFeeRouter(CREATOR, address(subject), address(weth))).codehash,
             PROTOCOL,
+            address(launchEscrow),
             1 hours,
             profiles
         );
+        launchEscrow.bindManager(address(manager));
         _setV3Launch(CREATOR);
         _setBelow();
     }
@@ -112,6 +120,282 @@ contract SinjohFundingBandsTest is TestBase {
         assertEq(frozenVerifier, address(verifier));
         assertEq(frozenGuard, address(guard));
         assertEq(hookDataHash, keccak256(hex"1234"));
+    }
+
+    function testLaunchInventoryEscrowActivatesAndFundsPermissionlessly() public {
+        address adapter = address(0xADA7E2);
+        uint256 developerBuyTokens = 100e18;
+        MockFeeRouter router = new MockFeeRouter(CREATOR, address(subject), address(weth));
+        vm.prank(CREATOR);
+        subject.transfer(adapter, developerBuyTokens);
+
+        ISinjohFundingBandsEscrowManager.BandConfig[] memory configs =
+            new ISinjohFundingBandsEscrowManager.BandConfig[](2);
+        configs[0] = ISinjohFundingBandsEscrowManager.BandConfig({
+            lowerMarketCapUsdE8: 100_000e8,
+            upperMarketCapUsdE8: 200_000e8,
+            destination: ISinjohFundingBandsEscrowManager.Destination.CREATOR,
+            feeRouter: address(0)
+        });
+        configs[1] = ISinjohFundingBandsEscrowManager.BandConfig({
+            lowerMarketCapUsdE8: 300_000e8,
+            upperMarketCapUsdE8: 400_000e8,
+            destination: ISinjohFundingBandsEscrowManager.Destination.FEE_ROUTER,
+            feeRouter: address(router)
+        });
+        uint16[] memory allocations = new uint16[](2);
+        allocations[0] = 4_000;
+        allocations[1] = 6_000;
+        vm.prank(adapter);
+        subject.approve(address(launchEscrow), developerBuyTokens);
+        vm.prank(adapter);
+        uint256 escrowed = launchEscrow.prepareFromLaunch(
+            address(subject), 0, 7_500, configs, allocations, developerBuyTokens, ""
+        );
+        assertEq(escrowed, 75e18);
+        assertEq(subject.balanceOf(address(launchEscrow)), 75e18);
+        assertEq(launchEscrow.getPreparedAccount(address(subject)).creator, CREATOR);
+
+        vm.prank(OTHER);
+        launchEscrow.activate(address(subject));
+
+        assertTrue(manager.getAccount(address(subject)).exists);
+        assertEq(manager.getAccount(address(subject)).creator, CREATOR);
+        assertEq(v3PositionManager.mintCalls(), 2);
+        assertEq(subject.balanceOf(address(launchEscrow)), 0);
+        assertTrue(launchEscrow.getPreparedAccount(address(subject)).activated);
+        assertTrue(
+            manager.getBand(address(subject), 0).status == SinjohFundingBands.BandStatus.ACTIVE
+        );
+        assertTrue(
+            manager.getBand(address(subject), 1).status == SinjohFundingBands.BandStatus.ACTIVE
+        );
+        assertEq(manager.getBand(address(subject), 0).recipient, CREATOR);
+        assertEq(manager.getBand(address(subject), 1).recipient, address(router));
+    }
+
+    function testUpcomingLaunchEscrowsTwentyPercentAcrossTenRouterBands() public {
+        address adapter = address(0xADA7E2);
+        uint256 developerBuyTokens = SUPPLY * 20 / 100;
+        uint256 expectedPerBand = SUPPLY * 2 / 100;
+        MockFeeRouter router = new MockFeeRouter(CREATOR, address(subject), address(weth));
+        vm.prank(CREATOR);
+        subject.transfer(adapter, developerBuyTokens);
+
+        uint128[11] memory boundaries = [
+            uint128(50_000e8),
+            uint128(100_000e8),
+            uint128(200_000e8),
+            uint128(500_000e8),
+            uint128(1_000_000e8),
+            uint128(2_000_000e8),
+            uint128(5_000_000e8),
+            uint128(10_000_000e8),
+            uint128(20_000_000e8),
+            uint128(35_000_000e8),
+            uint128(50_000_000e8)
+        ];
+        ISinjohFundingBandsEscrowManager.BandConfig[] memory configs =
+            new ISinjohFundingBandsEscrowManager.BandConfig[](10);
+        uint16[] memory allocations = new uint16[](10);
+        for (uint8 i; i < 10; ++i) {
+            configs[i] = ISinjohFundingBandsEscrowManager.BandConfig({
+                lowerMarketCapUsdE8: boundaries[i],
+                upperMarketCapUsdE8: boundaries[i + 1],
+                destination: ISinjohFundingBandsEscrowManager.Destination.FEE_ROUTER,
+                feeRouter: address(router)
+            });
+            allocations[i] = 1_000;
+        }
+
+        vm.prank(adapter);
+        subject.approve(address(launchEscrow), developerBuyTokens);
+        vm.prank(adapter);
+        uint256 escrowed = launchEscrow.prepareFromLaunch(
+            address(subject), 0, 10_000, configs, allocations, developerBuyTokens, ""
+        );
+        assertEq(escrowed, developerBuyTokens);
+        for (uint8 i; i < 10; ++i) {
+            (ISinjohFundingBandsEscrowManager.BandConfig memory prepared, uint128 amount) =
+                launchEscrow.getPreparedBand(address(subject), i);
+            assertEq(amount, expectedPerBand);
+            assertEq(
+                uint256(prepared.destination),
+                uint256(ISinjohFundingBandsEscrowManager.Destination.FEE_ROUTER)
+            );
+            assertEq(prepared.feeRouter, address(router));
+        }
+
+        vm.prank(OTHER);
+        launchEscrow.activate(address(subject));
+        assertEq(manager.getAccount(address(subject)).bandCount, 10);
+        for (uint8 i; i < 10; ++i) {
+            SinjohFundingBands.Band memory band = manager.getBand(address(subject), i);
+            assertEq(uint256(band.status), uint256(SinjohFundingBands.BandStatus.ACTIVE));
+            assertEq(uint256(band.destination), uint256(SinjohFundingBands.Destination.FEE_ROUTER));
+            assertEq(band.recipient, address(router));
+        }
+    }
+
+    function testEscrowActivationIsAtomicAndResumesAfterGraduation() public {
+        _prepareSingleEscrowedBand(50e18);
+        verifier.setLaunch(
+            ISinjohLaunchVerifier.VerifiedLaunch({
+                creatorAtLaunch: CREATOR,
+                subject: OTHER,
+                venue: ISinjohLaunchVerifier.Venue.UNISWAP_V3,
+                quoteAsset: address(weth),
+                pool: address(v3Pool),
+                poolFee: 3_000,
+                tickSpacing: 60,
+                hooks: address(0),
+                poolId: bytes32(0),
+                launchSupply: SUPPLY
+            })
+        );
+
+        vm.expectRevert();
+        launchEscrow.activate(address(subject));
+        assertTrue(launchEscrow.getPreparedAccount(address(subject)).exists);
+        assertEq(subject.balanceOf(address(launchEscrow)), 50e18);
+        assertTrue(!manager.getAccount(address(subject)).exists);
+
+        _setV3Launch(CREATOR);
+        launchEscrow.activate(address(subject));
+        assertTrue(manager.getAccount(address(subject)).exists);
+        assertTrue(launchEscrow.getPreparedAccount(address(subject)).activated);
+    }
+
+    function testEscrowPreservesLaunchSupplyAcrossBurnsAndRejectsMintInflation() public {
+        _prepareSingleEscrowedBand(50e18);
+        vm.prank(CREATOR);
+        subject.burn(1e18);
+        launchEscrow.activate(address(subject));
+        assertEq(manager.getAccount(address(subject)).launch.launchSupply, SUPPLY);
+
+        MockERC20 inflated = new MockERC20("Inflated", "INF", 18);
+        inflated.mint(CREATOR, SUPPLY);
+        verifier.setLaunch(
+            ISinjohLaunchVerifier.VerifiedLaunch({
+                creatorAtLaunch: CREATOR,
+                subject: address(inflated),
+                venue: ISinjohLaunchVerifier.Venue.UNISWAP_V3,
+                quoteAsset: address(weth),
+                pool: address(v3Pool),
+                poolFee: 3_000,
+                tickSpacing: 60,
+                hooks: address(0),
+                poolId: bytes32(0),
+                launchSupply: SUPPLY
+            })
+        );
+        address adapter = address(0x1ADA7E2);
+        vm.prank(CREATOR);
+        inflated.transfer(adapter, 50e18);
+        ISinjohFundingBandsEscrowManager.BandConfig[] memory configs =
+            new ISinjohFundingBandsEscrowManager.BandConfig[](1);
+        configs[0] = ISinjohFundingBandsEscrowManager.BandConfig({
+            lowerMarketCapUsdE8: 100_000e8,
+            upperMarketCapUsdE8: 200_000e8,
+            destination: ISinjohFundingBandsEscrowManager.Destination.CREATOR,
+            feeRouter: address(0)
+        });
+        uint16[] memory allocations = new uint16[](1);
+        allocations[0] = 10_000;
+        vm.prank(adapter);
+        inflated.approve(address(launchEscrow), 50e18);
+        vm.prank(adapter);
+        launchEscrow.prepareFromLaunch(
+            address(inflated), 0, 10_000, configs, allocations, 50e18, ""
+        );
+        inflated.mint(CREATOR, 1);
+        vm.expectRevert(SinjohFundingBands.InvalidLaunch.selector);
+        launchEscrow.activate(address(inflated));
+        assertEq(inflated.balanceOf(address(launchEscrow)), 50e18);
+    }
+
+    function testCreatorCannotPrecreateAnEscrowedAccount() public {
+        _prepareSingleEscrowedBand(50e18);
+        vm.prank(CREATOR);
+        vm.expectRevert(SinjohFundingBands.Unauthorized.selector);
+        manager.create(address(subject), 0, _configs(1), "", "");
+
+        launchEscrow.activate(address(subject));
+        assertTrue(manager.getAccount(address(subject)).exists);
+    }
+
+    function testEscrowRejectsInvalidRouterBeforeTakingInventory() public {
+        address adapter = address(0xADA7E2);
+        uint256 inventory = 50e18;
+        vm.prank(CREATOR);
+        subject.transfer(adapter, inventory);
+        MockFeeRouter wrong = new MockFeeRouter(OTHER, address(subject), address(weth));
+        ISinjohFundingBandsEscrowManager.BandConfig[] memory configs =
+            new ISinjohFundingBandsEscrowManager.BandConfig[](1);
+        configs[0] = ISinjohFundingBandsEscrowManager.BandConfig({
+            lowerMarketCapUsdE8: 100_000e8,
+            upperMarketCapUsdE8: 200_000e8,
+            destination: ISinjohFundingBandsEscrowManager.Destination.FEE_ROUTER,
+            feeRouter: address(wrong)
+        });
+        uint16[] memory allocations = new uint16[](1);
+        allocations[0] = 10_000;
+        vm.prank(adapter);
+        subject.approve(address(launchEscrow), inventory);
+        vm.prank(adapter);
+        vm.expectRevert(SinjohFundingBandsLaunchEscrow.InvalidConfiguration.selector);
+        launchEscrow.prepareFromLaunch(
+            address(subject), 0, 10_000, configs, allocations, inventory, ""
+        );
+        assertEq(subject.balanceOf(adapter), inventory);
+        assertEq(subject.balanceOf(address(launchEscrow)), 0);
+    }
+
+    function testEscrowRejectsOverlappingBandsBeforeTakingInventory() public {
+        address adapter = address(0xADA7E2);
+        uint256 inventory = 50e18;
+        vm.prank(CREATOR);
+        subject.transfer(adapter, inventory);
+        ISinjohFundingBandsEscrowManager.BandConfig[] memory configs =
+            new ISinjohFundingBandsEscrowManager.BandConfig[](2);
+        configs[0] = ISinjohFundingBandsEscrowManager.BandConfig({
+            lowerMarketCapUsdE8: 100_000e8,
+            upperMarketCapUsdE8: 200_000e8,
+            destination: ISinjohFundingBandsEscrowManager.Destination.CREATOR,
+            feeRouter: address(0)
+        });
+        configs[1] = ISinjohFundingBandsEscrowManager.BandConfig({
+            lowerMarketCapUsdE8: 199_999e8,
+            upperMarketCapUsdE8: 300_000e8,
+            destination: ISinjohFundingBandsEscrowManager.Destination.CREATOR,
+            feeRouter: address(0)
+        });
+        uint16[] memory allocations = new uint16[](2);
+        allocations[0] = 5_000;
+        allocations[1] = 5_000;
+        vm.prank(adapter);
+        subject.approve(address(launchEscrow), inventory);
+        vm.prank(adapter);
+        vm.expectRevert(SinjohFundingBandsLaunchEscrow.InvalidConfiguration.selector);
+        launchEscrow.prepareFromLaunch(
+            address(subject), 0, 10_000, configs, allocations, inventory, ""
+        );
+        assertEq(subject.balanceOf(adapter), inventory);
+        assertEq(subject.balanceOf(address(launchEscrow)), 0);
+    }
+
+    function testDirectDonationCannotBlockEscrowActivation() public {
+        _prepareSingleEscrowedBand(50e18);
+        vm.prank(CREATOR);
+        subject.transfer(address(launchEscrow), 1e18);
+
+        launchEscrow.activate(address(subject));
+
+        assertEq(subject.balanceOf(address(launchEscrow)), 1e18);
+        assertTrue(launchEscrow.getPreparedAccount(address(subject)).activated);
+        assertTrue(
+            manager.getBand(address(subject), 0).status == SinjohFundingBands.BandStatus.ACTIVE
+        );
     }
 
     function testCreateForwardsProfileGuardEvidence() public {
@@ -310,6 +594,49 @@ contract SinjohFundingBandsTest is TestBase {
         assertEq(weth.balanceOf(PROTOCOL), 0.5e18);
         assertEq(manager.totalLiability(address(weth)), 0);
         assertEq(manager.totalLiability(address(subject)), 0);
+    }
+
+    function testMixedCreatorAndRouterBandsCannotCrossRouteProceeds() public {
+        MockFeeRouter router = new MockFeeRouter(CREATOR, address(subject), address(weth));
+        SinjohFundingBands.BandConfig[] memory configs = _configs(2);
+        configs[1].destination = SinjohFundingBands.Destination.FEE_ROUTER;
+        configs[1].feeRouter = address(router);
+        _create(configs);
+
+        subject.approveAs(CREATOR, address(manager), 30e18);
+        SinjohFundingBands.BandFunding[] memory funding = new SinjohFundingBands.BandFunding[](2);
+        funding[0] = SinjohFundingBands.BandFunding({ bandId: 0, amount: 10e18 });
+        funding[1] = SinjohFundingBands.BandFunding({ bandId: 1, amount: 20e18 });
+        vm.prank(CREATOR);
+        manager.fund(address(subject), funding, "");
+
+        SinjohFundingBands.Band memory creatorBand = manager.getBand(address(subject), 0);
+        SinjohFundingBands.Band memory routerBand = manager.getBand(address(subject), 1);
+        assertEq(creatorBand.recipient, CREATOR);
+        assertEq(routerBand.recipient, address(router));
+        weth.mint(address(v3PositionManager), 30e18);
+        if (address(subject) < address(weth)) {
+            v3PositionManager.setSettlement(creatorBand.positionId, 0, 10e18);
+            v3PositionManager.setSettlement(routerBand.positionId, 0, 20e18);
+        } else {
+            v3PositionManager.setSettlement(creatorBand.positionId, 10e18, 0);
+            v3PositionManager.setSettlement(routerBand.positionId, 20e18, 0);
+        }
+        _setAbove();
+        manager.settle(address(subject), 0, "");
+        manager.settle(address(subject), 1, "");
+
+        assertEq(manager.proceedsOwed(address(subject), 0, address(weth)), 9.9e18);
+        assertEq(manager.proceedsOwed(address(subject), 1, address(weth)), 19.8e18);
+        manager.sendProceeds(address(subject), 1, address(weth), 19.8e18);
+        assertEq(weth.balanceOf(address(router)), 19.8e18);
+        assertEq(weth.balanceOf(CREATOR), 0);
+        manager.sendProceeds(address(subject), 0, address(weth), 9.9e18);
+        assertEq(weth.balanceOf(CREATOR), 9.9e18);
+        assertEq(weth.balanceOf(address(router)), 19.8e18);
+        manager.sendProtocolFee(0.3e18);
+        assertEq(weth.balanceOf(PROTOCOL), 0.3e18);
+        assertEq(manager.totalLiability(address(weth)), 0);
     }
 
     function testSettlementRequiresCrossingAndCanOnlyHappenOnce() public {
@@ -545,6 +872,7 @@ contract SinjohFundingBandsTest is TestBase {
             address(oracle),
             routerCodehash,
             PROTOCOL,
+            address(verifier),
             1 hours,
             profiles
         );
@@ -565,6 +893,7 @@ contract SinjohFundingBandsTest is TestBase {
             address(oracle),
             routerCodehash,
             PROTOCOL,
+            address(verifier),
             1 hours,
             profiles
         );
@@ -581,6 +910,7 @@ contract SinjohFundingBandsTest is TestBase {
             address(oracle),
             routerCodehash,
             PROTOCOL,
+            address(verifier),
             1 hours,
             profiles
         );
@@ -662,6 +992,28 @@ contract SinjohFundingBandsTest is TestBase {
     function _create(SinjohFundingBands.BandConfig[] memory configs) private {
         vm.prank(CREATOR);
         manager.create(address(subject), 0, configs, "", "");
+    }
+
+    function _prepareSingleEscrowedBand(uint256 amount) private {
+        address adapter = address(0xADA7E2);
+        vm.prank(CREATOR);
+        subject.transfer(adapter, amount);
+        ISinjohFundingBandsEscrowManager.BandConfig[] memory configs =
+            new ISinjohFundingBandsEscrowManager.BandConfig[](1);
+        configs[0] = ISinjohFundingBandsEscrowManager.BandConfig({
+            lowerMarketCapUsdE8: 100_000e8,
+            upperMarketCapUsdE8: 200_000e8,
+            destination: ISinjohFundingBandsEscrowManager.Destination.CREATOR,
+            feeRouter: address(0)
+        });
+        uint16[] memory allocations = new uint16[](1);
+        allocations[0] = 10_000;
+        vm.prank(adapter);
+        subject.approve(address(launchEscrow), amount);
+        vm.prank(adapter);
+        launchEscrow.prepareFromLaunch(
+            address(subject), 0, 10_000, configs, allocations, amount, ""
+        );
     }
 
     function _configs(uint256 count)

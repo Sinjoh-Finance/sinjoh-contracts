@@ -7,8 +7,48 @@ import { ISinjohLaunchVerifier } from "../interfaces/ISinjohLaunchVerifier.sol";
 import { SinjohRotatableQuoteSigner } from "../access/SinjohRotatableQuoteSigner.sol";
 import { SinjohV4DelayedBandPriceGuard } from "./SinjohV4DelayedBandPriceGuard.sol";
 
+interface ISinjohFundingBandsObservationManager {
+    struct Account {
+        address creator;
+        uint8 profileId;
+        uint8 bandCount;
+        uint8 subjectDecimals;
+        uint256 ethUsdE8;
+        uint48 oracleUpdatedAt;
+        bool exists;
+        ISinjohLaunchVerifier.VerifiedLaunch launch;
+    }
+
+    struct Band {
+        uint128 lowerMarketCapUsdE8;
+        uint128 upperMarketCapUsdE8;
+        uint256 lowerWethPerSubjectX128;
+        uint256 upperWethPerSubjectX128;
+        int24 tickLower;
+        int24 tickUpper;
+        uint8 destination;
+        address recipient;
+        uint8 status;
+        uint256 positionId;
+        uint128 liquidity;
+        uint256 subjectResidual;
+        uint256 cumulativeRealizedWeth;
+        uint256 protocolFeeCharged;
+        uint48 settlementArmedAt;
+    }
+
+    function getAccount(address subject) external view returns (Account memory);
+
+    function getBand(address subject, uint8 bandId) external view returns (Band memory);
+
+    function getProfile(uint8 profileId)
+        external
+        view
+        returns (address verifier, address priceGuard, bytes32 hookDataHash);
+}
+
 /// @notice Pons v2 guard that makes settlement permanently eligible only after
-/// an independent observer proves thirty uninterrupted seconds above a band.
+/// an independent observer proves fifteen uninterrupted seconds above a band.
 /// @dev The observer reconstructs every canonical v4 Swap from two independent
 /// providers. Live create/fund/arm checks remain autonomous StateView reads.
 contract SinjohV4ConfirmedBandPriceGuard is
@@ -17,11 +57,13 @@ contract SinjohV4ConfirmedBandPriceGuard is
 {
     using SafeCast for uint256;
 
-    uint48 public constant CONFIRMATION_PERIOD = 30 seconds;
+    uint48 public constant CONFIRMATION_PERIOD = 15 seconds;
     uint256 public constant MAX_OBSERVATIONS_PER_BATCH = 64;
 
     struct Observation {
         address manager;
+        address subject;
+        uint8 bandId;
         bytes32 poolId;
         bool subjectIsToken0;
         int24 boundaryTick;
@@ -75,7 +117,43 @@ contract SinjohV4ConfirmedBandPriceGuard is
             Observation calldata observation = observations[i];
             if (
                 observation.manager.code.length == 0 || observation.poolId == bytes32(0)
-                    || observation.manager == address(this)
+                    || observation.manager == address(this) || observation.subject == address(0)
+            ) revert InvalidObservation();
+            ISinjohFundingBandsObservationManager.Account memory account;
+            ISinjohFundingBandsObservationManager.Band memory band;
+            address profileGuard;
+            try ISinjohFundingBandsObservationManager(observation.manager)
+                .getAccount(observation.subject) returns (
+                ISinjohFundingBandsObservationManager.Account memory value
+            ) {
+                account = value;
+            } catch {
+                revert InvalidObservation();
+            }
+            try ISinjohFundingBandsObservationManager(observation.manager)
+                .getBand(observation.subject, observation.bandId) returns (
+                ISinjohFundingBandsObservationManager.Band memory value
+            ) {
+                band = value;
+            } catch {
+                revert InvalidObservation();
+            }
+            try ISinjohFundingBandsObservationManager(observation.manager)
+                .getProfile(account.profileId) returns (
+                address, address priceGuard, bytes32
+            ) {
+                profileGuard = priceGuard;
+            } catch {
+                revert InvalidObservation();
+            }
+            bool expectedSubjectIsToken0 = account.launch.subject < account.launch.quoteAsset;
+            int24 expectedBoundary = expectedSubjectIsToken0 ? band.tickUpper : band.tickLower;
+            if (
+                !account.exists || account.launch.subject != observation.subject
+                    || observation.bandId >= account.bandCount || band.status != 1
+                    || profileGuard != address(this) || account.launch.poolId != observation.poolId
+                    || expectedSubjectIsToken0 != observation.subjectIsToken0
+                    || expectedBoundary != observation.boundaryTick
             ) revert InvalidObservation();
             bytes32 key = confirmationKey(
                 observation.manager,

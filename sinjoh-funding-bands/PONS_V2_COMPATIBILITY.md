@@ -30,9 +30,11 @@ The production-facing verifier models these Pons v2 facts:
   this profile.
 
 Pons v2 does not store the original configured supply in its per-token launch
-record. The verifier snapshots the token's current `totalSupply()` when Funding
-Bands is activated. This is stable for ordinary Pons v2 operation, although a
-holder can voluntarily burn their own tokens before activation.
+record. For escrowed launches, the verifier snapshots `totalSupply()` in the
+atomic launch transaction, before holders can burn. Activation preserves that
+snapshot as the market-cap denominator, permits a lower live supply caused by
+burns, and rejects any supply increase. Legacy creator-activated accounts retain their historical
+post-graduation snapshot behavior.
 
 ## Local tests
 
@@ -45,7 +47,7 @@ holder can voluntarily burn their own tokens before activation.
    exact 1% protocol fee, and creator snapshotting.
 4. Rejection of WETH-quoted records until the live Pons v2 factory supports them.
 5. The full ten-band Pons v2 create-and-fund batch using canonical v4 StateView.
-6. Archive/event-confirmed crossing, rejection before the immutable 30-second
+6. Archive/event-confirmed crossing, rejection before the immutable 15-second
    delay, hidden-reversal resets, and permanent eligibility after confirmation.
 
 The mock PositionManager rejects the test if Funding Bands supplies the wrong
@@ -62,13 +64,16 @@ forge test --match-contract SinjohPonsV2ProfileTest -vv
 
 The Funding Bands v4 execution path is mechanically compatible with the current
 Pons v2 deployment after graduation. `test/SinjohPonsV2.mainnet.fork.t.sol`
-launches and graduates a fresh token through the real Pons contracts, registers
-and funds a band twice, crosses it with a real hooked v4 swap, burns the position,
-receives native ETH from the canonical PoolManager, wraps it, and verifies the
-1% fee and liabilities. `SinjohV4ConfirmedBandPriceGuard` uses live canonical
+launches through the reviewed adapter generation, atomically escrows first-buy
+inventory, graduates through the real Pons contracts, permissionlessly creates
+and funds the saved band, crosses it with a real hooked v4 swap, burns the
+position, receives native ETH from the canonical PoolManager, wraps it, verifies
+the 1% fee and liabilities, and delivers the exact net assets to a code-hash-pinned
+Fee Router while delivering the protocol fee separately. The creator performs no post-graduation
+Funding Bands transaction. `SinjohV4ConfirmedBandPriceGuard` uses live canonical
 StateView for create, fund, and arm operations, then requires a byte-identical
 Alchemy/Envio replay of finalized v4 Swap history. A reversal restarts the timer;
-confirmation after 15 uninterrupted minutes is permanent and has no execution expiry.
+confirmation after 15 uninterrupted seconds is permanent and has no execution expiry.
 
 The fork also uses `SinjohV3EthUsdOracle` against the live canonical WETH/USDG
 v3 pool: a 15-minute TWAP, 5% maximum spot/TWAP deviation, and `1e18` raw

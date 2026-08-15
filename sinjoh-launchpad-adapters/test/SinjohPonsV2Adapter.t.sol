@@ -2,9 +2,13 @@
 pragma solidity 0.8.28;
 
 import { TestBase } from "./TestBase.sol";
-import { SinjohPonsV2Adapter } from "../src/SinjohPonsV2Adapter.sol";
+import {
+    ISinjohFundingBandsLaunchEscrow,
+    SinjohPonsV2Adapter
+} from "../src/SinjohPonsV2Adapter.sol";
 import { SinjohPonsV2AdapterFactory } from "../src/SinjohPonsV2AdapterFactory.sol";
 import { IPonsV2LaunchFactory } from "../src/interfaces/IPonsV2.sol";
+import { Clones } from "../src/libraries/Clones.sol";
 import {
     MockBondingCurve,
     MockERC20,
@@ -13,6 +17,34 @@ import {
     MockRouter,
     MockWETH
 } from "./mocks/PonsV2Mocks.sol";
+
+contract MockFundingBandsLaunchEscrow is ISinjohFundingBandsLaunchEscrow {
+    address public subject;
+    address public adapter;
+    uint256 public developerBuyTokens;
+    uint256 public escrowedInventory;
+    uint8 public profileId;
+
+    function prepareFromLaunch(
+        address subject_,
+        uint8 profileId_,
+        uint16 inventoryBps,
+        BandConfig[] calldata configs,
+        uint16[] calldata allocationBps,
+        uint256 developerBuyTokens_,
+        bytes calldata launchData
+    ) external returns (uint256) {
+        require(configs.length == 2 && allocationBps.length == 2 && launchData.length == 0);
+        require(allocationBps[0] + allocationBps[1] == 10_000);
+        subject = subject_;
+        adapter = msg.sender;
+        profileId = profileId_;
+        developerBuyTokens = developerBuyTokens_;
+        escrowedInventory = developerBuyTokens_ * inventoryBps / 10_000;
+        MockERC20(subject_).transferFrom(msg.sender, address(this), escrowedInventory);
+        return escrowedInventory;
+    }
+}
 
 contract SinjohPonsV2AdapterTest is TestBase {
     uint256 constant CHAIN_ID = 4663;
@@ -93,6 +125,8 @@ contract SinjohPonsV2AdapterTest is TestBase {
         SinjohPonsV2Adapter adapter = _deployAdapter();
         assertEq(adapter.router(), address(router));
         assertEq(adapter.creator(), creator);
+        assertEq(adapter.adapterFactory(), address(adapterFactory));
+        assertTrue(address(adapter).codehash == adapterFactory.adapterRuntimeCodehash());
     }
 
     function test_reinitializationReverts() public {
@@ -106,6 +140,29 @@ contract SinjohPonsV2AdapterTest is TestBase {
             SinjohPonsV2Adapter(payable(adapterFactory.implementation()));
         vm.expectRevert(SinjohPonsV2Adapter.AlreadyInitialized.selector);
         implementation.initialize(address(router), attacker);
+    }
+
+    function test_cloneOutsideReviewedFactoryCannotBeInitialized() public {
+        address counterfeit =
+            Clones.cloneDeterministic(adapterFactory.implementation(), keccak256("counterfeit"));
+        vm.prank(attacker);
+        vm.expectRevert(SinjohPonsV2Adapter.Unauthorized.selector);
+        SinjohPonsV2Adapter(payable(counterfeit)).initialize(address(router), attacker);
+    }
+
+    function test_factoryBindsOneCanonicalFundingBandsEscrow() public {
+        MockFundingBandsLaunchEscrow canonical = new MockFundingBandsLaunchEscrow();
+        MockFundingBandsLaunchEscrow replacement = new MockFundingBandsLaunchEscrow();
+
+        vm.prank(attacker);
+        vm.expectRevert(SinjohPonsV2AdapterFactory.Unauthorized.selector);
+        adapterFactory.bindFundingBandsEscrow(address(canonical));
+
+        adapterFactory.bindFundingBandsEscrow(address(canonical));
+        assertEq(adapterFactory.fundingBandsEscrow(), address(canonical));
+
+        vm.expectRevert(SinjohPonsV2AdapterFactory.AlreadyBound.selector);
+        adapterFactory.bindFundingBandsEscrow(address(replacement));
     }
 
     function test_onlyCreatorMayDeployTheirAdapter() public {
@@ -148,15 +205,17 @@ contract SinjohPonsV2AdapterTest is TestBase {
             abi.encodeWithSelector(SinjohPonsV2Adapter.RouterDidNotNameAdapter.selector, attacker)
         );
         adapter.launch{ value: LAUNCH_FEE }(
-            _params(address(adapter), 0, address(0)), 0, address(0), 0, 0
-        , _none());
+            _params(address(adapter), 0, address(0)), 0, address(0), 0, 0, _none()
+        );
     }
 
     function test_launchRevertsWhenFeeRecipientIsNotAdapter() public {
         SinjohPonsV2Adapter adapter = _deployAdapter();
         vm.prank(creator);
         vm.expectRevert(SinjohPonsV2Adapter.FeeRecipientNotAdapter.selector);
-        adapter.launch{ value: LAUNCH_FEE }(_params(creator, 0, address(0)), 0, address(0), 0, 0, _none());
+        adapter.launch{ value: LAUNCH_FEE }(
+            _params(creator, 0, address(0)), 0, address(0), 0, 0, _none()
+        );
     }
 
     function test_launchRevertsOnEconomicsMismatch() public {
@@ -180,8 +239,8 @@ contract SinjohPonsV2AdapterTest is TestBase {
             )
         );
         adapter.launch{ value: LAUNCH_FEE }(
-            _params(address(adapter), 0, address(unapproved)), 0, address(unapproved), 0, 0
-        , _none());
+            _params(address(adapter), 0, address(unapproved)), 0, address(unapproved), 0, 0, _none()
+        );
     }
 
     /// @dev An approved quote asset can be upgradeable. A curve prices against
@@ -197,8 +256,8 @@ contract SinjohPonsV2AdapterTest is TestBase {
             )
         );
         adapter.launch{ value: LAUNCH_FEE }(
-            _params(address(adapter), 0, address(usdg)), 0, address(usdg), 0, 0
-        , _none());
+            _params(address(adapter), 0, address(usdg)), 0, address(usdg), 0, 0, _none()
+        );
     }
 
     function test_launchRevertsOnWrongNativeValue() public {
@@ -210,8 +269,8 @@ contract SinjohPonsV2AdapterTest is TestBase {
             )
         );
         adapter.launch{ value: LAUNCH_FEE + 1 }(
-            _params(address(adapter), 0, address(0)), 0, address(0), 0, 0
-        , _none());
+            _params(address(adapter), 0, address(0)), 0, address(0), 0, 0, _none()
+        );
     }
 
     function test_launchIsCreatorOnlyAndOneShot() public {
@@ -219,26 +278,28 @@ contract SinjohPonsV2AdapterTest is TestBase {
 
         vm.prank(attacker);
         vm.expectRevert(SinjohPonsV2Adapter.Unauthorized.selector);
-        adapter.launch{ value: 0 }(_params(address(adapter), 0, address(0)), 0, address(0), 0, 0, _none());
+        adapter.launch{ value: 0 }(
+            _params(address(adapter), 0, address(0)), 0, address(0), 0, 0, _none()
+        );
 
         vm.prank(creator);
         adapter.launch{ value: LAUNCH_FEE }(
-            _params(address(adapter), 0, address(0)), 0, address(0), 0, 0
-        , _none());
+            _params(address(adapter), 0, address(0)), 0, address(0), 0, 0, _none()
+        );
 
         vm.prank(creator);
         vm.expectRevert(SinjohPonsV2Adapter.AlreadyLaunched.selector);
         adapter.launch{ value: LAUNCH_FEE }(
-            _params(address(adapter), 0, address(0)), 0, address(0), 0, 0
-        , _none());
+            _params(address(adapter), 0, address(0)), 0, address(0), 0, 0, _none()
+        );
     }
 
     function test_launchBindsRouter() public {
         SinjohPonsV2Adapter adapter = _deployAdapter();
         vm.prank(creator);
         (address token,) = adapter.launch{ value: LAUNCH_FEE }(
-            _params(address(adapter), 0, address(0)), 0, address(0), 0, 0
-        , _none());
+            _params(address(adapter), 0, address(0)), 0, address(0), 0, 0, _none()
+        );
         assertTrue(router.bound());
         assertEq(router.subject(), token);
         assertEq(adapter.subject(), token);
@@ -288,11 +349,97 @@ contract SinjohPonsV2AdapterTest is TestBase {
 
         vm.prank(creator);
         (address token,) = adapter.launch{ value: LAUNCH_FEE + devBuy }(
-            _params(address(adapter), 0, address(0)), 0, address(0), devBuy, 1
-        , _none());
+            _params(address(adapter), 0, address(0)), 0, address(0), devBuy, 1, _none()
+        );
 
         assertEq(MockERC20(token).balanceOf(creator), devBuy * 1000);
         assertEq(MockERC20(token).balanceOf(address(adapter)), 0);
+    }
+
+    function test_fundingBandsLaunchEscrowsInventoryBeforeCreatorDelivery() public {
+        SinjohPonsV2Adapter adapter = _deployAdapter();
+        MockFundingBandsLaunchEscrow manager = new MockFundingBandsLaunchEscrow();
+        adapterFactory.bindFundingBandsEscrow(address(manager));
+        uint256 devBuy = 1 ether;
+
+        ISinjohFundingBandsLaunchEscrow.BandConfig[] memory configs =
+            new ISinjohFundingBandsLaunchEscrow.BandConfig[](2);
+        configs[0] = ISinjohFundingBandsLaunchEscrow.BandConfig({
+            lowerMarketCapUsdE8: 40_000e8,
+            upperMarketCapUsdE8: 41_000e8,
+            destination: ISinjohFundingBandsLaunchEscrow.Destination.CREATOR,
+            feeRouter: address(0)
+        });
+        configs[1] = ISinjohFundingBandsLaunchEscrow.BandConfig({
+            lowerMarketCapUsdE8: 42_000e8,
+            upperMarketCapUsdE8: 43_000e8,
+            destination: ISinjohFundingBandsLaunchEscrow.Destination.CREATOR,
+            feeRouter: address(0)
+        });
+        uint16[] memory allocations = new uint16[](2);
+        allocations[0] = 5_000;
+        allocations[1] = 5_000;
+        SinjohPonsV2Adapter.FundingBandsPlan memory plan = SinjohPonsV2Adapter.FundingBandsPlan({
+            escrow: address(manager),
+            profileId: 0,
+            inventoryBps: 6_000,
+            configs: configs,
+            allocationBps: allocations
+        });
+
+        vm.prank(creator);
+        (address token,) = adapter.launchWithFundingBands{ value: LAUNCH_FEE + devBuy }(
+            _params(address(adapter), 0, address(0)), 0, address(0), devBuy, 1, _none(), plan
+        );
+
+        uint256 tokensOut = devBuy * 1_000;
+        assertEq(manager.subject(), token);
+        assertEq(manager.adapter(), address(adapter));
+        assertEq(manager.developerBuyTokens(), tokensOut);
+        assertEq(MockERC20(token).balanceOf(address(manager)), tokensOut * 6_000 / 10_000);
+        assertEq(MockERC20(token).balanceOf(creator), tokensOut * 4_000 / 10_000);
+        assertEq(MockERC20(token).balanceOf(address(adapter)), 0);
+        assertEq(MockERC20(token).allowance(address(adapter), address(manager)), 0);
+    }
+
+    function test_fundingBandsLaunchRejectsUnboundOrSubstitutedEscrowBeforeLaunch() public {
+        SinjohPonsV2Adapter adapter = _deployAdapter();
+        MockFundingBandsLaunchEscrow canonical = new MockFundingBandsLaunchEscrow();
+        MockFundingBandsLaunchEscrow substitute = new MockFundingBandsLaunchEscrow();
+        uint256 devBuy = 1 ether;
+
+        ISinjohFundingBandsLaunchEscrow.BandConfig[] memory configs =
+            new ISinjohFundingBandsLaunchEscrow.BandConfig[](1);
+        configs[0] = ISinjohFundingBandsLaunchEscrow.BandConfig({
+            lowerMarketCapUsdE8: 40_000e8,
+            upperMarketCapUsdE8: 41_000e8,
+            destination: ISinjohFundingBandsLaunchEscrow.Destination.CREATOR,
+            feeRouter: address(0)
+        });
+        uint16[] memory allocations = new uint16[](1);
+        allocations[0] = 10_000;
+        SinjohPonsV2Adapter.FundingBandsPlan memory plan = SinjohPonsV2Adapter.FundingBandsPlan({
+            escrow: address(substitute),
+            profileId: 0,
+            inventoryBps: 6_000,
+            configs: configs,
+            allocationBps: allocations
+        });
+
+        vm.prank(creator);
+        vm.expectRevert(SinjohPonsV2Adapter.InvalidFundingBandsPlan.selector);
+        adapter.launchWithFundingBands{ value: LAUNCH_FEE + devBuy }(
+            _params(address(adapter), 0, address(0)), 0, address(0), devBuy, 1, _none(), plan
+        );
+        assertTrue(!adapter.launched());
+
+        adapterFactory.bindFundingBandsEscrow(address(canonical));
+        vm.prank(creator);
+        vm.expectRevert(SinjohPonsV2Adapter.InvalidFundingBandsPlan.selector);
+        adapter.launchWithFundingBands{ value: LAUNCH_FEE + devBuy }(
+            _params(address(adapter), 0, address(0)), 0, address(0), devBuy, 1, _none(), plan
+        );
+        assertTrue(!adapter.launched());
     }
 
     /// @dev v2 clamps an oversized buy and refunds the difference, so the tokens
@@ -308,8 +455,8 @@ contract SinjohPonsV2AdapterTest is TestBase {
 
         vm.prank(creator);
         (address token,) = adapter.launch{ value: LAUNCH_FEE + devBuy }(
-            _params(address(adapter), 0, address(0)), 0, address(0), devBuy, 1
-        , _none());
+            _params(address(adapter), 0, address(0)), 0, address(0), devBuy, 1, _none()
+        );
 
         assertEq(MockERC20(token).balanceOf(creator), clamp * 1000);
         assertEq(address(adapter).balance, 0);
@@ -330,8 +477,8 @@ contract SinjohPonsV2AdapterTest is TestBase {
 
         vm.prank(creator);
         (address token, address curve) = adapter.launch{ value: LAUNCH_FEE }(
-            _params(address(adapter), 0, address(usdg)), 0, address(usdg), devBuy, 1
-        , _none());
+            _params(address(adapter), 0, address(usdg)), 0, address(usdg), devBuy, 1, _none()
+        );
 
         assertEq(MockERC20(token).balanceOf(creator), clamp * 1000);
         assertEq(usdg.balanceOf(creator), devBuy - clamp);
@@ -344,8 +491,8 @@ contract SinjohPonsV2AdapterTest is TestBase {
         vm.prank(creator);
         vm.expectRevert(SinjohPonsV2Adapter.InvalidDeveloperBuy.selector);
         adapter.launch{ value: LAUNCH_FEE + 1 ether }(
-            _params(address(adapter), 0, address(0)), 0, address(0), 1 ether, 0
-        , _none());
+            _params(address(adapter), 0, address(0)), 0, address(0), 1 ether, 0, _none()
+        );
     }
 
     function test_customPairDeveloperBuyPullsExactAmountAndLeavesNoAllowance() public {
@@ -358,8 +505,8 @@ contract SinjohPonsV2AdapterTest is TestBase {
 
         vm.prank(creator);
         (address token, address curve) = adapter.launch{ value: LAUNCH_FEE }(
-            _params(address(adapter), 0, address(usdg)), 0, address(usdg), devBuy, 1
-        , _none());
+            _params(address(adapter), 0, address(usdg)), 0, address(usdg), devBuy, 1, _none()
+        );
 
         assertEq(usdg.balanceOf(creator), 0);
         assertEq(usdg.balanceOf(address(adapter)), 0);
@@ -375,8 +522,8 @@ contract SinjohPonsV2AdapterTest is TestBase {
 
         vm.prank(creator);
         adapter.launch{ value: LAUNCH_FEE }(
-            _params(address(adapter), 0, address(usdg)), 0, address(usdg), 0, 0
-        , _none());
+            _params(address(adapter), 0, address(usdg)), 0, address(usdg), 0, 0, _none()
+        );
 
         // With no developer buy the adapter never touches the creator's balance,
         // even though a standing allowance exists.
@@ -391,8 +538,8 @@ contract SinjohPonsV2AdapterTest is TestBase {
         adapter = _deployAdapter();
         vm.prank(creator);
         (token,) = adapter.launch{ value: LAUNCH_FEE }(
-            _params(address(adapter), 0, address(0)), 0, address(0), 0, 0
-        , _none());
+            _params(address(adapter), 0, address(0)), 0, address(0), 0, 0, _none()
+        );
     }
 
     /// @dev The path that actually matters: trading fees accrue on the curve,
@@ -487,8 +634,8 @@ contract SinjohPonsV2AdapterTest is TestBase {
         SinjohPonsV2Adapter adapter = _deployAdapter();
         vm.prank(creator);
         adapter.launch{ value: LAUNCH_FEE }(
-            _params(address(adapter), 0, address(usdg)), 0, address(usdg), 0, 0
-        , _none());
+            _params(address(adapter), 0, address(usdg)), 0, address(usdg), 0, 0, _none()
+        );
 
         usdg.mint(address(this), 250e6);
         usdg.approve(address(escrow), 250e6);

@@ -11,6 +11,7 @@ import {
     ISinjohFundingBandPriceGuard
 } from "../../src/interfaces/ISinjohFundingBandPriceGuard.sol";
 import { ISinjohLaunchVerifier } from "../../src/interfaces/ISinjohLaunchVerifier.sol";
+import { ISinjohPrelaunchVerifier } from "../../src/interfaces/ISinjohPrelaunchVerifier.sol";
 import { IUniswapV3PositionManager } from "../../src/interfaces/IUniswapV3PositionManager.sol";
 import { IPonsV1LaunchFactory } from "../../src/profiles/SinjohPonsV1LaunchVerifier.sol";
 import { IPonsV2LaunchFactory } from "../../src/profiles/SinjohPonsV2LaunchVerifier.sol";
@@ -40,6 +41,12 @@ contract MockERC20 {
     function mint(address to, uint256 amount) public {
         totalSupply += amount;
         balanceOf[to] += amount;
+    }
+
+    function burn(uint256 amount) external {
+        require(balanceOf[msg.sender] >= amount, "BALANCE");
+        balanceOf[msg.sender] -= amount;
+        totalSupply -= amount;
     }
 
     function setTransferFeeBps(uint16 value) external {
@@ -112,7 +119,7 @@ contract MockOracle is IChainlinkAggregatorV3 {
     }
 }
 
-contract MockLaunchVerifier is ISinjohLaunchVerifier {
+contract MockLaunchVerifier is ISinjohLaunchVerifier, ISinjohPrelaunchVerifier {
     VerifiedLaunch private _launch;
 
     function setLaunch(VerifiedLaunch calldata launch_) external {
@@ -124,9 +131,33 @@ contract MockLaunchVerifier is ISinjohLaunchVerifier {
         view
         returns (VerifiedLaunch memory)
     {
+        require(launchData.length == 0 || launchData.length == 32, "LAUNCH_DATA");
+        require(subject == _launch.subject, "SUBJECT");
+        VerifiedLaunch memory value = _launch;
+        if (launchData.length == 32) value.launchSupply = abi.decode(launchData, (uint256));
+        return value;
+    }
+
+    function verifyPreparation(address subject, address, bytes calldata launchData)
+        external
+        view
+        returns (VerifiedPreparation memory preparation)
+    {
         require(launchData.length == 0, "LAUNCH_DATA");
         require(subject == _launch.subject, "SUBJECT");
-        return _launch;
+        preparation = VerifiedPreparation({
+            creatorAtLaunch: _launch.creatorAtLaunch,
+            subject: subject,
+            launchSupply: _launch.launchSupply
+        });
+    }
+}
+
+contract MockFundingBandsEscrowState {
+    mapping(address subject => bool prepared) public isPrepared;
+
+    function setPrepared(address subject, bool prepared) external {
+        isPrepared[subject] = prepared;
     }
 }
 
