@@ -21,29 +21,16 @@ import {
 import {
     SinjohPonsV2AdapterFactory
 } from "sinjoh-launchpad-adapters/src/SinjohPonsV2AdapterFactory.sol";
+import {
+    SinjohPonsV2FundingBandsSubjectPriceGuard
+} from "sinjoh-launchpad-adapters/src/SinjohPonsV2FundingBandsSubjectPriceGuard.sol";
+import {
+    SinjohPonsV2SubjectSellAdapter
+} from "sinjoh-launchpad-adapters/src/SinjohPonsV2SubjectSellAdapter.sol";
 import { IPonsV2LaunchFactory } from "sinjoh-launchpad-adapters/src/interfaces/IPonsV2.sol";
-
-contract FundingBandsForkRouter {
-    address public immutable launchpadAdapter;
-    address public immutable creator;
-    address public immutable weth;
-    address public subject;
-
-    constructor(address launchpadAdapter_, address creator_, address weth_) {
-        launchpadAdapter = launchpadAdapter_;
-        creator = creator_;
-        weth = weth_;
-    }
-
-    function bind(address subject_) external {
-        require(msg.sender == launchpadAdapter && subject == address(0));
-        subject = subject_;
-    }
-
-    function isIntakeAsset(address asset) external view returns (bool) {
-        return asset == weth || asset == subject;
-    }
-}
+import { RouterTypes } from "sinjoh-fee-router/src/RouterTypes.sol";
+import { SinjohFeeRouter } from "sinjoh-fee-router/src/SinjohFeeRouter.sol";
+import { SinjohFeeRouterFactory } from "sinjoh-fee-router/src/SinjohFeeRouterFactory.sol";
 
 interface IPonsV2LaunchFactoryFork {
     struct Socials {
@@ -151,7 +138,10 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
         );
         bytes32 adapterSalt = keccak256("funding-bands-mainnet-fork-adapter");
         address predictedAdapter = adapterFactory.predictAddress(CREATOR, adapterSalt);
-        FundingBandsForkRouter router = new FundingBandsForkRouter(predictedAdapter, CREATOR, WETH);
+        SinjohFeeRouter routerImplementation = new SinjohFeeRouter();
+        SinjohFeeRouterFactory routerFactory =
+            new SinjohFeeRouterFactory(address(routerImplementation));
+        address predictedRouter = routerFactory.predictLaunchpadAddress(CREATOR, adapterSalt);
         SinjohPonsV2LaunchVerifier verifier = new SinjohPonsV2LaunchVerifier(
             PONS_FACTORY, PONS_HOOK, WETH, adapterFactory.adapterRuntimeCodehash()
         );
@@ -180,7 +170,7 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
             V4_STATE_VIEW,
             PERMIT2,
             address(oracle),
-            address(router).codehash,
+            _cloneRuntimeCodehash(address(routerImplementation)),
             address(0xFEE),
             address(escrow),
             1 hours,
@@ -188,6 +178,30 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
         );
         escrow.bindManager(address(manager));
         adapterFactory.bindFundingBandsEscrow(address(escrow));
+        SinjohPonsV2SubjectSellAdapter subjectSellAdapter = new SinjohPonsV2SubjectSellAdapter(
+            PONS_FACTORY,
+            V4_POOL_MANAGER,
+            WETH,
+            PONS_FACTORY.codehash,
+            V4_POOL_MANAGER.codehash,
+            WETH.codehash
+        );
+        SinjohPonsV2FundingBandsSubjectPriceGuard subjectPriceGuard = new SinjohPonsV2FundingBandsSubjectPriceGuard(
+            PONS_FACTORY,
+            address(manager),
+            WETH,
+            PONS_FACTORY.codehash,
+            address(manager).codehash,
+            WETH.codehash
+        );
+        SinjohFeeRouter router = _deployRouter(
+            routerFactory,
+            predictedAdapter,
+            adapterSalt,
+            address(subjectSellAdapter),
+            address(subjectPriceGuard)
+        );
+        assertEq(address(router), predictedRouter);
 
         ISinjohLaunchVerifier.VerifiedLaunch memory probe = verifier.verify(probeSubject, "");
         (uint160 sqrtPriceX96, int24 spotTick,,) =
@@ -300,6 +314,16 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
             uint256(manager.getBand(subject, 0).status),
             uint256(SinjohFundingBands.BandStatus.DELIVERED)
         );
+        // A real fully crossed position can return sub-wei-value subject dust
+        // (131 token wei on this fork). The keeper deliberately skips that
+        // failed normalization and continues WETH work. Once a meaningful
+        // subject amount is present, the same immutable route clears it.
+        vm.expectRevert(SinjohPonsV2FundingBandsSubjectPriceGuard.InvalidAmount.selector);
+        router.sync(subject, 1);
+        assertTrue(IERC20(subject).transfer(address(router), 1 ether));
+        router.sync(subject, 1);
+        assertEq(IERC20(subject).balanceOf(address(router)), 0);
+        assertTrue(IERC20(WETH).balanceOf(address(router)) > routerWethBefore + wethOwed);
     }
 
     function _launchAndGraduateProbe() private returns (address token) {
@@ -334,7 +358,7 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
         SinjohPonsV2AdapterFactory adapterFactory,
         SinjohFundingBandsLaunchEscrow escrow,
         SinjohFundingBands.BandConfig[] memory managerConfigs,
-        FundingBandsForkRouter router,
+        SinjohFeeRouter router,
         bytes32 userSalt
     ) private returns (address token, address curve, uint256 escrowedInventory) {
         address predicted = adapterFactory.predictAddress(CREATOR, userSalt);
@@ -386,6 +410,58 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
         assertTrue(!prepared.activated);
         escrowedInventory = prepared.escrowedInventory;
         assertTrue(escrowedInventory > 0);
+    }
+
+    function _deployRouter(
+        SinjohFeeRouterFactory routerFactory,
+        address predictedAdapter,
+        bytes32 userSalt,
+        address subjectSellAdapter,
+        address subjectPriceGuard
+    ) private returns (SinjohFeeRouter router) {
+        RouterTypes.Normalization[] memory normalizations = new RouterTypes.Normalization[](1);
+        normalizations[0] = RouterTypes.Normalization({
+            asset: RouterTypes.AssetRef(RouterTypes.AssetKind.SUBJECT, address(0)),
+            route: RouterTypes.Route(subjectSellAdapter, ""),
+            priceGuard: subjectPriceGuard,
+            maxAmountInPerCall: uint128(type(int128).max)
+        });
+        RouterTypes.Allocation[] memory allocations = new RouterTypes.Allocation[](1);
+        allocations[0] = RouterTypes.Allocation({
+            destination: CREATOR,
+            bps: 10_000,
+            isSink: false,
+            creatorMayRepoint: false,
+            sinkConfig: ""
+        });
+        RouterTypes.Bucket[] memory buckets = new RouterTypes.Bucket[](1);
+        buckets[0] = RouterTypes.Bucket({
+            output: RouterTypes.AssetRef(RouterTypes.AssetKind.FIXED_ERC20, WETH),
+            bps: 10_000,
+            route: RouterTypes.Route(address(0), ""),
+            priceGuard: address(0),
+            maxAmountInPerCall: type(uint128).max,
+            allocations: allocations
+        });
+        RouterTypes.Config memory config = RouterTypes.Config({
+            creator: CREATOR,
+            protocolFeeRecipient: address(0xFEE),
+            weth: WETH,
+            launchpadAdapter: predictedAdapter,
+            normalizations: normalizations,
+            buckets: buckets
+        });
+        vm.prank(CREATOR);
+        router =
+            SinjohFeeRouter(payable(routerFactory.deployForLaunchpad(CREATOR, userSalt, config)));
+    }
+
+    function _cloneRuntimeCodehash(address implementation) private pure returns (bytes32) {
+        return keccak256(
+            abi.encodePacked(
+                hex"363d3d373d3d3d363d73", implementation, hex"5af43d82803e903d91602b57fd5bf3"
+            )
+        );
     }
 
     function _graduateAfterDeveloperBuy(address token, address curve) private {
