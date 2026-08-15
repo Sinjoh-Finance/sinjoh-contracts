@@ -15,7 +15,7 @@ liquidity, or another immutable routing policy.
 - Uniswap v3 and v4 mint, increase, full settlement, and position closure paths.
 - Native v4 quote proceeds wrapped into the manager's immutable WETH.
 - Frozen per-profile v4 hook data passed to mint, increase, and burn actions.
-- A bytecode-pinned v4 guard that requires fifteen uninterrupted minutes above a band.
+- A bytecode-pinned v4 guard that requires thirty uninterrupted seconds above a band.
 - Permanent onchain settlement eligibility after confirmation; no execution expiry.
 - Reversal detection from independently cross-checked canonical v4 Swap history.
 - An ownerless ETH/USD adapter using the canonical WETH/USDG Uniswap v3 15-minute
@@ -89,7 +89,7 @@ ownerless v3 TWAP oracle, verifier, confirmation guard, linked libraries, and ma
 and emits addresses, runtime hashes, and transaction hashes as JSON.
 
 The production observer cross-checks Alchemy archive state against Envio's
-independent PoolManager event history. A crossing arms a fifteen-minute timer;
+independent PoolManager event history. A crossing arms a thirty-second timer;
 any intervening reversal disarms it, while an uninterrupted period finalizes
 settlement eligibility permanently onchain. The event stream catches dips that
 start and recover entirely between keeper cycles. Below-band create/fund checks

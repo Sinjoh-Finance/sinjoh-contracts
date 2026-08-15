@@ -8,7 +8,7 @@ import { SinjohRotatableQuoteSigner } from "../access/SinjohRotatableQuoteSigner
 import { SinjohV4DelayedBandPriceGuard } from "./SinjohV4DelayedBandPriceGuard.sol";
 
 /// @notice Pons v2 guard that makes settlement permanently eligible only after
-/// an independent observer proves fifteen uninterrupted minutes above a band.
+/// an independent observer proves thirty uninterrupted seconds above a band.
 /// @dev The observer reconstructs every canonical v4 Swap from two independent
 /// providers. Live create/fund/arm checks remain autonomous StateView reads.
 contract SinjohV4ConfirmedBandPriceGuard is
@@ -17,7 +17,7 @@ contract SinjohV4ConfirmedBandPriceGuard is
 {
     using SafeCast for uint256;
 
-    uint48 public constant CONFIRMATION_PERIOD = 15 minutes;
+    uint48 public constant CONFIRMATION_PERIOD = 30 seconds;
     uint256 public constant MAX_OBSERVATIONS_PER_BATCH = 64;
 
     struct Observation {

@@ -90,7 +90,7 @@ trades:
 - immutable destination with a creator or Fee Router label;
 - gross realized WETH, 1% protocol fee, net WETH, and delivery state;
 - **Arm settlement** once the upper edge is crossed;
-- the 15-minute confirmation countdown and persistent eligible state while price
+- the 30-second confirmation countdown and persistent eligible state while price
   remains above the band, with a reset when a below-band state is observed or
   more inventory is funded;
 - permissionless **Settle** and **Send proceeds** actions when available.

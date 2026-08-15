@@ -55,7 +55,7 @@ contract SinjohV4ConfirmedBandPriceGuardTest is TestBase {
         guard.validateArm(launch, BOUNDARY, true, "");
     }
 
-    function testFifteenContinuousMinutesFinalizeSettlementPermanently() public {
+    function testThirtyContinuousSecondsFinalizeSettlementPermanently() public {
         _expectPending(POOL_ID, true, BOUNDARY);
         guard.validateAbove(launch, BOUNDARY, true, "");
 
@@ -64,7 +64,7 @@ contract SinjohV4ConfirmedBandPriceGuardTest is TestBase {
         assertEq(armedAt, 1_000_000);
         assertEq(confirmedAt, 0);
 
-        vm.warp(block.timestamp + 15 minutes - 1);
+        vm.warp(block.timestamp + 30 seconds - 1);
         _observe(true);
         (, confirmedAt) = _confirmation();
         assertEq(confirmedAt, 0);
@@ -94,7 +94,7 @@ contract SinjohV4ConfirmedBandPriceGuardTest is TestBase {
 
     function testDipDisarmsAndLaterCrossingStartsFreshWindow() public {
         _observe(true);
-        vm.warp(block.timestamp + 10 minutes);
+        vm.warp(block.timestamp + 20 seconds);
         _observe(false);
         (uint48 armedAt,) = _confirmation();
         assertEq(armedAt, 0);
@@ -103,14 +103,14 @@ contract SinjohV4ConfirmedBandPriceGuardTest is TestBase {
         _observe(true);
         (armedAt,) = _confirmation();
         assertEq(armedAt, block.timestamp);
-        vm.warp(block.timestamp + 15 minutes);
+        vm.warp(block.timestamp + 30 seconds);
         _observe(true);
         guard.validateAbove(launch, BOUNDARY, true, "");
     }
 
     function testConfirmationIsBoundToManagerPoolOrientationAndBoundary() public {
         _observe(true);
-        vm.warp(block.timestamp + 15 minutes);
+        vm.warp(block.timestamp + 30 seconds);
         _observe(true);
 
         _expectPending(POOL_ID, true, BOUNDARY + 200);
@@ -134,7 +134,7 @@ contract SinjohV4ConfirmedBandPriceGuardTest is TestBase {
         guard.observe(observations);
 
         _observe(true);
-        vm.warp(block.timestamp + 15 minutes);
+        vm.warp(block.timestamp + 30 seconds);
         _observe(true);
         vm.expectRevert(SinjohV4ConfirmedBandPriceGuard.UnexpectedGuardData.selector);
         guard.validateAbove(launch, BOUNDARY, true, hex"01");
@@ -160,7 +160,7 @@ contract SinjohV4ConfirmedBandPriceGuardTest is TestBase {
 
     function testOrderedBatchDipAndRecrossRestartsAtSubmissionTime() public {
         _observe(true);
-        vm.warp(block.timestamp + 14 minutes);
+        vm.warp(block.timestamp + 29 seconds);
         SinjohV4ConfirmedBandPriceGuard.Observation[] memory observations =
             new SinjohV4ConfirmedBandPriceGuard.Observation[](3);
         observations[0] = _observations(true)[0];
@@ -172,14 +172,14 @@ contract SinjohV4ConfirmedBandPriceGuardTest is TestBase {
         (uint48 armedAt, uint48 confirmedAt) = _confirmation();
         assertEq(armedAt, block.timestamp);
         assertEq(confirmedAt, 0);
-        vm.warp(block.timestamp + 15 minutes);
+        vm.warp(block.timestamp + 30 seconds);
         _observe(true);
         guard.validateAbove(launch, BOUNDARY, true, "");
     }
 
     function testGovernanceCanRotateObserverWithoutChangingFinalizedState() public {
         _observe(true);
-        vm.warp(block.timestamp + 15 minutes);
+        vm.warp(block.timestamp + 30 seconds);
         _observe(true);
 
         address nextObserver = address(0xB0B);

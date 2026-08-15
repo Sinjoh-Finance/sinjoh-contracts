@@ -247,8 +247,8 @@ cross-checked replay of canonical `Swap` events:
 2. the observer independently compares Alchemy archive state with Envio Swap history;
 3. every finalized reversal below the boundary clears the guard timer, including a
    dip and recovery that occur entirely between observer cycles;
-4. a later crossing starts a fresh 15-minute confirmation;
-5. after fifteen uninterrupted minutes, the guard records permanent eligibility;
+4. a later crossing starts a fresh 30-second confirmation;
+5. after thirty uninterrupted seconds, the guard records permanent eligibility;
 6. `settle` requires both the manager hold and permanent guard confirmation; and
 7. after confirmation, neither price movement nor permissionless disarm can revoke
    eligibility or impose an execution deadline.
