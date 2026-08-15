@@ -50,6 +50,10 @@ interface IWETH is IERC20 {
     function deposit() external payable;
 }
 
+interface ISinjohFundingBandsEscrowState {
+    function isPrepared(address subject) external view returns (bool);
+}
+
 contract SinjohFundingBands is ReentrancyGuard {
     using PoolIdLibrary for PoolKey;
     using SafeERC20 for IERC20;
@@ -60,7 +64,7 @@ contract SinjohFundingBands is ReentrancyGuard {
     uint8 private constant MAX_BANDS = 10;
     uint16 private constant MAX_DYNAMIC_BYTES = 1_024;
     uint48 private constant DEADLINE_WINDOW = 300;
-    uint48 public constant V4_SETTLEMENT_DELAY = 30 seconds;
+    uint48 public constant V4_SETTLEMENT_DELAY = 15 seconds;
 
     error WrongChain(uint256 actual);
     error InvalidAddress();
@@ -212,6 +216,7 @@ contract SinjohFundingBands is ReentrancyGuard {
     IChainlinkAggregatorV3 public immutable ethUsdOracle;
     bytes32 public immutable feeRouterCodehash;
     address public immutable protocolFeeRecipient;
+    address public immutable launchEscrow;
     uint48 public immutable maxOracleAge;
     uint8 public immutable profileCount;
 
@@ -237,6 +242,7 @@ contract SinjohFundingBands is ReentrancyGuard {
         address ethUsdOracle_,
         bytes32 feeRouterCodehash_,
         address protocolFeeRecipient_,
+        address launchEscrow_,
         uint48 maxOracleAge_,
         ProfileInput[] memory profiles_
     ) {
@@ -249,7 +255,8 @@ contract SinjohFundingBands is ReentrancyGuard {
                 || v4StateView_.code.length == 0 || permit2_.code.length == 0
                 || ethUsdOracle_.code.length == 0 || feeRouterCodehash_ == bytes32(0)
                 || protocolFeeRecipient_ == address(0) || protocolFeeRecipient_ == address(this)
-                || maxOracleAge_ == 0 || profiles_.length == 0 || profiles_.length > type(uint8).max
+                || launchEscrow_.code.length == 0 || maxOracleAge_ == 0 || profiles_.length == 0
+                || profiles_.length > type(uint8).max
         ) revert InvalidAddress();
 
         weth = weth_;
@@ -268,6 +275,7 @@ contract SinjohFundingBands is ReentrancyGuard {
         ethUsdOracle = IChainlinkAggregatorV3(ethUsdOracle_);
         feeRouterCodehash = feeRouterCodehash_;
         protocolFeeRecipient = protocolFeeRecipient_;
+        launchEscrow = launchEscrow_;
         maxOracleAge = maxOracleAge_;
         profileCount = uint8(profiles_.length);
 
@@ -306,12 +314,21 @@ contract SinjohFundingBands is ReentrancyGuard {
                 || configs.length == 0 || configs.length > MAX_BANDS
         ) revert InvalidConfiguration();
         if (_accounts[subject].exists) revert AccountExists();
+        bool escrowCaller = msg.sender == launchEscrow;
+        if ((escrowCaller && launchData.length != 32) || (!escrowCaller && launchData.length != 0))
+        {
+            revert InvalidLaunch();
+        }
+        if (!escrowCaller && ISinjohFundingBandsEscrowState(launchEscrow).isPrepared(subject)) {
+            revert Unauthorized();
+        }
 
         Profile storage selectedProfile = _profiles[profileId];
         ISinjohLaunchVerifier.VerifiedLaunch memory launch =
             selectedProfile.verifier.verify(subject, launchData);
         if (
-            launch.subject != subject || launch.creatorAtLaunch != msg.sender
+            launch.subject != subject
+                || (launch.creatorAtLaunch != msg.sender && msg.sender != launchEscrow)
                 || launch.creatorAtLaunch == address(0) || launch.launchSupply == 0
                 || launch.tickSpacing <= 0
                 || (launch.quoteAsset != weth && launch.quoteAsset != address(0))
@@ -319,14 +336,19 @@ contract SinjohFundingBands is ReentrancyGuard {
         _validateCanonicalLaunch(launch);
 
         uint256 supply = IERC20(subject).totalSupply();
-        if (supply != launch.launchSupply) revert InvalidLaunch();
+        if (
+            (escrowCaller && supply > launch.launchSupply)
+                || (!escrowCaller && supply != launch.launchSupply)
+        ) {
+            revert InvalidLaunch();
+        }
         uint8 subjectDecimals = IERC20Metadata(subject).decimals();
         if (subjectDecimals > 36) revert InvalidLaunch();
         (uint256 ethUsdE8, uint48 oracleUpdatedAt) =
             FundingBandMath.snapshotEthUsd(ethUsdOracle, maxOracleAge);
 
         Account storage account = _accounts[subject];
-        account.creator = msg.sender;
+        account.creator = launch.creatorAtLaunch;
         account.profileId = profileId;
         account.bandCount = uint8(configs.length);
         account.subjectDecimals = subjectDecimals;
@@ -380,7 +402,7 @@ contract SinjohFundingBands is ReentrancyGuard {
         emit AccountCreated(
             id,
             subject,
-            msg.sender,
+            launch.creatorAtLaunch,
             profileId,
             launch.venue,
             launch.quoteAsset,
@@ -401,11 +423,13 @@ contract SinjohFundingBands is ReentrancyGuard {
     {
         Account storage account = _accounts[subject];
         if (!account.exists) revert AccountNotFound();
-        if (msg.sender != account.creator) revert Unauthorized();
+        if (msg.sender != account.creator && msg.sender != launchEscrow) revert Unauthorized();
         if (
             funding.length == 0 || funding.length > MAX_BANDS
                 || guardData.length > MAX_DYNAMIC_BYTES
-        ) revert InvalidConfiguration();
+        ) {
+            revert InvalidConfiguration();
+        }
 
         uint16 seen;
         uint256 requested;
@@ -465,7 +489,7 @@ contract SinjohFundingBands is ReentrancyGuard {
     }
 
     /// @notice Invalidates an armed v4 band after price returns below its upper boundary.
-    /// @dev Permissionless so the shared keeper or any observer can reset the hold.
+    /// @dev Permissionless so the dedicated observer or any caller can reset the hold.
     function disarmSettlement(address subject, uint8 bandId, bytes calldata guardData)
         external
         nonReentrant

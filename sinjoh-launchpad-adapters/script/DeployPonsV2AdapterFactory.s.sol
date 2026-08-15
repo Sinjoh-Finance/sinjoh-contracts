@@ -55,7 +55,11 @@ contract DeployPonsV2AdapterFactory {
             address(factory).code.length == 0 || factory.launchFactory() != PONS_V2_FACTORY
                 || factory.feeEscrow() != PONS_V2_FEE_ESCROW || factory.weth() != WETH
                 || factory.deploymentChainId() != ROBINHOOD_MAINNET_CHAIN_ID
+                || factory.binder() == address(0) || factory.fundingBandsEscrow() != address(0)
+                || SinjohPonsV2Adapter(payable(factory.implementation())).adapterFactory()
+                    != address(factory)
                 || !SinjohPonsV2Adapter(payable(factory.implementation())).initialized()
+                || factory.adapterRuntimeCodehash() == bytes32(0)
         ) revert DeploymentFailed();
     }
 

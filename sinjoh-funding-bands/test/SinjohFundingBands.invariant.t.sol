@@ -7,6 +7,7 @@ import { InvariantTestBase } from "./TestBase.sol";
 import {
     MockBandPriceGuard,
     MockERC20,
+    MockFundingBandsEscrowState,
     MockLaunchVerifier,
     MockOracle,
     MockPermit2,
@@ -84,6 +85,7 @@ contract SinjohFundingBandsInvariantTest is InvariantTestBase {
         profiles[0] = SinjohFundingBands.ProfileInput({
             verifier: address(verifier), priceGuard: address(guard), hookData: ""
         });
+        MockFundingBandsEscrowState launchEscrowState = new MockFundingBandsEscrowState();
         manager = new SinjohFundingBands(
             address(weth),
             address(factory),
@@ -94,6 +96,7 @@ contract SinjohFundingBandsInvariantTest is InvariantTestBase {
             address(oracle),
             keccak256("fee-router-codehash"),
             PROTOCOL,
+            address(launchEscrowState),
             1 hours,
             profiles
         );

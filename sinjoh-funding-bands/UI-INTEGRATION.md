@@ -54,29 +54,21 @@ Destination     3 creator · 2 fee router
 
 ## Pons v2 transaction timing
 
-Pons v2 has no Uniswap v4 pool until its bonding curve graduates. Funding Bands
-cannot create or fund concentrated positions at launch time.
+Pons v2 has no Uniswap v4 pool until its bonding curve graduates, so positions
+cannot be minted at launch. `launchWithFundingBands` nevertheless commits the
+plan and transfers the selected developer-buy share directly from the adapter
+to `SinjohFundingBandsLaunchEscrow` in that same launch transaction. The creator
+never receives or controls that allocation.
 
-The launch UI may save a Funding Bands **draft**, keyed by creator and predicted
-token address, but it must not describe that draft as committed inventory. The
-creator still holds the developer-buy tokens and can spend them before
-graduation.
+After graduation, the observer or any account calls permissionless
+`activate(subject)`. The escrow creates the frozen ladder and funds every band
+in one atomic transaction. The UI must describe this as escrowed inventory and
+must not show a creator activation, approval, or funding task for this path.
 
-After graduation, show a creator-only **Activate Funding Bands** task on the
-token page and Profile page. The current contract requires:
-
-1. ERC-20 approval for the selected subject-token amount.
-2. `SinjohFundingBands.create(...)` to freeze the profile and band definitions.
-3. `SinjohFundingBands.fund(...)` to place the inventory.
-
-The UI should present this as one guided operation with three wallet steps and
-resume safely after any interruption. A future `createAndFund` entry point could
-reduce this to approval plus one protocol transaction, but the UI must not assume
-that function exists today.
-
-Only native-ETH and canonical-WETH Pons v2 launches are eligible in the current
-release. For USDG or another Pons pair, keep the control visible but disabled with
-the precise explanation: **Funding Bands currently supports ETH/WETH pairs.**
+Only native-ETH Pons v2 launches are eligible in the current release. The live
+factory rejects canonical WETH and other custom pair tokens for this launch path.
+For any non-native pair, keep the control visible but disabled with the precise
+explanation: **Funding Bands currently supports the native ETH market.**
 
 ## Token page
 
@@ -84,13 +76,13 @@ Add a public **Funding Bands** panel below the market summary and above recent
 trades:
 
 - a market-cap ladder showing each lower/upper range;
-- status per band: Draft, Awaiting graduation, Ready to activate, Active,
+- status per band: Draft, Escrowed until graduation, Activating, Active,
   Settled, or Delivered;
 - inventory deposited and current subject/WETH composition;
 - immutable destination with a creator or Fee Router label;
 - gross realized WETH, 1% protocol fee, net WETH, and delivery state;
 - **Arm settlement** once the upper edge is crossed;
-- the 30-second confirmation countdown and persistent eligible state while price
+- the 15-second confirmation countdown and persistent eligible state while price
   remains above the band, with a reset when a below-band state is observed or
   more inventory is funded;
 - permissionless **Settle** and **Send proceeds** actions when available.
@@ -105,8 +97,7 @@ the lower boundary before settlement.
 Add a **Funding Bands** tab next to positions/PnL with four task groups:
 
 - **Drafts**: locally or server-saved launch configurations.
-- **Needs action**: graduated launches waiting for creator activation or bands
-  waiting for token approval/funding.
+- **Escrowed**: launch-committed ladders waiting for graduation or automatic activation.
 - **Active ladders**: live band progress and available later deposits.
 - **Proceeds**: settled WETH/subject balances and delivery status.
 

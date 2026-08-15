@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import { ISinjohLaunchVerifier } from "../src/interfaces/ISinjohLaunchVerifier.sol";
 import {
+    ISinjohFundingBandsObservationManager,
     SinjohV4ConfirmedBandPriceGuard
 } from "../src/profiles/SinjohV4ConfirmedBandPriceGuard.sol";
 import { SinjohV4DelayedBandPriceGuard } from "../src/profiles/SinjohV4DelayedBandPriceGuard.sol";
@@ -36,7 +37,7 @@ contract SinjohV4ConfirmedBandPriceGuardTest is TestBase {
             creatorAtLaunch: address(1),
             subject: address(2),
             venue: ISinjohLaunchVerifier.Venue.UNISWAP_V4,
-            quoteAsset: address(0),
+            quoteAsset: address(3),
             pool: address(0),
             poolFee: 0,
             tickSpacing: 200,
@@ -47,6 +48,7 @@ contract SinjohV4ConfirmedBandPriceGuardTest is TestBase {
     }
 
     function testBelowBandAndArmChecksUseCanonicalSpot() public {
+        assertEq(guard.CONFIRMATION_PERIOD(), 15 seconds);
         stateView.setTick(900);
         guard.validateBelow(launch, BOUNDARY, true, "");
         vm.expectRevert(SinjohV4DelayedBandPriceGuard.BoundaryNotCrossed.selector);
@@ -55,7 +57,7 @@ contract SinjohV4ConfirmedBandPriceGuardTest is TestBase {
         guard.validateArm(launch, BOUNDARY, true, "");
     }
 
-    function testThirtyContinuousSecondsFinalizeSettlementPermanently() public {
+    function testFifteenContinuousSecondsFinalizeSettlementPermanently() public {
         _expectPending(POOL_ID, true, BOUNDARY);
         guard.validateAbove(launch, BOUNDARY, true, "");
 
@@ -64,7 +66,7 @@ contract SinjohV4ConfirmedBandPriceGuardTest is TestBase {
         assertEq(armedAt, 1_000_000);
         assertEq(confirmedAt, 0);
 
-        vm.warp(block.timestamp + 30 seconds - 1);
+        vm.warp(block.timestamp + 15 seconds - 1);
         _observe(true);
         (, confirmedAt) = _confirmation();
         assertEq(confirmedAt, 0);
@@ -103,14 +105,14 @@ contract SinjohV4ConfirmedBandPriceGuardTest is TestBase {
         _observe(true);
         (armedAt,) = _confirmation();
         assertEq(armedAt, block.timestamp);
-        vm.warp(block.timestamp + 30 seconds);
+        vm.warp(block.timestamp + 15 seconds);
         _observe(true);
         guard.validateAbove(launch, BOUNDARY, true, "");
     }
 
     function testConfirmationIsBoundToManagerPoolOrientationAndBoundary() public {
         _observe(true);
-        vm.warp(block.timestamp + 30 seconds);
+        vm.warp(block.timestamp + 15 seconds);
         _observe(true);
 
         _expectPending(POOL_ID, true, BOUNDARY + 200);
@@ -134,7 +136,7 @@ contract SinjohV4ConfirmedBandPriceGuardTest is TestBase {
         guard.observe(observations);
 
         _observe(true);
-        vm.warp(block.timestamp + 30 seconds);
+        vm.warp(block.timestamp + 15 seconds);
         _observe(true);
         vm.expectRevert(SinjohV4ConfirmedBandPriceGuard.UnexpectedGuardData.selector);
         guard.validateAbove(launch, BOUNDARY, true, hex"01");
@@ -160,7 +162,7 @@ contract SinjohV4ConfirmedBandPriceGuardTest is TestBase {
 
     function testOrderedBatchDipAndRecrossRestartsAtSubmissionTime() public {
         _observe(true);
-        vm.warp(block.timestamp + 29 seconds);
+        vm.warp(block.timestamp + 14 seconds);
         SinjohV4ConfirmedBandPriceGuard.Observation[] memory observations =
             new SinjohV4ConfirmedBandPriceGuard.Observation[](3);
         observations[0] = _observations(true)[0];
@@ -172,14 +174,14 @@ contract SinjohV4ConfirmedBandPriceGuardTest is TestBase {
         (uint48 armedAt, uint48 confirmedAt) = _confirmation();
         assertEq(armedAt, block.timestamp);
         assertEq(confirmedAt, 0);
-        vm.warp(block.timestamp + 30 seconds);
+        vm.warp(block.timestamp + 15 seconds);
         _observe(true);
         guard.validateAbove(launch, BOUNDARY, true, "");
     }
 
     function testGovernanceCanRotateObserverWithoutChangingFinalizedState() public {
         _observe(true);
-        vm.warp(block.timestamp + 30 seconds);
+        vm.warp(block.timestamp + 15 seconds);
         _observe(true);
 
         address nextObserver = address(0xB0B);
@@ -220,6 +222,8 @@ contract SinjohV4ConfirmedBandPriceGuardTest is TestBase {
         observations = new SinjohV4ConfirmedBandPriceGuard.Observation[](1);
         observations[0] = SinjohV4ConfirmedBandPriceGuard.Observation({
             manager: address(this),
+            subject: launch.subject,
+            bandId: 0,
             poolId: POOL_ID,
             subjectIsToken0: true,
             boundaryTick: BOUNDARY,
@@ -231,5 +235,42 @@ contract SinjohV4ConfirmedBandPriceGuardTest is TestBase {
         SinjohV4ConfirmedBandPriceGuard.Confirmation memory value =
             guard.confirmation(address(this), POOL_ID, true, BOUNDARY);
         return (value.armedAt, value.confirmedAt);
+    }
+
+    function getAccount(address subject)
+        external
+        view
+        returns (ISinjohFundingBandsObservationManager.Account memory account)
+    {
+        account = ISinjohFundingBandsObservationManager.Account({
+            creator: launch.creatorAtLaunch,
+            profileId: 0,
+            bandCount: 1,
+            subjectDecimals: 18,
+            ethUsdE8: 2_000e8,
+            oracleUpdatedAt: uint48(block.timestamp),
+            exists: subject == launch.subject,
+            launch: launch
+        });
+    }
+
+    function getBand(address subject, uint8 bandId)
+        external
+        view
+        returns (ISinjohFundingBandsObservationManager.Band memory band)
+    {
+        if (subject != launch.subject || bandId != 0) revert();
+        band.tickLower = BOUNDARY;
+        band.tickUpper = BOUNDARY;
+        band.status = 1;
+    }
+
+    function getProfile(uint8 profileId)
+        external
+        view
+        returns (address verifier, address priceGuard, bytes32 hookDataHash)
+    {
+        if (profileId != 0) revert();
+        return (address(1), address(guard), keccak256(""));
     }
 }

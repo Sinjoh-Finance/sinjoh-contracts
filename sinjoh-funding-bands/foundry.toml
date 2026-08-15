@@ -11,7 +11,8 @@ remappings = [
   "@uniswap/v3-periphery/=../sinjoh-liquidity-manager/lib/v3-periphery/",
   "@uniswap/v4-core/=../sinjoh-liquidity-manager/lib/v4-periphery/lib/v4-core/",
   "@uniswap/v4-periphery/=../sinjoh-liquidity-manager/lib/v4-periphery/",
-  "permit2/=../sinjoh-liquidity-manager/lib/v4-periphery/lib/permit2/"
+  "permit2/=../sinjoh-liquidity-manager/lib/v4-periphery/lib/permit2/",
+  "sinjoh-launchpad-adapters/=../sinjoh-launchpad-adapters/"
 ]
 solc_version = "0.8.28"
 evm_version = "cancun"
@@ -20,6 +21,7 @@ optimizer_runs = 20_000
 via_ir = true
 bytecode_hash = "none"
 cbor_metadata = false
+allow_paths = ["../sinjoh-launchpad-adapters"]
 
 [fmt]
 line_length = 100

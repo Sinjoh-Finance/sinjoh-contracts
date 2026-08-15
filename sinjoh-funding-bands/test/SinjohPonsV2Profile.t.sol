@@ -8,6 +8,7 @@ import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 
 import { SinjohFundingBands } from "../src/SinjohFundingBands.sol";
 import { ISinjohLaunchVerifier } from "../src/interfaces/ISinjohLaunchVerifier.sol";
+import { ISinjohPrelaunchVerifier } from "../src/interfaces/ISinjohPrelaunchVerifier.sol";
 import {
     IPonsV2LaunchFactory,
     SinjohPonsV2LaunchVerifier
@@ -17,6 +18,7 @@ import { SinjohV4DelayedBandPriceGuard } from "../src/profiles/SinjohV4DelayedBa
 import { TestBase } from "./TestBase.sol";
 import {
     MockBandPriceGuard,
+    MockFundingBandsEscrowState,
     MockOracle,
     MockPermit2,
     MockPonsV2Factory,
@@ -47,6 +49,7 @@ contract SinjohPonsV2ProfileTest is TestBase {
     MockPonsV2Factory internal factory;
     MockPonsV2MemeHook internal hook;
     MockPonsV2MemeHook internal curve;
+    MockFundingBandsEscrowState internal launchEscrowState;
     MockPonsV2Token internal subject;
     SinjohPonsV2LaunchVerifier internal verifier;
     MockBandPriceGuard internal guard;
@@ -83,6 +86,7 @@ contract SinjohPonsV2ProfileTest is TestBase {
         v4PositionManager.setExpectedHook(address(hook));
         v4PositionManager.setExpectedHookData("");
         stateView = new MockV4StateView(address(v4PoolManager));
+        launchEscrowState = new MockFundingBandsEscrowState();
 
         SinjohFundingBands.ProfileInput[] memory profiles = new SinjohFundingBands.ProfileInput[](1);
         profiles[0] = SinjohFundingBands.ProfileInput({
@@ -98,6 +102,7 @@ contract SinjohPonsV2ProfileTest is TestBase {
             address(oracle),
             keccak256("fee-router-codehash"),
             PROTOCOL,
+            address(launchEscrowState),
             1 hours,
             profiles
         );
@@ -151,6 +156,46 @@ contract SinjohPonsV2ProfileTest is TestBase {
         ISinjohLaunchVerifier.VerifiedLaunch memory launch =
             adapterVerifier.verify(address(adapterSubject), "");
         assertEq(launch.creatorAtLaunch, CREATOR);
+    }
+
+    function testPregraduationEscrowVerificationBindsExactAdapterAndLaunch() public {
+        MockSinjohPonsV2Adapter adapter =
+            new MockSinjohPonsV2Adapter(CREATOR, address(factory), address(curve));
+        MockPonsV2Token adapterSubject =
+            new MockPonsV2Token(address(adapter), address(factory), address(curve));
+        adapter.setSubject(address(adapterSubject));
+        adapterSubject.mint(CREATOR, SUPPLY);
+        factory.setLaunch(
+            address(adapterSubject),
+            IPonsV2LaunchFactory.LaunchedToken({
+                token: address(adapterSubject),
+                curve: address(curve),
+                deployer: address(adapter),
+                creatorFeeRecipient: address(adapter),
+                pairToken: address(0),
+                graduationThreshold: 4.2e18,
+                poolFee: 0,
+                tickSpacing: 60,
+                creatorTaxBps: 100,
+                buybackEnabled: false,
+                phase: IPonsV2LaunchFactory.GraduationPhase.NotGraduated,
+                sweptQuote: 0,
+                sweptTokens: 0,
+                sweptAt: 0,
+                exists: true
+            })
+        );
+        SinjohPonsV2LaunchVerifier adapterVerifier = new SinjohPonsV2LaunchVerifier(
+            address(factory), address(hook), address(weth), address(adapter).codehash
+        );
+        ISinjohPrelaunchVerifier.VerifiedPreparation memory preparation =
+            adapterVerifier.verifyPreparation(address(adapterSubject), address(adapter), "");
+        assertEq(preparation.creatorAtLaunch, CREATOR);
+        assertEq(preparation.subject, address(adapterSubject));
+        assertEq(preparation.launchSupply, SUPPLY);
+
+        vm.expectRevert(SinjohPonsV2LaunchVerifier.InvalidLaunch.selector);
+        adapterVerifier.verifyPreparation(address(adapterSubject), OTHER, "");
     }
 
     function testVerifierRejectsFactoryInfrastructureMismatch() public {
@@ -252,6 +297,7 @@ contract SinjohPonsV2ProfileTest is TestBase {
             address(oracle),
             keccak256("fee-router-codehash"),
             PROTOCOL,
+            address(launchEscrowState),
             1 hours,
             profiles
         );
@@ -293,6 +339,7 @@ contract SinjohPonsV2ProfileTest is TestBase {
             address(oracle),
             keccak256("fee-router-codehash"),
             PROTOCOL,
+            address(launchEscrowState),
             1 hours,
             profiles
         );
@@ -347,6 +394,7 @@ contract SinjohPonsV2ProfileTest is TestBase {
             address(oracle),
             keccak256("fee-router-codehash"),
             PROTOCOL,
+            address(launchEscrowState),
             1 hours,
             profiles
         );
@@ -397,6 +445,7 @@ contract SinjohPonsV2ProfileTest is TestBase {
             address(oracle),
             keccak256("fee-router-codehash"),
             PROTOCOL,
+            address(launchEscrowState),
             1 hours,
             profiles
         );

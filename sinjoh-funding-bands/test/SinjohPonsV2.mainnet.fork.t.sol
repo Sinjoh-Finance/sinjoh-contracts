@@ -6,6 +6,7 @@ import { PoolId } from "@uniswap/v4-core/src/types/PoolId.sol";
 
 import { FundingBandMath } from "../src/FundingBandMath.sol";
 import { IV4StateView, SinjohFundingBands } from "../src/SinjohFundingBands.sol";
+import { SinjohFundingBandsLaunchEscrow } from "../src/SinjohFundingBandsLaunchEscrow.sol";
 import { ISinjohLaunchVerifier } from "../src/interfaces/ISinjohLaunchVerifier.sol";
 import { SinjohV3EthUsdOracle } from "../src/oracles/SinjohV3EthUsdOracle.sol";
 import { SinjohPonsV2LaunchVerifier } from "../src/profiles/SinjohPonsV2LaunchVerifier.sol";
@@ -13,6 +14,36 @@ import {
     SinjohV4ConfirmedBandPriceGuard
 } from "../src/profiles/SinjohV4ConfirmedBandPriceGuard.sol";
 import { TestBase } from "./TestBase.sol";
+import {
+    ISinjohFundingBandsLaunchEscrow,
+    SinjohPonsV2Adapter
+} from "sinjoh-launchpad-adapters/src/SinjohPonsV2Adapter.sol";
+import {
+    SinjohPonsV2AdapterFactory
+} from "sinjoh-launchpad-adapters/src/SinjohPonsV2AdapterFactory.sol";
+import { IPonsV2LaunchFactory } from "sinjoh-launchpad-adapters/src/interfaces/IPonsV2.sol";
+
+contract FundingBandsForkRouter {
+    address public immutable launchpadAdapter;
+    address public immutable creator;
+    address public immutable weth;
+    address public subject;
+
+    constructor(address launchpadAdapter_, address creator_, address weth_) {
+        launchpadAdapter = launchpadAdapter_;
+        creator = creator_;
+        weth = weth_;
+    }
+
+    function bind(address subject_) external {
+        require(msg.sender == launchpadAdapter && subject == address(0));
+        subject = subject_;
+    }
+
+    function isIntakeAsset(address asset) external view returns (bool) {
+        return asset == weth || asset == subject;
+    }
+}
 
 interface IPonsV2LaunchFactoryFork {
     struct Socials {
@@ -75,10 +106,6 @@ interface ISwapAdapterFork {
     ) external payable;
 }
 
-interface IPonsV2LaunchFactoryAdminFork {
-    function setLaunchEnabled(bool enabled) external;
-}
-
 interface IPonsV2FactoryGraduationFork {
     function createGraduatedPool(address token) external returns (uint256 positionId);
 }
@@ -104,10 +131,8 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
     address internal constant PONS_FACTORY = 0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e;
     address internal constant PONS_HOOK = 0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044;
     address internal constant PONS_BUYBACK_ADAPTER = 0x39217172A3F07E827557093989039F968A571D43;
-    bytes32 internal constant SINJOH_ADAPTER_CODEHASH =
-        0xc68d29cb840cd761142664c1a2a348ddccfa4f957df86d54898b981c549b28c7;
-    address internal constant PONS_OWNER = 0xFdDE5a1E3cDF791Da71E49F817D70C7ceD72CC36;
     address internal constant CREATOR = address(0xC4EA704);
+    address internal constant ACTIVATOR = address(0xAC71A7E);
 
     receive() external payable { }
 
@@ -117,15 +142,21 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
 
     function _exerciseLifecycle() private {
         vm.createSelectFork(vm.envOr("ROBINHOOD_RPC_URL", DEFAULT_RPC));
-        if (!IPonsV2LaunchFactoryFork(PONS_FACTORY).launchEnabled()) {
-            vm.prank(PONS_OWNER);
-            IPonsV2LaunchFactoryAdminFork(PONS_FACTORY).setLaunchEnabled(true);
-        }
+        assertTrue(IPonsV2LaunchFactoryFork(PONS_FACTORY).launchEnabled());
         vm.deal(CREATOR, 100 ether);
-        (address subject,) = _launchAndGraduate();
+        address probeSubject = _launchAndGraduateProbe();
 
-        SinjohPonsV2LaunchVerifier verifier =
-            new SinjohPonsV2LaunchVerifier(PONS_FACTORY, PONS_HOOK, WETH, SINJOH_ADAPTER_CODEHASH);
+        SinjohPonsV2AdapterFactory adapterFactory = new SinjohPonsV2AdapterFactory(
+            PONS_FACTORY, IPonsV2LaunchFactory(PONS_FACTORY).feeEscrow(), WETH, block.chainid
+        );
+        bytes32 adapterSalt = keccak256("funding-bands-mainnet-fork-adapter");
+        address predictedAdapter = adapterFactory.predictAddress(CREATOR, adapterSalt);
+        FundingBandsForkRouter router = new FundingBandsForkRouter(predictedAdapter, CREATOR, WETH);
+        SinjohPonsV2LaunchVerifier verifier = new SinjohPonsV2LaunchVerifier(
+            PONS_FACTORY, PONS_HOOK, WETH, adapterFactory.adapterRuntimeCodehash()
+        );
+        SinjohFundingBandsLaunchEscrow escrow =
+            new SinjohFundingBandsLaunchEscrow(address(verifier), address(this));
         SinjohV4ConfirmedBandPriceGuard guard = new SinjohV4ConfirmedBandPriceGuard(
             V4_STATE_VIEW,
             V4_STATE_VIEW.codehash,
@@ -149,18 +180,18 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
             V4_STATE_VIEW,
             PERMIT2,
             address(oracle),
-            keccak256("fee-router-codehash"),
+            address(router).codehash,
             address(0xFEE),
+            address(escrow),
             1 hours,
             profiles
         );
+        escrow.bindManager(address(manager));
+        adapterFactory.bindFundingBandsEscrow(address(escrow));
 
-        ISinjohLaunchVerifier.VerifiedLaunch memory launch = verifier.verify(subject, "");
-        assertEq(launch.creatorAtLaunch, CREATOR);
-        assertEq(launch.quoteAsset, address(0));
-        assertTrue(launch.poolId != bytes32(0));
+        ISinjohLaunchVerifier.VerifiedLaunch memory probe = verifier.verify(probeSubject, "");
         (uint160 sqrtPriceX96, int24 spotTick,,) =
-            IV4StateView(V4_STATE_VIEW).getSlot0(PoolId.wrap(launch.poolId));
+            IV4StateView(V4_STATE_VIEW).getSlot0(PoolId.wrap(probe.poolId));
         assertTrue(sqrtPriceX96 != 0);
 
         (
@@ -169,8 +200,8 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
             int24 lowerBoundary,
             int24 upperBoundary
         ) = _bandAboveSpot(
-            launch.launchSupply,
-            launch.tickSpacing,
+            probe.launchSupply,
+            probe.tickSpacing,
             spotTick,
             // The live oracle answer was bounded to a positive range above.
             // forge-lint: disable-next-line(unsafe-typecast)
@@ -182,32 +213,38 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
         configs[0] = SinjohFundingBands.BandConfig({
             lowerMarketCapUsdE8: lowerMarketCap,
             upperMarketCapUsdE8: upperMarketCap,
-            destination: SinjohFundingBands.Destination.CREATOR,
-            feeRouter: address(0)
+            destination: SinjohFundingBands.Destination.FEE_ROUTER,
+            feeRouter: address(router)
         });
 
-        vm.prank(CREATOR);
-        manager.create(subject, 0, configs, "", "");
+        (address subject, address curve, uint256 escrowedInventory) =
+            _launchWithEscrow(adapterFactory, escrow, configs, router, adapterSalt);
+        assertEq(IERC20(subject).balanceOf(CREATOR), 0);
+        assertEq(IERC20(subject).balanceOf(address(escrow)), escrowedInventory);
+        _graduateAfterDeveloperBuy(subject, curve);
 
-        uint128 firstDeposit = 5e23;
-        uint128 secondDeposit = 5e23;
-        assertTrue(IERC20(subject).balanceOf(CREATOR) >= uint256(firstDeposit) + secondDeposit);
-        vm.prank(CREATOR);
-        IERC20(subject).approve(address(manager), uint256(firstDeposit) + secondDeposit);
-        SinjohFundingBands.BandFunding[] memory funding = new SinjohFundingBands.BandFunding[](1);
-        funding[0] = SinjohFundingBands.BandFunding({ bandId: 0, amount: firstDeposit });
-        vm.prank(CREATOR);
-        manager.fund(subject, funding, "");
-        funding[0].amount = secondDeposit;
-        vm.prank(CREATOR);
-        manager.fund(subject, funding, "");
+        vm.prank(ACTIVATOR);
+        escrow.activate(subject);
+        assertEq(IERC20(subject).balanceOf(address(escrow)), 0);
+        SinjohFundingBandsLaunchEscrow.PreparedAccount memory prepared =
+            escrow.getPreparedAccount(subject);
+        assertTrue(!prepared.exists);
+        assertTrue(prepared.activated);
+
+        ISinjohLaunchVerifier.VerifiedLaunch memory launch = verifier.verify(subject, "");
+        assertEq(launch.creatorAtLaunch, CREATOR);
+        assertEq(launch.quoteAsset, address(0));
+        assertTrue(launch.poolId != bytes32(0));
+        SinjohFundingBands.Account memory account = manager.getAccount(subject);
+        assertEq(account.creator, CREATOR);
+        assertTrue(account.exists);
         SinjohFundingBands.Band memory active = manager.getBand(subject, 0);
         assertTrue(active.positionId != 0 && active.liquidity != 0);
 
-        vm.deal(address(this), 3 ether);
-        IWETHFork(WETH).deposit{ value: 3 ether }();
-        IERC20(WETH).approve(PONS_BUYBACK_ADAPTER, 3 ether);
-        ISwapAdapterFork(PONS_BUYBACK_ADAPTER).swap(WETH, subject, 3 ether, 1, "");
+        vm.deal(address(this), 10 ether);
+        IWETHFork(WETH).deposit{ value: 10 ether }();
+        IERC20(WETH).approve(PONS_BUYBACK_ADAPTER, 10 ether);
+        ISwapAdapterFork(PONS_BUYBACK_ADAPTER).swap(WETH, subject, 10 ether, 1, "");
 
         (, int24 crossedTick,,) = IV4StateView(V4_STATE_VIEW).getSlot0(PoolId.wrap(launch.poolId));
         assertTrue(crossedTick <= upperBoundary);
@@ -216,6 +253,8 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
             new SinjohV4ConfirmedBandPriceGuard.Observation[](1);
         observations[0] = SinjohV4ConfirmedBandPriceGuard.Observation({
             manager: address(manager),
+            subject: subject,
+            bandId: 0,
             poolId: launch.poolId,
             subjectIsToken0: false,
             boundaryTick: upperBoundary,
@@ -241,21 +280,42 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
             manager.proceedsOwed(subject, 0, WETH) + manager.protocolOwed(),
             settled.cumulativeRealizedWeth
         );
+        uint256 routerWethBefore = IERC20(WETH).balanceOf(address(router));
+        uint256 routerSubjectBefore = IERC20(subject).balanceOf(address(router));
+        uint256 creatorWethBefore = IERC20(WETH).balanceOf(CREATOR);
+        uint256 creatorSubjectBefore = IERC20(subject).balanceOf(CREATOR);
+        uint256 protocolBefore = IERC20(WETH).balanceOf(address(0xFEE));
+        uint256 wethOwed = manager.proceedsOwed(subject, 0, WETH);
+        uint256 subjectOwed = manager.proceedsOwed(subject, 0, subject);
+        uint256 protocolOwed = manager.protocolOwed();
+        if (wethOwed != 0) manager.sendProceeds(subject, 0, WETH, wethOwed);
+        if (subjectOwed != 0) manager.sendProceeds(subject, 0, subject, subjectOwed);
+        if (protocolOwed != 0) manager.sendProtocolFee(protocolOwed);
+        assertEq(IERC20(WETH).balanceOf(address(router)), routerWethBefore + wethOwed);
+        assertEq(IERC20(subject).balanceOf(address(router)), routerSubjectBefore + subjectOwed);
+        assertEq(IERC20(WETH).balanceOf(CREATOR), creatorWethBefore);
+        assertEq(IERC20(subject).balanceOf(CREATOR), creatorSubjectBefore);
+        assertEq(IERC20(WETH).balanceOf(address(0xFEE)), protocolBefore + protocolOwed);
+        assertEq(
+            uint256(manager.getBand(subject, 0).status),
+            uint256(SinjohFundingBands.BandStatus.DELIVERED)
+        );
     }
 
-    function _launchAndGraduate() private returns (address token, address curve) {
+    function _launchAndGraduateProbe() private returns (address token) {
         IPonsV2LaunchFactoryFork factory = IPonsV2LaunchFactoryFork(PONS_FACTORY);
         IPonsV2LaunchFactoryFork.TokenParams memory params;
-        params.name = "Funding Bands Fork";
-        params.symbol = "FBF";
+        params.name = "Funding Bands Probe";
+        params.symbol = "FBP";
         params.creatorFeeRecipient = CREATOR;
         params.creatorTaxBps = 0;
         params.buybackEnabled = false;
         params.expectedEconomics = factory.previewLaunchEconomics(0, address(0));
-        params.salt = keccak256("funding-bands-mainnet-fork");
+        params.salt = keccak256("funding-bands-mainnet-fork-probe");
 
         uint256 launchFee = factory.launchFee();
         vm.prank(CREATOR);
+        address curve;
         (token, curve) =
             factory.launchToken{ value: launchFee }(params, 0, address(0), new address[](0));
         vm.warp(block.timestamp + IPonsV2SnipeTaxViewsFork(PONS_FACTORY).snipeTaxSeconds() + 1);
@@ -263,6 +323,74 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
         address whale = address(0xDECAF);
         vm.prank(CREATOR);
         IPonsV2BondingCurveFork(curve).buy{ value: 1 ether }(1 ether, 1, CREATOR);
+        vm.deal(whale, 20 ether);
+        vm.prank(whale);
+        IPonsV2BondingCurveFork(curve).buy{ value: 10 ether }(10 ether, 1, whale);
+        assertTrue(IPonsV2BondingCurveFork(curve).graduated());
+        IPonsV2FactoryGraduationFork(PONS_FACTORY).createGraduatedPool(token);
+    }
+
+    function _launchWithEscrow(
+        SinjohPonsV2AdapterFactory adapterFactory,
+        SinjohFundingBandsLaunchEscrow escrow,
+        SinjohFundingBands.BandConfig[] memory managerConfigs,
+        FundingBandsForkRouter router,
+        bytes32 userSalt
+    ) private returns (address token, address curve, uint256 escrowedInventory) {
+        address predicted = adapterFactory.predictAddress(CREATOR, userSalt);
+        assertEq(predicted, address(router.launchpadAdapter()));
+        vm.prank(CREATOR);
+        SinjohPonsV2Adapter adapter = SinjohPonsV2Adapter(
+            payable(adapterFactory.deploy(CREATOR, address(router), userSalt))
+        );
+
+        IPonsV2LaunchFactory factory = IPonsV2LaunchFactory(PONS_FACTORY);
+        IPonsV2LaunchFactory.TokenParams memory params;
+        params.name = "Funding Bands Escrow Fork";
+        params.symbol = "FBE";
+        params.creatorFeeRecipient = address(adapter);
+        params.creatorTaxBps = 0;
+        params.buybackEnabled = false;
+        params.expectedEconomics = factory.previewLaunchEconomics(0, address(0));
+        params.salt = keccak256("funding-bands-mainnet-fork-escrow");
+
+        ISinjohFundingBandsLaunchEscrow.BandConfig[] memory configs =
+            new ISinjohFundingBandsLaunchEscrow.BandConfig[](1);
+        configs[0] = ISinjohFundingBandsLaunchEscrow.BandConfig({
+            lowerMarketCapUsdE8: managerConfigs[0].lowerMarketCapUsdE8,
+            upperMarketCapUsdE8: managerConfigs[0].upperMarketCapUsdE8,
+            destination: ISinjohFundingBandsLaunchEscrow.Destination.FEE_ROUTER,
+            feeRouter: address(router)
+        });
+        uint16[] memory allocations = new uint16[](1);
+        allocations[0] = 10_000;
+        SinjohPonsV2Adapter.FundingBandsPlan memory plan = SinjohPonsV2Adapter.FundingBandsPlan({
+            escrow: address(escrow),
+            profileId: 0,
+            inventoryBps: 10_000,
+            configs: configs,
+            allocationBps: allocations
+        });
+
+        uint256 developerBuy = 1 ether;
+        uint256 launchFee = factory.launchFee();
+        vm.prank(CREATOR);
+        (token, curve) = adapter.launchWithFundingBands{ value: launchFee + developerBuy }(
+            params, 0, address(0), developerBuy, 1, new address[](0), plan
+        );
+        assertEq(router.subject(), token);
+        SinjohFundingBandsLaunchEscrow.PreparedAccount memory prepared =
+            escrow.getPreparedAccount(token);
+        assertEq(prepared.creator, CREATOR);
+        assertTrue(prepared.exists);
+        assertTrue(!prepared.activated);
+        escrowedInventory = prepared.escrowedInventory;
+        assertTrue(escrowedInventory > 0);
+    }
+
+    function _graduateAfterDeveloperBuy(address token, address curve) private {
+        vm.warp(block.timestamp + IPonsV2SnipeTaxViewsFork(PONS_FACTORY).snipeTaxSeconds() + 1);
+        address whale = address(0xB16B00B5);
         vm.deal(whale, 20 ether);
         vm.prank(whale);
         IPonsV2BondingCurveFork(curve).buy{ value: 10 ether }(10 ether, 1, whale);

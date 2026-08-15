@@ -17,6 +17,8 @@ contract SinjohPonsV2AdapterFactory {
     error AdapterMismatch(address expected, address actual);
     error ConfigMismatch();
     error Unauthorized();
+    error InvalidAddress();
+    error AlreadyBound();
 
     event AdapterDeployed(
         address indexed adapter,
@@ -28,12 +30,15 @@ contract SinjohPonsV2AdapterFactory {
         address implementation,
         bool created
     );
+    event FundingBandsEscrowBound(address indexed escrow);
 
     address public immutable implementation;
     address public immutable launchFactory;
     address public immutable feeEscrow;
     address public immutable weth;
     uint256 public immutable deploymentChainId;
+    address public immutable binder;
+    address public fundingBandsEscrow;
 
     constructor(address launchFactory_, address feeEscrow_, address weth_, uint256 chainId_) {
         implementation =
@@ -42,6 +47,17 @@ contract SinjohPonsV2AdapterFactory {
         feeEscrow = feeEscrow_;
         weth = weth_;
         deploymentChainId = chainId_;
+        binder = msg.sender;
+    }
+
+    /// @notice One-time binding to the escrow generation that Funding Bands
+    /// launches may use. Ordinary Pons v2 launches do not depend on this value.
+    function bindFundingBandsEscrow(address escrow) external {
+        if (msg.sender != binder) revert Unauthorized();
+        if (fundingBandsEscrow != address(0)) revert AlreadyBound();
+        if (escrow.code.length == 0) revert InvalidAddress();
+        fundingBandsEscrow = escrow;
+        emit FundingBandsEscrowBound(escrow);
     }
 
     /// @notice Deploys the adapter for one launch. Idempotent: a second call
@@ -104,6 +120,17 @@ contract SinjohPonsV2AdapterFactory {
                 creator,
                 userSalt,
                 deploymentChainId
+            )
+        );
+    }
+
+    /// @notice Runtime code hash shared by every clone this factory deploys.
+    /// @dev Funding Bands launch verifiers pin this value so an adapter from a
+    /// different implementation generation cannot escrow launch inventory.
+    function adapterRuntimeCodehash() public view returns (bytes32) {
+        return keccak256(
+            abi.encodePacked(
+                hex"363d3d373d3d3d363d73", implementation, hex"5af43d82803e903d91602b57fd5bf3"
             )
         );
     }
