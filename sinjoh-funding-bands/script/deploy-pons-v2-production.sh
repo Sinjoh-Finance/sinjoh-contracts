@@ -101,7 +101,7 @@ read -r manager manager_tx <<< "$(deploy src/SinjohFundingBands.sol:SinjohFundin
 cast call "$oracle" 'latestRoundData()(uint80,int256,uint256,uint256,uint80)' "${RPC_ARGS[@]}" >/dev/null
 [[ "$(lower "$(cast call "$guard" 'owner()(address)' "${RPC_ARGS[@]}")")" == "$(lower "$GOVERNANCE")" ]]
 [[ "$(lower "$(cast call "$guard" 'quoteSigner()(address)' "${RPC_ARGS[@]}")")" == "$(lower "$KEEPER_OPERATOR")" ]]
-[[ "$(cast call "$guard" 'CONFIRMATION_PERIOD()(uint48)' "${RPC_ARGS[@]}")" == "900" ]]
+[[ "$(cast call "$guard" 'CONFIRMATION_PERIOD()(uint48)' "${RPC_ARGS[@]}")" == "30" ]]
 profile="$(cast call "$manager" 'getProfile(uint8)(address,address,bytes32)' 0 "${RPC_ARGS[@]}")"
 [[ "$(lower "$(sed -n '1p' <<< "$profile")")" == "$(lower "$verifier")" ]]
 [[ "$(lower "$(sed -n '2p' <<< "$profile")")" == "$(lower "$guard")" ]]
@@ -119,7 +119,7 @@ jq -n \
   --arg guard "$guard" \
   --arg manager "$manager" \
   --arg managerDeploymentBlock "$manager_block" \
-  --arg confirmationPeriod "900" \
+  --arg confirmationPeriod "30" \
   --arg oracleCodehash "$(cast codehash "$oracle" "${RPC_ARGS[@]}")" \
   --arg verifierCodehash "$(cast codehash "$verifier" "${RPC_ARGS[@]}")" \
   --arg guardCodehash "$(cast codehash "$guard" "${RPC_ARGS[@]}")" \

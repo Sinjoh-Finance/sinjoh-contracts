@@ -227,7 +227,7 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
         vm.expectRevert(SinjohFundingBands.SettlementConfirmationPending.selector);
         manager.settle(subject, 0, "");
 
-        vm.warp(block.timestamp + 15 minutes);
+        vm.warp(block.timestamp + manager.V4_SETTLEMENT_DELAY());
         vm.prank(vm.addr(SIGNER_KEY));
         guard.observe(observations);
         manager.settle(subject, 0, "");

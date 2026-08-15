@@ -60,7 +60,7 @@ contract SinjohFundingBands is ReentrancyGuard {
     uint8 private constant MAX_BANDS = 10;
     uint16 private constant MAX_DYNAMIC_BYTES = 1_024;
     uint48 private constant DEADLINE_WINDOW = 300;
-    uint48 public constant V4_SETTLEMENT_DELAY = 15 minutes;
+    uint48 public constant V4_SETTLEMENT_DELAY = 30 seconds;
 
     error WrongChain(uint256 actual);
     error InvalidAddress();

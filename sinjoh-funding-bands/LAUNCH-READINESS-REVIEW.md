@@ -15,7 +15,7 @@ Robinhood mainnet fork.
 Pons v2 no longer depends on a Safe, ETH/USD signer, or price publisher. An
 operational observer cross-checks independent archive state and event history,
 and can only advance or reset confirmation state. It cannot move inventory or
-proceeds, change bands, or bypass the immutable 15-minute requirement.
+proceeds, change bands, or bypass the immutable 30-second requirement.
 
 ## Critical defects corrected
 
@@ -32,7 +32,7 @@ proceeds, change bands, or bypass the immutable 15-minute requirement.
    creator, subject, and intake assets.
 6. **Pons v2 settlement manipulation:** the production guard compares Alchemy
    archive state with Envio's canonical v4 Swap history. Hidden reversals restart
-   the 15-minute window; uninterrupted confirmation becomes permanently eligible.
+   the 30-second window; uninterrupted confirmation becomes permanently eligible.
 7. **ETH/USD availability:** the ownerless `SinjohV3EthUsdOracle` derives ETH/USD
    from the canonical WETH/USDG v3 pool using a full 15-minute TWAP, a 5% maximum
    spot/TWAP deviation, and a `1e18` minimum raw-liquidity floor.
@@ -49,7 +49,7 @@ proceeds, change bands, or bypass the immutable 15-minute requirement.
 | Launch identity | Immutable Pons v2 record plus token self-attestation; only `PoolCreated`; native ETH only | Passed locally and on live fork |
 | Pool identity | Reconstructed `PoolKey`/`PoolId`; pinned StateView and PoolManager | Passed locally and on live fork |
 | ETH/USD | Canonical WETH/USDG v3 pool; 15-minute TWAP; spot deviation and liquidity checks | Passed locally and on live fork |
-| Band crossing | Live v4 spot plus byte-identical archive/event replay; every reversal resets the 15-minute window; final confirmation has no expiry | Hidden reversal passed locally; delayed settlement passed on live fork |
+| Band crossing | Live v4 spot plus byte-identical archive/event replay; every reversal resets the 30-second window; final confirmation has no expiry | Hidden reversal passed locally; delayed settlement passed on live fork |
 | Creator inventory | Exact transfer delta; fee-on-transfer rejected; approvals cleared | Passed |
 | v4 actions | Core constructs pool, ticks, liquidity, recipient, hook, and action payloads | Passed with real Pons hook |
 | Native proceeds | Only canonical PoolManager may send ETH; exact delta is wrapped into WETH | Passed with real PoolManager |

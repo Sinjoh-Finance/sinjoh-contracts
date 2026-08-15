@@ -45,7 +45,7 @@ holder can voluntarily burn their own tokens before activation.
    exact 1% protocol fee, and creator snapshotting.
 4. Rejection of WETH-quoted records until the live Pons v2 factory supports them.
 5. The full ten-band Pons v2 create-and-fund batch using canonical v4 StateView.
-6. Archive/event-confirmed crossing, rejection before the immutable 15-minute
+6. Archive/event-confirmed crossing, rejection before the immutable 30-second
    delay, hidden-reversal resets, and permanent eligibility after confirmation.
 
 The mock PositionManager rejects the test if Funding Bands supplies the wrong
