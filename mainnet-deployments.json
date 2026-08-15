@@ -54,54 +54,66 @@
   "currentInfrastructure": {
     "fundingBands": {
       "deployedAt": "2026-08-15",
-      "sourceCommit": "7b42c164aebc01a3eeba40a75f7655eee9876c25",
+      "sourceCommit": "036972edec6b07a2f867bbe1582d3e51aaae0a65",
       "deployer": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f",
       "governance": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f",
       "manager": {
-        "address": "0xf89eCD487ce35a63F819669285dFd157cBB08e9d",
-        "deploymentTransaction": "0x099b692b326ae8bcd8d8388b00b6bf48d541224e59d5198325bf0fb318bfc7fd",
-        "deploymentBlock": 37179852,
-        "runtimeCodeHash": "0x83d03d1e58d8bb7151ef8a794e9b4b0134fbce49b5dcada23ce084a2c3f06212",
+        "address": "0x49cCBaF51a141f726Ed8010612fd541cE8d81023",
+        "deploymentTransaction": "0xf8cc28db48484df8657aed4b503c0b7031fd31c11b685fc92767c1b9f5958f69",
+        "deploymentBlock": 37220865,
+        "runtimeCodeHash": "0x7d52072593c645aa9eef53dc612bc8be076122f3181e0c5e2ae318646d5578f5",
         "confirmationPeriodSeconds": 15,
         "settlementDelaySeconds": 15
       },
       "oracle": {
-        "address": "0x1D7caD3aa3709fAe886cd83aeec88B29b1DfD391",
-        "deploymentTransaction": "0x0f9a8ac1b3efbcaa428d18f4dfd57ed1cc47bc167078502f871c2437ec188299",
-        "deploymentBlock": 37179643,
+        "address": "0x09978409A32B7a8F574D2858c9981456E63CC65E",
+        "deploymentTransaction": "0x34fefe5859b1365fecc3fc508ecb19042d009503f42e0c42ad481d9ff60088b0",
+        "deploymentBlock": 37220681,
         "runtimeCodeHash": "0x0f34766397d79c63a443067d266f6cddce1107ad410fc75f68293c0386412bb7",
         "twapWindowSeconds": 900,
         "maxSpotDeviationBps": 500
       },
       "ponsV2Verifier": {
-        "address": "0xEC29c101FD7267BE5E25b86b22ff3F79B0AB1253",
-        "deploymentTransaction": "0x1f82e94bcb0aa1057b13669ebc71b10fd38eeb901b7d630d63cef770fbcd2095",
-        "deploymentBlock": 37179671,
-        "runtimeCodeHash": "0x9ad6064c172e39393fc8fd44ca59d9d72910afe770277b8b500b0529ad3eb96c"
+        "address": "0xeE29bf87Fa7e4b9336D40D429874d3d9b0a01304",
+        "deploymentTransaction": "0x816b25c6f05ac1b94c9e5bf40d1de3f572e320d0c69204f1c87f00551c2ab677",
+        "deploymentBlock": 37220707,
+        "runtimeCodeHash": "0x34be3e111f42753bca0b3ee18c9f753d49c7e876329fb8ecacb1bdfd16402ef1"
       },
       "ponsV2Guard": {
-        "address": "0xE7359257F3e879A4bCc8625B7e415977A2e48c46",
-        "deploymentTransaction": "0xe45bfe360757a22f952dc2b1a865f086fda8887184f8ee1d090838b865e2838c",
-        "deploymentBlock": 37179760,
+        "address": "0x7078b0b68293217678f9B8e0A2AfA8eC26eF149a",
+        "deploymentTransaction": "0x61ddba7648f7a752f87ed6f91931cb901e4ed396bbe1b5b3c05f4e67dc9095bc",
+        "deploymentBlock": 37220772,
         "runtimeCodeHash": "0x08599108bd65ee9d3f87e6431dd3e6fa5ad1e25cf44cb597041a35836c79bc39",
         "observer": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f",
         "confirmationPeriodSeconds": 15
       },
       "launchEscrow": {
-        "address": "0xc0CAE37F3426E658ae64b720b5b94CC6b2bc470b",
-        "deploymentTransaction": "0x5ef75e7abab13a6159b30715deb22674e374b7d8444eae159ce4cf767f772745",
-        "deploymentBlock": 37179717,
-        "runtimeCodeHash": "0xdfa0af0f2b665d5d6bd0044a7ce988f3660f7e192ae32b2466c96fe8c16b44e5"
+        "address": "0x1b1C878f5D7F46159Dc4aE34405a6b36631DFA23",
+        "deploymentTransaction": "0x43e34824c7c91f54083027ca2ab66b2b3ec38c388683bc98b3b1bba3d2981ce8",
+        "deploymentBlock": 37220736,
+        "runtimeCodeHash": "0x449131c16711cac5a63a0c0c92a1838c0c6ce96bf86337a107a44f16dd320a4a"
+      },
+      "subjectSellAdapter": {
+        "address": "0x13Aa34682F130105E363bE6aAA43d4421EB3c961",
+        "deploymentTransaction": "0x6ae391c1650a24d2c8e6747a8654f89b67c7cb608cc8c7a3ff905d97effeb22e",
+        "deploymentBlock": 37220872,
+        "runtimeCodeHash": "0x12f31d5a91362e4f5237365bb001b37d612b7f4bfc5a83e373311bf5edf2fdc7"
+      },
+      "subjectPriceGuard": {
+        "address": "0x8a9f9cB3e4523A973F243E81d248Fa4F3e7c2582",
+        "deploymentTransaction": "0x160b526c4d1819093772f387762f81bb4ddafc0257cce3603f2b7b19ddcee1da",
+        "deploymentBlock": 37220896,
+        "runtimeCodeHash": "0x37b39d9a90abd782d8062309d5cf027dd9425cd7537e53e9b2eb262b355e2dd0"
       },
       "fundingBandMath": {
-        "address": "0x14d467061B4e9a63B9ef20dd2De2dCfce33b6EB7",
-        "deploymentTransaction": "0x90296d368c76d040938636ed9af94dc1857f62d236fd02bdb052e700017b894d",
-        "deploymentBlock": 37179780
+        "address": "0x9E421c5B72f3950333420C5749381f61b96436b8",
+        "deploymentTransaction": "0xd53907742f5f8816d37a826ef9e22388d16af7701280f6d02bfdf6f152a65e47",
+        "deploymentBlock": 37220794
       },
       "fundingBandV4": {
-        "address": "0x40BE69D2eAE2eE6931BDc6ac2De7CC9c0a3c2114",
-        "deploymentTransaction": "0x26f3870c9d45b0ce958886a4941c48965926f03c96cce70d3d1adb18f6047ee8",
-        "deploymentBlock": 37179803
+        "address": "0x49D3C913844bdAF3960Db4738ED2B101E67986D6",
+        "deploymentTransaction": "0x037547de8a8ac8d3b20aa3e8f4cfffeb6bd70fcca301b0de50b62fb60f1622e5",
+        "deploymentBlock": 37220817
       },
       "v4Infrastructure": {
         "stateView": "0xF3334192D15450CdD385c8B70e03f9A6bD9E673b",
@@ -110,8 +122,8 @@
         "poolManagerRuntimeCodeHash": "0xbd3881180b547f5fe817545743cfb4343e96b1bc6640dcd70c106b0066e95626"
       },
       "bindings": {
-        "managerToEscrowTransaction": "0x83aae4a3ab3b8b75a705079dc65eb57db1b5ef8d5c6bc54493698e0e34ffeb22",
-        "adapterFactoryToEscrowTransaction": "0x8696697d0bab9fc0ab87dcf8a4fea5cef62fe478a412e2ce78a8e3081fb0ddea"
+        "managerToEscrowTransaction": "0xd3616efb14c9ad9734464f29dbe5e022a2c96c010c409fa410de4a743629e982",
+        "adapterFactoryToEscrowTransaction": "0x31b1d118d81a99a16e7969280c85ae3e6782d52cbe938fc5f69540b2fb0d7c30"
       },
       "operations": {
         "guardService": "sinjoh-funding-bands-guard",
@@ -313,31 +325,31 @@
       "purpose": "SinjohPonsV1Adapter implementation, self-deployed by the adapter factory constructor."
     },
     "ponsV2AdapterFactory": {
-      "address": "0x6B6140583b99F8a1D4Ec3d70Dd0A3B6C9b19C139",
-      "deploymentTransaction": "0xbb66e696b41f0f9837f37b553cfd2c43b0c7b16349cb20233095cfa8690d0e63",
-      "deploymentBlock": 37179238,
-      "runtimeCodeHash": "0xa0347a7dc6626bd430ec42fda4bd5031064d65e20aa15c2d747557aad03779ea",
+      "address": "0x6b3862cd05478355e0230eeDBa71a321f0c776bD",
+      "deploymentTransaction": "0xab6a6af02ebba8de8f818dd43bc39fbe5686fa63fc81801d7877f83165d26e01",
+      "deploymentBlock": 37220639,
+      "runtimeCodeHash": "0xdbc65e168692f0b13e64deb9287f6418daf737322cd68b8ded9c8f01f2ddbc28",
       "purpose": "Deploys deterministic per-launch SinjohPonsV2Adapter clones and atomically escrows configured first-buy inventory for Funding Bands.",
       "verified": {
-        "implementation": "0x5f130500E7256DcA9828a47De5ffe05E8cf1AF76",
+        "implementation": "0xD6105319e1a92E28184EF42B225dbA35181C847f",
         "launchFactory": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
         "feeEscrow": "0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e",
         "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
         "deploymentChainId": 4663,
-        "fundingBandsEscrow": "0xc0CAE37F3426E658ae64b720b5b94CC6b2bc470b",
-        "adapterRuntimeCodeHash": "0x84ab9007cf56a3fa606c44fcbc026bcb97cbee367c1910d2c247db54b0b67819",
+        "fundingBandsEscrow": "0x1b1C878f5D7F46159Dc4aE34405a6b36631DFA23",
+        "adapterRuntimeCodeHash": "0x9107f9e6ff06df7d1657bacb4af07a7cb021de85e972fd0a9dd47f7f3b330f83",
         "binder": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f"
       }
     },
     "ponsV2AdapterImplementation": {
-      "address": "0x5f130500E7256DcA9828a47De5ffe05E8cf1AF76",
-      "deploymentTransaction": "0xbb66e696b41f0f9837f37b553cfd2c43b0c7b16349cb20233095cfa8690d0e63",
-      "deploymentBlock": 37179238,
-      "runtimeCodeHash": "0xdb9ed1b5f88d05195e2d22932e1f11929937829f6ca0bf90bfeb05a098a3cd23",
+      "address": "0xD6105319e1a92E28184EF42B225dbA35181C847f",
+      "deploymentTransaction": "0xab6a6af02ebba8de8f818dd43bc39fbe5686fa63fc81801d7877f83165d26e01",
+      "deploymentBlock": 37220639,
+      "runtimeCodeHash": "0xa405d093ff68caf9db6a58d7020398c24d2e82a00599635758c039ffd326a5f9",
       "purpose": "SinjohPonsV2Adapter implementation, initialized and self-deployed by the adapter factory constructor.",
       "verified": {
         "initialized": true,
-        "adapterFactory": "0x6B6140583b99F8a1D4Ec3d70Dd0A3B6C9b19C139"
+        "adapterFactory": "0x6b3862cd05478355e0230eeDBa71a321f0c776bD"
       }
     },
     "ponsV2BuybackAdapter": {

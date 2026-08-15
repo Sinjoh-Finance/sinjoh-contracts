@@ -444,7 +444,12 @@ contract MockPoolManager {
 
     function take(address currency, address to, uint256 amount) external {
         require(unlocked, "ManagerLocked");
-        MockERC20(currency).mint(to, amount);
+        if (currency == address(0)) {
+            (bool sent,) = payable(to).call{ value: amount }("");
+            require(sent, "NativeTransferFailed");
+        } else {
+            MockERC20(currency).mint(to, amount);
+        }
     }
 
     receive() external payable { }
