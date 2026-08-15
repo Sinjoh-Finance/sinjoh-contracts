@@ -54,52 +54,53 @@
   "currentInfrastructure": {
     "fundingBands": {
       "deployedAt": "2026-08-14",
-      "sourceCommit": "47ca8b460588e3d2c8b780838e813bc8e3503661",
+      "sourceCommit": "ffb5aedf577a7566335273da901b7ab222ce66c4",
       "deployer": "0x3afCeD430483023FA308a3c1Ebc79848e446495D",
       "governance": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f",
       "manager": {
-        "address": "0xe0bab596fe17dD8d9381Ce3dfcB121c125Ca72BF",
-        "deploymentTransaction": "0x01b127d391ddb8d3f2c3f08dba45108edf152a0ae96e98fd748a1f3bc9a536ae",
-        "deploymentBlock": 36609203,
-        "runtimeCodeHash": "0x6ad2dfa2fe31757ba74a65eaa3da5e7769a120f2c57c607e793d54a57fcc6c58"
+        "address": "0xD3E5a97374F3a88488580fEa7D1dF47DF757edcb",
+        "deploymentTransaction": "0xf62ba2223a8be800c384688de41e06cdd1cf675b315502a4dbbb40e2076dabaa",
+        "deploymentBlock": 36680180,
+        "runtimeCodeHash": "0xab19a59d73e2582569fd32712ac98c8dca93abc9355cfa1421035169f3b73052",
+        "confirmationPeriodSeconds": 900
       },
       "oracle": {
-        "address": "0x9F7c45419dc06fA60F05D7Ab0e4Fe9Ad4629CDbD",
-        "deploymentTransaction": "0x2ff2701d52ad9846ffbef56758b80c303b3027469164eb6268700c617b6a8834",
-        "deploymentBlock": 36609083,
-        "runtimeCodeHash": "0x8addf27ee458050d0b3373a2216390872e3da37d0385fccc7e8bc852f6dc9675",
-        "quoteSigner": "0xd4f0d3105505C3533A20f13029914f63bb1b233a"
+        "address": "0x535347FEB13E1E21A26Be187f56115A74EA177A5",
+        "deploymentTransaction": "0x803c29ef0d7a06acde83e151746be05c52ca7a7e5ee2080f1a530325ded0c308",
+        "deploymentBlock": 36680060,
+        "runtimeCodeHash": "0x0f34766397d79c63a443067d266f6cddce1107ad410fc75f68293c0386412bb7",
+        "twapWindowSeconds": 900,
+        "maxSpotDeviationBps": 500
       },
       "ponsV2Verifier": {
-        "address": "0xC896d2348Eb2d1589bA10ADfd2a821E1F0Ca5fBb",
-        "deploymentTransaction": "0x08447e9cc8292e2167b6016d892cb96268ea0d7be7eec71aba2caed1d91ee6ef",
-        "deploymentBlock": 36609088,
-        "runtimeCodeHash": "0xdd245c2ec1f159095b9722ab7f174b96bb768d6df36f670b8f048c353db9f6a0"
+        "address": "0x8aDA1ccCd86f8f3f7230efDb5745a16DE2C1FB4A",
+        "deploymentTransaction": "0xdf65fe3cdbd13faf948a9c6de2878336d98988126972234c60ff4f98de8a3321",
+        "deploymentBlock": 36680082,
+        "runtimeCodeHash": "0x9b50af4fcc7807538d9e8a3a8333b678e34ccc726d78b799d1779f5b9b423d3d"
       },
       "ponsV2Guard": {
-        "address": "0x0E84d6607c3287A09a4a192eC133892eb1dAd2A5",
-        "deploymentTransaction": "0x88a71cd743fc290adbbfc5bc1305158dafa6d578885ec6e2d9087de962f0a40c",
-        "deploymentBlock": 36609112,
-        "runtimeCodeHash": "0x345988aa09a964d7d6600cf23b1cc31765d489c07a70f2f87f005e0f48d04f3c",
-        "quoteSigner": "0xca8179951697d6caa6cF1Be293c838aF90475ACB",
-        "twapWindowSeconds": 900
+        "address": "0xa71595c790ba42b855C8233c81185C7348E917BD",
+        "deploymentTransaction": "0x667ffd0f4978a1c0928ae4a990d4b0902c747a668eeaf555331ff48e59b4f1bf",
+        "deploymentBlock": 36680105,
+        "runtimeCodeHash": "0x4e8578734900bc5f8624c9db2fe31aeeec83a77ed4189e4b8aacb961e4d05374",
+        "observer": "0x3afCeD430483023FA308a3c1Ebc79848e446495D",
+        "confirmationPeriodSeconds": 900
       },
       "fundingBandMath": {
-        "address": "0xB19e068d1f105f4Ed4f42DD38048c956192bfBB1",
-        "deploymentTransaction": "0xb333cb1fbdd8b74eb9033e9e65d7559485ac42e8c211bd95dffef24a7bc68a94",
-        "deploymentBlock": 36609134
+        "address": "0x6024CE41915B5799c478e0A28d56664142782868",
+        "deploymentTransaction": "0xdd0aa074449b642170233b5990c7796b28b8345fcdb9e69388f0fa535c3e6d75",
+        "deploymentBlock": 36680127
       },
       "fundingBandV4": {
-        "address": "0xf4Fc38eC6fcf607A552442d5e448df6Dd86ADCAa",
-        "deploymentTransaction": "0x6860117c30b8ba711f464be2efe622a81031d2ac54c6489346f83a135b9ed8ff",
-        "deploymentBlock": 36609157
+        "address": "0x4f7c02C0704A690A34dEe9E0af35b1F8f9C824d1",
+        "deploymentTransaction": "0xb2729b007379c6d497081512d62e5b4fe74053e00c4e8047d6b86ac9e4f05eab",
+        "deploymentBlock": 36680149
       },
       "operations": {
         "guardService": "sinjoh-funding-bands-guard",
-        "oracleService": "sinjoh-funding-bands-oracle",
-        "oraclePublisher": "0xEB30E8D9AB989b30339686A1B278A3CB53fAADd8",
-        "oraclePublisherFundingTransaction": "0x64379b0a418ddcf7a60f7b618475eacc3ffee3ca0717ea154249096dd174f197",
-        "note": "Guard and oracle quote signers are separate, non-custodial authorities. The low-value oracle publisher submits signed observations and has no governance role."
+        "keeper": "0x3afCeD430483023FA308a3c1Ebc79848e446495D",
+        "observerIntervalSeconds": 60,
+        "note": "The keeper independently compares finalized Alchemy archive state with Envio history, records every threshold transition, and executes eligible lifecycle actions. The onchain oracle is ownerless."
       }
     },
     "letscashAdapterFactory": {
