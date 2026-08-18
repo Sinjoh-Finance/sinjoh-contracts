@@ -16,6 +16,7 @@ deployable and auditable Solidity packages plus offchain automation:
 | [`sinjoh-revenue-collector`](./sinjoh-revenue-collector) | Provides a stable protocol-revenue endpoint and forwards assets to a governance-selected downstream processor without charging again. |
 | [`sinjoh-treasury-vault`](./sinjoh-treasury-vault) | Custodies treasury assets under one swappable governor address, paired with a 2-of-3 joint-account control system as the Standard governance module. |
 | [`sinjoh-keeper`](./sinjoh-keeper) | Automates permissionless routing and provides the isolated deterministic airdrop snapshot, attestation, and push workflow. |
+| [`sinjoh-sdk`](./sinjoh-sdk) | TypeScript packages for typed ABIs, verified deployment manifests, byte-exact config codecs, deterministic Merkle trees, launch planning, and a read-only MCP agent surface. |
 | [`sinjoh-raffle-rewards`](./sinjoh-raffle-rewards) | Pays holders by lottery: hourly VRF draws with a pre-reserved WETH prize and optional per-slot swaps into an approved mystery stock. |
 | [`sinjoh-randomness`](./sinjoh-randomness) | Verifiable randomness from an ECVRF proof checked on-chain, for a chain with no VRF deployment. |
 | [`sinjoh-indexer`](./sinjoh-indexer) | Projects factory and protocol events through one dynamically registered Envio indexer. |
@@ -93,6 +94,17 @@ npm test
 npm run build
 ```
 
+Build and test the SDK workspace independently:
+
+```sh
+cd sinjoh-sdk
+npm ci
+npm run typecheck
+npm test
+npm run build
+npm run pack:check
+```
+
 Validate the Envio indexer independently:
 
 ```sh
@@ -109,6 +121,7 @@ npm test
 - [`UI-NOTES.md`](./UI-NOTES.md): UI, indexer, keeper, and end-to-end wiring handoff
 - [`INFRASTRUCTURE.md`](./INFRASTRUCTURE.md): provisioned cloud resources, runtime variables, and remaining credential gates
 - [`SELF-AUDIT.md`](./SELF-AUDIT.md): pre-audit review of the raffle and randomness packages
+- [`sinjoh-sdk/README.md`](./sinjoh-sdk/README.md): SDK quick start, package map, safety model, and release status
 - [`TESTNET_DEPLOYMENTS.md`](./TESTNET_DEPLOYMENTS.md): verified Robinhood testnet deployments
 - [`SJTEST_TESTNET_REPORT.md`](./SJTEST_TESTNET_REPORT.md): completed SJTEST test launch
 - Each package's `SPEC.md`: normative behavior and security requirements
