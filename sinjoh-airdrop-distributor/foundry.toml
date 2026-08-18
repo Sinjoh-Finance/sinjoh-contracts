@@ -1,4 +1,5 @@
 [profile.default]
+fs_permissions = [{ access = "read-write", path = "./test/fixtures" }]
 src = "src"
 test = "test"
 script = "script"
