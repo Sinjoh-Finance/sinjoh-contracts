@@ -115,9 +115,12 @@ npm test
 
 ## Release state
 
-The earlier Robinhood testnet sweep, including the revenue collector and all three
-1% fee paths, completed successfully. The source now includes cumulative
-fee/allocation accounting and deterministic router tranches; because the contracts
-are immutable, that hardened revision must receive fresh testnet deployments and a
-new end-to-end sweep before it becomes the release candidate. Mainnet has not been
-deployed.
+Core infrastructure is deployed on Robinhood Chain mainnet (chain `4663`) as of
+2026-07-30, with funding bands following on 2026-08-15. The authoritative record
+of every deployed address, runtime code hash, and third-party dependency is
+[`mainnet-deployments.json`](./mainnet-deployments.json)
+(`status: "core-infrastructure-deployed"`, release candidate). Pons v1 and
+Pons v2 integrations are live; Flap, pools.trade, and letscash.fun support is
+deployed but remains behind deployment-manifest gates. The earlier Robinhood
+testnet deployments predate the hardened revision and are historical validation
+data only.
