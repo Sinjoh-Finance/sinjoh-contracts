@@ -1,0 +1,21 @@
+title = "Sinjoh secret-scanning policy"
+minVersion = "8.25.0"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Public EVM addresses assigned to token/address fields are not credentials"
+targetRules = ["generic-api-key"]
+regexTarget = "line"
+regexes = [
+  '''(?i)\b(token|address|asset|subject|funder|distributor)\b.{0,32}["']?0x[0-9a-f]{40}\b''',
+]
+
+[[allowlists]]
+description = "Documentation-only API key prefixes are not usable credentials"
+targetRules = ["generic-api-key"]
+regexTarget = "line"
+regexes = [
+  '''key_prefix\s*=\s*'sinjoh_[a-z0-9]+'\s*;''',
+]

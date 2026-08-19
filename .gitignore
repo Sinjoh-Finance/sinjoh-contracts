@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 *.log
+**/node_modules/
 
 .gstack/
 .agent-research/cache/
