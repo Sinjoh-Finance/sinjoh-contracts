@@ -1,0 +1,44 @@
+name: Bug report
+description: Report reproducible incorrect behavior in the source or tooling.
+title: "bug: "
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Do not report security vulnerabilities here. Use the repository's
+        private vulnerability reporting workflow instead.
+  - type: input
+    id: package
+    attributes:
+      label: Affected package
+      description: Name the Foundry package or repository tool.
+      placeholder: sinjoh-fee-router
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Source revision
+      description: Provide the commit SHA or deployment tag.
+      placeholder: deploy/mainnet/...
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Observed and expected behavior
+      description: Explain what happened and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Include the smallest deterministic test or command sequence.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include Foundry and compiler versions and whether RPC access was used.

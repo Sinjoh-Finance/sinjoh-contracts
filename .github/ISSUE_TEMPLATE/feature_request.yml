@@ -1,0 +1,25 @@
+name: Feature request
+description: Propose a scoped improvement to the public contracts or tooling.
+title: "feature: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the concrete user or integrator problem.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Describe the desired behavior and affected package.
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Security and deployment impact
+      description: Note new trust assumptions, bytecode changes, migrations, or deployment effects.
+    validations:
+      required: true
