@@ -9,6 +9,12 @@ public issue to report a suspected vulnerability; follow
 Install Foundry and the Solidity compiler required by each package. The active
 Sinjoh packages pin Solidity `0.8.28` in their Foundry configuration.
 
+Dependencies under `lib/` are vendored for Solidity compilation. Their upstream
+JavaScript package-manager lockfiles are intentionally excluded because this
+repository neither installs nor executes those toolchains. Do not restore a
+vendored lockfile unless the corresponding JavaScript tooling becomes part of a
+documented, tested build path.
+
 Run the deterministic repository gate before opening a pull request:
 
 ```sh
