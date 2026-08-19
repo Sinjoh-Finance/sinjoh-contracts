@@ -56,6 +56,12 @@ runtime-hash registry. [`DEPLOYMENT_PROVENANCE.md`](./DEPLOYMENT_PROVENANCE.md)
 documents the verification method. Every known mainnet generation has an
 annotated `deploy/mainnet/*` tag; those tags must never be moved or deleted.
 
+All 72 source-verifiable deployment contracts are published on Robinhood Chain
+Blockscout with successful creation-bytecode matches and no changed-bytecode
+results. See [`BLOCKSCOUT_VERIFICATION.md`](./BLOCKSCOUT_VERIFICATION.md) and
+the machine-readable
+[`blockscout-verification.json`](./blockscout-verification.json).
+
 History filtering changes commit IDs even when source trees are byte-identical.
 [`deployment-provenance.json`](./deployment-provenance.json) records both the
 original `sinjoh-legacy` commit and its rewritten commit in this repository.
