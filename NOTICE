@@ -1,0 +1,13 @@
+Sinjoh Contracts
+Copyright 2026 Sinjoh-Finance contributors
+
+Sinjoh-owned work is licensed under the Apache License, Version 2.0.
+
+This repository also contains third-party interfaces, utilities, test
+fixtures, and vendored dependencies. Those components retain the licenses
+identified by their file-level SPDX declarations and accompanying LICENSE or
+COPYING files. In particular, the vendored dependency trees include software
+from OpenZeppelin, Uniswap, Solmate, and forge-std contributors.
+
+The Sinjoh name and branding are not licensed for trademark use by the Apache
+License.

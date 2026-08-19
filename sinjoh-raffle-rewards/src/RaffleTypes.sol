@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.28;
 
 /// @notice Types shared by the raffle and its factory. Declaration only; no logic, no state.

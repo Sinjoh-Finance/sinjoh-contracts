@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.28;
 
 import { ISinjohSink } from "sinjoh-fee-router/src/interfaces/ISinjohSink.sol";

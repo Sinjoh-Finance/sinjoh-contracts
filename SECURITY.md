@@ -1,9 +1,9 @@
 # Security Policy
 
 Do not disclose suspected vulnerabilities in public issues, discussions, or
-pull requests. Report them privately to the repository owner through GitHub's
-private vulnerability reporting once it is enabled. Until then, contact a
-Sinjoh organization owner directly and include:
+pull requests. Use GitHub's private vulnerability reporting from the
+repository's **Security** tab. If that workflow is unavailable, contact a
+Sinjoh organization owner privately and include:
 
 - the affected package and source revision;
 - a minimal reproduction or proof of concept;

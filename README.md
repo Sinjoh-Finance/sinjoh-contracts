@@ -1,12 +1,16 @@
 # Sinjoh Contracts
 
+[![CI](https://github.com/Sinjoh-Finance/sinjoh-contracts/actions/workflows/ci.yml/badge.svg)](https://github.com/Sinjoh-Finance/sinjoh-contracts/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
+
 Solidity contracts, integration tests, deployment records, and provenance for
 the Sinjoh protocols on Robinhood Chain (chain ID `4663`). Each protocol is an
 independent Foundry package with pinned compiler settings and its own tests.
 
-> **Release status:** private review candidate. The source is `UNLICENSED` and
-> must remain private until a public license is selected, security review is
-> complete, and the repository owner explicitly approves publication.
+> **Release status:** public source release under the Apache License 2.0.
+> Deployment provenance is verified, but publication is not an independent
+> security audit. Review [`AUDITS.md`](./AUDITS.md) before relying on deployed
+> or source code.
 
 ## Packages
 
@@ -66,9 +70,22 @@ Security reports should be sent privately as described in
 [`SECURITY.md`](./SECURITY.md). Do not open a public issue for a suspected
 vulnerability.
 
+The repository's audit status and the limits of its provenance evidence are
+recorded in [`AUDITS.md`](./AUDITS.md).
+
 ## Repository lineage
 
 This repository was history-filtered from private tag
 `provenance/pre-reorganization-2026-08-18` in
 `Sinjoh-Finance/sinjoh-legacy`. See [`MIGRATION.md`](./MIGRATION.md) for the
 scope and verification contract.
+
+## Contributing and license
+
+Contributor setup, testing, and provenance rules are documented in
+[`CONTRIBUTING.md`](./CONTRIBUTING.md).
+
+Sinjoh-owned work is licensed under the [Apache License 2.0](./LICENSE).
+Third-party and vendored components retain the licenses identified by their
+file-level SPDX declarations and accompanying license files; see
+[`NOTICE`](./NOTICE).

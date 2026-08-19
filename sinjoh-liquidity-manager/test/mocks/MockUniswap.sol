@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.28;
 
 import { Currency, CurrencyLibrary } from "@uniswap/v4-core/src/types/Currency.sol";
