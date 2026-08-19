@@ -130,8 +130,10 @@ contract SinjohPonsV2FundingBandsSubjectPriceGuard is ISinjohPriceGuard {
         uint256 referencePriceX128;
         for (uint8 i; i < account.bandCount; ++i) {
             IFundingBandsSubjectFloor.Band memory band = manager.getBand(subject, i);
-            if (band.status >= STATUS_SETTLED && band.lowerWethPerSubjectX128 > referencePriceX128) referencePriceX128 =
-            band.lowerWethPerSubjectX128;
+            if (band.status >= STATUS_SETTLED && band.lowerWethPerSubjectX128 > referencePriceX128)
+            {
+                referencePriceX128 = band.lowerWethPerSubjectX128;
+            }
         }
         if (referencePriceX128 == 0) revert NoSettledBand();
         minimum = _mulDiv(amountIn, referencePriceX128, Q128) * EXECUTION_BPS / BPS;

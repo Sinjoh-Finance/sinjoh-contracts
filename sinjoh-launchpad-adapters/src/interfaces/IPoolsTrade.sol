@@ -100,8 +100,7 @@ interface IPTBeneficiaryVault {
     /// @notice Pays the position's attributed amounts to the caller, which must
     /// be the owner of the beneficiary ("FEEB") NFT for `tokenId`. A zero
     /// attributed amount pays nothing and does not revert.
-    function claim(uint256 tokenId, uint256 minCurrency0Amount, uint256 minCurrency1Amount)
-        external;
+    function claim(uint256 tokenId, uint256 minCurrency0Amount, uint256 minCurrency1Amount) external;
     /// @dev solady ERC721: reverts for a nonexistent token.
     function ownerOf(uint256 tokenId) external view returns (address);
     function positionManager() external view returns (address);
@@ -195,10 +194,7 @@ interface IPTLBPStrategy {
     /// failure the raise and LP reserve are recovered to the configured
     /// `recipient` and `MigrationFailed` is emitted instead of reverting.
     function migrate(address initializer) external;
-    function initializers(address initializer)
-        external
-        view
-        returns (PTMigratorParameters memory);
+    function initializers(address initializer) external view returns (PTMigratorParameters memory);
     function registeredPoolIds(bytes32 poolId) external view returns (address initializer);
     function poolManager() external view returns (address);
     function positionManager() external view returns (address);

@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { RaffleTypes } from "raffle/src/RaffleTypes.sol";
-import { SinjohRaffleRewards } from "raffle/src/SinjohRaffleRewards.sol";
-import { RaffleTree } from "raffle/test/RaffleTree.sol";
-import { MockArbSys } from "raffle/test/mocks/MockArbSys.sol";
-import { MockRandomness } from "raffle/test/mocks/MockRandomness.sol";
+import {RaffleTypes} from "raffle/src/RaffleTypes.sol";
+import {SinjohRaffleRewards} from "raffle/src/SinjohRaffleRewards.sol";
+import {RaffleTree} from "raffle/test/RaffleTree.sol";
+import {MockArbSys} from "raffle/test/mocks/MockArbSys.sol";
+import {MockRandomness} from "raffle/test/mocks/MockRandomness.sol";
 
 interface Vm {
     function createSelectFork(string calldata urlOrAlias) external returns (uint256);
-    function envOr(string calldata name, string calldata defaultValue)
-        external
-        returns (string memory);
+    function envOr(string calldata name, string calldata defaultValue) external returns (string memory);
     function etch(address target, bytes calldata code) external;
     function deal(address account, uint256 newBalance) external;
     function prank(address sender) external;
@@ -69,15 +67,10 @@ struct AgnosticRouterConfig {
 }
 
 interface IAgnosticRouterFactory {
-    function predictLaunchpadAddress(address creator, bytes32 userSalt)
+    function predictLaunchpadAddress(address creator, bytes32 userSalt) external view returns (address);
+    function deployForLaunchpad(address creator, bytes32 userSalt, AgnosticRouterConfig calldata config)
         external
-        view
-        returns (address);
-    function deployForLaunchpad(
-        address creator,
-        bytes32 userSalt,
-        AgnosticRouterConfig calldata config
-    ) external returns (address router);
+        returns (address router);
 }
 
 interface IAgnosticRouter {
@@ -129,9 +122,7 @@ struct FlapNewTokenV6Params {
 
 interface IFlapAdapterFactoryLive {
     function predictAddress(address creator, bytes32 userSalt) external view returns (address);
-    function deploy(address creator, address router, bytes32 userSalt)
-        external
-        returns (address adapter);
+    function deploy(address creator, address router, bytes32 userSalt) external returns (address adapter);
 }
 
 interface IFlapAdapterLive {
@@ -156,20 +147,12 @@ interface IFlapPortalTrade {
         bytes permitData;
     }
 
-    function swapExactInput(ExactInputParams calldata params)
-        external
-        payable
-        returns (uint256 outputAmount);
+    function swapExactInput(ExactInputParams calldata params) external payable returns (uint256 outputAmount);
 }
 
 interface IRaffleFactoryLive {
-    function deployRaffle(bytes32 userSalt, RaffleTypes.Config calldata config)
-        external
-        returns (address raffle);
-    function predictRaffle(address creator, bytes32 userSalt, bytes32 configHash)
-        external
-        view
-        returns (address raffle);
+    function deployRaffle(bytes32 userSalt, RaffleTypes.Config calldata config) external returns (address raffle);
+    function predictRaffle(address creator, bytes32 userSalt, bytes32 configHash) external view returns (address raffle);
     function hashConfig(RaffleTypes.Config calldata config) external pure returns (bytes32);
 }
 
@@ -208,8 +191,7 @@ contract ProductionFlapRaffleForkTest {
     address internal constant AGNOSTIC_ROUTER_FACTORY = 0xA1F721a697Dd03a45f264F53bCBFd121212318eD;
     address internal constant FLAP_ADAPTER_FACTORY = 0x77748D07CAD323A7f6EFa54968aCF69de743be61;
     address internal constant FLAP_BUYBACK_ADAPTER = 0xf7d40EcD8cB38a43e898775bc382DB73B35B5574;
-    address internal constant FLAP_V2_LIQUIDITY_MANAGER =
-        0x4E330772F12955E752aa4Fd2ba6191d8bD7d782E;
+    address internal constant FLAP_V2_LIQUIDITY_MANAGER = 0x4E330772F12955E752aa4Fd2ba6191d8bD7d782E;
     address internal constant RAFFLE_FACTORY = 0xD030064fB83d14C97c22A6B63bF376552eBA7112;
     // Live Flap + chain constants.
     address internal constant PORTAL = 0x26605f322f7fF986f381bB9A6e3f5DAb0bEaEb09;
@@ -225,8 +207,7 @@ contract ProductionFlapRaffleForkTest {
     // A vanity salt already mined against the live Portal's CREATE2 domain
     // (sinjoh-launchpad-adapters' mainnet fork test); the resulting token
     // address is still unoccupied on mainnet.
-    bytes32 internal constant TOKEN_SALT =
-        0x3b26f5b3439bcb21fcc5112fc947d6d66a9d4bff284314d6d39e99b121f22ab5;
+    bytes32 internal constant TOKEN_SALT = 0x3b26f5b3439bcb21fcc5112fc947d6d66a9d4bff284314d6d39e99b121f22ab5;
     address internal constant PREDICTED_TOKEN = 0xB16B82bF5F5AA6E6cABC57402DA37E9308997777;
 
     address internal constant PROTOCOL_RECIPIENT = address(0xFEE1);
@@ -255,27 +236,21 @@ contract ProductionFlapRaffleForkTest {
 
         // 1-3. Every address the raffle's immutable exclusions need exists
         // before anything deploys.
-        address predictedAdapter = IFlapAdapterFactoryLive(FLAP_ADAPTER_FACTORY)
-            .predictAddress(address(this), bytes32("PROD_FLAP_ADAPTER"));
+        address predictedAdapter =
+            IFlapAdapterFactoryLive(FLAP_ADAPTER_FACTORY).predictAddress(address(this), bytes32("PROD_FLAP_ADAPTER"));
         address predictedRouter = IAgnosticRouterFactory(AGNOSTIC_ROUTER_FACTORY)
             .predictLaunchpadAddress(address(this), bytes32("PROD_FLAP_ROUTER"));
         address predictedPair = _predictFlapV2Pair(PREDICTED_TOKEN);
 
         // 4. The raffle deploys from the LIVE factory around addresses that do
         // not exist yet.
-        RaffleTypes.Config memory config =
-            _raffleConfig(_exclusions(predictedPair, predictedAdapter));
-        address predictedRaffle = IRaffleFactoryLive(RAFFLE_FACTORY).predictRaffle(
-            address(this),
-            bytes32("PROD_FLAP_RAFFLE"),
-            IRaffleFactoryLive(RAFFLE_FACTORY).hashConfig(config)
-        );
+        RaffleTypes.Config memory config = _raffleConfig(_exclusions(predictedPair, predictedAdapter));
+        address predictedRaffle = IRaffleFactoryLive(RAFFLE_FACTORY)
+            .predictRaffle(
+                address(this), bytes32("PROD_FLAP_RAFFLE"), IRaffleFactoryLive(RAFFLE_FACTORY).hashConfig(config)
+            );
         SinjohRaffleRewards raffle = SinjohRaffleRewards(
-            payable(
-                IRaffleFactoryLive(RAFFLE_FACTORY).deployRaffle(
-                    bytes32("PROD_FLAP_RAFFLE"), config
-                )
-            )
+            payable(IRaffleFactoryLive(RAFFLE_FACTORY).deployRaffle(bytes32("PROD_FLAP_RAFFLE"), config))
         );
         _require(address(raffle) == predictedRaffle, "raffle prediction failed");
         _require(raffle.isExcluded(PORTAL), "portal not excluded");
@@ -283,28 +258,21 @@ contract ProductionFlapRaffleForkTest {
 
         // 5-6. Router names the adapter and the raffle sink; adapter wires to
         // the router.
-        address router = IAgnosticRouterFactory(AGNOSTIC_ROUTER_FACTORY).deployForLaunchpad(
-            address(this),
-            bytes32("PROD_FLAP_ROUTER"),
-            _routerConfig(predictedAdapter, address(raffle))
-        );
+        address router = IAgnosticRouterFactory(AGNOSTIC_ROUTER_FACTORY)
+            .deployForLaunchpad(
+                address(this), bytes32("PROD_FLAP_ROUTER"), _routerConfig(predictedAdapter, address(raffle))
+            );
         _require(router == predictedRouter, "router prediction failed");
-        address adapter = IFlapAdapterFactoryLive(FLAP_ADAPTER_FACTORY).deploy(
-            address(this), router, bytes32("PROD_FLAP_ADAPTER")
-        );
+        address adapter =
+            IFlapAdapterFactoryLive(FLAP_ADAPTER_FACTORY).deploy(address(this), router, bytes32("PROD_FLAP_ADAPTER"));
         _require(adapter == predictedAdapter, "adapter prediction failed");
-        _require(
-            IFlapAdapterLive(adapter).predictSubject(TOKEN_SALT) == PREDICTED_TOKEN,
-            "token prediction failed"
-        );
+        _require(IFlapAdapterLive(adapter).predictSubject(TOKEN_SALT) == PREDICTED_TOKEN, "token prediction failed");
 
         // 7. Launch through the deployed adapter; it binds the router
         // atomically.
         bytes32 portalConfig = IFlapAdapterLive(adapter).portalConfigHash();
         _require(portalConfig == REVIEWED_PORTAL_CONFIG_HASH, "portal config drifted");
-        address subject = IFlapAdapterLive(adapter).launch(
-            _params(adapter), portalConfig, FLAP_FEE_RATE, 0
-        );
+        address subject = IFlapAdapterLive(adapter).launch(_params(adapter), portalConfig, FLAP_FEE_RATE, 0);
         _require(subject == PREDICTED_TOKEN, "launched token mismatch");
         _require(IAgnosticRouter(router).subject() == subject, "adapter did not bind router");
 
@@ -315,13 +283,9 @@ contract ProductionFlapRaffleForkTest {
         // permissionless pipeline into the raffle sink.
         vm.deal(TRADER, 3 ether);
         vm.prank(TRADER);
-        uint256 tokensOut = IFlapPortalTrade(PORTAL).swapExactInput{ value: 1 ether }(
+        uint256 tokensOut = IFlapPortalTrade(PORTAL).swapExactInput{value: 1 ether}(
             IFlapPortalTrade.ExactInputParams({
-                inputToken: address(0),
-                outputToken: subject,
-                inputAmount: 1 ether,
-                minOutputAmount: 1,
-                permitData: ""
+                inputToken: address(0), outputToken: subject, inputAmount: 1 ether, minOutputAmount: 1, permitData: ""
             })
         );
         _require(tokensOut != 0, "buy produced no tokens");
@@ -346,24 +310,19 @@ contract ProductionFlapRaffleForkTest {
         uint256 tickets = raffle.ticketsFor(IERC20Fork(subject).balanceOf(TRADER));
         _require(tickets != 0, "trader holds no tickets");
         _require(
-            raffle.ticketsFor(IERC20Fork(subject).balanceOf(PORTAL)) == 0
-                || raffle.isExcluded(PORTAL),
+            raffle.ticketsFor(IERC20Fork(subject).balanceOf(PORTAL)) == 0 || raffle.isExcluded(PORTAL),
             "launchpad could enter the raffle"
         );
         RaffleTypes.Leaf[] memory leaves = new RaffleTypes.Leaf[](1);
-        leaves[0] = RaffleTypes.Leaf({ holder: TRADER, tickets: tickets });
+        leaves[0] = RaffleTypes.Leaf({holder: TRADER, tickets: tickets});
 
         uint64 snapshotBlock = uint64(block.number - 4);
         bytes32 snapshotHash = keccak256(abi.encode("PROD_FLAP_SNAPSHOT", snapshotBlock));
         arbSys.setBlockNumber(block.number);
         arbSys.setBlockHash(snapshotBlock, snapshotHash);
-        (bytes32 root, uint256 totalTickets, RaffleTypes.ProofElement[][] memory proofs) =
-        RaffleTree.build(
+        (bytes32 root, uint256 totalTickets, RaffleTypes.ProofElement[][] memory proofs) = RaffleTree.build(
             RaffleTree.Params({
-                raffle: address(raffle),
-                chainId: block.chainid,
-                roundId: 1,
-                snapshotBlock: snapshotBlock
+                raffle: address(raffle), chainId: block.chainid, roundId: 1, snapshotBlock: snapshotBlock
             }),
             leaves
         );
@@ -375,10 +334,7 @@ contract ProductionFlapRaffleForkTest {
         uint256 paid = raffle.claim(1, 0, leaves[0], proofs[0]);
         _require(paid != 0, "winner paid nothing");
         _require(IERC20Fork(WETH).balanceOf(TRADER) - before == paid, "payout delta mismatch");
-        _require(
-            IERC20Fork(WETH).balanceOf(address(raffle)) >= raffle.liabilities(),
-            "raffle insolvent"
-        );
+        _require(IERC20Fork(WETH).balanceOf(address(raffle)) >= raffle.liabilities(), "raffle insolvent");
     }
 
     /// @dev The exact set lib/raffle-config.ts#raffleExclusionsForFlapLaunch
@@ -386,11 +342,7 @@ contract ProductionFlapRaffleForkTest {
     /// Portal (pre-graduation supply), the CREATE2-predicted V2 pair
     /// (post-graduation liquidity), the V2 liquidity manager and buyback
     /// adapter (transient balances), the adapter factory, and the adapter.
-    function _exclusions(address predictedPair, address adapter)
-        private
-        pure
-        returns (address[] memory sorted)
-    {
+    function _exclusions(address predictedPair, address adapter) private pure returns (address[] memory sorted) {
         address[] memory raw = new address[](6);
         raw[0] = PORTAL;
         raw[1] = predictedPair;
@@ -411,17 +363,13 @@ contract ProductionFlapRaffleForkTest {
     }
 
     function _predictFlapV2Pair(address subject) private pure returns (address) {
-        (address token0, address token1) =
-            subject < WETH ? (subject, WETH) : (WETH, subject);
+        (address token0, address token1) = subject < WETH ? (subject, WETH) : (WETH, subject);
         return address(
             uint160(
                 uint256(
                     keccak256(
                         abi.encodePacked(
-                            hex"ff",
-                            V2_FACTORY,
-                            keccak256(abi.encodePacked(token0, token1)),
-                            V2_PAIR_INIT_CODE_HASH
+                            hex"ff", V2_FACTORY, keccak256(abi.encodePacked(token0, token1)), V2_PAIR_INIT_CODE_HASH
                         )
                     )
                 )
@@ -429,11 +377,7 @@ contract ProductionFlapRaffleForkTest {
         );
     }
 
-    function _raffleConfig(address[] memory exclusions)
-        private
-        view
-        returns (RaffleTypes.Config memory config)
-    {
+    function _raffleConfig(address[] memory exclusions) private view returns (RaffleTypes.Config memory config) {
         config = RaffleTypes.Config({
             creator: address(this),
             attestor: address(this),
@@ -460,11 +404,7 @@ contract ProductionFlapRaffleForkTest {
         });
     }
 
-    function _params(address adapter)
-        private
-        pure
-        returns (FlapNewTokenV6Params memory params)
-    {
+    function _params(address adapter) private pure returns (FlapNewTokenV6Params memory params) {
         params.name = "Sinjoh Flap Raffle Rehearsal";
         params.symbol = "FRAFFLE";
         params.meta = "ipfs://sinjoh-flap-raffle-rehearsal";
@@ -500,11 +440,7 @@ contract ProductionFlapRaffleForkTest {
     {
         AgnosticAllocation[] memory allocations = new AgnosticAllocation[](1);
         allocations[0] = AgnosticAllocation({
-            destination: raffleSink,
-            bps: 10_000,
-            isSink: true,
-            creatorMayRepoint: false,
-            sinkConfig: ""
+            destination: raffleSink, bps: 10_000, isSink: true, creatorMayRepoint: false, sinkConfig: ""
         });
         AgnosticBucket[] memory buckets = new AgnosticBucket[](1);
         buckets[0] = AgnosticBucket({

@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { ILetsCashFactory } from "adapters/src/interfaces/ILetsCash.sol";
-import { RaffleTypes } from "raffle/src/RaffleTypes.sol";
-import { SinjohRaffleRewards } from "raffle/src/SinjohRaffleRewards.sol";
-import { RaffleTree } from "raffle/test/RaffleTree.sol";
-import { MockArbSys } from "raffle/test/mocks/MockArbSys.sol";
-import { MockRandomness } from "raffle/test/mocks/MockRandomness.sol";
+import {ILetsCashFactory} from "adapters/src/interfaces/ILetsCash.sol";
+import {RaffleTypes} from "raffle/src/RaffleTypes.sol";
+import {SinjohRaffleRewards} from "raffle/src/SinjohRaffleRewards.sol";
+import {RaffleTree} from "raffle/test/RaffleTree.sol";
+import {MockArbSys} from "raffle/test/mocks/MockArbSys.sol";
+import {MockRandomness} from "raffle/test/mocks/MockRandomness.sol";
 
 interface VmLetsCashRaffle {
     function createSelectFork(string calldata urlOrAlias) external returns (uint256);
-    function envOr(string calldata name, string calldata defaultValue)
-        external
-        returns (string memory);
+    function envOr(string calldata name, string calldata defaultValue) external returns (string memory);
     function etch(address target, bytes calldata code) external;
     function deal(address account, uint256 newBalance) external;
 }
@@ -68,15 +66,10 @@ struct LetsCashAirdropConfig {
 }
 
 interface ILetsCashRouterFactoryLive {
-    function predictLaunchpadAddress(address creator, bytes32 userSalt)
+    function predictLaunchpadAddress(address creator, bytes32 userSalt) external view returns (address);
+    function deployForLaunchpad(address creator, bytes32 userSalt, LetsCashRouterConfig calldata config)
         external
-        view
-        returns (address);
-    function deployForLaunchpad(
-        address creator,
-        bytes32 userSalt,
-        LetsCashRouterConfig calldata config
-    ) external returns (address router);
+        returns (address router);
 }
 
 interface ILetsCashRouterLive {
@@ -97,9 +90,7 @@ interface ILetsCashRouterLive {
 
 interface ILetsCashAdapterFactoryLive {
     function predictAddress(address creator, bytes32 userSalt) external view returns (address);
-    function deploy(address creator, address router, bytes32 userSalt)
-        external
-        returns (address adapter);
+    function deploy(address creator, address router, bytes32 userSalt) external returns (address adapter);
 }
 
 interface ILetsCashAdapterLive {
@@ -110,13 +101,8 @@ interface ILetsCashAdapterLive {
 }
 
 interface ILetsCashRaffleFactoryLive {
-    function deployRaffle(bytes32 userSalt, RaffleTypes.Config calldata config)
-        external
-        returns (address raffle);
-    function predictRaffle(address creator, bytes32 userSalt, bytes32 configHash)
-        external
-        view
-        returns (address raffle);
+    function deployRaffle(bytes32 userSalt, RaffleTypes.Config calldata config) external returns (address raffle);
+    function predictRaffle(address creator, bytes32 userSalt, bytes32 configHash) external view returns (address raffle);
     function hashConfig(RaffleTypes.Config calldata config) external pure returns (bytes32);
 }
 
@@ -125,10 +111,7 @@ interface IERC20LetsCashFork {
 }
 
 interface ILetsCashAirdropDistributorLive {
-    function accountId(address funder, address subject, address asset)
-        external
-        pure
-        returns (bytes32);
+    function accountId(address funder, address subject, address asset) external pure returns (bytes32);
     function accountFinancials(bytes32 id)
         external
         view
@@ -147,9 +130,7 @@ interface ILetsCashAirdropDistributorLive {
 /// raffle and holder-airdrop sinks, and a complete random draw and payout.
 /// Every external state change is confined to the local Robinhood mainnet fork.
 contract ProductionLetsCashRaffleForkTest {
-    VmLetsCashRaffle internal constant vm = VmLetsCashRaffle(
-        address(uint160(uint256(keccak256("hevm cheat code"))))
-    );
+    VmLetsCashRaffle internal constant vm = VmLetsCashRaffle(address(uint160(uint256(keccak256("hevm cheat code")))));
 
     address internal constant FACTORY = 0x5bd1Fbe78a78fe8236fa00CF48fbEBA74ae34661;
     address internal constant HOOK = 0x75A54357D9C78a2Db19004a5FDc76c50F9242AEC;
@@ -186,51 +167,41 @@ contract ProductionLetsCashRaffleForkTest {
     function testForkProductionLetsCashLaunchFundsAndSettlesARaffle() public {
         if (!forked) return;
 
-        address predictedAdapter = ILetsCashAdapterFactoryLive(ADAPTER_FACTORY)
-            .predictAddress(address(this), USER_SALT);
-        address predictedRouter = ILetsCashRouterFactoryLive(ROUTER_FACTORY)
-            .predictLaunchpadAddress(address(this), USER_SALT);
+        address predictedAdapter = ILetsCashAdapterFactoryLive(ADAPTER_FACTORY).predictAddress(address(this), USER_SALT);
+        address predictedRouter =
+            ILetsCashRouterFactoryLive(ROUTER_FACTORY).predictLaunchpadAddress(address(this), USER_SALT);
         address[] memory exclusions = _exclusions(predictedAdapter, predictedRouter);
 
         RaffleTypes.Config memory raffleConfig = _raffleConfig(exclusions);
         bytes32 raffleHash = ILetsCashRaffleFactoryLive(RAFFLE_FACTORY).hashConfig(raffleConfig);
-        address predictedRaffle = ILetsCashRaffleFactoryLive(RAFFLE_FACTORY).predictRaffle(
-            address(this), RAFFLE_SALT, raffleHash
-        );
+        address predictedRaffle =
+            ILetsCashRaffleFactoryLive(RAFFLE_FACTORY).predictRaffle(address(this), RAFFLE_SALT, raffleHash);
         SinjohRaffleRewards raffle = SinjohRaffleRewards(
-            payable(
-                ILetsCashRaffleFactoryLive(RAFFLE_FACTORY).deployRaffle(
-                    RAFFLE_SALT, raffleConfig
-                )
-            )
+            payable(ILetsCashRaffleFactoryLive(RAFFLE_FACTORY).deployRaffle(RAFFLE_SALT, raffleConfig))
         );
         _require(address(raffle) == predictedRaffle, "raffle prediction failed");
         for (uint256 i; i < exclusions.length; ++i) {
             _require(raffle.isExcluded(exclusions[i]), "protocol holder not excluded");
         }
 
-        address router = ILetsCashRouterFactoryLive(ROUTER_FACTORY).deployForLaunchpad(
-            address(this), USER_SALT, _routerConfig(predictedAdapter, address(raffle))
-        );
+        address router = ILetsCashRouterFactoryLive(ROUTER_FACTORY)
+            .deployForLaunchpad(address(this), USER_SALT, _routerConfig(predictedAdapter, address(raffle)));
         _require(router == predictedRouter, "router prediction failed");
-        address adapter = ILetsCashAdapterFactoryLive(ADAPTER_FACTORY).deploy(
-            address(this), router, USER_SALT
-        );
+        address adapter = ILetsCashAdapterFactoryLive(ADAPTER_FACTORY).deploy(address(this), router, USER_SALT);
         _require(adapter == predictedAdapter, "adapter prediction failed");
 
         ILetsCashFactory.TokenParams memory params = _tokenParams();
-        (bytes32 tokenSalt, address predictedToken) = ILetsCashFactory(FACTORY).mineSalt(
-            params, CONFIG_ID, address(this), 1, 200_000
-        );
+        (bytes32 tokenSalt, address predictedToken) =
+            ILetsCashFactory(FACTORY).mineSalt(params, CONFIG_ID, address(this), 1, 200_000);
         _require(predictedToken != address(0), "token salt mining failed");
         address[] memory recipients = new address[](1);
         recipients[0] = adapter;
         uint16[] memory shares = new uint16[](1);
         shares[0] = 10_000;
         uint256 launchFee = ILetsCashFactory(FACTORY).launchFee();
-        (address subject, bytes32 poolId) = ILetsCashFactory(FACTORY).launchWithFeeSplit{
-            value: launchFee + 0.01 ether
-        }(params, CONFIG_ID, 0.01 ether, 1, tokenSalt, recipients, shares);
+        (address subject, bytes32 poolId) = ILetsCashFactory(FACTORY).launchWithFeeSplit{value: launchFee + 0.01 ether}(
+            params, CONFIG_ID, 0.01 ether, 1, tokenSalt, recipients, shares
+        );
         _require(subject == predictedToken, "launched token mismatch");
 
         ILetsCashAdapterLive(adapter).activate(subject, poolId, CONFIG_ID);
@@ -255,32 +226,25 @@ contract ProductionLetsCashRaffleForkTest {
         uint256 airdropPending = ILetsCashRouterLive(router).sinkOwed(airdropKey, WETH);
         _require(airdropPending != 0, "router produced no airdrop liability");
         ILetsCashRouterLive(router).fundSink(0, 1, airdropPending);
-        bytes32 airdropAccount = ILetsCashAirdropDistributorLive(AIRDROP_DISTRIBUTOR)
-            .accountId(router, subject, WETH);
-        (uint256 airdropFunded,,,,) = ILetsCashAirdropDistributorLive(AIRDROP_DISTRIBUTOR)
-            .accountFinancials(airdropAccount);
+        bytes32 airdropAccount = ILetsCashAirdropDistributorLive(AIRDROP_DISTRIBUTOR).accountId(router, subject, WETH);
+        (uint256 airdropFunded,,,,) =
+            ILetsCashAirdropDistributorLive(AIRDROP_DISTRIBUTOR).accountFinancials(airdropAccount);
         _require(airdropFunded != 0, "airdrop account was not funded");
 
-        uint256 tickets = raffle.ticketsFor(
-            IERC20LetsCashFork(subject).balanceOf(address(this))
-        );
+        uint256 tickets = raffle.ticketsFor(IERC20LetsCashFork(subject).balanceOf(address(this)));
         _require(tickets != 0, "creator received no raffle tickets");
         RaffleTypes.Leaf[] memory leaves = new RaffleTypes.Leaf[](1);
-        leaves[0] = RaffleTypes.Leaf({ holder: address(this), tickets: tickets });
+        leaves[0] = RaffleTypes.Leaf({holder: address(this), tickets: tickets});
         uint64 snapshotBlock = uint64(block.number - 4);
         bytes32 snapshotHash = keccak256(abi.encode("PROD_LETSCASH_SNAPSHOT", snapshotBlock));
         arbSys.setBlockNumber(block.number);
         arbSys.setBlockHash(snapshotBlock, snapshotHash);
-        (bytes32 root, uint256 totalTickets, RaffleTypes.ProofElement[][] memory proofs) =
-            RaffleTree.build(
-                RaffleTree.Params({
-                    raffle: address(raffle),
-                    chainId: block.chainid,
-                    roundId: 1,
-                    snapshotBlock: snapshotBlock
-                }),
-                leaves
-            );
+        (bytes32 root, uint256 totalTickets, RaffleTypes.ProofElement[][] memory proofs) = RaffleTree.build(
+            RaffleTree.Params({
+                raffle: address(raffle), chainId: block.chainid, roundId: 1, snapshotBlock: snapshotBlock
+            }),
+            leaves
+        );
         raffle.commitRound(1, snapshotBlock, snapshotHash, root, totalTickets);
         (, bytes32 requestId,,,,,,,,,) = raffle.rounds(1);
         randomness.deliver(requestId, uint256(blockhash(block.number - 1)));
@@ -289,20 +253,12 @@ contract ProductionLetsCashRaffleForkTest {
         uint256 paid = raffle.claim(1, 0, leaves[0], proofs[0]);
         _require(paid != 0, "winner received no reward");
         _require(
-            IERC20LetsCashFork(WETH).balanceOf(address(this)) - beforeBalance == paid,
-            "reward balance delta mismatch"
+            IERC20LetsCashFork(WETH).balanceOf(address(this)) - beforeBalance == paid, "reward balance delta mismatch"
         );
-        _require(
-            IERC20LetsCashFork(WETH).balanceOf(address(raffle)) >= raffle.liabilities(),
-            "raffle became insolvent"
-        );
+        _require(IERC20LetsCashFork(WETH).balanceOf(address(raffle)) >= raffle.liabilities(), "raffle became insolvent");
     }
 
-    function _exclusions(address adapter, address router)
-        private
-        pure
-        returns (address[] memory sorted)
-    {
+    function _exclusions(address adapter, address router) private pure returns (address[] memory sorted) {
         sorted = new address[](5);
         sorted[0] = adapter;
         sorted[1] = router;
@@ -320,11 +276,7 @@ contract ProductionLetsCashRaffleForkTest {
         }
     }
 
-    function _raffleConfig(address[] memory exclusions)
-        private
-        view
-        returns (RaffleTypes.Config memory config)
-    {
+    function _raffleConfig(address[] memory exclusions) private view returns (RaffleTypes.Config memory config) {
         config = RaffleTypes.Config({
             creator: address(this),
             attestor: address(this),
@@ -358,11 +310,7 @@ contract ProductionLetsCashRaffleForkTest {
     {
         LetsCashAllocation[] memory allocations = new LetsCashAllocation[](2);
         allocations[0] = LetsCashAllocation({
-            destination: raffleSink,
-            bps: 5_000,
-            isSink: true,
-            creatorMayRepoint: false,
-            sinkConfig: ""
+            destination: raffleSink, bps: 5_000, isSink: true, creatorMayRepoint: false, sinkConfig: ""
         });
         allocations[1] = LetsCashAllocation({
             destination: AIRDROP_DISTRIBUTOR,
@@ -394,8 +342,7 @@ contract ProductionLetsCashRaffleForkTest {
         address[] memory exclusions = new address[](6);
         exclusions[0] = address(this);
         exclusions[1] = adapter;
-        exclusions[2] = ILetsCashRouterFactoryLive(ROUTER_FACTORY)
-            .predictLaunchpadAddress(address(this), USER_SALT);
+        exclusions[2] = ILetsCashRouterFactoryLive(ROUTER_FACTORY).predictLaunchpadAddress(address(this), USER_SALT);
         exclusions[3] = FACTORY;
         exclusions[4] = HOOK;
         exclusions[5] = POOL_MANAGER;
@@ -408,12 +355,9 @@ contract ProductionLetsCashRaffleForkTest {
             }
             exclusions[j] = value;
         }
-        return abi.encode(LetsCashAirdropConfig({
-            minPayout: 1,
-            maxBatchSize: 16,
-            minConfirmations: 2,
-            exclusions: exclusions
-        }));
+        return abi.encode(
+            LetsCashAirdropConfig({minPayout: 1, maxBatchSize: 16, minConfirmations: 2, exclusions: exclusions})
+        );
     }
 
     function _tokenParams() private view returns (ILetsCashFactory.TokenParams memory params) {
@@ -424,11 +368,7 @@ contract ProductionLetsCashRaffleForkTest {
             description: "Fork-only LetsCash raffle lifecycle proof",
             metadataURI: "ipfs://sinjoh-letscash-raffle-metadata",
             socials: ILetsCashFactory.Socials({
-                telegram: "",
-                twitter: "sinjoh",
-                discord: "",
-                website: "https://sinjoh.com",
-                extra: ""
+                telegram: "", twitter: "sinjoh", discord: "", website: "https://sinjoh.com", extra: ""
             }),
             creator: address(this)
         });

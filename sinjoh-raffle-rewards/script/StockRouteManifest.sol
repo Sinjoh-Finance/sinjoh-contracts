@@ -90,7 +90,8 @@ library StockRouteManifest {
         uint16 recipientTaxBps,
         uint16 recycleTaxBps
     ) internal pure returns (uint256) {
-        uint256 share = maxPrize / winnersPerRound + maxPrize % winnersPerRound;
+        uint256 share =
+            maxPrize / winnersPerRound + maxPrize % winnersPerRound;
         return share - (share * recipientTaxBps) / BPS - (share * recycleTaxBps) / BPS;
     }
 }

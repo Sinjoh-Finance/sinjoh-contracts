@@ -8,6 +8,12 @@ This registry maps every known Sinjoh mainnet deployment generation to the Git
 commit that reproduces its runtime bytecode. Annotated Git tags are the stable
 public identifiers; commit hashes are included for independent verification.
 
+The commit hashes in the table below belong to the original
+`sinjoh-legacy` history. History filtering necessarily rewrote them. The
+machine-readable old-to-new mapping is
+[`deployment-provenance.json`](./deployment-provenance.json) and is checked by
+`node scripts/verify-provenance-map.mjs`.
+
 ## Verified tags
 
 | Tag | Source commit | Runtime checks |

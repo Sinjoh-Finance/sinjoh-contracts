@@ -23,10 +23,7 @@ interface IWrappedEther {
 }
 
 interface IUniswapV3Pool {
-    function slot0()
-        external
-        view
-        returns (uint160, int24, uint16, uint16, uint16, uint8, bool);
+    function slot0() external view returns (uint160, int24, uint16, uint16, uint16, uint8, bool);
     function observe(uint32[] calldata secondsAgos)
         external
         view
@@ -245,9 +242,10 @@ contract PreflightStockRoutes {
             ok = false;
         }
         if (guard.twapWindow() != StockRouteManifest.REQUIRED_TWAP_WINDOW) {
-            _fail(route.symbol, _join(
-                "guard TWAP window is ", vm.toString(guard.twapWindow()), " seconds, not 300"
-            ));
+            _fail(
+                route.symbol,
+                _join("guard TWAP window is ", vm.toString(guard.twapWindow()), " seconds, not 300")
+            );
             ok = false;
         }
         if (guard.maxSpotDeviationBps() != StockRouteManifest.REQUIRED_MAX_SPOT_DEVIATION_BPS) {
@@ -307,27 +305,33 @@ contract PreflightStockRoutes {
         private
         returns (bool)
     {
-        (,, , uint16 cardinality,,, bool unlocked) = IUniswapV3Pool(pool).slot0();
+        (,,, uint16 cardinality,,, bool unlocked) = IUniswapV3Pool(pool).slot0();
         bool ok = true;
         if (!unlocked) {
             _fail(route.symbol, "pool is locked");
             ok = false;
         }
         if (cardinality < StockRouteManifest.MIN_OBSERVATION_CARDINALITY) {
-            _fail(route.symbol, _join(
-                "observation cardinality is ",
-                vm.toString(cardinality),
-                " - prime the pool, the guard rejects anything below 2"
-            ));
+            _fail(
+                route.symbol,
+                _join(
+                    "observation cardinality is ",
+                    vm.toString(cardinality),
+                    " - prime the pool, the guard rejects anything below 2"
+                )
+            );
             ok = false;
         }
 
         uint32[] memory secondsAgos = new uint32[](2);
         secondsAgos[0] = StockRouteManifest.REQUIRED_TWAP_WINDOW;
         secondsAgos[1] = 0;
-        try IUniswapV3Pool(pool).observe(secondsAgos) returns (int56[] memory, uint160[] memory) {
-            // The buffer reaches back a full window.
-        } catch {
+        try IUniswapV3Pool(pool).observe(secondsAgos) returns (
+            int56[] memory, uint160[] memory
+        ) {
+        // The buffer reaches back a full window.
+        }
+        catch {
             _fail(route.symbol, "pool holds less than 300 seconds of observations");
             ok = false;
         }
@@ -348,7 +352,9 @@ contract PreflightStockRoutes {
             amountIn,
             keccak256(StockRouteManifest.routeData(route.fee)),
             ""
-        ) returns (uint256 minOut, uint48 validUntil) {
+        ) returns (
+            uint256 minOut, uint48 validUntil
+        ) {
             if (minOut == 0) {
                 _fail(route.symbol, "guard quoted a zero minimum");
                 return 0;
@@ -361,7 +367,10 @@ contract PreflightStockRoutes {
             }
             return minOut;
         } catch {
-            _fail(route.symbol, "guard will not quote this size - oracle not ready or amount out of bounds");
+            _fail(
+                route.symbol,
+                "guard will not quote this size - oracle not ready or amount out of bounds"
+            );
             return 0;
         }
     }
@@ -381,13 +390,14 @@ contract PreflightStockRoutes {
 
         uint256 before = IERC20(route.asset).balanceOf(PROBE);
         vm.prank(PROBE);
-        try ISwapAdapter(StockRouteManifest.SWAP_ADAPTER).swap(
-            StockRouteManifest.WETH,
-            route.asset,
-            amountIn,
-            minimum,
-            StockRouteManifest.routeData(route.fee)
-        ) {
+        try ISwapAdapter(StockRouteManifest.SWAP_ADAPTER)
+            .swap(
+                StockRouteManifest.WETH,
+                route.asset,
+                amountIn,
+                minimum,
+                StockRouteManifest.routeData(route.fee)
+            ) {
             uint256 received = IERC20(route.asset).balanceOf(PROBE) - before;
             if (received < minimum) {
                 _fail(route.symbol, "swap delivered less than the guard minimum");
@@ -407,7 +417,10 @@ contract PreflightStockRoutes {
                     return;
                 }
                 if (IERC20(route.asset).balanceOf(probeTwo) != sent) {
-                    _fail(route.symbol, "transfer delivered inexact amount - incompatible with raffle delivery");
+                    _fail(
+                        route.symbol,
+                        "transfer delivered inexact amount - incompatible with raffle delivery"
+                    );
                     return;
                 }
             }

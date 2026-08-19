@@ -109,7 +109,13 @@ contract SinjohPoolsTradeInstantAdapter is ISinjohLaunchpadAdapter {
     uint256 private _reentrancyState;
     uint256 private _active;
 
-    constructor(address launcher_, address tokenFactory_, address strategy_, address weth_, uint256 chainId_) {
+    constructor(
+        address launcher_,
+        address tokenFactory_,
+        address strategy_,
+        address weth_,
+        uint256 chainId_
+    ) {
         if (
             launcher_.code.length == 0 || tokenFactory_.code.length == 0
                 || strategy_.code.length == 0 || weth_.code.length == 0
@@ -126,7 +132,10 @@ contract SinjohPoolsTradeInstantAdapter is ISinjohLaunchpadAdapter {
         address beneficiaryVault_ = strat.beneficiaryVault();
         address positionManager_ = strat.positionManager();
         address poolManager_ = strat.poolManager();
-        if (feeSplitter_.code.length == 0 || positionManager_.code.length == 0 || poolManager_.code.length == 0) {
+        if (
+            feeSplitter_.code.length == 0 || positionManager_.code.length == 0
+                || poolManager_.code.length == 0
+        ) {
             revert InvalidAddress();
         }
         // The splitter collects through its own PositionManager and the vault
@@ -201,9 +210,14 @@ contract SinjohPoolsTradeInstantAdapter is ISinjohLaunchpadAdapter {
         view
         returns (address)
     {
-        return IPTUERC20Factory(tokenFactory).getUERC20Address(
-            name, symbol, 18, launcher, IPTLiquidityLauncher(launcher).getGraffiti(address(this))
-        );
+        return IPTUERC20Factory(tokenFactory)
+            .getUERC20Address(
+                name,
+                symbol,
+                18,
+                launcher,
+                IPTLiquidityLauncher(launcher).getGraffiti(address(this))
+            );
     }
 
     /// @notice Creates the token and launches it into its v4 pool in one

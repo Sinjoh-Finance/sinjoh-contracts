@@ -5,11 +5,34 @@ minVersion = "8.25.0"
 useDefault = true
 
 [[allowlists]]
-description = "Public EVM addresses assigned to token/address fields are not credentials"
+description = "Public EVM addresses assigned to manifest fields or Solidity address constants are not credentials"
 targetRules = ["generic-api-key"]
 regexTarget = "line"
 regexes = [
-  '''(?i)\b(token|address|asset|subject|funder|distributor)\b.{0,32}["']?0x[0-9a-f]{40}\b''',
+  '''(?i)(address[^=\r\n]*|["'][a-z0-9_]*(token|implementation|splitter)[a-z0-9_]*["']?)\s*[:=]\s*["']?0x[0-9a-f]{40}\b''',
+]
+
+[[allowlists]]
+description = "Public transaction hashes and addresses cited in documentation are not credentials"
+targetRules = ["generic-api-key"]
+regexTarget = "line"
+regexes = [
+  '''(?i)\b(tx|transaction)\b.{0,48}0x[0-9a-f]{40,64}\b''',
+]
+
+[[allowlists]]
+description = "Public deterministic deployment salts and configuration hashes are not credentials"
+targetRules = ["generic-api-key"]
+regexTarget = "line"
+regexes = [
+  '''(?i)(bytes32[^=\r\n]*|[a-z0-9_]*(salt|hash)[a-z0-9_]*)\s*=\s*0x[0-9a-f]{64}\b''',
+]
+
+[[allowlists]]
+description = "Vendored dependency test vectors are scanned upstream and are not Sinjoh credentials"
+targetRules = ["generic-api-key"]
+paths = [
+  '''(^|/)lib/''',
 ]
 
 [[allowlists]]

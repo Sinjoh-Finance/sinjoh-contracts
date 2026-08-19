@@ -470,7 +470,8 @@ contract MockPTInstantStrategy {
 
         address finalOwner =
             positionOwnerOverride != address(0) ? positionOwnerOverride : feeSplitter;
-        MockPTPositionManager(payable(positionManager)).transferFrom(address(this), finalOwner, tokenId);
+        MockPTPositionManager(payable(positionManager))
+            .transferFrom(address(this), finalOwner, tokenId);
     }
 }
 
@@ -616,8 +617,7 @@ contract MockPTAuctionFactory {
         external
         returns (address distributor)
     {
-        MockAuctionParameters memory auctionParams =
-            abi.decode(configData, (MockAuctionParameters));
+        MockAuctionParameters memory auctionParams = abi.decode(configData, (MockAuctionParameters));
         _parameters = Parameters({
             token: token,
             currency: auctionParams.currency,
@@ -847,11 +847,7 @@ contract MockLBPAdapterView {
         hooks = hooks_;
     }
 
-    function poolKey()
-        external
-        view
-        returns (address, address, uint24, int24, address)
-    {
+    function poolKey() external view returns (address, address, uint24, int24, address) {
         return (currency0, currency1, fee, tickSpacing, hooks);
     }
 }

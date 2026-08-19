@@ -369,11 +369,7 @@ abstract contract RaffleInvariantBase is InvariantTestBase {
     }
 
     /// @dev Empty for the direct-payout suite; the stock suite deploys its routes here.
-    function _configureStockRewards()
-        internal
-        virtual
-        returns (RaffleTypes.StockReward[] memory)
-    {
+    function _configureStockRewards() internal virtual returns (RaffleTypes.StockReward[] memory) {
         return new RaffleTypes.StockReward[](0);
     }
 
@@ -453,8 +449,7 @@ contract SinjohRaffleRewardsStockInvariantTest is RaffleInvariantBase {
     {
         MockERC20 first = new MockERC20("Stock A", "A");
         MockERC20 second = new MockERC20("Stock B", "B");
-        (stockA, stockB) =
-            address(first) < address(second) ? (first, second) : (second, first);
+        (stockA, stockB) = address(first) < address(second) ? (first, second) : (second, first);
         MockStockSwapAdapter adapter = new MockStockSwapAdapter();
         MockStockPriceGuard guard = new MockStockPriceGuard();
 

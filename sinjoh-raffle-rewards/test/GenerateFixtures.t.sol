@@ -23,7 +23,8 @@ contract GenerateFixturesTest is TestBase {
     /// address before deployment. This pins the canonical `abi.encode(Config)`
     /// so the TypeScript encoding can never drift from the factory's.
     function testWriteConfigHashFixture() public {
-        VmConfigFixture vmf = VmConfigFixture(address(uint160(uint256(keccak256("hevm cheat code")))));
+        VmConfigFixture vmf =
+            VmConfigFixture(address(uint160(uint256(keccak256("hevm cheat code")))));
         address[] memory exclusions = new address[](2);
         exclusions[0] = address(0x0000000000000000000000000000000000a11c00);
         exclusions[1] = address(0x0000000000000000000000000000000000b0B000);
@@ -64,8 +65,11 @@ contract GenerateFixturesTest is TestBase {
             "test/fixtures/config-hash.json",
             string.concat(
                 '{"description":"canonical abi.encode(RaffleTypes.Config) for the fixed config in GenerateFixtures.t.sol",',
-                '"encoded":"', vmf.toString(encoded),
-                '","configHash":"', vmf.toString(keccak256(encoded)), '"}'
+                '"encoded":"',
+                vmf.toString(encoded),
+                '","configHash":"',
+                vmf.toString(keccak256(encoded)),
+                '"}'
             )
         );
     }

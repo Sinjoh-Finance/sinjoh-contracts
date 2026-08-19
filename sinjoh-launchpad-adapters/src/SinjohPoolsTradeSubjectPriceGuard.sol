@@ -12,13 +12,7 @@ interface ISinjohPoolsTradeLBPPoolKeyGuard {
     function poolKey()
         external
         view
-        returns (
-            address currency0,
-            address currency1,
-            uint24 fee,
-            int24 tickSpacing,
-            address hooks
-        );
+        returns (address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks);
     function migrated() external view returns (bool);
 }
 
@@ -224,11 +218,11 @@ contract SinjohPoolsTradeSubjectPriceGuard is ISinjohPriceGuard {
     /// currency1 divides by it, selling currency0 multiplies. Both paths run
     /// the fixed-point math as two chained mulDivs so no intermediate
     /// overflows for any amountIn <= uint128.max and any valid sqrt price.
-    function _spotQuote(IPTPoolManager.PoolKey memory key, bool subjectIsCurrency1, uint256 amountIn)
-        private
-        view
-        returns (uint256)
-    {
+    function _spotQuote(
+        IPTPoolManager.PoolKey memory key,
+        bool subjectIsCurrency1,
+        uint256 amountIn
+    ) private view returns (uint256) {
         uint160 sqrtPriceX96 = _sqrtPriceX96(key);
         if (sqrtPriceX96 == 0) revert NoMarket(subjectIsCurrency1 ? key.currency1 : key.currency0);
         if (subjectIsCurrency1) {

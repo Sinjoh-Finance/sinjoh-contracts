@@ -43,7 +43,11 @@ contract SinjohPoolsTradeBuybackAdapterTest is TestBase {
         MockPTFeeSplitter feeSplitter = new MockPTFeeSplitter(address(positionManager));
         MockPTBeneficiaryVault vault = new MockPTBeneficiaryVault(address(positionManager));
         instantStrategy = new MockPTInstantStrategy(
-            address(0xDEAD1), address(positionManager), address(poolManager), address(feeSplitter), address(vault)
+            address(0xDEAD1),
+            address(positionManager),
+            address(poolManager),
+            address(feeSplitter),
+            address(vault)
         );
         lbpStrategy = new MockPTLBPStrategy(
             address(0xDEAD1), address(positionManager), address(poolManager), address(0xDEAD2)
@@ -64,9 +68,7 @@ contract SinjohPoolsTradeBuybackAdapterTest is TestBase {
             address(weth).codehash
         );
         signer = vm.addr(SIGNER_KEY);
-        guard = new SinjohPoolsTradeBuybackPriceGuard(
-            address(weth), address(weth).codehash, signer
-        );
+        guard = new SinjohPoolsTradeBuybackPriceGuard(address(weth), address(weth).codehash, signer);
 
         vm.deal(address(this), 100 ether);
         weth.deposit{ value: 50 ether }();
@@ -236,9 +238,8 @@ contract SinjohPoolsTradeBuybackAdapterTest is TestBase {
 
     function test_guardAcceptsSignedFloor() public {
         vm.warp(1000);
-        bytes memory data = _guardData(
-            address(this), 1 ether, 900 ether, uint48(900), uint48(1100), SIGNER_KEY
-        );
+        bytes memory data =
+            _guardData(address(this), 1 ether, 900 ether, uint48(900), uint48(1100), SIGNER_KEY);
         (uint256 minimum, uint48 validUntil) = guard.minimumOutput(
             address(token), address(weth), address(token), 1 ether, keccak256(""), data
         );
@@ -248,9 +249,8 @@ contract SinjohPoolsTradeBuybackAdapterTest is TestBase {
 
     function test_guardRejectsWrongSigner() public {
         vm.warp(1000);
-        bytes memory data = _guardData(
-            address(this), 1 ether, 900 ether, uint48(900), uint48(1100), 0xBAD
-        );
+        bytes memory data =
+            _guardData(address(this), 1 ether, 900 ether, uint48(900), uint48(1100), 0xBAD);
         vm.expectRevert(SinjohSignedFloor.InvalidSignature.selector);
         guard.minimumOutput(
             address(token), address(weth), address(token), 1 ether, keccak256(""), data
@@ -259,9 +259,8 @@ contract SinjohPoolsTradeBuybackAdapterTest is TestBase {
 
     function test_guardRejectsExpiredWindow() public {
         vm.warp(2000);
-        bytes memory data = _guardData(
-            address(this), 1 ether, 900 ether, uint48(900), uint48(1100), SIGNER_KEY
-        );
+        bytes memory data =
+            _guardData(address(this), 1 ether, 900 ether, uint48(900), uint48(1100), SIGNER_KEY);
         vm.expectRevert(SinjohSignedFloor.InvalidValidity.selector);
         guard.minimumOutput(
             address(token), address(weth), address(token), 1 ether, keccak256(""), data
@@ -281,9 +280,8 @@ contract SinjohPoolsTradeBuybackAdapterTest is TestBase {
 
     function test_guardRejectsMismatchedRoute() public {
         vm.warp(1000);
-        bytes memory data = _guardData(
-            address(this), 1 ether, 900 ether, uint48(900), uint48(1100), SIGNER_KEY
-        );
+        bytes memory data =
+            _guardData(address(this), 1 ether, 900 ether, uint48(900), uint48(1100), SIGNER_KEY);
         vm.expectRevert(SinjohPoolsTradeBuybackPriceGuard.InvalidRoute.selector);
         guard.minimumOutput(
             address(token), address(weth), address(token), 1 ether, keccak256(hex"01"), data

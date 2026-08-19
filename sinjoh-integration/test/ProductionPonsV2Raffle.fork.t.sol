@@ -1,19 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import { IPonsV2LaunchFactory } from "router/src/interfaces/IPonsV2.sol";
-import { PonsV2LaunchPrediction } from "router/src/libraries/PonsV2LaunchPrediction.sol";
-import { RaffleTypes } from "raffle/src/RaffleTypes.sol";
-import { SinjohRaffleRewards } from "raffle/src/SinjohRaffleRewards.sol";
-import { RaffleTree } from "raffle/test/RaffleTree.sol";
-import { MockArbSys } from "raffle/test/mocks/MockArbSys.sol";
-import { MockRandomness } from "raffle/test/mocks/MockRandomness.sol";
+import {IPonsV2LaunchFactory} from "router/src/interfaces/IPonsV2.sol";
+import {PonsV2LaunchPrediction} from "router/src/libraries/PonsV2LaunchPrediction.sol";
+import {RaffleTypes} from "raffle/src/RaffleTypes.sol";
+import {SinjohRaffleRewards} from "raffle/src/SinjohRaffleRewards.sol";
+import {RaffleTree} from "raffle/test/RaffleTree.sol";
+import {MockArbSys} from "raffle/test/mocks/MockArbSys.sol";
+import {MockRandomness} from "raffle/test/mocks/MockRandomness.sol";
 
 interface Vm {
     function createSelectFork(string calldata urlOrAlias) external returns (uint256);
-    function envOr(string calldata name, string calldata defaultValue)
-        external
-        returns (string memory);
+    function envOr(string calldata name, string calldata defaultValue) external returns (string memory);
     function etch(address target, bytes calldata code) external;
     function deal(address account, uint256 newBalance) external;
     function prank(address sender) external;
@@ -70,15 +68,10 @@ struct AgnosticRouterConfig {
 }
 
 interface IAgnosticRouterFactory {
-    function predictLaunchpadAddress(address creator, bytes32 userSalt)
+    function predictLaunchpadAddress(address creator, bytes32 userSalt) external view returns (address);
+    function deployForLaunchpad(address creator, bytes32 userSalt, AgnosticRouterConfig calldata config)
         external
-        view
-        returns (address);
-    function deployForLaunchpad(
-        address creator,
-        bytes32 userSalt,
-        AgnosticRouterConfig calldata config
-    ) external returns (address router);
+        returns (address router);
 }
 
 interface IAgnosticRouter {
@@ -100,9 +93,7 @@ interface IAgnosticRouter {
 
 interface IPonsV2AdapterFactoryLive {
     function predictAddress(address creator, bytes32 userSalt) external view returns (address);
-    function deploy(address creator, address router, bytes32 userSalt)
-        external
-        returns (address adapter);
+    function deploy(address creator, address router, bytes32 userSalt) external returns (address adapter);
 }
 
 interface IPonsV2AdapterLive {
@@ -119,10 +110,7 @@ interface IPonsV2AdapterLive {
 }
 
 interface IPonsV2CurveProd {
-    function buy(uint256 quoteIn, uint256 minTokensOut, address recipient)
-        external
-        payable
-        returns (uint256 tokensOut);
+    function buy(uint256 quoteIn, uint256 minTokensOut, address recipient) external payable returns (uint256 tokensOut);
     function snipeTaxSeconds() external view returns (uint256);
 }
 
@@ -131,13 +119,8 @@ interface IWETHProd {
 }
 
 interface IRaffleFactoryLive {
-    function deployRaffle(bytes32 userSalt, RaffleTypes.Config calldata config)
-        external
-        returns (address raffle);
-    function predictRaffle(address creator, bytes32 userSalt, bytes32 configHash)
-        external
-        view
-        returns (address raffle);
+    function deployRaffle(bytes32 userSalt, RaffleTypes.Config calldata config) external returns (address raffle);
+    function predictRaffle(address creator, bytes32 userSalt, bytes32 configHash) external view returns (address raffle);
     function hashConfig(RaffleTypes.Config calldata config) external pure returns (bytes32);
 }
 
@@ -203,8 +186,8 @@ contract ProductionPonsV2RaffleForkTest {
         IPonsV2LaunchFactory pons = IPonsV2LaunchFactory(PONS_V2_FACTORY);
 
         // 1-2. Both clone addresses ignore their configuration.
-        address predictedAdapter = IPonsV2AdapterFactoryLive(PONS_V2_ADAPTER_FACTORY)
-            .predictAddress(address(this), bytes32("PROD_ADAPTER"));
+        address predictedAdapter =
+            IPonsV2AdapterFactoryLive(PONS_V2_ADAPTER_FACTORY).predictAddress(address(this), bytes32("PROD_ADAPTER"));
         address predictedRouter = IAgnosticRouterFactory(AGNOSTIC_ROUTER_FACTORY)
             .predictLaunchpadAddress(address(this), bytes32("PROD_ROUTER"));
 
@@ -214,52 +197,40 @@ contract ProductionPonsV2RaffleForkTest {
             symbol: "PROD",
             logo: "",
             description: "",
-            socials: IPonsV2LaunchFactory.Socials({
-                twitter: "", telegram: "", discord: "", website: "", farcaster: ""
-            }),
+            socials: IPonsV2LaunchFactory.Socials({twitter: "", telegram: "", discord: "", website: "", farcaster: ""}),
             creatorFeeRecipient: predictedAdapter,
             creatorTaxBps: 250,
             buybackEnabled: false,
             expectedEconomics: pons.previewLaunchEconomics(0, address(0)),
             salt: bytes32("SINJOH_PROD_REHEARSAL")
         });
-        (address predictedToken, address predictedCurve) = PonsV2LaunchPrediction.predict(
-            PONS_V2_FACTORY, params, 0, address(0), predictedAdapter
-        );
+        (address predictedToken, address predictedCurve) =
+            PonsV2LaunchPrediction.predict(PONS_V2_FACTORY, params, 0, address(0), predictedAdapter);
 
         // 4. The raffle is configured around addresses that do not exist yet,
         //    and deploys from the LIVE factory at its predicted address.
-        RaffleTypes.Config memory config =
-            _raffleConfig(_exclusions(pons, predictedCurve, predictedAdapter));
-        address predictedRaffle = IRaffleFactoryLive(RAFFLE_FACTORY).predictRaffle(
-            address(this),
-            bytes32("PROD_RAFFLE"),
-            IRaffleFactoryLive(RAFFLE_FACTORY).hashConfig(config)
-        );
+        RaffleTypes.Config memory config = _raffleConfig(_exclusions(pons, predictedCurve, predictedAdapter));
+        address predictedRaffle = IRaffleFactoryLive(RAFFLE_FACTORY)
+            .predictRaffle(address(this), bytes32("PROD_RAFFLE"), IRaffleFactoryLive(RAFFLE_FACTORY).hashConfig(config));
         SinjohRaffleRewards raffle = SinjohRaffleRewards(
-            payable(
-                IRaffleFactoryLive(RAFFLE_FACTORY).deployRaffle(bytes32("PROD_RAFFLE"), config)
-            )
+            payable(IRaffleFactoryLive(RAFFLE_FACTORY).deployRaffle(bytes32("PROD_RAFFLE"), config))
         );
         _require(address(raffle) == predictedRaffle, "raffle prediction failed");
         _require(raffle.isExcluded(predictedCurve), "predicted curve not excluded");
 
         // 5-6. Router names the adapter and the raffle sink; adapter wires to
         // the router. Both land on their predictions.
-        address router = IAgnosticRouterFactory(AGNOSTIC_ROUTER_FACTORY).deployForLaunchpad(
-            address(this), bytes32("PROD_ROUTER"), _routerConfig(predictedAdapter, address(raffle))
-        );
+        address router = IAgnosticRouterFactory(AGNOSTIC_ROUTER_FACTORY)
+            .deployForLaunchpad(address(this), bytes32("PROD_ROUTER"), _routerConfig(predictedAdapter, address(raffle)));
         _require(router == predictedRouter, "router prediction failed");
-        address adapter = IPonsV2AdapterFactoryLive(PONS_V2_ADAPTER_FACTORY).deploy(
-            address(this), router, bytes32("PROD_ADAPTER")
-        );
+        address adapter =
+            IPonsV2AdapterFactoryLive(PONS_V2_ADAPTER_FACTORY).deploy(address(this), router, bytes32("PROD_ADAPTER"));
         _require(adapter == predictedAdapter, "adapter prediction failed");
 
         // 7. Launch through the deployed adapter implementation.
         vm.deal(address(this), 1 ether);
-        (address subject, address curve) = IPonsV2AdapterLive(adapter).launch{
-            value: pons.launchFee()
-        }(params, 0, address(0), 0, 0, new address[](0));
+        (address subject, address curve) =
+            IPonsV2AdapterLive(adapter).launch{value: pons.launchFee()}(params, 0, address(0), 0, 0, new address[](0));
         _require(subject == predictedToken, "token prediction failed");
         _require(curve == predictedCurve, "curve prediction failed");
         _require(IAgnosticRouter(router).subject() == subject, "adapter did not bind router");
@@ -272,7 +243,7 @@ contract ProductionPonsV2RaffleForkTest {
         vm.warp(block.timestamp + IPonsV2CurveProd(curve).snipeTaxSeconds() + 1);
         vm.deal(TRADER, 2 ether);
         vm.prank(TRADER);
-        uint256 tokensOut = IPonsV2CurveProd(curve).buy{ value: 1 ether }(1 ether, 1, TRADER);
+        uint256 tokensOut = IPonsV2CurveProd(curve).buy{value: 1 ether}(1 ether, 1, TRADER);
         _require(tokensOut != 0, "buy produced no tokens");
 
         IPonsV2AdapterLive(adapter).collect();
@@ -292,19 +263,15 @@ contract ProductionPonsV2RaffleForkTest {
         uint256 tickets = raffle.ticketsFor(IERC20Prod(subject).balanceOf(TRADER));
         _require(tickets != 0, "trader holds no tickets");
         RaffleTypes.Leaf[] memory leaves = new RaffleTypes.Leaf[](1);
-        leaves[0] = RaffleTypes.Leaf({ holder: TRADER, tickets: tickets });
+        leaves[0] = RaffleTypes.Leaf({holder: TRADER, tickets: tickets});
 
         uint64 snapshotBlock = uint64(block.number - 4);
         bytes32 snapshotHash = keccak256(abi.encode("PROD_SNAPSHOT", snapshotBlock));
         arbSys.setBlockNumber(block.number);
         arbSys.setBlockHash(snapshotBlock, snapshotHash);
-        (bytes32 root, uint256 totalTickets, RaffleTypes.ProofElement[][] memory proofs) =
-        RaffleTree.build(
+        (bytes32 root, uint256 totalTickets, RaffleTypes.ProofElement[][] memory proofs) = RaffleTree.build(
             RaffleTree.Params({
-                raffle: address(raffle),
-                chainId: block.chainid,
-                roundId: 1,
-                snapshotBlock: snapshotBlock
+                raffle: address(raffle), chainId: block.chainid, roundId: 1, snapshotBlock: snapshotBlock
             }),
             leaves
         );
@@ -316,9 +283,7 @@ contract ProductionPonsV2RaffleForkTest {
         uint256 paid = raffle.claim(1, 0, leaves[0], proofs[0]);
         _require(paid != 0, "winner paid nothing");
         _require(IWETHProd(WETH).balanceOf(TRADER) - before == paid, "payout delta mismatch");
-        _require(
-            IWETHProd(WETH).balanceOf(address(raffle)) >= raffle.liabilities(), "raffle insolvent"
-        );
+        _require(IWETHProd(WETH).balanceOf(address(raffle)) >= raffle.liabilities(), "raffle insolvent");
     }
 
     /// @dev The adapter is included as a recommended exclusion: it never holds
@@ -348,11 +313,7 @@ contract ProductionPonsV2RaffleForkTest {
         }
     }
 
-    function _raffleConfig(address[] memory exclusions)
-        private
-        view
-        returns (RaffleTypes.Config memory config)
-    {
+    function _raffleConfig(address[] memory exclusions) private view returns (RaffleTypes.Config memory config) {
         config = RaffleTypes.Config({
             creator: address(this),
             attestor: address(this),
@@ -386,11 +347,7 @@ contract ProductionPonsV2RaffleForkTest {
     {
         AgnosticAllocation[] memory allocations = new AgnosticAllocation[](1);
         allocations[0] = AgnosticAllocation({
-            destination: raffleSink,
-            bps: 10_000,
-            isSink: true,
-            creatorMayRepoint: false,
-            sinkConfig: ""
+            destination: raffleSink, bps: 10_000, isSink: true, creatorMayRepoint: false, sinkConfig: ""
         });
         AgnosticBucket[] memory buckets = new AgnosticBucket[](1);
         buckets[0] = AgnosticBucket({

@@ -294,9 +294,7 @@ contract SinjohPoolsTradeSellAdapterTest is TestBase {
         _markInstantPool(address(token), uint160(1 << 96));
         // Normalization always supplies the input as both subject and assetIn.
         vm.expectRevert(SinjohPoolsTradeSubjectPriceGuard.InvalidAmount.selector);
-        guard.minimumOutput(
-            address(usdg), address(token), address(weth), 100e18, keccak256(""), ""
-        );
+        guard.minimumOutput(address(usdg), address(token), address(weth), 100e18, keccak256(""), "");
         vm.expectRevert(SinjohPoolsTradeSubjectPriceGuard.InvalidAmount.selector);
         guard.minimumOutput(
             address(token), address(token), address(usdg), 100e18, keccak256(""), ""

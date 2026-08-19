@@ -22,7 +22,13 @@ interface ISeedWeth {
 }
 
 interface ISeedAdapter {
-    function swap(address assetIn, address assetOut, uint256 amountIn, uint256 minAmountOut, bytes calldata routeData) external payable;
+    function swap(
+        address assetIn,
+        address assetOut,
+        uint256 amountIn,
+        uint256 minAmountOut,
+        bytes calldata routeData
+    ) external payable;
 }
 
 /// @notice Finishes what the interrupted guards broadcast did not: primes and
@@ -60,7 +66,7 @@ contract FinishRafflePoolSeeding {
         // write happens. The measured single seed per pool is emitted, and
         // `PreflightStockRoutes` is the gate that verifies the outcome.
         address pool = ISeedGuard(guard).poolFor(WETH, asset);
-        (,, , uint16 card, uint16 next,,) = ISeedPool(pool).slot0();
+        (,,, uint16 card, uint16 next,,) = ISeedPool(pool).slot0();
         if (next < CARDINALITY) ISeedGuard(guard).prime(WETH, asset, CARDINALITY);
         if (card >= 2 || startAmount == 0) return;
         ISeedWeth(WETH).deposit{ value: startAmount }();

@@ -4,7 +4,10 @@ pragma solidity 0.8.28;
 import { ISinjohSwapAdapter } from "sinjoh-fee-router/src/interfaces/ISinjohSwapAdapter.sol";
 import { ISinjohPriceGuard } from "sinjoh-fee-router/src/interfaces/ISinjohPriceGuard.sol";
 import {
-    IPTInstantLaunchStrategy, IPTLBPStrategy, IPTPoolManager, IWETH9
+    IPTInstantLaunchStrategy,
+    IPTLBPStrategy,
+    IPTPoolManager,
+    IWETH9
 } from "./interfaces/IPoolsTrade.sol";
 import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
 import { SinjohSignedFloor } from "./libraries/SinjohSignedFloor.sol";
@@ -18,13 +21,7 @@ interface ISinjohPoolsTradeLBPPoolKey {
     function poolKey()
         external
         view
-        returns (
-            address currency0,
-            address currency1,
-            uint24 fee,
-            int24 tickSpacing,
-            address hooks
-        );
+        returns (address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks);
     function migrated() external view returns (bool);
 }
 
@@ -276,10 +273,10 @@ contract SinjohPoolsTradeBuybackPriceGuard is ISinjohPriceGuard {
     address public immutable quoteSigner;
 
     constructor(address weth_, bytes32 wethCodehash_, address quoteSigner_) {
-        if (
-            weth_.code.length == 0 || weth_.codehash != wethCodehash_
-                || quoteSigner_ == address(0)
-        ) revert InvalidAddress();
+        if (weth_.code.length == 0 || weth_.codehash != wethCodehash_ || quoteSigner_ == address(0))
+        {
+            revert InvalidAddress();
+        }
         weth = weth_;
         wethCodehash = wethCodehash_;
         quoteSigner = quoteSigner_;

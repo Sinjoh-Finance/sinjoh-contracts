@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "network": {
+    "name": "Robinhood Chain mainnet",
+    "chainId": 4663
+  },
+  "legacyRepository": "Sinjoh-Finance/sinjoh-legacy",
+  "contractsRepository": "Sinjoh-Finance/sinjoh-contracts",
+  "verifiedAt": "2026-08-18",
+  "freeze": {
+    "tag": "provenance/pre-reorganization-2026-08-18",
+    "originalCommit": "01628f65885e732ffb7a2d84dce2f4065221e048",
+    "filteredCommit": "eff7a678fd3a8ba4c34d953d4d84e6f52d86078c"
+  },
+  "deployments": [
+    {
+      "tag": "deploy/mainnet/core-2026-07-30",
+      "originalCommit": "f39cd1a110a9f2ef43e120bc8bb131759501b032",
+      "filteredCommit": "13d0d14c4ef073a2705a0d237449faee9dbeaf54",
+      "runtimeChecks": 8
+    },
+    {
+      "tag": "deploy/mainnet/simple-swap-v2-2026-07-30",
+      "originalCommit": "2a64128c56ca3a99bd9d19d1ecada665c2806638",
+      "filteredCommit": "94302637233b2713f0b77300d1dca19a5be800a6",
+      "runtimeChecks": 1
+    },
+    {
+      "tag": "deploy/mainnet/flap-base-2026-08-01",
+      "originalCommit": "a1ca609de496df9e6b172f30fb1a105d74ef2b48",
+      "filteredCommit": "62dd0da7f46d786c49750c84595f61f5b0ad836b",
+      "runtimeChecks": 4
+    },
+    {
+      "tag": "deploy/mainnet/flap-execution-2026-08-02",
+      "originalCommit": "2692c80b02198b31cdfd75d386fc8ea962136fa0",
+      "filteredCommit": "80227523c07cb6568ee52cce981a0e1e5547aacf",
+      "runtimeChecks": 3
+    },
+    {
+      "tag": "deploy/mainnet/flap-payout-2026-08-02",
+      "originalCommit": "df0d09d42361b4f91d7417d78de88b5dc2c86bf1",
+      "filteredCommit": "b27aa556e1e517bb1abc8bb5823c26f496239064",
+      "runtimeChecks": 1
+    },
+    {
+      "tag": "deploy/mainnet/pons-v2-adapter-2026-08-04",
+      "originalCommit": "768b5f326427b43a6bf4060ac22139228200cc57",
+      "filteredCommit": "6c6743778a12ed4638714c6fffc891203f3bbe0c",
+      "runtimeChecks": 2
+    },
+    {
+      "tag": "deploy/mainnet/pons-v2-buyback-2026-08-04",
+      "originalCommit": "d9051387323e5b79491dce4c31ef8e6ca1beee5b",
+      "filteredCommit": "5579fdc73ff72d968e3e34f71487b794fdc6db57",
+      "runtimeChecks": 2
+    },
+    {
+      "tag": "deploy/mainnet/pons-v2-pair-buyback-2026-08-04",
+      "originalCommit": "18cfe90cc343aafe7598d4eaa09a5bd29a23d480",
+      "filteredCommit": "e72c45eb06bcd03e0ce6994ac9d4d39ae772a3fb",
+      "runtimeChecks": 2
+    },
+    {
+      "tag": "deploy/mainnet/pools-trade-2026-08-05",
+      "originalCommit": "1b3ff4c40923f79b8210fb9d6a236318e0acfb60",
+      "filteredCommit": "d3a4f1658e0dd1e4b64ba9a170445170e35de8db",
+      "runtimeChecks": 10
+    },
+    {
+      "tag": "deploy/mainnet/raffle-randomness-2026-08-05",
+      "originalCommit": "9a43fd600e9bd95031ba06bd78b02231bc5ff249",
+      "filteredCommit": "6c8b45726760120e4b2338f580502579bbb1f001",
+      "runtimeChecks": 2
+    },
+    {
+      "tag": "deploy/mainnet/raffle-price-guards-2026-08-05",
+      "originalCommit": "9347bb4a714f29280b37060881f45a80ed0e7831",
+      "filteredCommit": "cf6c7cedbc45ffccde5ca941853926abcdbba37c",
+      "runtimeChecks": 3
+    },
+    {
+      "tag": "deploy/mainnet/letscash-2026-08-11",
+      "originalCommit": "06728770ef27339f531a6dd4f9b4afcf83df1522",
+      "filteredCommit": "e3d0459051adcc6253985925f7b596ca5741605b",
+      "runtimeChecks": 4
+    },
+    {
+      "tag": "deploy/mainnet/funding-bands-v1-2026-08-14",
+      "originalCommit": "47ca8b460588e3d2c8b780838e813bc8e3503661",
+      "filteredCommit": "b2866167f89bf1b46562bfcd3c4f8b55cd186bf1",
+      "runtimeChecks": 6
+    },
+    {
+      "tag": "deploy/mainnet/funding-bands-v2-2026-08-14",
+      "originalCommit": "ffb5aedf577a7566335273da901b7ab222ce66c4",
+      "filteredCommit": "c4f004719d67659ad9e80b4acaf90cbb0acaa5c5",
+      "runtimeChecks": 6
+    },
+    {
+      "tag": "deploy/mainnet/funding-bands-v3-2026-08-15",
+      "originalCommit": "7b42c164aebc01a3eeba40a75f7655eee9876c25",
+      "filteredCommit": "ddb9c34748c5919ed986b50fc7c1ba4ad1f2f9d3",
+      "runtimeChecks": 7
+    },
+    {
+      "tag": "deploy/mainnet/funding-bands-v4-2026-08-15",
+      "originalCommit": "036972edec6b07a2f867bbe1582d3e51aaae0a65",
+      "filteredCommit": "41d7373ac06491f4b6ceb5d049604dc024051913",
+      "runtimeChecks": 11
+    }
+  ],
+  "runtimeChecksTotal": 72
+}

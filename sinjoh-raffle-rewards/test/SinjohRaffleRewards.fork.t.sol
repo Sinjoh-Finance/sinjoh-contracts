@@ -270,9 +270,8 @@ contract SinjohRaffleRewardsStockForkTest is TestBase {
     /// asset as `subject`. That convention is a deployment requirement with no on-chain check.
     function testForkRealGuardAcceptsTheRafflesCallShape() public view {
         if (!forked) return;
-        (uint256 minimum, uint48 validUntil) = ISinjohPriceGuard(PRICE_GUARD).minimumOutput(
-            MSTR, WETH, MSTR, 0.01 ether, keccak256(abi.encode(POOL_FEE)), ""
-        );
+        (uint256 minimum, uint48 validUntil) = ISinjohPriceGuard(PRICE_GUARD)
+            .minimumOutput(MSTR, WETH, MSTR, 0.01 ether, keccak256(abi.encode(POOL_FEE)), "");
         assertTrue(minimum != 0);
         assertTrue(validUntil >= block.timestamp);
     }
@@ -308,9 +307,8 @@ contract SinjohRaffleRewardsStockForkTest is TestBase {
         assertEq(selectedAsset, MSTR);
 
         uint256 net = prize - prize * 700 / 10_000 - prize * 300 / 10_000;
-        (uint256 minimum,) = ISinjohPriceGuard(PRICE_GUARD).minimumOutput(
-            MSTR, WETH, MSTR, net, keccak256(abi.encode(POOL_FEE)), ""
-        );
+        (uint256 minimum,) = ISinjohPriceGuard(PRICE_GUARD)
+            .minimumOutput(MSTR, WETH, MSTR, net, keccak256(abi.encode(POOL_FEE)), "");
 
         uint256 which = _ownerOf(leaves, raffle.winningIndex(1, 0));
         address winner = leaves[which].holder;

@@ -32,8 +32,7 @@ contract DeployPoolsTradeAdapterFactories {
     address internal constant UERC20_FACTORY = 0x000000e200088D55C39a11F609E5F667729ad49b;
     address internal constant INSTANT_STRATEGY_CREATOR_FEE =
         0x23f8209572b4a1C2AD88A42749E830791Fb027f1;
-    address internal constant INSTANT_STRATEGY_NO_FEE =
-        0xAD44D55E7f8337C3cE113fBb591486E85be104b2;
+    address internal constant INSTANT_STRATEGY_NO_FEE = 0xAD44D55E7f8337C3cE113fBb591486E85be104b2;
     address internal constant LBP_STRATEGY = 0x05d552391067389EE44fec3924157ed33F976000;
     address internal constant TOKEN_SPLITTER = 0x4F5E3FBb9745358A92Da5674305FAb8D2B8a73cE;
     /// @dev Sinjoh's byte-identical deployment of Uniswap's MerkleClaimFactory

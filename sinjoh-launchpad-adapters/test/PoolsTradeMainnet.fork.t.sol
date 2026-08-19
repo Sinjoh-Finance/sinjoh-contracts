@@ -11,9 +11,7 @@ import {
 } from "../src/SinjohPoolsTradeInstantAdapterFactory.sol";
 import { SinjohPoolsTradeLBPAdapter } from "../src/SinjohPoolsTradeLBPAdapter.sol";
 import { SinjohPoolsTradeLBPAdapterFactory } from "../src/SinjohPoolsTradeLBPAdapterFactory.sol";
-import {
-    SinjohPoolsTradeBuybackPriceGuard
-} from "../src/SinjohPoolsTradeBuybackAdapter.sol";
+import { SinjohPoolsTradeBuybackPriceGuard } from "../src/SinjohPoolsTradeBuybackAdapter.sol";
 import { SinjohPoolsTradeSubjectPriceGuard } from "../src/SinjohPoolsTradeSubjectPriceGuard.sol";
 import {
     IPTPoolManager,
@@ -75,12 +73,12 @@ contract V4TradeHelper {
             .swap(
                 key,
                 IPTPoolManager.SwapParams({
-                    zeroForOne: isBuy,
-                    amountSpecified: -int256(amountIn),
-                    sqrtPriceLimitX96: isBuy
-                        ? uint160(4_295_128_740)
-                        : uint160(1_461_446_703_485_210_103_287_273_052_203_988_822_378_723_970_341)
-                }),
+                zeroForOne: isBuy,
+                amountSpecified: -int256(amountIn),
+                sqrtPriceLimitX96: isBuy
+                    ? uint160(4_295_128_740)
+                    : uint160(1_461_446_703_485_210_103_287_273_052_203_988_822_378_723_970_341)
+            }),
                 ""
             );
         int256 amount0 = delta >> 128;
@@ -94,7 +92,11 @@ contract V4TradeHelper {
             // Token in (amount1 negative), native out (amount0 positive).
             IPTPoolManager(poolManager).sync(key.currency1);
             (bool ok,) = key.currency1
-                .call(abi.encodeWithSignature("transfer(address,uint256)", poolManager, uint256(-amount1)));
+                .call(
+                    abi.encodeWithSignature(
+                        "transfer(address,uint256)", poolManager, uint256(-amount1)
+                    )
+                );
             require(ok, "transfer failed");
             IPTPoolManager(poolManager).settle();
             IPTPoolManager(poolManager).take(address(0), address(this), uint256(amount0));
@@ -150,8 +152,7 @@ contract PoolsTradeMainnetForkTest is TestBase {
 
         routerFactory = new SinjohFeeRouterFactory(address(new SinjohFeeRouter()));
         signer = vm.addr(SIGNER_KEY);
-        buybackGuard =
-            new SinjohPoolsTradeBuybackPriceGuard(WETH, WETH.codehash, signer);
+        buybackGuard = new SinjohPoolsTradeBuybackPriceGuard(WETH, WETH.codehash, signer);
         trader = new V4TradeHelper(POOL_MANAGER);
 
         vm.deal(creator, 1_000 ether);
@@ -183,11 +184,7 @@ contract PoolsTradeMainnetForkTest is TestBase {
     {
         RouterTypes.Allocation[] memory walletAllocation = new RouterTypes.Allocation[](1);
         walletAllocation[0] = RouterTypes.Allocation({
-            destination: WALLET,
-            bps: 10_000,
-            isSink: false,
-            creatorMayRepoint: true,
-            sinkConfig: ""
+            destination: WALLET, bps: 10_000, isSink: false, creatorMayRepoint: true, sinkConfig: ""
         });
 
         RouterTypes.Bucket[] memory buckets = new RouterTypes.Bucket[](2);
@@ -228,8 +225,8 @@ contract PoolsTradeMainnetForkTest is TestBase {
         address predictedRouter = routerFactory.predictLaunchpadAddress(creator, USER_SALT);
 
         vm.prank(creator);
-        address routerAddress = routerFactory
-            .deployForLaunchpad(creator, USER_SALT, _instantConfig(predictedAdapter));
+        address routerAddress =
+            routerFactory.deployForLaunchpad(creator, USER_SALT, _instantConfig(predictedAdapter));
         assertEq(routerAddress, predictedRouter);
         vm.prank(creator);
         address adapterAddress = adapterFactory.deploy(creator, routerAddress, USER_SALT);
@@ -343,11 +340,7 @@ contract PoolsTradeMainnetForkTest is TestBase {
     {
         RouterTypes.Allocation[] memory walletAllocation = new RouterTypes.Allocation[](1);
         walletAllocation[0] = RouterTypes.Allocation({
-            destination: WALLET,
-            bps: 10_000,
-            isSink: false,
-            creatorMayRepoint: true,
-            sinkConfig: ""
+            destination: WALLET, bps: 10_000, isSink: false, creatorMayRepoint: true, sinkConfig: ""
         });
 
         RouterTypes.Bucket[] memory buckets = new RouterTypes.Bucket[](1);
@@ -407,8 +400,7 @@ contract PoolsTradeMainnetForkTest is TestBase {
         params.requiredCurrencyRaised = 0.01 ether;
         // One linear step: 250_000 mps per block for 40 blocks sells the full
         // auction supply across the window.
-        params.auctionStepsData =
-            abi.encodePacked(bytes8(uint64((uint256(250_000) << 40) | 40)));
+        params.auctionStepsData = abi.encodePacked(bytes8(uint64((uint256(250_000) << 40) | 40)));
         params.migrationBlock = end + 3;
         params.reservedTokenAmountForLP = LP_RESERVE;
         params.poolFee = 3000;
@@ -459,15 +451,12 @@ contract PoolsTradeMainnetForkTest is TestBase {
         assertEq(adapterFactory.adapterForSubject(token), address(adapter));
         // Supply conservation across the composition: auction supply, LP
         // reserve, team split, merkle leg.
-        assertEq(
-            IERC20Fork(token).balanceOf(auction), uint256(AUCTION_AMOUNT) - LP_RESERVE
-        );
+        assertEq(IERC20Fork(token).balanceOf(auction), uint256(AUCTION_AMOUNT) - LP_RESERVE);
         assertEq(IERC20Fork(token).balanceOf(TEAM_WALLET), TEAM_SPLIT);
         // The merkle distributor holds its leg; everything else is accounted,
         // so the remainder proves the funding.
         assertEq(
-            IERC20Fork(token).totalSupply()
-                - IERC20Fork(token).balanceOf(auction)
+            IERC20Fork(token).totalSupply() - IERC20Fork(token).balanceOf(auction)
                 - IERC20Fork(token).balanceOf(0x05d552391067389EE44fec3924157ed33F976000)
                 - IERC20Fork(token).balanceOf(TEAM_WALLET),
             MERKLE_LEG
@@ -503,11 +492,7 @@ contract PoolsTradeMainnetForkTest is TestBase {
         // Trade the migrated pool to accrue position fees, then collect them.
         (address c0, address c1, uint24 fee, int24 tickSpacing, address hooks) = adapter.poolKey();
         IPTPoolManager.PoolKey memory key = IPTPoolManager.PoolKey({
-            currency0: c0,
-            currency1: c1,
-            fee: fee,
-            tickSpacing: tickSpacing,
-            hooks: hooks
+            currency0: c0, currency1: c1, fee: fee, tickSpacing: tickSpacing, hooks: hooks
         });
         trader.buy{ value: 10 ether }(key, 10 ether);
         trader.sell(key, IERC20Fork(token).balanceOf(address(trader)) / 2);
@@ -522,8 +507,8 @@ contract PoolsTradeMainnetForkTest is TestBase {
         vm.prank(keeper);
         uint256 forwardedSubject = adapter.forward(token);
         assertTrue(forwardedSubject > SUBJECT_SYNC_CAP);
-        uint256 spot = SinjohPoolsTradeSubjectPriceGuard(SUBJECT_GUARD)
-            .spotQuote(token, SUBJECT_SYNC_CAP);
+        uint256 spot =
+            SinjohPoolsTradeSubjectPriceGuard(SUBJECT_GUARD).spotQuote(token, SUBJECT_SYNC_CAP);
         vm.prank(keeper);
         (uint256 subjectGross,) = router.sync(token, spot * 80 / 100);
         assertEq(subjectGross, SUBJECT_SYNC_CAP);

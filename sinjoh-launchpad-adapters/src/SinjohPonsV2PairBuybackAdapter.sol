@@ -127,8 +127,7 @@ contract SinjohPonsV2PairBuybackAdapter is ISinjohSwapAdapter {
             launchFactory_.code.length == 0 || poolManager_.code.length == 0
                 || weth_.code.length == 0 || v3SwapRouter_.code.length == 0
                 || launchFactory_.codehash != launchFactoryCodehash_
-                || poolManager_.codehash != poolManagerCodehash_
-                || weth_.codehash != wethCodehash_
+                || poolManager_.codehash != poolManagerCodehash_ || weth_.codehash != wethCodehash_
                 || v3SwapRouter_.codehash != v3SwapRouterCodehash_
         ) revert InvalidAddress();
         // The factory names the singleton its graduated pools live in. Pinning
@@ -318,8 +317,7 @@ contract SinjohPonsV2PairBuybackAdapter is ISinjohSwapAdapter {
         // address against the token. Fee, spacing, and hook reproduce the key
         // the factory builds in `createGraduatedPool` from the same record.
         bool quoteIsCurrency0 = quote < token;
-        (address currency0, address currency1) =
-            quoteIsCurrency0 ? (quote, token) : (token, quote);
+        (address currency0, address currency1) = quoteIsCurrency0 ? (quote, token) : (token, quote);
         int256 delta = IPonsV4PoolManager(poolManager)
             .swap(
                 IPonsV4PoolManager.PoolKey({

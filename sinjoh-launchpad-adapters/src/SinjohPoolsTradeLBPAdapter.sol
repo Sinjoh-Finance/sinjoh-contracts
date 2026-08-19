@@ -103,10 +103,8 @@ contract SinjohPoolsTradeLBPAdapter is ISinjohLaunchpadAdapter {
     uint256 internal constant ACTION_TAKE_PAIR = 0x11;
 
     /// @dev CCA errors treated as "nothing to sweep" rather than failures.
-    bytes4 private constant AUCTION_IS_NOT_OVER_SELECTOR =
-        bytes4(keccak256("AuctionIsNotOver()"));
-    bytes4 private constant CANNOT_SWEEP_TOKENS_SELECTOR =
-        bytes4(keccak256("CannotSweepTokens()"));
+    bytes4 private constant AUCTION_IS_NOT_OVER_SELECTOR = bytes4(keccak256("AuctionIsNotOver()"));
+    bytes4 private constant CANNOT_SWEEP_TOKENS_SELECTOR = bytes4(keccak256("CannotSweepTokens()"));
 
     /// @dev Bounds `collect`'s per-call position loop. The strategy's planner
     /// mints one position per definition plus one full-range fallback, and the
@@ -270,9 +268,14 @@ contract SinjohPoolsTradeLBPAdapter is ISinjohLaunchpadAdapter {
         view
         returns (address)
     {
-        return IPTUERC20Factory(tokenFactory).getUERC20Address(
-            name, symbol, 18, launcher, IPTLiquidityLauncher(launcher).getGraffiti(address(this))
-        );
+        return IPTUERC20Factory(tokenFactory)
+            .getUERC20Address(
+                name,
+                symbol,
+                18,
+                launcher,
+                IPTLiquidityLauncher(launcher).getGraffiti(address(this))
+            );
     }
 
     /// @notice Creates the token, starts its auction, and (optionally) splits
@@ -314,9 +317,7 @@ contract SinjohPoolsTradeLBPAdapter is ISinjohLaunchpadAdapter {
         currency = params.currency;
         initializer = auction;
         committedPool = PTPoolParameters({
-            fee: params.poolFee,
-            tickSpacing: params.poolTickSpacing,
-            hook: params.poolHook
+            fee: params.poolFee, tickSpacing: params.poolTickSpacing, hook: params.poolHook
         });
         emit Launched(token, auction, params.currency, params.migrationBlock);
 
@@ -381,9 +382,7 @@ contract SinjohPoolsTradeLBPAdapter is ISinjohLaunchpadAdapter {
             recipient: address(this),
             positionRecipient: address(this),
             poolParameters: PTPoolParameters({
-                fee: params.poolFee,
-                tickSpacing: params.poolTickSpacing,
-                hook: params.poolHook
+                fee: params.poolFee, tickSpacing: params.poolTickSpacing, hook: params.poolHook
             }),
             positionDefinitions: abi.encode(params.positionDefinitions),
             lpAllocationSchedule: abi.encode(params.lpAllocationSchedule)
@@ -553,8 +552,7 @@ contract SinjohPoolsTradeLBPAdapter is ISinjohLaunchpadAdapter {
 
         success = positionTokenIds.length != 0;
         if (success) {
-            (IPTPoolManager.PoolKey memory key,) =
-                posm.getPoolAndPositionInfo(positionTokenIds[0]);
+            (IPTPoolManager.PoolKey memory key,) = posm.getPoolAndPositionInfo(positionTokenIds[0]);
             poolKey = key;
         } else {
             migrationFailed = true;
@@ -593,10 +591,7 @@ contract SinjohPoolsTradeLBPAdapter is ISinjohLaunchpadAdapter {
     /// with the committed currency under the committed fee and spacing, and
     /// carries either the committed hook or — for a zero-hook launch — the
     /// strategy-hook fallback the migration may have resolved to.
-    function _requireSubjectPool(IPTPoolManager.PoolKey memory key, uint256 tokenId)
-        private
-        view
-    {
+    function _requireSubjectPool(IPTPoolManager.PoolKey memory key, uint256 tokenId) private view {
         address subject_ = subject;
         address currency_ = currency;
         (address expected0, address expected1) =

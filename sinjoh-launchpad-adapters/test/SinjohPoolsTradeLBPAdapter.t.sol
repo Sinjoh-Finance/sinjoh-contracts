@@ -532,10 +532,7 @@ contract SinjohPoolsTradeLBPAdapterTest is TestBase {
             endTime: block.timestamp + 30 days
         });
         params.merkleLegs[1] = SinjohPoolsTradeLBPAdapter.MerkleLeg({
-            amount: merkleB,
-            merkleRoot: keccak256("airdrop-b"),
-            owner: teamWallet,
-            endTime: 0
+            amount: merkleB, merkleRoot: keccak256("airdrop-b"), owner: teamWallet, endTime: 0
         });
     }
 

@@ -14,13 +14,7 @@ interface ISinjohPoolsTradeLBPPoolKeySell {
     function poolKey()
         external
         view
-        returns (
-            address currency0,
-            address currency1,
-            uint24 fee,
-            int24 tickSpacing,
-            address hooks
-        );
+        returns (address currency0, address currency1, uint24 fee, int24 tickSpacing, address hooks);
     function migrated() external view returns (bool);
 }
 
@@ -137,11 +131,7 @@ contract SinjohPoolsTradeSellAdapter is ISinjohSwapAdapter {
 
     /// @notice The pool key this adapter would sell `token` in right now.
     /// Reverts when the launch has no reachable market.
-    function resolvePoolKey(address token)
-        public
-        view
-        returns (IPTPoolManager.PoolKey memory key)
-    {
+    function resolvePoolKey(address token) public view returns (IPTPoolManager.PoolKey memory key) {
         address lbpAdapter =
             ISinjohPoolsTradeLBPRegistrySell(lbpAdapterFactory).adapterForSubject(token);
         if (lbpAdapter != address(0)) {
@@ -233,14 +223,14 @@ contract SinjohPoolsTradeSellAdapter is ISinjohSwapAdapter {
             amountOut = IPTV3SwapRouter(v3SwapRouter)
                 .exactInputSingle(
                     IPTV3SwapRouter.ExactInputSingleParams({
-                        tokenIn: counterAsset,
-                        tokenOut: weth,
-                        fee: v3Fee,
-                        recipient: address(this),
-                        amountIn: currencyOut,
-                        amountOutMinimum: minAmountOut,
-                        sqrtPriceLimitX96: 0
-                    })
+                    tokenIn: counterAsset,
+                    tokenOut: weth,
+                    fee: v3Fee,
+                    recipient: address(this),
+                    amountIn: currencyOut,
+                    amountOutMinimum: minAmountOut,
+                    sqrtPriceLimitX96: 0
+                })
                 );
             counterAsset.safeApprove(v3SwapRouter, 0);
             if (counterAsset.safeBalanceOf(address(this)) != 0) revert UnexpectedBalance();

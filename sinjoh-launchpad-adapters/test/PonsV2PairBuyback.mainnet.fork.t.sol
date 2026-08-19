@@ -153,7 +153,14 @@ contract PonsV2PairBuybackMainnetForkTest is TestBase {
         uint48 validAfter = uint48(block.timestamp - 1);
         uint48 validUntil = uint48(block.timestamp + 100);
         bytes32 digest = guard.floorDigest(
-            address(this), subject, WETH, subject, amountIn, routeHash, minimum, validAfter,
+            address(this),
+            subject,
+            WETH,
+            subject,
+            amountIn,
+            routeHash,
+            minimum,
+            validAfter,
             validUntil
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(

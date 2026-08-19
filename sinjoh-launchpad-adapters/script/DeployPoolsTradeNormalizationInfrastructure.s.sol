@@ -97,8 +97,7 @@ contract DeployPoolsTradeNormalizationInfrastructure {
                 || adapter.lbpAdapterFactory() != lbpFactory
                 || adapter.v3SwapRouter() != V3_SWAP_ROUTER
                 || guard.lbpAdapterFactory() != lbpFactory
-                || guard.sharedTwapGuard() != SHARED_TWAP_GUARD
-                || guard.haircutBps() != HAIRCUT_BPS
+                || guard.sharedTwapGuard() != SHARED_TWAP_GUARD || guard.haircutBps() != HAIRCUT_BPS
         ) revert DeploymentFailed();
     }
 

@@ -78,10 +78,12 @@ contract PredictPonsV2Launch {
         _log("=== Pons v2 launch prediction ===");
         _log(string.concat("token: ", vm.toString(token)));
         _log(string.concat("curve: ", vm.toString(curve)));
-        _log(string.concat(
-            "expectedEconomics to pin: ",
-            vm.toString(pons.previewLaunchEconomics(launchConfigId, pairToken))
-        ));
+        _log(
+            string.concat(
+                "expectedEconomics to pin: ",
+                vm.toString(pons.previewLaunchEconomics(launchConfigId, pairToken))
+            )
+        );
         _log("");
         _log("Raffle exclusion list for this launch (sort ascending before configuring):");
         _log(string.concat("  curve:        ", vm.toString(curve)));

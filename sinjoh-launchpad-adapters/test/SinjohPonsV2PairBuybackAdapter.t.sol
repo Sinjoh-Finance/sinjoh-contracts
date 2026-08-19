@@ -228,7 +228,11 @@ contract SinjohPonsV2PairBuybackAdapterTest is TestBase {
         // sequential CREATE addresses make both appear within a few tries.
         MockERC20 below;
         MockERC20 above;
-        for (uint256 i = 0; i < 32 && (address(below) == address(0) || address(above) == address(0)); i++) {
+        for (
+            uint256 i = 0;
+            i < 32 && (address(below) == address(0) || address(above) == address(0));
+            i++
+        ) {
             MockERC20 candidate = new MockERC20("Sortable", "SORT", 18);
             if (address(candidate) < address(pair) && address(below) == address(0)) {
                 below = candidate;
@@ -316,35 +320,47 @@ contract SinjohPonsV2PairBuybackAdapterTest is TestBase {
     // Guard
     // ------------------------------------------------------------------
 
-    function _guardData(
-        address subject,
-        uint256 amountIn,
-        bytes32 routeHash,
-        uint256 minimum
-    ) private returns (bytes memory) {
+    function _guardData(address subject, uint256 amountIn, bytes32 routeHash, uint256 minimum)
+        private
+        returns (bytes memory)
+    {
         uint48 validAfter = uint48(block.timestamp - 1);
         uint48 validUntil = uint48(block.timestamp + 100);
         bytes32 digest = guard.floorDigest(
-            address(this), subject, address(weth), subject, amountIn, routeHash, minimum,
-            validAfter, validUntil
+            address(this),
+            subject,
+            address(weth),
+            subject,
+            amountIn,
+            routeHash,
+            minimum,
+            validAfter,
+            validUntil
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(
-            SIGNER_KEY,
-            keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", digest))
+            SIGNER_KEY, keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", digest))
         );
         return abi.encode(minimum, validAfter, validUntil, abi.encodePacked(r, s, v));
     }
 
     function test_guardAcceptsNativeAndPairRouteShapes() public {
         (uint256 minimum,) = guard.minimumOutput(
-            address(nativeToken), address(weth), address(nativeToken), AMOUNT, keccak256(""),
+            address(nativeToken),
+            address(weth),
+            address(nativeToken),
+            AMOUNT,
+            keccak256(""),
             _guardData(address(nativeToken), AMOUNT, keccak256(""), 123)
         );
         assertEq(minimum, 123);
 
         bytes32 pairRouteHash = keccak256(PAIR_ROUTE);
         (minimum,) = guard.minimumOutput(
-            address(token), address(weth), address(token), AMOUNT, pairRouteHash,
+            address(token),
+            address(weth),
+            address(token),
+            AMOUNT,
+            pairRouteHash,
             _guardData(address(token), AMOUNT, pairRouteHash, 456)
         );
         assertEq(minimum, 456);
@@ -363,7 +379,11 @@ contract SinjohPonsV2PairBuybackAdapterTest is TestBase {
         bytes memory pairRouteData = _guardData(address(nativeToken), AMOUNT, pairRouteHash, 1);
         vm.expectRevert(SinjohPonsV2PairBuybackPriceGuard.InvalidRoute.selector);
         guard.minimumOutput(
-            address(nativeToken), address(weth), address(nativeToken), AMOUNT, pairRouteHash,
+            address(nativeToken),
+            address(weth),
+            address(nativeToken),
+            AMOUNT,
+            pairRouteHash,
             pairRouteData
         );
     }
@@ -372,8 +392,15 @@ contract SinjohPonsV2PairBuybackAdapterTest is TestBase {
         uint48 validAfter = uint48(block.timestamp - 1);
         uint48 validUntil = uint48(block.timestamp + 100);
         bytes32 digest = guard.floorDigest(
-            address(this), address(nativeToken), address(weth), address(nativeToken), AMOUNT,
-            keccak256(""), 1, validAfter, validUntil
+            address(this),
+            address(nativeToken),
+            address(weth),
+            address(nativeToken),
+            AMOUNT,
+            keccak256(""),
+            1,
+            validAfter,
+            validUntil
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(
             uint256(keccak256("not-the-signer")),
@@ -381,7 +408,11 @@ contract SinjohPonsV2PairBuybackAdapterTest is TestBase {
         );
         vm.expectRevert(SinjohSignedFloor.InvalidSignature.selector);
         guard.minimumOutput(
-            address(nativeToken), address(weth), address(nativeToken), AMOUNT, keccak256(""),
+            address(nativeToken),
+            address(weth),
+            address(nativeToken),
+            AMOUNT,
+            keccak256(""),
             abi.encode(uint256(1), validAfter, validUntil, abi.encodePacked(r, s, v))
         );
     }

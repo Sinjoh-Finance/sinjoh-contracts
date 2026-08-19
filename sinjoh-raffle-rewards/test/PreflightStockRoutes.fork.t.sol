@@ -32,8 +32,7 @@ contract PreflightStockRoutesForkTest is TestBase {
     /// every gate — including a real swap through the real adapter against the real pool.
     function testForkPreflightPassesAReadyRouteWithACompliantGuard() public {
         if (!forked) return;
-        MockCompliantGuard guard =
-            new MockCompliantGuard(StockRouteManifest.V3_FACTORY, MSTR_FEE);
+        MockCompliantGuard guard = new MockCompliantGuard(StockRouteManifest.V3_FACTORY, MSTR_FEE);
         assertEq(preflight.checkRoute(MSTR_INDEX, address(guard), 0.01 ether), 0);
     }
 
@@ -41,17 +40,14 @@ contract PreflightStockRoutesForkTest is TestBase {
     /// 900 seconds rather than the reviewed 300.
     function testForkPreflightRejectsTheDeployedNineHundredSecondGuard() public {
         if (!forked) return;
-        assertTrue(
-            preflight.checkRoute(MSTR_INDEX, DEPLOYED_900_SECOND_GUARD, 0.01 ether) != 0
-        );
+        assertTrue(preflight.checkRoute(MSTR_INDEX, DEPLOYED_900_SECOND_GUARD, 0.01 ether) != 0);
     }
 
     /// A guard built for a different fee tier prices a pool the route will never swap in. Nothing
     /// on-chain compares the two, so this is the gate's job.
     function testForkPreflightRejectsAFeeTierMismatch() public {
         if (!forked) return;
-        MockCompliantGuard wrongTier =
-            new MockCompliantGuard(StockRouteManifest.V3_FACTORY, 500);
+        MockCompliantGuard wrongTier = new MockCompliantGuard(StockRouteManifest.V3_FACTORY, 500);
         assertTrue(preflight.checkRoute(MSTR_INDEX, address(wrongTier), 0.01 ether) != 0);
     }
 

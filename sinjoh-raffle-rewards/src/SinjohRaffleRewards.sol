@@ -517,7 +517,9 @@ contract SinjohRaffleRewards {
         RaffleTypes.Leaf calldata leaf,
         RaffleTypes.ProofElement[] calldata proof
     ) external nonReentrant returns (uint256 paid) {
-        if (_stockRewards.length == 0) revert FallbackUnavailable();
+        if (_stockRewards.length == 0) {
+            revert FallbackUnavailable();
+        }
         if (msg.sender != leaf.holder) revert Unauthorized();
         _requireWinningClaim(roundId, slot, leaf, proof);
         // forge-lint: disable-next-line(block-timestamp)
@@ -789,8 +791,7 @@ contract SinjohRaffleRewards {
     /// @dev Undrawn rounds report a meaningless early time; `claimFunding` rejects them on state.
     function fundingFallbackAt(uint64 roundId) public view returns (uint256) {
         uint32 window = settings.claimWindow;
-        return
-            uint256(rounds[roundId].drawnAt) + window - window / STOCK_FALLBACK_DIVISOR;
+        return uint256(rounds[roundId].drawnAt) + window - window / STOCK_FALLBACK_DIVISOR;
     }
 
     /// @notice The immutable stock route selected by VRF for one winning slot.
