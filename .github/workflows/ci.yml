@@ -29,3 +29,6 @@ jobs:
 
       - name: Verify deployment tag mapping
         run: node scripts/verify-provenance-map.mjs
+
+      - name: Verify Blockscout evidence registry
+        run: node scripts/verify-blockscout-registry.mjs

@@ -4,6 +4,12 @@
 !.env.example
 *.log
 **/node_modules/
+# Vendored Solidity libraries sometimes include upstream JavaScript tooling.
+# Sinjoh does not install or execute it; keep its lockfiles out of the public
+# dependency graph while retaining all Solidity sources and license notices.
+**/lib/**/package-lock.json
+**/lib/**/npm-shrinkwrap.json
+**/lib/**/yarn.lock
 
 .gstack/
 .agent-research/cache/
