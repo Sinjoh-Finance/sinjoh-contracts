@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { AddressGovernanceController } from "../src/governance/AddressGovernanceController.sol";
 import { IGovernanceController } from "../src/interfaces/IGovernanceController.sol";
+import { Governed } from "../src/governance/Governed.sol";
 import { YieldBasket } from "../src/YieldBasket.sol";
 import { TestBase } from "./TestBase.sol";
 import { MockERC20, MockFundable, MockYieldAdapter } from "./mocks/Mocks.sol";
@@ -82,6 +83,25 @@ contract YieldBasketTest is TestBase {
         basket.harvest(adapter);
         assertEq(reward.balanceOf(address(basket)), 50e18);
         assertEq(sink.funded(address(reward)), 0);
+
+        basket.recoverNonDepositAsset(IERC20(address(reward)), BOB, 50e18);
+        assertEq(reward.balanceOf(address(basket)), 0);
+        assertEq(reward.balanceOf(BOB), 50e18);
+    }
+
+    function testOnlyGovernanceCanRecoverNonDepositAssets() public {
+        reward.mint(address(basket), 50e18);
+        vm.prank(ALICE);
+        vm.expectRevert(Governed.Unauthorized.selector);
+        basket.recoverNonDepositAsset(IERC20(address(reward)), BOB, 50e18);
+        assertEq(reward.balanceOf(address(basket)), 50e18);
+    }
+
+    function testDepositAssetCannotBeRecoveredThroughTokenEscapeHatch() public {
+        asset.mint(address(basket), 50e18);
+        vm.expectRevert(YieldBasket.InvalidConfiguration.selector);
+        basket.recoverNonDepositAsset(IERC20(address(asset)), BOB, 50e18);
+        assertEq(asset.balanceOf(address(basket)), 50e18);
     }
 
     function testDepositAssetCanNeverBeConfiguredAsHarvestedReward() public {

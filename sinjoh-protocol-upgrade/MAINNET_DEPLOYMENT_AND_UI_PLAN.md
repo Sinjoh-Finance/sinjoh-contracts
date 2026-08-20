@@ -53,7 +53,8 @@ All gates are mandatory for a production broadcast:
 5. A Robinhood Chain mainnet fork rehearsal uses chain ID 4663 and current onchain state. It
    exercises stake, increase, extend, epoch funding, late execution, claims, sweeping, pause,
    exact unlock-time weight expiry, pre- and post-expiry relocking, zero-weight epoch rollover,
-   withdrawals while paused, basket adapter write-off/recovery, and every governance transition.
+   withdrawals while paused, Fee Router sink failure/escrow/retry/recovery, basket adapter
+   write-off/recovery, out-of-band reward-token recovery, and every governance transition.
 6. The deployment script is simulated without broadcast and its decoded constructor arguments,
    role grants, expected addresses, and runtime hashes match the signed manifest.
 7. A testnet or isolated canary completes one entire small-value lifecycle before mainnet funding.
@@ -83,7 +84,8 @@ Deploy and configure in this order:
 6. Create reviewed reward schedules. Configure `FeeRouterV2` staking-reward routes with
    `FUND_AIRDROP` and canonical `abi.encode(scheduleId)` route data.
 7. Exercise a small-value canary: stake, fund, close, claim, extend, pause, withdraw while paused,
-   resume, and sweep an intentionally expired dust epoch.
+   resume, sweep an intentionally expired dust epoch, prove a failing Fee Router sink does not
+   block a healthy route, and retry its escrow after recovery.
 8. Transfer or renounce every bootstrap role. Freeze only after all configuration and verification
    is complete and only if the approved authority model is immutable.
 
@@ -157,7 +159,9 @@ cutover) for:
 - funding status, pending rewards, liability coverage, next close time, and executor incentive;
 - permissionless `executeEpoch` when due;
 - claim-window progress and permissionless sweep after expiry;
-- Fee Router route status and the effective stacked-fee preview.
+- Fee Router route status, route escrow balances, retry/recovery controls, and the effective
+  stacked-fee preview;
+- basket non-deposit-token balances and an explicitly governed recovery action.
 
 Public token/build pages should show read-only schedules, tiers, eligibility, governance authority,
 fees, claim deadlines, and verified addresses. Label the existing standard airdrop surface
@@ -170,7 +174,8 @@ Index these events from the deployment block:
 - `Staked`, `StakeIncreased`, `LockExtended`, `Withdrawn`, and `TierSet`;
 - `ScheduleCreated`, `ScheduleUpdated`, `Funded`, `EpochExecuted`, `EmptyEpochSkipped`, `Claimed`,
   and `UnclaimedSwept`;
-- controller changes, pauses, and Fee Router configuration activation.
+- controller changes, pauses, Fee Router configuration activation, `RouteEscrowed`,
+  `RouteEscrowRetried`, `RouteEscrowRecovered`, and `NonDepositAssetRecovered`.
 
 Direct RPC remains the source of truth for transaction preparation and claimability. Indexed data
 may accelerate history and discovery but must be reconciled to the same finalized block before it
@@ -189,9 +194,12 @@ Roll out in four stages:
    release approval.
 
 If an issue appears, disable the UI feature flag, pause new funding and epoch execution, and remove
-or pause Fee Router staking routes. Preserve claims for already funded epochs and withdrawals from
-`StakingEngine`; neither action is pause-gated. These contracts are not proxies, so a contract bug
-requires a reviewed replacement deployment and route migration rather than an in-place upgrade.
+or pause Fee Router staking routes. A paused route's new shares accumulate in route escrow rather
+than blocking unrelated destinations; resume and retry only after the sink is healthy, or use the
+governed recovery path for a permanently incompatible sink. Preserve claims for already funded
+epochs and withdrawals from `StakingEngine`; neither action is pause-gated. These contracts are not
+proxies, so a contract bug requires a reviewed replacement deployment and route migration rather
+than an in-place upgrade.
 
 ## Go-live evidence
 

@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { AddressGovernanceController } from "../src/governance/AddressGovernanceController.sol";
 import { IGovernanceController } from "../src/interfaces/IGovernanceController.sol";
+import { Governed } from "../src/governance/Governed.sol";
 import { FeeRouterV2 } from "../src/FeeRouterV2.sol";
 import { DynamicFundingBands } from "../src/DynamicFundingBands.sol";
 import { SinjohStakingEngine } from "../src/SinjohStakingEngine.sol";
@@ -15,6 +16,7 @@ contract FeeRouterV2Test is TestBase {
     address private constant GUARDIAN = address(0xBEEF);
     address private constant PROTOCOL = address(0xFEE);
     address private constant ALICE = address(0xA11CE);
+    address private constant BOB = address(0xB0B);
 
     MockERC20 private token;
     FeeRouterV2 private router;
@@ -66,10 +68,18 @@ contract FeeRouterV2Test is TestBase {
         });
         _activate(routes);
         token.mint(address(router), 10_000);
-        vm.expectPartialRevert(FeeRouterV2.InexactTransfer.selector);
         router.sync(address(token));
-        assertEq(token.balanceOf(address(router)), 10_000);
-        assertEq(token.balanceOf(PROTOCOL), 0);
+        assertEq(token.balanceOf(address(router)), 9_900);
+        assertEq(token.balanceOf(PROTOCOL), 100);
+        assertEq(router.routeEscrow(1, 0), 9_900);
+        assertEq(router.totalEscrowed(address(token)), 9_900);
+        assertEq(dishonestAdapter.funded(address(token)), 0);
+
+        dishonestAdapter.setPullFunds(true);
+        router.retryEscrow(1, 0);
+        assertEq(router.routeEscrow(1, 0), 0);
+        assertEq(router.totalEscrowed(address(token)), 0);
+        assertEq(dishonestAdapter.funded(address(token)), 9_900);
     }
 
     function testFundBandRouteUsesRuntimeAmountAsFullPrefunding() public {
@@ -169,13 +179,79 @@ contract FeeRouterV2Test is TestBase {
         _activate(_directRoute());
         router.pauseRoute(0);
         token.mint(address(router), 10_000);
-        vm.expectPartialRevert(FeeRouterV2.RoutePaused.selector);
         router.sync(address(token));
-        assertEq(token.balanceOf(PROTOCOL), 0);
-        assertEq(token.balanceOf(address(router)), 10_000);
+        assertEq(token.balanceOf(PROTOCOL), 100);
+        assertEq(token.balanceOf(address(router)), 9_900);
+        assertEq(router.routeEscrow(1, 0), 9_900);
         router.resumeRoute(0);
-        router.sync(address(token));
+        router.retryEscrow(1, 0);
         assertEq(token.balanceOf(ALICE), 9_900);
+        assertEq(router.totalEscrowed(address(token)), 0);
+    }
+
+    function testRouteFailureDoesNotFreezeHealthyRouteOrFutureSyncs() public {
+        MockFundable failingAdapter = new MockFundable();
+        failingAdapter.setPullFunds(false);
+        FeeRouterV2.Route[] memory routes = new FeeRouterV2.Route[](2);
+        routes[0] = FeeRouterV2.Route({
+            inputToken: address(token),
+            recipient: address(failingAdapter),
+            shareBps: 5_000,
+            action: FeeRouterV2.Action.FUND_BASKET,
+            config: ""
+        });
+        routes[1] = FeeRouterV2.Route({
+            inputToken: address(token),
+            recipient: ALICE,
+            shareBps: 5_000,
+            action: FeeRouterV2.Action.SEND,
+            config: ""
+        });
+        _activate(routes);
+
+        token.mint(address(router), 10_000);
+        router.sync(address(token));
+        assertEq(token.balanceOf(PROTOCOL), 100);
+        assertEq(token.balanceOf(ALICE), 4_950);
+        assertEq(router.routeEscrow(1, 0), 4_950);
+
+        token.mint(address(router), 10_000);
+        router.sync(address(token));
+        assertEq(token.balanceOf(PROTOCOL), 200);
+        assertEq(token.balanceOf(ALICE), 9_900);
+        assertEq(router.routeEscrow(1, 0), 9_900);
+        assertEq(router.totalEscrowed(address(token)), 9_900);
+        assertEq(token.balanceOf(address(router)), 9_900);
+    }
+
+    function testGovernanceCanRecoverPermanentlyFailedEscrow() public {
+        MockFundable failingAdapter = new MockFundable();
+        failingAdapter.setPullFunds(false);
+        FeeRouterV2.Route[] memory routes = new FeeRouterV2.Route[](1);
+        routes[0] = FeeRouterV2.Route({
+            inputToken: address(token),
+            recipient: address(failingAdapter),
+            shareBps: 10_000,
+            action: FeeRouterV2.Action.FUND_BASKET,
+            config: ""
+        });
+        _activate(routes);
+        token.mint(address(router), 10_000);
+        router.sync(address(token));
+
+        vm.prank(ALICE);
+        vm.expectRevert(Governed.Unauthorized.selector);
+        router.recoverEscrow(1, 0, BOB);
+        router.recoverEscrow(1, 0, BOB);
+        assertEq(token.balanceOf(BOB), 9_900);
+        assertEq(router.routeEscrow(1, 0), 0);
+        assertEq(router.totalEscrowed(address(token)), 0);
+    }
+
+    function testExecuteRouteCannotBeCalledExternally() public {
+        _activate(_directRoute());
+        vm.expectRevert(FeeRouterV2.OnlySelf.selector);
+        router.executeRoute(1, 0, address(token), 1);
     }
 
     function testDirectRoutesRejectOpaqueConfigurationBytes() public {

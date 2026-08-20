@@ -9,6 +9,7 @@ import { Governed } from "./governance/Governed.sol";
 import { IGovernanceController } from "./interfaces/IGovernanceController.sol";
 import { ITwapOracle } from "./interfaces/ITwapOracle.sol";
 import { ISinjohFundable } from "./interfaces/ISinjohFundable.sol";
+import { ProtocolAccounting } from "./libraries/ProtocolAccounting.sol";
 
 /// @notice Governed post-launch funding commitments with prefunding, delayed activation, TWAP
 /// distance checks, and a sustained in-range confirmation period.
@@ -233,14 +234,15 @@ contract DynamicFundingBands is Governed, ReentrancyGuard, ISinjohFundable {
         totalCommitted -= band.amount;
         committedByAsset[band.fundingAsset] -= band.amount;
         committedBySubject[band.subject][band.fundingAsset] -= band.amount;
-        (uint256 fee, uint16 nextRemainder) =
-            _protocolFee(band.amount, protocolFeeRemainder[band.fundingAsset]);
+        (uint256 fee, uint16 nextRemainder) = ProtocolAccounting.protocolFee(
+            band.amount, PROTOCOL_FEE_BPS, protocolFeeRemainder[band.fundingAsset]
+        );
         protocolFeeRemainder[band.fundingAsset] = nextRemainder;
         cumulativeRedeemed[band.fundingAsset] += band.amount;
         cumulativeProtocolFee[band.fundingAsset] += fee;
         IERC20 token = IERC20(band.fundingAsset);
-        _sendExact(token, protocolFeeRecipient, fee);
-        _sendExact(token, band.recipient, band.amount - fee);
+        ProtocolAccounting.sendExact(token, protocolFeeRecipient, fee);
+        ProtocolAccounting.sendExact(token, band.recipient, band.amount - fee);
         emit BandRedeemed(bandId, band.amount, fee, band.amount - fee);
     }
 
@@ -255,7 +257,7 @@ contract DynamicFundingBands is Governed, ReentrancyGuard, ISinjohFundable {
         totalCommitted -= band.amount;
         committedByAsset[band.fundingAsset] -= band.amount;
         committedBySubject[band.subject][band.fundingAsset] -= band.amount;
-        _sendExact(IERC20(band.fundingAsset), band.refundRecipient, band.amount);
+        ProtocolAccounting.sendExact(IERC20(band.fundingAsset), band.refundRecipient, band.amount);
         emit BandCancelled(bandId);
     }
 
@@ -270,7 +272,7 @@ contract DynamicFundingBands is Governed, ReentrancyGuard, ISinjohFundable {
         totalCommitted -= band.amount;
         committedByAsset[band.fundingAsset] -= band.amount;
         committedBySubject[band.subject][band.fundingAsset] -= band.amount;
-        _sendExact(IERC20(band.fundingAsset), band.refundRecipient, band.amount);
+        ProtocolAccounting.sendExact(IERC20(band.fundingAsset), band.refundRecipient, band.amount);
         emit BandExpiredAndRefunded(bandId);
     }
 
@@ -380,24 +382,5 @@ contract DynamicFundingBands is Governed, ReentrancyGuard, ISinjohFundable {
         if (updatedAt <= band.lastOracleUpdatedAt) {
             revert ObservationNotAdvanced(band.lastOracleUpdatedAt, updatedAt);
         }
-    }
-
-    function _protocolFee(uint256 amount, uint16 remainder)
-        private
-        pure
-        returns (uint256 fee, uint16 nextRemainder)
-    {
-        uint256 scaledRemainder = (amount % BPS) * PROTOCOL_FEE_BPS + remainder;
-        fee = (amount / BPS) * PROTOCOL_FEE_BPS + scaledRemainder / BPS;
-        nextRemainder = uint16(scaledRemainder % BPS);
-    }
-
-    function _sendExact(IERC20 token, address recipient, uint256 amount) private {
-        if (amount == 0) return;
-        uint256 beforeBalance = token.balanceOf(recipient);
-        token.safeTransfer(recipient, amount);
-        uint256 afterBalance = token.balanceOf(recipient);
-        uint256 received = afterBalance >= beforeBalance ? afterBalance - beforeBalance : 0;
-        if (received != amount) revert InexactTransfer(amount, received);
     }
 }

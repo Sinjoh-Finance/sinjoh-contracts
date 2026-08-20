@@ -9,6 +9,7 @@ import { Governed } from "./governance/Governed.sol";
 import { IGovernanceController } from "./interfaces/IGovernanceController.sol";
 import { IStakingSnapshot } from "./interfaces/IStakingSnapshot.sol";
 import { ISinjohFundable } from "./interfaces/ISinjohFundable.sol";
+import { ProtocolAccounting } from "./libraries/ProtocolAccounting.sol";
 
 /// @notice Permissionless epoch closing and batched start-of-epoch checkpoint claims for stakers.
 /// @dev Only positions still locked at the timestamp snapshot receive weight.
@@ -183,13 +184,14 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
         received = token.balanceOf(address(this)) - beforeBalance;
         if (received != amount) revert InexactTransfer(amount, received);
 
-        (uint256 fee, uint16 nextRemainder) = _protocolFee(amount, protocolFeeRemainder[asset]);
+        (uint256 fee, uint16 nextRemainder) =
+            ProtocolAccounting.protocolFee(amount, PROTOCOL_FEE_BPS, protocolFeeRemainder[asset]);
         protocolFeeRemainder[asset] = nextRemainder;
         cumulativeGrossFunding[asset] += amount;
         cumulativeProtocolFee[asset] += fee;
         schedule.pendingRewards += amount - fee;
         totalLiability[asset] += amount - fee;
-        _sendExact(token, protocolFeeRecipient, fee);
+        ProtocolAccounting.sendExact(token, protocolFeeRecipient, fee);
         emit Funded(scheduleId, msg.sender, amount, fee);
     }
 
@@ -242,7 +244,7 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
         schedule.nextEpoch = uint48(block.timestamp) + schedule.interval;
         if (executorReward != 0) {
             totalLiability[schedule.rewardToken] -= executorReward;
-            _sendExact(IERC20(schedule.rewardToken), msg.sender, executorReward);
+            ProtocolAccounting.sendExact(IERC20(schedule.rewardToken), msg.sender, executorReward);
         }
         emit EpochExecuted(
             scheduleId, epochId, snapshotTime, distributable, totalWeight, executorReward
@@ -279,7 +281,7 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
             emit Claimed(scheduleId, epochId, msg.sender, amount);
         }
         totalLiability[schedule.rewardToken] -= total;
-        _sendExact(IERC20(schedule.rewardToken), msg.sender, total);
+        ProtocolAccounting.sendExact(IERC20(schedule.rewardToken), msg.sender, total);
     }
 
     function sweepUnclaimed(uint256 scheduleId, uint64 epochId) external nonReentrant {
@@ -291,7 +293,9 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
         if (amount == 0) revert InvalidAmount();
         epoch.claimedAmount = epoch.fundedAmount;
         totalLiability[schedule.rewardToken] -= amount;
-        _sendExact(IERC20(schedule.rewardToken), epoch.unclaimedDestination, amount);
+        ProtocolAccounting.sendExact(
+            IERC20(schedule.rewardToken), epoch.unclaimedDestination, amount
+        );
         emit UnclaimedSwept(scheduleId, epochId, amount);
     }
 
@@ -328,26 +332,7 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
         ) revert InvalidConfiguration();
     }
 
-    function _protocolFee(uint256 amount, uint16 remainder)
-        private
-        pure
-        returns (uint256 fee, uint16 nextRemainder)
-    {
-        uint256 scaledRemainder = (amount % BPS) * PROTOCOL_FEE_BPS + remainder;
-        fee = (amount / BPS) * PROTOCOL_FEE_BPS + scaledRemainder / BPS;
-        nextRemainder = uint16(scaledRemainder % BPS);
-    }
-
     function _snapshotTime() private view returns (uint48) {
         return block.timestamp == 0 ? 0 : uint48(block.timestamp - 1);
-    }
-
-    function _sendExact(IERC20 token, address recipient, uint256 amount) private {
-        if (amount == 0) return;
-        uint256 beforeBalance = token.balanceOf(recipient);
-        token.safeTransfer(recipient, amount);
-        uint256 afterBalance = token.balanceOf(recipient);
-        uint256 received = afterBalance >= beforeBalance ? afterBalance - beforeBalance : 0;
-        if (received != amount) revert InexactTransfer(amount, received);
     }
 }

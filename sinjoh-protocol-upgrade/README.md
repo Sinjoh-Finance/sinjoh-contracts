@@ -52,10 +52,10 @@ vote amount. Calculate the desired
 
 | Contract | Purpose | Main safety properties |
 | --- | --- | --- |
-| `FeeRouterV2` | Versioned project-fee routing | Atomic route sets, delayed activation, protected rollback target, immutable 1% fee, exact transfers, guardian or governance route pause |
+| `FeeRouterV2` | Versioned project-fee routing | Atomic route sets, delayed activation, protected rollback target, immutable 1% fee, exact transfers, per-route failure escrow and retry, guardian or governance route pause |
 | `StakingEngine` | Fixed-tier token locks | Timestamp checkpoints, automatic zero weight at unlock, exact deposits and withdrawals, withdrawals remain available while paused, tier changes apply on new or renewed locks |
 | `SinjohStakingEngine` | Claim-based staking distributions | 30-minute minimum epochs, zero-weight rollover, prefunded liabilities, batched claims, executor reward caps, unclaimed sweep |
-| `YieldBasket` | Allowlisted harvest-only portfolio | Per-adapter caps, token-specific reward routes, pause-preserving configuration, loss write-off/recovery, exact accounting |
+| `YieldBasket` | Allowlisted harvest-only portfolio | Per-adapter caps, token-specific reward routes, pause-preserving configuration, loss write-off/recovery, non-deposit-token recovery, exact accounting |
 | `DynamicFundingBands` | Prefunded post-launch commitments | Activation delay, fresh TWAP cadence, minimum distance, confirmation clock, immutable active terms, exact payouts, per-asset/subject commitments |
 
 The existing `sinjoh-airdrop-distributor` remains the default standard airdrop path and does
@@ -78,7 +78,11 @@ no generic governance call surface.
 - The Fee Router removes its immutable 1% protocol fee before project routes are evaluated.
   Remainder carry makes splitting intake unable to reduce the cumulative fee. Re-activating the
   already-active configuration is rejected so a stale governance transaction cannot overwrite
-  the known-good rollback target.
+  the known-good rollback target. A paused or reverting destination reserves only its exact route
+  share in configuration-and-route-specific escrow; other routes and later intake continue.
+  Reserved balances are excluded from future `sync` calls. Anyone may call `retryEscrow` after the
+  route recovers, while governance may use `recoverEscrow` to redirect a permanently incompatible
+  route's reservation.
 - The distributor keeps the existing Sinjoh service rule: a cumulative 1% fee on gross funding.
   `totalLiability[token]` tracks all unpaid net rewards and is covered by the contract balance.
 - Dynamic bands charge their cumulative 1% service fee only when backing redeems. Pending,
@@ -94,7 +98,14 @@ no generic governance call surface.
   Reconfiguration preserves an emergency adapter pause. Removing an adapter clears every reward
   route. For an irrecoverable fully paused adapter, governance can explicitly write off principal
   and later recover revived shares only as non-principal value; the adapter cannot be reapproved
-  or receive a new allocation while written-off shares remain.
+  or receive a new allocation while written-off shares remain. Tokens that reach the basket
+  outside a verified harvest remain excluded from realized yield and can be moved only through the
+  governance-only `recoverNonDepositAsset`; the deposit asset is never eligible for that escape
+  hatch because it may represent principal or unrealized value.
+
+Protocol-fee remainder carry and outgoing exact-transfer checks are implemented once in the
+internal `ProtocolAccounting` library and reused across the router, staking, distribution, basket,
+and band modules.
 
 These fees are module-local and stack across integrations. For example, Fee Router intake routed
 into the distributor or a band pays the router's 1% first and the destination module's 1% on its
@@ -156,9 +167,9 @@ forge test
 
 The suite includes unit, integration, 1,000-run fuzz, and 256-run stateful invariant tests.
 It covers the full governor-vote-queue-timelock-execute lifecycle, cumulative fee resistance,
-zero-weight staking rollover, claim solvency, multi-reward routing, harvest injection attempts,
-adapter pause/write-off/recovery, atomic route rollback protection, quiet-market oracle refresh,
-and prefunded band commitments.
+zero-weight staking rollover, claim solvency, route failure isolation/escrow/recovery, multi-reward
+routing, harvest injection attempts, adapter pause/write-off/token recovery, atomic route rollback
+protection, quiet-market oracle refresh, and prefunded band commitments.
 
 ## Deployment order
 

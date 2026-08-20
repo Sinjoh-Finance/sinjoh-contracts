@@ -9,6 +9,7 @@ import { Governed } from "./governance/Governed.sol";
 import { IGovernanceController } from "./interfaces/IGovernanceController.sol";
 import { ISinjohFundable } from "./interfaces/ISinjohFundable.sol";
 import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
+import { ProtocolAccounting } from "./libraries/ProtocolAccounting.sol";
 
 /// @notice Allowlisted, harvest-only treasury portfolio. Principal never becomes distributable.
 contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
@@ -82,6 +83,9 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
     );
     event Harvested(
         address indexed adapter, address indexed rewardToken, uint256 amount, address distributor
+    );
+    event NonDepositAssetRecovered(
+        address indexed token, address indexed recipient, uint256 amount
     );
 
     IERC20 public immutable depositAsset;
@@ -343,7 +347,7 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
         _validateExposure(managedPrincipal - amount);
         idlePrincipal -= amount;
         managedPrincipal -= amount;
-        _sendExact(depositAsset, recipient, amount);
+        ProtocolAccounting.sendExact(depositAsset, recipient, amount);
         emit IdlePrincipalWithdrawn(recipient, amount);
     }
 
@@ -356,8 +360,23 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
             recipient == address(0) || recipient == address(this) || amount == 0
                 || amount > idleUnrealizedValue()
         ) revert InvalidAmount();
-        _sendExact(depositAsset, recipient, amount);
+        ProtocolAccounting.sendExact(depositAsset, recipient, amount);
         emit IdleValueRealized(recipient, amount);
+    }
+
+    /// @notice Recovers tokens received outside a verified adapter harvest.
+    /// @dev The deposit asset is excluded because it may represent principal or unrealized value.
+    function recoverNonDepositAsset(IERC20 token, address recipient, uint256 amount)
+        external
+        onlyGovernance
+        nonReentrant
+    {
+        if (
+            address(token).code.length == 0 || address(token) == address(depositAsset)
+                || recipient == address(0) || recipient == address(this) || amount == 0
+        ) revert InvalidConfiguration();
+        ProtocolAccounting.sendExact(token, recipient, amount);
+        emit NonDepositAssetRecovered(address(token), recipient, amount);
     }
 
     function harvest(IYieldAdapter adapter) external nonReentrant whenNotPaused {
@@ -465,14 +484,6 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
     function idleUnrealizedValue() public view returns (uint256) {
         uint256 balance = depositAsset.balanceOf(address(this));
         return balance > idlePrincipal ? balance - idlePrincipal : 0;
-    }
-
-    function _sendExact(IERC20 token, address recipient, uint256 amount) private {
-        uint256 beforeBalance = token.balanceOf(recipient);
-        token.safeTransfer(recipient, amount);
-        uint256 afterBalance = token.balanceOf(recipient);
-        uint256 received = afterBalance >= beforeBalance ? afterBalance - beforeBalance : 0;
-        if (received != amount) revert InexactTransfer(amount, received);
     }
 
     function _clearRewardRoutes(address adapter) private {

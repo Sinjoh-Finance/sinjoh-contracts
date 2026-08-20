@@ -7,6 +7,7 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
 import { Governed } from "./governance/Governed.sol";
 import { IGovernanceController } from "./interfaces/IGovernanceController.sol";
 import { ISinjohFundable } from "./interfaces/ISinjohFundable.sol";
+import { ProtocolAccounting } from "./libraries/ProtocolAccounting.sol";
 
 /// @notice Governed, versioned fee router. Sinjoh's protocol fee is immutable and removed before
 /// project-governed routes are evaluated.
@@ -57,6 +58,9 @@ contract FeeRouterV2 is Governed, ReentrancyGuard {
     error InvalidAmount();
     error InexactTransfer(address asset, uint256 expected, uint256 received);
     error SinkReceiptMismatch(uint256 expected, uint256 received);
+    error OnlySelf();
+    error NoEscrow();
+    error EscrowUnderfunded(address asset, uint256 balance, uint256 reserved);
 
     event ConfigurationProposed(
         uint256 indexed configId, bytes32 indexed configHash, uint48 activatesAt
@@ -75,6 +79,23 @@ contract FeeRouterV2 is Governed, ReentrancyGuard {
         Action action,
         uint256 amount
     );
+    event RouteEscrowed(
+        uint256 indexed configId,
+        uint256 indexed routeIndex,
+        address indexed token,
+        uint256 amount,
+        bytes4 failureSelector
+    );
+    event RouteEscrowRetried(
+        uint256 indexed configId, uint256 indexed routeIndex, address indexed token, uint256 amount
+    );
+    event RouteEscrowRecovered(
+        uint256 indexed configId,
+        uint256 indexed routeIndex,
+        address indexed token,
+        address recipient,
+        uint256 amount
+    );
 
     address public immutable protocolFeeRecipient;
     uint48 public immutable configurationDelay;
@@ -91,6 +112,8 @@ contract FeeRouterV2 is Governed, ReentrancyGuard {
     mapping(address token => uint16 remainder) public protocolFeeRemainder;
     mapping(address token => uint256 amount) public cumulativeGrossIntake;
     mapping(address token => uint256 amount) public cumulativeProtocolFee;
+    mapping(uint256 configId => mapping(uint256 routeIndex => uint256 amount)) public routeEscrow;
+    mapping(address token => uint256 amount) public totalEscrowed;
 
     constructor(
         IGovernanceController controller,
@@ -168,19 +191,23 @@ contract FeeRouterV2 is Governed, ReentrancyGuard {
         emit RoutePauseChanged(configId, routeIndex, false);
     }
 
-    /// @notice Routes the entire unaccounted balance. The 1% fee is charged first and cannot be
-    /// changed by project governance. A failing destination reverts the whole atomic distribution.
+    /// @notice Routes the entire unreserved balance. The 1% fee is charged first and cannot be
+    /// changed by project governance. Failed or paused route shares are reserved for later retry.
     function sync(address token) external nonReentrant whenNotPaused returns (uint256 gross) {
         uint256 configId = activeConfigurationId;
         if (configId == 0 || token.code.length == 0) revert InvalidConfiguration();
-        gross = IERC20(token).balanceOf(address(this));
+        uint256 balance = IERC20(token).balanceOf(address(this));
+        uint256 reserved = totalEscrowed[token];
+        if (balance < reserved) revert EscrowUnderfunded(token, balance, reserved);
+        gross = balance - reserved;
         if (gross == 0) revert InvalidAmount();
 
-        (uint256 fee, uint16 nextRemainder) = _protocolFee(gross, protocolFeeRemainder[token]);
+        (uint256 fee, uint16 nextRemainder) =
+            ProtocolAccounting.protocolFee(gross, PROTOCOL_FEE_BPS, protocolFeeRemainder[token]);
         protocolFeeRemainder[token] = nextRemainder;
         cumulativeGrossIntake[token] += gross;
         cumulativeProtocolFee[token] += fee;
-        _sendExact(token, protocolFeeRecipient, fee);
+        ProtocolAccounting.sendExactWithAsset(IERC20(token), protocolFeeRecipient, fee);
 
         uint256 net = gross - fee;
         Route[] storage routes = _routes[configId];
@@ -194,13 +221,71 @@ contract FeeRouterV2 is Governed, ReentrancyGuard {
         for (uint256 i; i < routes.length; ++i) {
             Route storage route = routes[i];
             if (route.inputToken != token) continue;
-            if (isRoutePaused[configId][i]) revert RoutePaused(i);
             uint256 amount = i == finalMatchingIndex ? remaining : net * route.shareBps / BPS;
             remaining -= amount;
-            _execute(route, token, amount);
-            emit Routed(configId, i, token, route.recipient, route.action, amount);
+            if (isRoutePaused[configId][i]) {
+                _escrow(configId, i, token, amount, RoutePaused.selector);
+                continue;
+            }
+            try this.executeRoute(configId, i, token, amount) {
+                emit Routed(configId, i, token, route.recipient, route.action, amount);
+            } catch (bytes memory reason) {
+                _escrow(configId, i, token, amount, _failureSelector(reason));
+            }
         }
         emit Synchronized(token, gross, fee, net);
+    }
+
+    /// @dev Isolates a route execution in a subcall so `sync` can reserve only its failed share.
+    function executeRoute(uint256 configId, uint256 routeIndex, address token, uint256 amount)
+        external
+    {
+        if (msg.sender != address(this)) revert OnlySelf();
+        Route[] storage routes = _routes[configId];
+        if (routeIndex >= routes.length || routes[routeIndex].inputToken != token) {
+            revert InvalidConfiguration();
+        }
+        _execute(routes[routeIndex], token, amount);
+    }
+
+    /// @notice Permissionlessly retries a reserved route share after its destination recovers.
+    function retryEscrow(uint256 configId, uint256 routeIndex)
+        external
+        nonReentrant
+        whenNotPaused
+        returns (uint256 amount)
+    {
+        Route[] storage routes = _routes[configId];
+        if (routeIndex >= routes.length) revert InvalidConfiguration();
+        if (isRoutePaused[configId][routeIndex]) revert RoutePaused(routeIndex);
+        amount = routeEscrow[configId][routeIndex];
+        if (amount == 0) revert NoEscrow();
+        Route storage route = routes[routeIndex];
+        routeEscrow[configId][routeIndex] = 0;
+        totalEscrowed[route.inputToken] -= amount;
+        _execute(route, route.inputToken, amount);
+        emit Routed(configId, routeIndex, route.inputToken, route.recipient, route.action, amount);
+        emit RouteEscrowRetried(configId, routeIndex, route.inputToken, amount);
+    }
+
+    /// @notice Governance escape hatch for a permanently incompatible route destination.
+    function recoverEscrow(uint256 configId, uint256 routeIndex, address recipient)
+        external
+        onlyGovernance
+        nonReentrant
+        returns (uint256 amount)
+    {
+        Route[] storage routes = _routes[configId];
+        if (routeIndex >= routes.length || recipient == address(0) || recipient == address(this)) {
+            revert InvalidConfiguration();
+        }
+        amount = routeEscrow[configId][routeIndex];
+        if (amount == 0) revert NoEscrow();
+        address token = routes[routeIndex].inputToken;
+        routeEscrow[configId][routeIndex] = 0;
+        totalEscrowed[token] -= amount;
+        ProtocolAccounting.sendExactWithAsset(IERC20(token), recipient, amount);
+        emit RouteEscrowRecovered(configId, routeIndex, token, recipient, amount);
     }
 
     function routeCount(uint256 configId) external view returns (uint256) {
@@ -214,9 +299,9 @@ contract FeeRouterV2 is Governed, ReentrancyGuard {
     function _execute(Route storage route, address token, uint256 amount) private {
         if (amount == 0) return;
         if (route.action == Action.BURN) {
-            _sendExact(token, BURN_ADDRESS, amount);
+            ProtocolAccounting.sendExactWithAsset(IERC20(token), BURN_ADDRESS, amount);
         } else if (route.action == Action.SEND || route.action == Action.TREASURY) {
-            _sendExact(token, route.recipient, amount);
+            ProtocolAccounting.sendExactWithAsset(IERC20(token), route.recipient, amount);
         } else {
             IERC20 asset = IERC20(token);
             uint256 beforeBalance = asset.balanceOf(address(this));
@@ -266,24 +351,24 @@ contract FeeRouterV2 is Governed, ReentrancyGuard {
         }
     }
 
-    function _protocolFee(uint256 amount, uint16 remainder)
-        private
-        pure
-        returns (uint256 fee, uint16 nextRemainder)
-    {
-        uint256 scaledRemainder = (amount % BPS) * PROTOCOL_FEE_BPS + remainder;
-        fee = (amount / BPS) * PROTOCOL_FEE_BPS + scaledRemainder / BPS;
-        nextRemainder = uint16(scaledRemainder % BPS);
+    function _escrow(
+        uint256 configId,
+        uint256 routeIndex,
+        address token,
+        uint256 amount,
+        bytes4 failureSelector
+    ) private {
+        if (amount == 0) return;
+        routeEscrow[configId][routeIndex] += amount;
+        totalEscrowed[token] += amount;
+        emit RouteEscrowed(configId, routeIndex, token, amount, failureSelector);
     }
 
-    function _sendExact(address token, address recipient, uint256 amount) private {
-        if (amount == 0) return;
-        IERC20 asset = IERC20(token);
-        uint256 beforeBalance = asset.balanceOf(recipient);
-        asset.safeTransfer(recipient, amount);
-        uint256 afterBalance = asset.balanceOf(recipient);
-        uint256 received = afterBalance >= beforeBalance ? afterBalance - beforeBalance : 0;
-        if (received != amount) revert InexactTransfer(token, amount, received);
+    function _failureSelector(bytes memory reason) private pure returns (bytes4 selector) {
+        if (reason.length < 4) return bytes4(0);
+        assembly ("memory-safe") {
+            selector := mload(add(reason, 0x20))
+        }
     }
 
     function _timestamp48() private view returns (uint48) {

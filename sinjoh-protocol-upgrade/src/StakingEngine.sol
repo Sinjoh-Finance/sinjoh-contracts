@@ -8,6 +8,7 @@ import { Checkpoints } from "@openzeppelin/contracts/utils/structs/Checkpoints.s
 import { Governed } from "./governance/Governed.sol";
 import { IGovernanceController } from "./interfaces/IGovernanceController.sol";
 import { IStakingSnapshot } from "./interfaces/IStakingSnapshot.sol";
+import { ProtocolAccounting } from "./libraries/ProtocolAccounting.sol";
 
 /// @notice Single-position fixed-tier staking with separate voting and reward checkpoints.
 /// @dev Checkpoints use timestamp timepoints. Weight is active only while `timepoint < unlockTime`.
@@ -179,11 +180,7 @@ contract StakingEngine is Governed, ReentrancyGuard, IStakingSnapshot {
         delete positions[msg.sender];
         totalStaked -= position.amount;
         _writePosition(msg.sender, 0, 0, 0, 0);
-        uint256 beforeBalance = stakingToken.balanceOf(msg.sender);
-        stakingToken.safeTransfer(msg.sender, position.amount);
-        uint256 afterBalance = stakingToken.balanceOf(msg.sender);
-        uint256 received = afterBalance >= beforeBalance ? afterBalance - beforeBalance : 0;
-        if (received != position.amount) revert InexactTransfer(position.amount, received);
+        ProtocolAccounting.sendExact(stakingToken, msg.sender, position.amount);
         emit Withdrawn(msg.sender, position.amount);
     }
 
