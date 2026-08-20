@@ -57,6 +57,12 @@ block numbers. The proposal threshold is an absolute vote amount. Calculate the 
 | `YieldBasket` | Allowlisted harvest-only portfolio | Per-adapter caps, exact deposit consumption, reward-token allowlists, fresh-balance-delta harvest checks, share and principal accounting, explicit loss and gain handling |
 | `DynamicFundingBands` | Prefunded post-launch commitments | Activation delay, fresh TWAP cadence, minimum distance, confirmation clock, immutable active terms, exact payouts, per-asset/subject commitments |
 
+The existing `sinjoh-airdrop-distributor` remains the default standard airdrop path and does
+not require recipients to stake. `AirdropDistributorV2` is a separate, optional path for
+staking-driven rewards; its schedules intentionally derive eligibility and allocation weight
+from `StakingEngine` checkpoints. Deployments and interfaces should present these as distinct
+airdrop products rather than treating staking as a prerequisite for ordinary airdrops.
+
 The router's fundable actions include airdrops, baskets, raffles, bands, swap-and-send adapters,
 and liquidity adapters. Every non-direct destination must implement `ISinjohFundable`; there is
 no generic governance call surface.
