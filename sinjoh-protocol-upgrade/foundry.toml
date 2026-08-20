@@ -13,6 +13,7 @@ optimizer_runs = 20_000
 via_ir = true
 bytecode_hash = "none"
 cbor_metadata = false
+fs_permissions = [{ access = "read", path = "./deployments" }]
 
 [fmt]
 line_length = 100

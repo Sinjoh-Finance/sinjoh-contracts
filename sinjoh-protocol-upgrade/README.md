@@ -174,6 +174,24 @@ protection, quiet-market oracle refresh, and prefunded band commitments.
 
 ## Deployment order
 
+The staking-only deployment script is manifest-driven and deploys
+`AddressGovernanceController`, `StakingEngine`, the optional `StakedVotesAdapter`, and
+`SinjohStakingEngine`. Copy `deployments/staking-engine.parameters.example.json` to an untracked,
+reviewed manifest, replace every zero placeholder, and run a simulation before adding
+`--broadcast`:
+
+```sh
+STAKING_DEPLOYMENT_MANIFEST=/absolute/path/to/reviewed-staking-parameters.json \
+DEPLOYER_PRIVATE_KEY=... \
+forge script script/DeployStakingProtocol.s.sol:DeployStakingProtocol \
+  --rpc-url "$ROBINHOOD_RPC_URL"
+```
+
+The script accepts only Robinhood Chain mainnet (`4663`) or testnet (`46630`), checks the
+signer's address, requires a separate emergency guardian, and pins the staking token by runtime
+code hash. It does not create schedules, freeze governance, or print the private key. Those are
+separate reviewed actions after the canary.
+
 1. Select an ERC20Votes source or deploy the raw-balance `StakingEngine` plus
    `StakedVotesAdapter`.
 2. Deploy an OpenZeppelin `TimelockController` with the intended execution delay.

@@ -11,6 +11,7 @@ interface Vm {
     function stopPrank() external;
     function warp(uint256 timestamp) external;
     function roll(uint256 blockNumber) external;
+    function chainId(uint256 newChainId) external;
 }
 
 abstract contract TestBase {
