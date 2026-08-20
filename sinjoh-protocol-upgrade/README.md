@@ -41,7 +41,7 @@ shutdown because no authority remains to resume.
 
 `SinjohGovernor` composes OpenZeppelin Governor, settings, simple vote counting, quorum,
 proposal-guardian, and timelock modules. Use an ERC20Votes token for liquid or delegated
-voting. Use `StakedVotesAdapter` over `StakingEngine` for non-delegated locked-token voting.
+voting. Use `StakedVotesAdapter` over `StakingEngine` for non-delegated staked-token voting.
 Voting delay and period use the vote source's ERC-6372 clock; the included staking adapter uses
 timestamps, so those settings are measured in seconds. The proposal threshold is an absolute
 vote amount. Calculate the desired
@@ -53,19 +53,20 @@ vote amount. Calculate the desired
 | Contract | Purpose | Main safety properties |
 | --- | --- | --- |
 | `FeeRouterV2` | Versioned project-fee routing | Atomic route sets, delayed activation, protected rollback target, immutable 1% fee, exact transfers, per-route failure escrow and retry, guardian or governance route pause |
-| `StakingEngine` | Fixed-tier token locks | Timestamp checkpoints, automatic zero weight at unlock, exact deposits and withdrawals, withdrawals remain available while paused, tier changes apply on new or renewed locks |
-| `SinjohStakingEngine` | Claim-based staking distributions | 30-minute minimum epochs, zero-weight rollover, prefunded liabilities, batched claims, executor reward caps, unclaimed sweep |
+| `StakingEngine` | Simple token staking | One token equals one reward unit and one vote, timestamped raw-balance checkpoints, immediate partial/full unstaking, exact transfers, unstaking while paused |
+| `SinjohStakingEngine` | Claim-based staking distributions | 30-minute minimum epochs, zero-stake rollover, prefunded liabilities, batched claims, executor reward caps, unclaimed sweep |
 | `YieldBasket` | Allowlisted harvest-only portfolio | Per-adapter caps, token-specific reward routes, pause-preserving configuration, loss write-off/recovery, non-deposit-token recovery, exact accounting |
 | `DynamicFundingBands` | Prefunded post-launch commitments | Activation delay, fresh TWAP cadence, minimum distance, confirmation clock, immutable active terms, exact payouts, per-asset/subject commitments |
 
 The existing `sinjoh-airdrop-distributor` remains the default standard airdrop path and does
 not require recipients to stake. `SinjohStakingEngine` is a separate, optional path for
-staking-driven rewards; its schedules intentionally derive eligibility and allocation weight
-from `StakingEngine` checkpoints. Deployments and interfaces should present these as distinct
+staking-driven rewards; its schedules intentionally derive eligibility and allocation from raw
+staked-balance checkpoints in `StakingEngine`. Deployments and interfaces should present these as
+distinct
 airdrop products rather than treating staking as a prerequisite for ordinary airdrops.
 Claims use full-precision proportional allocation against each epoch's funded amount and
-eligible weight; only unavoidable per-account division dust remains sweepable after expiry.
-If an epoch-start checkpoint has no reward weight, permissionless execution advances the epoch
+eligible stake; only unavoidable per-account division dust remains sweepable after expiry.
+If an epoch-start checkpoint has no stake, permissionless execution advances the epoch
 clock without creating an epoch or paying an executor. Pending rewards and their liability remain
 intact for the next eligible window instead of becoming stranded.
 
@@ -118,15 +119,14 @@ must be separately reviewed and allowlisted.
 
 ## Eligibility
 
-Version 1 deliberately selects the requested **actively locked at the beginning of the epoch**
-rule. An epoch uses the timestamp immediately before the epoch begins, conservatively excluding
-stake added in the opening timestamp. Individual and aggregate timestamp checkpoints include
-scheduled expiries, so a position whose lock has already ended contributes zero to both the
-claimable weight and the stored eligible-weight denominator even when its owner has not withdrawn.
-Reward and governance weight become zero at the exact unlock timestamp. Extending an active lock
-replaces its scheduled expiry; relocking an expired position reactivates weight only for the new
-lock. Expiry does not retroactively erase eligibility for an epoch whose earlier snapshot found the
-position actively locked. The deposited principal remains immediately withdrawable after expiry.
+Version 1 uses the simplest rule: **raw staked balance at the beginning of the epoch**. One staked
+token is one unit of reward allocation and, through `StakedVotesAdapter`, one non-delegated vote.
+There are no lock tiers, durations, multipliers, cooldowns, or expiry accounting. Users may add to
+their stake or partially/fully unstake immediately. An epoch uses the timestamp immediately before
+it begins, conservatively excluding stake added in the opening timestamp. Unstaking after that
+snapshot does not retroactively change the completed snapshot or erase the user's claim for that
+epoch. This deliberately accepts predictable-snapshot timing behavior in exchange for simple,
+liquid staking; the UI and disclosures must state that tradeoff plainly.
 Users can claim up to 64 strictly increasing epoch IDs in one transaction.
 Each epoch pins its own claim deadline and unclaimed-funds destination, and late execution starts
 a fresh claim window.
@@ -167,13 +167,15 @@ forge test
 
 The suite includes unit, integration, 1,000-run fuzz, and 256-run stateful invariant tests.
 It covers the full governor-vote-queue-timelock-execute lifecycle, cumulative fee resistance,
-zero-weight staking rollover, claim solvency, route failure isolation/escrow/recovery, multi-reward
+raw-balance snapshots, immediate partial/full unstaking, staking custody invariants, zero-stake
+rollover, claim solvency, route failure isolation/escrow/recovery, multi-reward
 routing, harvest injection attempts, adapter pause/write-off/token recovery, atomic route rollback
 protection, quiet-market oracle refresh, and prefunded band commitments.
 
 ## Deployment order
 
-1. Select an ERC20Votes source or deploy `StakingEngine` plus `StakedVotesAdapter`.
+1. Select an ERC20Votes source or deploy the raw-balance `StakingEngine` plus
+   `StakedVotesAdapter`.
 2. Deploy an OpenZeppelin `TimelockController` with the intended execution delay.
 3. Deploy `SinjohGovernor`, grant it proposer and canceller roles, grant the zero address the
    executor role if execution should be permissionless, and renounce the bootstrap admin.

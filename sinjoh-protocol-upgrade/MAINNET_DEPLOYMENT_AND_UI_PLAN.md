@@ -9,7 +9,7 @@ Sinjoh has two separate reward products:
 - `sinjoh-airdrop-distributor` is the default standard airdrop path. Recipients do not need to
   stake and the existing launch UI continues to use it.
 - The Sinjoh Staking Engine protocol is the optional staking-reward path. `StakingEngine` holds
-  locks and writes voting/reward checkpoints; `SinjohStakingEngine` funds schedules, closes
+  liquid stakes and writes raw-balance checkpoints; `SinjohStakingEngine` funds schedules, closes
   epochs, and serves claims from those checkpoints.
 
 UI, documentation, manifests, and analytics must preserve that distinction. Ordinary airdrops
@@ -23,18 +23,18 @@ for every item below before preparing a broadcast transaction:
 | Decision | Required record |
 | --- | --- |
 | Staking token | Checksummed address, decimals, symbol, runtime code hash, and token-behavior review |
-| Lock tiers | Duration, reward-weight BPS, governance-weight BPS, and active state for each tier |
 | Authority | Individual bootstrap, multisig, or token governor; final timelock and signer policy |
 | Governor parameters | Proposal threshold, quorum percentage, and timestamp-clock voting delay/period in seconds |
 | Guardian | Pause-only address, response procedure, and confirmation it differs from routine operators |
 | Protocol revenue | Fee-recipient address and accounting owner |
 | Reward schedules | Reward token, interval, claim period, permissionless setting, executor incentive, and unclaimed destination |
-| Eligibility semantics | Confirmation that only positions actively locked at the epoch-start timestamp have reward weight; expired-but-unwithdrawn positions have zero reward and governance weight |
+| Eligibility semantics | Confirmation that raw balance at the epoch-start snapshot controls rewards; one staked token equals one reward unit and one non-delegated vote; later unstaking does not erase the completed snapshot |
+| Snapshot timing | Written acceptance that users may stake shortly before a known snapshot and immediately unstake afterward while retaining that epoch's reward |
 | Fee composition | Approval that router-to-staking funding charges 1% in each module, leaving about 98.01% before executor incentives |
 | Unclaimed funds | Destination and sweep policy; every epoch pins the destination active when it is closed |
 | Immutable mode | Whether and when to freeze; freezing is irreversible and a later guardian pause cannot be resumed |
 
-The authority, guardian, revenue recipient, staking token, and tier table belong in a reviewed
+The authority, guardian, revenue recipient, and staking token belong in a reviewed
 parameter manifest, not only in shell environment variables.
 
 ## Security and release gates
@@ -51,15 +51,16 @@ All gates are mandatory for a production broadcast:
    no intervening trade occurred. An implementation that reports only the last swap time fails the
    compatibility test.
 5. A Robinhood Chain mainnet fork rehearsal uses chain ID 4663 and current onchain state. It
-   exercises stake, increase, extend, epoch funding, late execution, claims, sweeping, pause,
-   exact unlock-time weight expiry, pre- and post-expiry relocking, zero-weight epoch rollover,
-   withdrawals while paused, Fee Router sink failure/escrow/retry/recovery, basket adapter
-   write-off/recovery, out-of-band reward-token recovery, and every governance transition.
+   exercises repeated staking, immediate partial/full unstaking, epoch funding, late execution,
+   claims, sweeping, pause, zero-stake epoch rollover, unstaking while paused, staking immediately
+   before a snapshot, unstaking immediately after a snapshot, Fee Router sink
+   failure/escrow/retry/recovery, basket adapter write-off/recovery, out-of-band reward-token
+   recovery, and every governance transition.
 6. The deployment script is simulated without broadcast and its decoded constructor arguments,
    role grants, expected addresses, and runtime hashes match the signed manifest.
 7. A testnet or isolated canary completes one entire small-value lifecycle before mainnet funding.
 8. The UI preview reads the same finalized block from direct RPC and its indexed source, and the
-   balances, liabilities, schedules, epochs, claims, and positions reconcile.
+   balances, liabilities, schedules, epochs, claims, and stakes reconcile.
 9. Explorer verification, canonical deployment records, SDK ABI provenance, monitoring, incident
    owners, and the UI rollback flag are ready before enabling the public surface.
 
@@ -67,15 +68,15 @@ All gates are mandatory for a production broadcast:
 
 Add a Foundry deployment script and a machine-readable parameter manifest to this package. The
 script must refuse to proceed when the chain ID, token code, controller mode, guardian, fee
-recipient, or tier/schedule constraints differ from the reviewed manifest. It must emit a dry-run
+recipient, or schedule constraints differ from the reviewed manifest. It must emit a dry-run
 summary without printing a private key.
 
 Deploy and configure in this order:
 
 1. Deploy the chosen governance controller. Use an address controller during bootstrap when
    routes or schedules require post-constructor configuration.
-2. Deploy `StakingEngine` with the staking token and reviewed lock tiers.
-3. Deploy `StakedVotesAdapter` if governance will use locked, non-delegated voting weight. Its
+2. Deploy `StakingEngine` with the staking token.
+3. Deploy `StakedVotesAdapter` if governance will use raw, non-delegated staked balances. Its
    ERC-6372 clock is timestamp-based, so Governor delay and period parameters are seconds.
 4. If token governance is selected, deploy/configure the timelock and `SinjohGovernor`, grant
    proposer/canceller/executor roles, and remove bootstrap administration.
@@ -83,8 +84,9 @@ Deploy and configure in this order:
    fee recipient.
 6. Create reviewed reward schedules. Configure `FeeRouterV2` staking-reward routes with
    `FUND_AIRDROP` and canonical `abi.encode(scheduleId)` route data.
-7. Exercise a small-value canary: stake, fund, close, claim, extend, pause, withdraw while paused,
-   resume, sweep an intentionally expired dust epoch, prove a failing Fee Router sink does not
+7. Exercise a small-value canary: stake twice, partially unstake, fund, close, fully unstake,
+   claim the completed snapshot, pause, unstake while paused, resume, sweep an intentionally
+   expired dust epoch, prove a failing Fee Router sink does not
    block a healthy route, and retry its escrow after recovery.
 8. Transfer or renounce every bootstrap role. Freeze only after all configuration and verification
    is complete and only if the approved authority model is immutable.
@@ -109,8 +111,9 @@ After a successful broadcast:
    `stakingEngineAbi`, `sinjohStakingEngineAbi`, and any selected governance ABI with provenance.
 4. Regenerate the SDK deployment manifest from the canonical contracts record. The UI must consume
    those addresses or mechanically verify that its local manifest matches them.
-5. Publish the eligibility rule, lock tiers, schedule parameters, authority mode, fee stacking,
-   claim deadlines, unclaimed destinations, and executor incentives beside the addresses.
+5. Publish the raw-balance snapshot rule, immediate-unstaking behavior, schedule parameters,
+   authority mode, fee stacking, claim deadlines, unclaimed destinations, and executor incentives
+   beside the addresses.
 
 ## Supporting UI work
 
@@ -123,7 +126,7 @@ navigation destination.
 
 Extend the UI manifest with separately named, code-hash-pinned entries:
 
-- `stakingEngine`: position, lock, and checkpoint contract.
+- `stakingEngine`: stake custody and raw-balance checkpoint contract.
 - `sinjohStakingEngine`: reward schedule, epoch, and claim contract.
 - `stakedVotesAdapter`, governance controller, governor, and timelock when deployed.
 
@@ -134,15 +137,15 @@ are present and live bytecode matches. A mismatch fails closed and must never of
 
 Add a **Staking** workspace to `/portfolio` with:
 
-- connected-wallet stake amount, tier, unlock time, reward weight, and voting weight;
-- explicit zero-weight and relock states at the exact unlock timestamp, even before withdrawal;
-- stake, increase, extend, and withdraw actions, with approval/permit handling where supported;
-- withdrawals available while protocol funding/execution is paused;
+- connected-wallet token balance, staked balance, pool share, and one-to-one voting power;
+- stake and immediate partial/full unstake actions, with approval/permit handling where supported;
+- unstaking available while protocol funding/execution is paused;
+- a clear notice that epoch rewards use a point-in-time snapshot and remain earned after unstaking;
 - active reward schedules grouped by reward token;
 - claimable amounts, epoch end, claim deadline, and unclaimed destination;
 - batch claim selection capped at 64 strictly increasing epoch IDs;
-- clear states for not staked, not eligible at epoch start, already claimed, expired, paused, and
-  unreadable chain data;
+- clear states for not staked, not eligible at epoch start, already claimed, claim expired, paused,
+  and unreadable chain data;
 - links to explorer transactions and source/parameter disclosures.
 
 All state-changing user actions are wallet-signed. Each action first checks runtime hashes,
@@ -163,15 +166,15 @@ cutover) for:
   stacked-fee preview;
 - basket non-deposit-token balances and an explicitly governed recovery action.
 
-Public token/build pages should show read-only schedules, tiers, eligibility, governance authority,
-fees, claim deadlines, and verified addresses. Label the existing standard airdrop surface
+Public token/build pages should show read-only schedules, snapshot eligibility, governance
+authority, fees, claim deadlines, and verified addresses. Label the existing standard airdrop surface
 **Standard Airdrops** and the optional path **Staking Rewards**.
 
 ### Data and automation
 
 Index these events from the deployment block:
 
-- `Staked`, `StakeIncreased`, `LockExtended`, `Withdrawn`, and `TierSet`;
+- `Staked` and `Unstaked`;
 - `ScheduleCreated`, `ScheduleUpdated`, `Funded`, `EpochExecuted`, `EmptyEpochSkipped`, `Claimed`,
   and `UnclaimedSwept`;
 - controller changes, pauses, Fee Router configuration activation, `RouteEscrowed`,
@@ -180,8 +183,8 @@ Index these events from the deployment block:
 Direct RPC remains the source of truth for transaction preparation and claimability. Indexed data
 may accelerate history and discovery but must be reconciled to the same finalized block before it
 is presented as final. A keeper may simulate and submit permissionless `executeEpoch` calls after
-the due, funding, and eligible-weight checks pass; it must never sign a user's stake, claim,
-withdrawal, or approval.
+the due, funding, and eligible-stake checks pass; it must never sign a user's stake, claim,
+unstake, or approval.
 
 ## Rollout and rollback
 
@@ -197,7 +200,7 @@ If an issue appears, disable the UI feature flag, pause new funding and epoch ex
 or pause Fee Router staking routes. A paused route's new shares accumulate in route escrow rather
 than blocking unrelated destinations; resume and retry only after the sink is healthy, or use the
 governed recovery path for a permanently incompatible sink. Preserve claims for already funded
-epochs and withdrawals from `StakingEngine`; neither action is pause-gated. These contracts are not
+epochs and unstaking from `StakingEngine`; neither action is pause-gated. These contracts are not
 proxies, so a contract bug requires a reviewed replacement deployment and route migration rather
 than an in-place upgrade.
 

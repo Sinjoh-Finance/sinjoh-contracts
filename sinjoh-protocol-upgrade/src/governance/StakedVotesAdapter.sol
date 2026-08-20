@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 import { IERC5805 } from "@openzeppelin/contracts/interfaces/IERC5805.sol";
 import { IStakingSnapshot } from "../interfaces/IStakingSnapshot.sol";
 
-/// @notice Exposes non-delegated, actively locked staking checkpoints through ERC-5805.
+/// @notice Exposes non-delegated raw staking-balance checkpoints through ERC-5805.
 /// @dev Use an ERC20Votes token directly when liquid or delegated token voting is desired.
 contract StakedVotesAdapter is IERC5805 {
     IStakingSnapshot public immutable staking;
@@ -27,15 +27,15 @@ contract StakedVotesAdapter is IERC5805 {
     }
 
     function getVotes(address account) external view returns (uint256) {
-        return staking.currentVotes(account);
+        return staking.balanceOf(account);
     }
 
     function getPastVotes(address account, uint256 timepoint) external view returns (uint256) {
-        return staking.getPastVotes(account, timepoint);
+        return staking.getPastBalance(account, timepoint);
     }
 
     function getPastTotalSupply(uint256 timepoint) external view returns (uint256) {
-        return staking.getPastTotalSupply(timepoint);
+        return staking.getPastTotalStaked(timepoint);
     }
 
     function delegates(address account) external pure returns (address) {

@@ -11,8 +11,8 @@ import { IStakingSnapshot } from "./interfaces/IStakingSnapshot.sol";
 import { ISinjohFundable } from "./interfaces/ISinjohFundable.sol";
 import { ProtocolAccounting } from "./libraries/ProtocolAccounting.sol";
 
-/// @notice Permissionless epoch closing and batched start-of-epoch checkpoint claims for stakers.
-/// @dev Only positions still locked at the timestamp snapshot receive weight.
+/// @notice Permissionless epoch closing and batched start-of-epoch snapshot claims for stakers.
+/// @dev Allocation uses raw staked balances. Later unstaking does not alter a completed snapshot.
 contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
     using SafeERC20 for IERC20;
 
@@ -56,7 +56,7 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
         uint48 claimDeadline;
         address unclaimedDestination;
         uint256 fundedAmount;
-        uint256 eligibleWeight;
+        uint256 eligibleStake;
         uint256 claimedAmount;
     }
 
@@ -83,7 +83,7 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
         uint64 indexed epochId,
         uint48 snapshotTime,
         uint256 fundedAmount,
-        uint256 eligibleWeight,
+        uint256 eligibleStake,
         uint256 executorReward
     );
     event EmptyEpochSkipped(
@@ -207,9 +207,8 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
         uint256 funded = schedule.pendingRewards;
         if (funded == 0) revert EpochNotFunded();
         uint48 snapshotTime = schedule.epochStartSnapshot;
-        uint256 totalWeight =
-            staking.getPastEligibleTotalRewardWeight(snapshotTime, schedule.epochStartTime);
-        if (totalWeight == 0) {
+        uint256 totalEligibleStake = staking.getPastTotalStaked(snapshotTime);
+        if (totalEligibleStake == 0) {
             schedule.epochStartTime = uint48(block.timestamp);
             schedule.epochStartSnapshot = _snapshotTime();
             schedule.nextEpoch = uint48(block.timestamp) + schedule.interval;
@@ -235,7 +234,7 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
             claimDeadline: uint48(block.timestamp) + schedule.claimPeriod,
             unclaimedDestination: schedule.unclaimedDestination,
             fundedAmount: distributable,
-            eligibleWeight: totalWeight,
+            eligibleStake: totalEligibleStake,
             claimedAmount: 0
         });
         schedule.pendingRewards = 0;
@@ -247,7 +246,7 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
             ProtocolAccounting.sendExact(IERC20(schedule.rewardToken), msg.sender, executorReward);
         }
         emit EpochExecuted(
-            scheduleId, epochId, snapshotTime, distributable, totalWeight, executorReward
+            scheduleId, epochId, snapshotTime, distributable, totalEligibleStake, executorReward
         );
     }
 
@@ -269,11 +268,9 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
             if (epoch.endTime == 0) revert InvalidEpoch();
             if (block.timestamp > epoch.claimDeadline) revert ClaimExpired();
             if (claimed[scheduleId][epochId][msg.sender]) revert AlreadyClaimed();
-            uint256 weight = staking.getPastEligibleRewardWeight(
-                msg.sender, epoch.snapshotTime, epoch.startTime
-            );
-            if (weight == 0) revert Ineligible();
-            uint256 amount = Math.mulDiv(weight, epoch.fundedAmount, epoch.eligibleWeight);
+            uint256 stakedBalance = staking.getPastBalance(msg.sender, epoch.snapshotTime);
+            if (stakedBalance == 0) revert Ineligible();
+            uint256 amount = Math.mulDiv(stakedBalance, epoch.fundedAmount, epoch.eligibleStake);
             if (amount == 0) revert InvalidAmount();
             claimed[scheduleId][epochId][msg.sender] = true;
             epoch.claimedAmount += amount;
@@ -309,10 +306,9 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
             epoch.endTime == 0 || block.timestamp > epoch.claimDeadline
                 || claimed[scheduleId][epochId][account]
         ) return 0;
-        uint256 weight =
-            staking.getPastEligibleRewardWeight(account, epoch.snapshotTime, epoch.startTime);
-        if (weight == 0) return 0;
-        return Math.mulDiv(weight, epoch.fundedAmount, epoch.eligibleWeight);
+        uint256 stakedBalance = staking.getPastBalance(account, epoch.snapshotTime);
+        if (stakedBalance == 0) return 0;
+        return Math.mulDiv(stakedBalance, epoch.fundedAmount, epoch.eligibleStake);
     }
 
     function getSchedule(uint256 scheduleId) external view returns (DistributionSchedule memory) {

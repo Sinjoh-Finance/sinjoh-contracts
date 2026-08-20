@@ -90,20 +90,12 @@ contract ProtocolUpgradeTest is TestBase {
     }
 
     function testStakingAndAirdropEpochIntegration() public {
-        StakingEngine.LockTier[] memory tiers = new StakingEngine.LockTier[](2);
-        tiers[0] = StakingEngine.LockTier({
-            duration: 1 days, rewardWeightBps: 10_000, governanceWeightBps: 10_000, enabled: true
-        });
-        tiers[1] = StakingEngine.LockTier({
-            duration: 7 days, rewardWeightBps: 11_000, governanceWeightBps: 11_000, enabled: true
-        });
-        StakingEngine staking =
-            new StakingEngine(controller, GUARDIAN, IERC20(address(token)), tiers);
+        StakingEngine staking = new StakingEngine(controller, GUARDIAN, IERC20(address(token)));
 
         token.mint(ALICE, 1_000e18);
         vm.startPrank(ALICE);
         token.approve(address(staking), type(uint256).max);
-        staking.stake(100e18, 1);
+        staking.stake(100e18);
         vm.stopPrank();
         vm.warp(block.timestamp + 1);
         vm.roll(block.number + 1);
@@ -136,23 +128,17 @@ contract ProtocolUpgradeTest is TestBase {
         assertEq(token.balanceOf(ALICE), 10_800e18);
     }
 
-    function testStakeCheckpointsRecordWeightAndUnlockTime() public {
-        StakingEngine.LockTier[] memory tiers = new StakingEngine.LockTier[](1);
-        tiers[0] = StakingEngine.LockTier({
-            duration: 1 days, rewardWeightBps: 10_000, governanceWeightBps: 10_000, enabled: true
-        });
-        StakingEngine staking =
-            new StakingEngine(controller, GUARDIAN, IERC20(address(token)), tiers);
+    function testStakeCheckpointsRecordRawBalances() public {
+        vm.warp(100);
+        StakingEngine staking = new StakingEngine(controller, GUARDIAN, IERC20(address(token)));
         token.mint(ALICE, 100e18);
         vm.startPrank(ALICE);
         token.approve(address(staking), 100e18);
-        staking.stake(100e18, 0);
+        staking.stake(100e18);
         vm.stopPrank();
-        (,, uint48 unlockTime,,,) = staking.positions(ALICE);
-        uint256 stakeTime = uint256(unlockTime) - 1 days;
-        vm.warp(stakeTime + 1);
-        assertEq(staking.getPastRewardWeight(ALICE, stakeTime), 100e18);
-        assertEq(staking.getPastUnlockTime(ALICE, stakeTime), unlockTime);
+        vm.warp(101);
+        assertEq(staking.getPastBalance(ALICE, 100), 100e18);
+        assertEq(staking.getPastTotalStaked(100), 100e18);
     }
 
     function testYieldBasketEnforcesAllocationAndDistributesHarvestOnly() public {

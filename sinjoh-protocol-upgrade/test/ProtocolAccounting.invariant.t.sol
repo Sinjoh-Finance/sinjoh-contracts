@@ -21,7 +21,7 @@ contract AirdropFundingHandler is TestBase {
         distributor = distributor_;
         token_.mint(address(this), 1e18);
         token_.approve(address(staking_), 1e18);
-        staking_.stake(1e18, 0);
+        staking_.stake(1e18);
         token_.approve(address(distributor_), type(uint256).max);
     }
 
@@ -259,12 +259,8 @@ contract ProtocolAccountingInvariantTest is InvariantTestBase {
             new AddressGovernanceController(address(this), IGovernanceController.Mode.INDIVIDUAL);
 
         airdropToken = new MockERC20();
-        StakingEngine.LockTier[] memory tiers = new StakingEngine.LockTier[](1);
-        tiers[0] = StakingEngine.LockTier({
-            duration: 30 days, rewardWeightBps: 10_000, governanceWeightBps: 10_000, enabled: true
-        });
         StakingEngine staking =
-            new StakingEngine(controller, GUARDIAN, IERC20(address(airdropToken)), tiers);
+            new StakingEngine(controller, GUARDIAN, IERC20(address(airdropToken)));
         distributor = new SinjohStakingEngine(controller, GUARDIAN, staking, PROTOCOL);
         AirdropFundingHandler airdropHandler =
             new AirdropFundingHandler(airdropToken, distributor, staking);

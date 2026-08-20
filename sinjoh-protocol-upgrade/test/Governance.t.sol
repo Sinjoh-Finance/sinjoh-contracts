@@ -66,7 +66,7 @@ contract GovernanceTest is TestBase {
         token.mint(ALICE, 100e18);
         vm.startPrank(ALICE);
         token.approve(address(staking), 100e18);
-        staking.stake(100e18, 0);
+        staking.stake(100e18);
         vm.stopPrank();
         vm.warp(block.timestamp + 1);
         vm.roll(block.number + 1);
@@ -115,25 +115,26 @@ contract GovernanceTest is TestBase {
         assertTrue(governor.state(proposalId) == IGovernor.ProposalState.Executed);
     }
 
-    function testExpiredLocksHaveNoGovernancePowerWithoutWithdrawal() public {
+    function testUnstakingRemovesCurrentPowerButPreservesHistoricalVotes() public {
+        vm.warp(100);
         MockERC20 token = new MockERC20();
         StakingEngine staking = _staking(token);
         token.mint(ALICE, 100e18);
         vm.startPrank(ALICE);
         token.approve(address(staking), 100e18);
-        staking.stake(100e18, 0);
+        staking.stake(100e18);
         vm.stopPrank();
-        (,, uint48 unlockTime,,,) = staking.positions(ALICE);
-        uint256 activeTime = uint256(unlockTime) - 30 days;
         StakedVotesAdapter votes = new StakedVotesAdapter(staking);
         assertEq(votes.getVotes(ALICE), 100e18);
 
-        vm.warp(unlockTime);
+        vm.warp(101);
+        vm.prank(ALICE);
+        staking.unstake(100e18);
         assertEq(votes.getVotes(ALICE), 0);
-        vm.warp(uint256(unlockTime) + 1);
-        assertEq(votes.getPastVotes(ALICE, activeTime), 100e18);
-        assertEq(votes.getPastVotes(ALICE, unlockTime), 0);
-        assertEq(votes.getPastTotalSupply(unlockTime), 0);
+        vm.warp(102);
+        assertEq(votes.getPastVotes(ALICE, 100), 100e18);
+        assertEq(votes.getPastVotes(ALICE, 101), 0);
+        assertEq(votes.getPastTotalSupply(101), 0);
     }
 
     function testStakedVotesAdapterDoesNotPermitDelegatingLockedVotes() public {
@@ -150,11 +151,7 @@ contract GovernanceTest is TestBase {
     function _staking(MockERC20 token) private returns (StakingEngine staking) {
         AddressGovernanceController controller =
             new AddressGovernanceController(address(this), IGovernanceController.Mode.INDIVIDUAL);
-        StakingEngine.LockTier[] memory tiers = new StakingEngine.LockTier[](1);
-        tiers[0] = StakingEngine.LockTier({
-            duration: 30 days, rewardWeightBps: 10_000, governanceWeightBps: 10_000, enabled: true
-        });
-        staking = new StakingEngine(controller, GUARDIAN, IERC20(address(token)), tiers);
+        staking = new StakingEngine(controller, GUARDIAN, IERC20(address(token)));
     }
 }
 

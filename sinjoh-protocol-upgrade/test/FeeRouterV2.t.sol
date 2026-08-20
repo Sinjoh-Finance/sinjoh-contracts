@@ -119,16 +119,11 @@ contract FeeRouterV2Test is TestBase {
     }
 
     function testFundStakingRouteAppliesBothFeesAndFundsClaims() public {
-        StakingEngine.LockTier[] memory tiers = new StakingEngine.LockTier[](1);
-        tiers[0] = StakingEngine.LockTier({
-            duration: 30 days, rewardWeightBps: 10_000, governanceWeightBps: 10_000, enabled: true
-        });
-        StakingEngine staking =
-            new StakingEngine(controller, GUARDIAN, IERC20(address(token)), tiers);
+        StakingEngine staking = new StakingEngine(controller, GUARDIAN, IERC20(address(token)));
         token.mint(ALICE, 100e18);
         vm.startPrank(ALICE);
         token.approve(address(staking), 100e18);
-        staking.stake(100e18, 0);
+        staking.stake(100e18);
         vm.stopPrank();
         vm.warp(block.timestamp + 1);
         vm.roll(block.number + 1);
