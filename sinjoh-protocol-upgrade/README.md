@@ -70,7 +70,8 @@ no generic governance call surface.
 - Dynamic bands charge their cumulative 1% service fee only when backing redeems. Pending,
   active, and armed bands remain fully prefunded.
 - Basket principal is never harvested. An adapter must transfer an allowlisted reward token
-  during the same `harvest` call, and the reported amount must equal the measured balance delta.
+  during the same `harvest` call, the reported amount must equal the measured balance delta,
+  and the configured distributor must consume that exact amount before success is recorded.
   Adapter withdrawals realize losses against managed principal. Value above principal remains
   idle and non-distributable until governance calls `realizeIdleValue`. `basketValue()` exposes
   current adapter-reported assets, managed principal, and deposit-asset-denominated unrealized
@@ -111,7 +112,9 @@ The qualifying range must sit wholly above or wholly below the current TWAP and 
 configured distance. `observe` starts or resets the confirmation clock. While armed, a fresh
 in-range TWAP must be recorded at least once per configured TWAP window; an out-of-range sample
 or observation gap resets continuity. `redeem` obtains another fresh TWAP and pays only after
-the uninterrupted confirmation period. A self-funding creator or governance can cancel before
+the uninterrupted confirmation period. Freshness requires a strictly advancing oracle
+`updatedAt`, so a cached observation cannot arm and redeem a band. A self-funding creator or
+governance can cancel before
 activation; terms and backing cannot move after activation. `committedByAsset` and
 `committedBySubject` are the canonical overlap/exposure views. `totalCommitted` is a nominal
 cross-asset counter and must not be treated as a common-unit valuation. For a Fee Router

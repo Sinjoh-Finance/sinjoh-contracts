@@ -62,6 +62,7 @@ contract DynamicFundingBands is Governed, ReentrancyGuard, ISinjohFundable {
         uint48 expiryTime;
         uint48 qualifyingSince;
         uint48 lastQualifiedAt;
+        uint48 lastOracleUpdatedAt;
         uint32 confirmationPeriod;
         uint32 twapWindow;
         BandStatus status;
@@ -76,6 +77,7 @@ contract DynamicFundingBands is Governed, ReentrancyGuard, ISinjohFundable {
     error PriceNotQualified(uint256 priceE18);
     error ConfirmationPending(uint256 executableAt);
     error StalePrice();
+    error ObservationNotAdvanced(uint48 previousUpdatedAt, uint48 currentUpdatedAt);
     error InexactTransfer(uint256 expected, uint256 received);
 
     event BandCreated(
@@ -169,13 +171,15 @@ contract DynamicFundingBands is Governed, ReentrancyGuard, ISinjohFundable {
             revert InvalidState();
         }
         if (block.timestamp >= band.expiryTime) revert BandExpired();
-        uint256 price = _price(band.subject, band.twapWindow);
+        (uint256 price, uint48 updatedAt) = _price(band.subject, band.twapWindow);
+        _requireAdvancedObservation(band, updatedAt);
         bool inRange = price >= band.lowerPriceE18 && price <= band.upperPriceE18;
         if (!inRange) {
             if (band.status == BandStatus.ARMED) {
                 band.status = BandStatus.ACTIVE;
                 band.qualifyingSince = 0;
                 band.lastQualifiedAt = 0;
+                band.lastOracleUpdatedAt = updatedAt;
                 emit BandDisarmed(bandId, price);
                 return;
             }
@@ -186,6 +190,7 @@ contract DynamicFundingBands is Governed, ReentrancyGuard, ISinjohFundable {
             band.status = BandStatus.ARMED;
             band.qualifyingSince = now48;
             band.lastQualifiedAt = now48;
+            band.lastOracleUpdatedAt = updatedAt;
             emit BandArmed(bandId, now48, now48 + band.confirmationPeriod);
         } else {
             uint48 now48 = uint48(block.timestamp);
@@ -194,6 +199,7 @@ contract DynamicFundingBands is Governed, ReentrancyGuard, ISinjohFundable {
                 emit BandArmed(bandId, now48, now48 + band.confirmationPeriod);
             }
             band.lastQualifiedAt = now48;
+            band.lastOracleUpdatedAt = updatedAt;
         }
     }
 
@@ -201,11 +207,13 @@ contract DynamicFundingBands is Governed, ReentrancyGuard, ISinjohFundable {
         FundingBand storage band = bands[bandId];
         if (band.status != BandStatus.ARMED) revert InvalidState();
         if (block.timestamp >= band.expiryTime) revert BandExpired();
-        uint256 price = _price(band.subject, band.twapWindow);
+        (uint256 price, uint48 updatedAt) = _price(band.subject, band.twapWindow);
+        _requireAdvancedObservation(band, updatedAt);
         if (price < band.lowerPriceE18 || price > band.upperPriceE18) {
             band.status = BandStatus.ACTIVE;
             band.qualifyingSince = 0;
             band.lastQualifiedAt = 0;
+            band.lastOracleUpdatedAt = updatedAt;
             emit BandDisarmed(bandId, price);
             return;
         }
@@ -213,6 +221,7 @@ contract DynamicFundingBands is Governed, ReentrancyGuard, ISinjohFundable {
             uint48 now48 = uint48(block.timestamp);
             band.qualifyingSince = now48;
             band.lastQualifiedAt = now48;
+            band.lastOracleUpdatedAt = updatedAt;
             emit BandArmed(bandId, now48, now48 + band.confirmationPeriod);
             return;
         }
@@ -280,7 +289,7 @@ contract DynamicFundingBands is Governed, ReentrancyGuard, ISinjohFundable {
 
     function _create(BandInput memory input, address funder) private returns (uint256 received) {
         _validate(input);
-        uint256 currentPrice = _price(input.subject, input.twapWindow);
+        (uint256 currentPrice,) = _price(input.subject, input.twapWindow);
         uint256 distance;
         if (input.lowerPriceE18 > currentPrice) {
             distance = input.lowerPriceE18 - currentPrice;
@@ -317,6 +326,7 @@ contract DynamicFundingBands is Governed, ReentrancyGuard, ISinjohFundable {
             expiryTime: expiryTime,
             qualifyingSince: 0,
             lastQualifiedAt: 0,
+            lastOracleUpdatedAt: 0,
             confirmationPeriod: input.confirmationPeriod,
             twapWindow: input.twapWindow,
             status: BandStatus.PENDING
@@ -353,12 +363,21 @@ contract DynamicFundingBands is Governed, ReentrancyGuard, ISinjohFundable {
         ) revert InvalidConfiguration();
     }
 
-    function _price(address subject, uint32 window) private view returns (uint256 price) {
-        uint48 updatedAt;
+    function _price(address subject, uint32 window)
+        private
+        view
+        returns (uint256 price, uint48 updatedAt)
+    {
         (price, updatedAt) = oracle.twapPrice(subject, window);
         if (price == 0 || updatedAt > block.timestamp || block.timestamp - updatedAt > maxOracleAge)
         {
             revert StalePrice();
+        }
+    }
+
+    function _requireAdvancedObservation(FundingBand storage band, uint48 updatedAt) private view {
+        if (updatedAt <= band.lastOracleUpdatedAt) {
+            revert ObservationNotAdvanced(band.lastOracleUpdatedAt, updatedAt);
         }
     }
 

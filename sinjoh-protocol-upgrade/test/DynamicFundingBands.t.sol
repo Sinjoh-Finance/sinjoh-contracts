@@ -69,10 +69,25 @@ contract DynamicFundingBandsTest is TestBase {
         oracle.setPrice(120e18);
         bands.observe(bandId);
         assertTrue(bands.bandStatus(bandId) == DynamicFundingBands.BandStatus.ARMED);
+        vm.warp(block.timestamp + 1);
         oracle.setPrice(140e18);
         bands.observe(bandId);
         assertTrue(bands.bandStatus(bandId) == DynamicFundingBands.BandStatus.ACTIVE);
         assertEq(bands.confirmationExecutableAt(bandId), 0);
+    }
+
+    function testConfirmationRequiresANewOracleObservation() public {
+        uint256 bandId = _create(10_000, 110e18, 130e18, 500);
+        vm.warp(1 hours + 1);
+        bands.activate(bandId);
+        oracle.setPrice(120e18);
+        bands.observe(bandId);
+        vm.warp(block.timestamp + 5 minutes);
+        vm.expectPartialRevert(DynamicFundingBands.ObservationNotAdvanced.selector);
+        bands.redeem(bandId);
+        oracle.setPrice(120e18);
+        bands.redeem(bandId);
+        assertTrue(bands.bandStatus(bandId) == DynamicFundingBands.BandStatus.REDEEMED);
     }
 
     function testConfirmationRestartsAfterAnObservationGap() public {

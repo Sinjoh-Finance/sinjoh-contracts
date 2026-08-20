@@ -348,11 +348,16 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
                 : 0;
             if (received != amount) revert InexactTransfer(amount, received);
             cumulativeRealizedYield[rewardToken] += amount;
+            uint256 beforeFundingBalance = afterBalance;
             token.forceApprove(config.distributor, amount);
             uint256 fundedReceived = ISinjohFundable(config.distributor)
                 .fund(rewardToken, amount, config.distributionConfig);
             token.forceApprove(config.distributor, 0);
             if (fundedReceived != amount) revert SinkReceiptMismatch(amount, fundedReceived);
+            uint256 finalBalance = token.balanceOf(address(this));
+            uint256 spent =
+                beforeFundingBalance >= finalBalance ? beforeFundingBalance - finalBalance : 0;
+            if (spent != amount) revert InexactTransfer(amount, spent);
             emit Harvested(adapterAddress, rewardToken, amount, config.distributor);
         }
     }

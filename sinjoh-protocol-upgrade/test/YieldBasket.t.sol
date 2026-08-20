@@ -56,6 +56,18 @@ contract YieldBasketTest is TestBase {
         assertEq(basket.idlePrincipal(), 1_000e18);
     }
 
+    function testDistributorMustActuallyPullHarvestedRewards() public {
+        _fundAndAllocate(1_000e18, 500e18);
+        sink.setPullFunds(false);
+        adapter.setNextReward(50e18);
+        vm.warp(block.timestamp + 30 minutes);
+        vm.expectPartialRevert(YieldBasket.InexactTransfer.selector);
+        basket.harvest(adapter);
+        assertEq(reward.balanceOf(address(basket)), 0);
+        assertEq(sink.funded(address(reward)), 0);
+        assertEq(basket.cumulativeRealizedYield(address(reward)), 0);
+    }
+
     function testAdapterCapCannotBeReducedBelowExistingExposure() public {
         _fundAndAllocate(1_000e18, 500e18);
         vm.expectRevert(YieldBasket.AllocationLimitExceeded.selector);
