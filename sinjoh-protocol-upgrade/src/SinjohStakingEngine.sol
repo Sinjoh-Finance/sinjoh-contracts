@@ -11,6 +11,7 @@ import { IStakingSnapshot } from "./interfaces/IStakingSnapshot.sol";
 import { ISinjohFundable } from "./interfaces/ISinjohFundable.sol";
 
 /// @notice Permissionless epoch closing and batched start-of-epoch checkpoint claims for stakers.
+/// @dev Only positions still locked at the timestamp snapshot receive weight.
 contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
     using SafeERC20 for IERC20;
 
@@ -37,7 +38,7 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
         uint32 claimPeriod;
         uint48 nextEpoch;
         uint48 epochStartTime;
-        uint64 epochStartBlock;
+        uint48 epochStartSnapshot;
         uint64 latestEpochId;
         bool permissionlessExecution;
         uint128 fixedExecutorReward;
@@ -48,7 +49,7 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
     }
 
     struct Epoch {
-        uint64 snapshotBlock;
+        uint48 snapshotTime;
         uint48 startTime;
         uint48 endTime;
         uint48 claimDeadline;
@@ -79,13 +80,13 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
     event EpochExecuted(
         uint256 indexed scheduleId,
         uint64 indexed epochId,
-        uint64 snapshotBlock,
+        uint48 snapshotTime,
         uint256 fundedAmount,
         uint256 eligibleWeight,
         uint256 executorReward
     );
     event EmptyEpochSkipped(
-        uint256 indexed scheduleId, uint64 snapshotBlock, uint256 pendingRewards, uint48 nextEpoch
+        uint256 indexed scheduleId, uint48 snapshotTime, uint256 pendingRewards, uint48 nextEpoch
     );
     event Claimed(
         uint256 indexed scheduleId, uint64 indexed epochId, address indexed account, uint256 amount
@@ -132,7 +133,7 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
             claimPeriod: input.claimPeriod,
             nextEpoch: nextEpoch,
             epochStartTime: uint48(block.timestamp),
-            epochStartBlock: _snapshotBlock(),
+            epochStartSnapshot: _snapshotTime(),
             latestEpochId: 0,
             permissionlessExecution: input.permissionlessExecution,
             fixedExecutorReward: input.fixedExecutorReward,
@@ -203,13 +204,14 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
         if (block.timestamp < scheduledEnd) revert EpochNotDue(scheduledEnd);
         uint256 funded = schedule.pendingRewards;
         if (funded == 0) revert EpochNotFunded();
-        uint64 snapshotBlock = schedule.epochStartBlock;
-        uint256 totalWeight = staking.getPastTotalRewardWeight(snapshotBlock);
+        uint48 snapshotTime = schedule.epochStartSnapshot;
+        uint256 totalWeight =
+            staking.getPastEligibleTotalRewardWeight(snapshotTime, schedule.epochStartTime);
         if (totalWeight == 0) {
             schedule.epochStartTime = uint48(block.timestamp);
-            schedule.epochStartBlock = _snapshotBlock();
+            schedule.epochStartSnapshot = _snapshotTime();
             schedule.nextEpoch = uint48(block.timestamp) + schedule.interval;
-            emit EmptyEpochSkipped(scheduleId, snapshotBlock, funded, schedule.nextEpoch);
+            emit EmptyEpochSkipped(scheduleId, snapshotTime, funded, schedule.nextEpoch);
             return;
         }
 
@@ -225,7 +227,7 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
         uint64 epochId = ++schedule.latestEpochId;
         uint48 startTime = schedule.epochStartTime;
         epochs[scheduleId][epochId] = Epoch({
-            snapshotBlock: snapshotBlock,
+            snapshotTime: snapshotTime,
             startTime: startTime,
             endTime: scheduledEnd,
             claimDeadline: uint48(block.timestamp) + schedule.claimPeriod,
@@ -236,14 +238,14 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
         });
         schedule.pendingRewards = 0;
         schedule.epochStartTime = uint48(block.timestamp);
-        schedule.epochStartBlock = _snapshotBlock();
+        schedule.epochStartSnapshot = _snapshotTime();
         schedule.nextEpoch = uint48(block.timestamp) + schedule.interval;
         if (executorReward != 0) {
             totalLiability[schedule.rewardToken] -= executorReward;
             _sendExact(IERC20(schedule.rewardToken), msg.sender, executorReward);
         }
         emit EpochExecuted(
-            scheduleId, epochId, snapshotBlock, distributable, totalWeight, executorReward
+            scheduleId, epochId, snapshotTime, distributable, totalWeight, executorReward
         );
     }
 
@@ -262,10 +264,12 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
             if (epochId <= previous) revert InvalidEpoch();
             previous = epochId;
             Epoch storage epoch = epochs[scheduleId][epochId];
-            if (epoch.snapshotBlock == 0) revert InvalidEpoch();
+            if (epoch.endTime == 0) revert InvalidEpoch();
             if (block.timestamp > epoch.claimDeadline) revert ClaimExpired();
             if (claimed[scheduleId][epochId][msg.sender]) revert AlreadyClaimed();
-            uint256 weight = staking.getPastRewardWeight(msg.sender, epoch.snapshotBlock);
+            uint256 weight = staking.getPastEligibleRewardWeight(
+                msg.sender, epoch.snapshotTime, epoch.startTime
+            );
             if (weight == 0) revert Ineligible();
             uint256 amount = Math.mulDiv(weight, epoch.fundedAmount, epoch.eligibleWeight);
             if (amount == 0) revert InvalidAmount();
@@ -281,7 +285,7 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
     function sweepUnclaimed(uint256 scheduleId, uint64 epochId) external nonReentrant {
         DistributionSchedule storage schedule = schedules[scheduleId];
         Epoch storage epoch = epochs[scheduleId][epochId];
-        if (epoch.snapshotBlock == 0) revert InvalidEpoch();
+        if (epoch.endTime == 0) revert InvalidEpoch();
         if (block.timestamp <= epoch.claimDeadline) revert ClaimStillOpen();
         uint256 amount = epoch.fundedAmount - epoch.claimedAmount;
         if (amount == 0) revert InvalidAmount();
@@ -298,10 +302,11 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
     {
         Epoch storage epoch = epochs[scheduleId][epochId];
         if (
-            epoch.snapshotBlock == 0 || block.timestamp > epoch.claimDeadline
+            epoch.endTime == 0 || block.timestamp > epoch.claimDeadline
                 || claimed[scheduleId][epochId][account]
         ) return 0;
-        uint256 weight = staking.getPastRewardWeight(account, epoch.snapshotBlock);
+        uint256 weight =
+            staking.getPastEligibleRewardWeight(account, epoch.snapshotTime, epoch.startTime);
         if (weight == 0) return 0;
         return Math.mulDiv(weight, epoch.fundedAmount, epoch.eligibleWeight);
     }
@@ -333,8 +338,8 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
         nextRemainder = uint16(scaledRemainder % BPS);
     }
 
-    function _snapshotBlock() private view returns (uint64) {
-        return block.number == 0 ? 0 : uint64(block.number - 1);
+    function _snapshotTime() private view returns (uint48) {
+        return block.timestamp == 0 ? 0 : uint48(block.timestamp - 1);
     }
 
     function _sendExact(IERC20 token, address recipient, uint256 amount) private {

@@ -56,6 +56,7 @@ contract SinjohStakingEngineTest is TestBase {
 
     function testBatchedClaimsAndLiabilityAccounting() public {
         _stake(ALICE, 100e18, 1);
+        vm.warp(2);
         vm.roll(block.number + 1);
         SinjohStakingEngine distributor = _distributor();
         uint256 scheduleId = distributor.createSchedule(_schedule(true, 0, 0, 0));
@@ -92,6 +93,7 @@ contract SinjohStakingEngineTest is TestBase {
         uint256 grossFunding = uint256(rawFunding) + 100;
         _stake(ALICE, aliceStake, 0);
         _stake(BOB, bobStake, 0);
+        vm.warp(2);
         vm.roll(block.number + 1);
         SinjohStakingEngine distributor = _distributor();
         uint256 scheduleId = distributor.createSchedule(_schedule(true, 0, 0, 0));
@@ -123,6 +125,7 @@ contract SinjohStakingEngineTest is TestBase {
 
     function testExecutorRewardsAreCappedAndRemainSolvent() public {
         _stake(ALICE, 100e18, 1);
+        vm.warp(block.timestamp + 1);
         vm.roll(block.number + 1);
         SinjohStakingEngine distributor = _distributor();
         uint256 scheduleId = distributor.createSchedule(_schedule(true, 100, 100, 50));
@@ -138,6 +141,7 @@ contract SinjohStakingEngineTest is TestBase {
 
     function testRestrictedScheduleRequiresGovernanceExecutor() public {
         _stake(ALICE, 100e18, 1);
+        vm.warp(block.timestamp + 1);
         vm.roll(block.number + 1);
         SinjohStakingEngine distributor = _distributor();
         uint256 scheduleId = distributor.createSchedule(_schedule(false, 0, 0, 0));
@@ -161,6 +165,55 @@ contract SinjohStakingEngineTest is TestBase {
         vm.stopPrank();
     }
 
+    function testWeightBecomesZeroAtExpiryWithoutWithdrawal() public {
+        _stake(ALICE, 100e18, 0);
+        uint48 unlockTime = _unlockTime(ALICE);
+        uint256 activeTime = uint256(unlockTime) - 1 days;
+        assertEq(staking.currentVotes(ALICE), 100e18);
+        assertEq(staking.currentRewardWeight(ALICE), 100e18);
+        assertEq(staking.currentTotalVotes(), 100e18);
+
+        vm.warp(unlockTime);
+        assertEq(staking.currentVotes(ALICE), 0);
+        assertEq(staking.currentRewardWeight(ALICE), 0);
+        assertEq(staking.currentTotalVotes(), 0);
+
+        vm.warp(uint256(unlockTime) + 1);
+        assertEq(staking.getPastVotes(ALICE, activeTime), 100e18);
+        assertEq(staking.getPastRewardWeight(ALICE, activeTime), 100e18);
+        assertEq(staking.getPastVotes(ALICE, unlockTime), 0);
+        assertEq(staking.getPastTotalRewardWeight(unlockTime), 0);
+    }
+
+    function testExtendingBeforeExpiryCancelsTheOriginalExpiry() public {
+        _stake(ALICE, 100e18, 0);
+        uint48 originalUnlock = _unlockTime(ALICE);
+        vm.warp(block.timestamp + 12 hours);
+        vm.prank(ALICE);
+        staking.extendLock(1);
+        uint48 extendedUnlock = _unlockTime(ALICE);
+
+        vm.warp(originalUnlock);
+        assertEq(staking.currentVotes(ALICE), 125e18);
+        assertEq(staking.currentTotalVotes(), 125e18);
+        vm.warp(extendedUnlock);
+        assertEq(staking.currentVotes(ALICE), 0);
+        assertEq(staking.currentTotalVotes(), 0);
+    }
+
+    function testExtendingAfterExpiryReactivatesWeightUntilTheNewExpiry() public {
+        _stake(ALICE, 100e18, 0);
+        uint48 originalUnlock = _unlockTime(ALICE);
+        vm.warp(uint256(originalUnlock) + 1);
+        assertEq(staking.currentRewardWeight(ALICE), 0);
+        vm.prank(ALICE);
+        staking.extendLock(1);
+        assertEq(staking.currentRewardWeight(ALICE), 125e18);
+        assertEq(staking.getPastTotalRewardWeight(originalUnlock), 0);
+        vm.warp(_unlockTime(ALICE));
+        assertEq(staking.currentRewardWeight(ALICE), 0);
+    }
+
     function testTierChangesApplyOnRenewalNotUnrelatedStakeIncrease() public {
         _stake(ALICE, 100e18, 1);
         StakingEngine.LockTier memory updated = StakingEngine.LockTier({
@@ -179,16 +232,16 @@ contract SinjohStakingEngineTest is TestBase {
 
     function testHistoricalCheckpointsRemainStableAcrossPositionLifecycle() public {
         _stake(ALICE, 100e18, 0);
-        uint256 firstSnapshot = 1;
-        vm.roll(2);
+        uint256 firstSnapshot = uint256(_unlockTime(ALICE)) - 1 days;
+        uint256 secondSnapshot = firstSnapshot + 1;
+        vm.warp(secondSnapshot);
         _stake(BOB, 200e18, 1);
         token.mint(ALICE, 50e18);
         vm.startPrank(ALICE);
         token.approve(address(staking), 50e18);
         staking.increaseStake(50e18);
         vm.stopPrank();
-        uint256 secondSnapshot = 2;
-        vm.roll(3);
+        vm.warp(secondSnapshot + 1);
         assertEq(staking.getPastRewardWeight(ALICE, firstSnapshot), 100e18);
         assertEq(staking.getPastTotalRewardWeight(firstSnapshot), 100e18);
         assertEq(staking.getPastRewardWeight(ALICE, secondSnapshot), 150e18);
@@ -197,18 +250,57 @@ contract SinjohStakingEngineTest is TestBase {
 
         vm.prank(ALICE);
         staking.extendLock(1);
-        vm.warp(block.timestamp + 30 days);
+        uint48 extendedUnlock = _unlockTime(ALICE);
+        vm.warp(extendedUnlock);
         vm.prank(ALICE);
         staking.withdraw();
-        uint256 withdrawnSnapshot = 3;
-        vm.roll(4);
-        assertEq(staking.getPastTotalRewardWeight(withdrawnSnapshot), 250e18);
+        uint256 withdrawnSnapshot = extendedUnlock;
+        vm.warp(uint256(extendedUnlock) + 1);
+        assertEq(staking.getPastTotalRewardWeight(withdrawnSnapshot), 0);
         assertEq(staking.getPastTotalRewardWeight(secondSnapshot), 400e18);
+    }
+
+    function testExpiredStakeIsExcludedFromEpochWeightAndCannotClaim() public {
+        _stake(ALICE, 100e18, 0);
+        _stake(BOB, 100e18, 1);
+        vm.warp(_unlockTime(ALICE));
+        SinjohStakingEngine distributor = _distributor();
+        uint256 scheduleId = distributor.createSchedule(_schedule(true, 0, 0, 0));
+        _fund(distributor, scheduleId, 10_000);
+        vm.warp(block.timestamp + 30 minutes);
+        distributor.executeEpoch(scheduleId);
+
+        SinjohStakingEngine.Epoch memory epoch = distributor.getEpoch(scheduleId, 1);
+        assertEq(epoch.eligibleWeight, 125e18);
+        assertEq(distributor.claimable(scheduleId, 1, ALICE), 0);
+        assertEq(distributor.claimable(scheduleId, 1, BOB), 9_900);
+    }
+
+    function testFuzzAggregateWeightExpiresAcrossMixedLocks(
+        uint96 rawAliceStake,
+        uint96 rawBobStake
+    ) public {
+        uint128 aliceStake = uint128(rawAliceStake) + 1;
+        uint128 bobStake = uint128(rawBobStake) + 1;
+        _stake(ALICE, aliceStake, 0);
+        _stake(BOB, bobStake, 1);
+        uint48 aliceUnlock = _unlockTime(ALICE);
+        uint48 bobUnlock = _unlockTime(BOB);
+        uint256 bobWeight = uint256(bobStake) * 12_500 / 10_000;
+
+        assertEq(staking.currentTotalVotes(), uint256(aliceStake) + bobWeight);
+        vm.warp(aliceUnlock);
+        assertEq(staking.currentTotalVotes(), bobWeight);
+        assertEq(staking.currentRewardWeight(ALICE), 0);
+        vm.warp(bobUnlock);
+        assertEq(staking.currentTotalVotes(), 0);
+        assertEq(staking.currentRewardWeight(BOB), 0);
     }
 
     function testMultipleSchedulesShareOneTokenWithoutCrossingLiabilities() public {
         _stake(ALICE, 100e18, 1);
         _stake(BOB, 300e18, 1);
+        vm.warp(block.timestamp + 1);
         vm.roll(block.number + 1);
         SinjohStakingEngine distributor = _distributor();
         uint256 firstSchedule = distributor.createSchedule(_schedule(true, 0, 0, 0));
@@ -254,6 +346,7 @@ contract SinjohStakingEngineTest is TestBase {
 
     function testLateExecutionAlwaysCreatesAFreshClaimWindow() public {
         _stake(ALICE, 100e18, 1);
+        vm.warp(block.timestamp + 1);
         vm.roll(block.number + 1);
         SinjohStakingEngine distributor = _distributor();
         uint256 scheduleId = distributor.createSchedule(_schedule(true, 0, 0, 0));
@@ -274,11 +367,12 @@ contract SinjohStakingEngineTest is TestBase {
 
     function testEpochPreservesItsOriginalUnclaimedDestination() public {
         _stake(ALICE, 100e18, 1);
+        vm.warp(block.timestamp + 1);
         vm.roll(block.number + 1);
         SinjohStakingEngine distributor = _distributor();
         uint256 scheduleId = distributor.createSchedule(_schedule(true, 0, 0, 0));
         _fund(distributor, scheduleId, 10_000);
-        vm.warp(30 minutes + 1);
+        vm.warp(distributor.getSchedule(scheduleId).nextEpoch);
         vm.roll(block.number + 1);
         distributor.executeEpoch(scheduleId);
         SinjohStakingEngine.ScheduleInput memory updated = _schedule(true, 0, 0, 0);
@@ -292,11 +386,12 @@ contract SinjohStakingEngineTest is TestBase {
 
     function testUnclaimedRewardsSweepAfterDeadlineAndClearLiability() public {
         _stake(ALICE, 100e18, 1);
+        vm.warp(block.timestamp + 1);
         vm.roll(block.number + 1);
         SinjohStakingEngine distributor = _distributor();
         uint256 scheduleId = distributor.createSchedule(_schedule(true, 0, 0, 0));
         _fund(distributor, scheduleId, 10_000);
-        vm.warp(30 minutes + 1);
+        vm.warp(distributor.getSchedule(scheduleId).nextEpoch);
         vm.roll(block.number + 1);
         distributor.executeEpoch(scheduleId);
         vm.warp(2 days);
@@ -307,20 +402,23 @@ contract SinjohStakingEngineTest is TestBase {
 
     function testScheduleUpdateDoesNotRewriteCurrentEpochStart() public {
         _stake(ALICE, 100e18, 1);
+        vm.warp(block.timestamp + 1);
         vm.roll(block.number + 1);
         SinjohStakingEngine distributor = _distributor();
         uint256 scheduleId = distributor.createSchedule(_schedule(true, 0, 0, 0));
+        SinjohStakingEngine.DistributionSchedule memory original =
+            distributor.getSchedule(scheduleId);
         SinjohStakingEngine.ScheduleInput memory updated = _schedule(true, 0, 0, 0);
         updated.interval = 2 days;
         updated.claimPeriod = 3 days;
         distributor.updateSchedule(scheduleId, updated);
         _fund(distributor, scheduleId, 10_000);
-        vm.warp(30 minutes + 1);
+        vm.warp(original.nextEpoch);
         vm.roll(block.number + 1);
         distributor.executeEpoch(scheduleId);
         SinjohStakingEngine.Epoch memory epoch = distributor.getEpoch(scheduleId, 1);
-        assertEq(epoch.startTime, 1);
-        assertEq(epoch.endTime, 30 minutes + 1);
+        assertEq(epoch.startTime, original.epochStartTime);
+        assertEq(epoch.endTime, original.nextEpoch);
     }
 
     function _stake(address account, uint128 amount, uint8 tierId) private {
@@ -329,6 +427,10 @@ contract SinjohStakingEngineTest is TestBase {
         token.approve(address(staking), amount);
         staking.stake(amount, tierId);
         vm.stopPrank();
+    }
+
+    function _unlockTime(address account) private view returns (uint48 unlockTime) {
+        (,, unlockTime,,,) = staking.positions(account);
     }
 
     function _distributor() private returns (SinjohStakingEngine) {

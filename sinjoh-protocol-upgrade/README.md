@@ -43,7 +43,8 @@ shutdown because no authority remains to resume.
 proposal-guardian, and timelock modules. Use an ERC20Votes token for liquid or delegated
 voting. Use `StakedVotesAdapter` over `StakingEngine` for non-delegated locked-token voting.
 Voting delay and period use the vote source's ERC-6372 clock; the included staking adapter uses
-block numbers. The proposal threshold is an absolute vote amount. Calculate the desired
+timestamps, so those settings are measured in seconds. The proposal threshold is an absolute
+vote amount. Calculate the desired
 0.5-1% threshold from expected voting supply when deploying. Quorum is an integer percentage;
 5-15 is the recommended launch range.
 
@@ -52,7 +53,7 @@ block numbers. The proposal threshold is an absolute vote amount. Calculate the 
 | Contract | Purpose | Main safety properties |
 | --- | --- | --- |
 | `FeeRouterV2` | Versioned project-fee routing | Atomic route sets, delayed activation, protected rollback target, immutable 1% fee, exact transfers, guardian or governance route pause |
-| `StakingEngine` | Fixed-tier token locks | Separate voting/reward checkpoints, exact deposits and withdrawals, withdrawals remain available while paused, tier changes apply on new or renewed locks |
+| `StakingEngine` | Fixed-tier token locks | Timestamp checkpoints, automatic zero weight at unlock, exact deposits and withdrawals, withdrawals remain available while paused, tier changes apply on new or renewed locks |
 | `SinjohStakingEngine` | Claim-based staking distributions | 30-minute minimum epochs, zero-weight rollover, prefunded liabilities, batched claims, executor reward caps, unclaimed sweep |
 | `YieldBasket` | Allowlisted harvest-only portfolio | Per-adapter caps, token-specific reward routes, pause-preserving configuration, loss write-off/recovery, exact accounting |
 | `DynamicFundingBands` | Prefunded post-launch commitments | Activation delay, fresh TWAP cadence, minimum distance, confirmation clock, immutable active terms, exact payouts, per-asset/subject commitments |
@@ -106,16 +107,16 @@ must be separately reviewed and allowlisted.
 
 ## Eligibility
 
-Version 1 deliberately selects the requested **staked at the beginning of the epoch** rule. An
-epoch snapshots reward weight at the block before the epoch begins, conservatively excluding
-stake added later in the same block. This keeps the stored eligible-weight denominator exactly
-equal to the set of positions that can claim; enforcing “locked through epoch end” would require
-expiry-aware aggregate checkpoints rather than silently diluting eligible users. An unlock time
-makes a position withdrawable but does not retroactively erase its historical epoch or governance
-checkpoints. Version 1 does not automatically decay weight at unlock: an unlocked-but-unwithdrawn
-position remains deposited, keeps its configured reward and governance weight, and can be
-withdrawn immediately. This economic choice must be disclosed and approved in the production
-parameter manifest. Users can claim up to 64 strictly increasing epoch IDs in one transaction.
+Version 1 deliberately selects the requested **actively locked at the beginning of the epoch**
+rule. An epoch uses the timestamp immediately before the epoch begins, conservatively excluding
+stake added in the opening timestamp. Individual and aggregate timestamp checkpoints include
+scheduled expiries, so a position whose lock has already ended contributes zero to both the
+claimable weight and the stored eligible-weight denominator even when its owner has not withdrawn.
+Reward and governance weight become zero at the exact unlock timestamp. Extending an active lock
+replaces its scheduled expiry; relocking an expired position reactivates weight only for the new
+lock. Expiry does not retroactively erase eligibility for an epoch whose earlier snapshot found the
+position actively locked. The deposited principal remains immediately withdrawable after expiry.
+Users can claim up to 64 strictly increasing epoch IDs in one transaction.
 Each epoch pins its own claim deadline and unclaimed-funds destination, and late execution starts
 a fresh claim window.
 

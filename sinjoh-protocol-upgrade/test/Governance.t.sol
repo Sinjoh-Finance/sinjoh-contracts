@@ -68,6 +68,7 @@ contract GovernanceTest is TestBase {
         token.approve(address(staking), 100e18);
         staking.stake(100e18, 0);
         vm.stopPrank();
+        vm.warp(block.timestamp + 1);
         vm.roll(block.number + 1);
 
         StakedVotesAdapter votes = new StakedVotesAdapter(staking);
@@ -100,10 +101,10 @@ contract GovernanceTest is TestBase {
 
         vm.prank(ALICE);
         uint256 proposalId = governor.propose(targets, values, calldatas, description);
-        vm.roll(governor.proposalSnapshot(proposalId) + 1);
+        vm.warp(governor.proposalSnapshot(proposalId) + 1);
         vm.prank(ALICE);
         governor.castVote(proposalId, uint8(GovernorCountingVote.FOR));
-        vm.roll(governor.proposalDeadline(proposalId) + 1);
+        vm.warp(governor.proposalDeadline(proposalId) + 1);
         governor.queue(targets, values, calldatas, descriptionHash);
 
         vm.expectRevert();
@@ -112,6 +113,27 @@ contract GovernanceTest is TestBase {
         governor.execute(targets, values, calldatas, descriptionHash);
         assertTrue(!router.paused());
         assertTrue(governor.state(proposalId) == IGovernor.ProposalState.Executed);
+    }
+
+    function testExpiredLocksHaveNoGovernancePowerWithoutWithdrawal() public {
+        MockERC20 token = new MockERC20();
+        StakingEngine staking = _staking(token);
+        token.mint(ALICE, 100e18);
+        vm.startPrank(ALICE);
+        token.approve(address(staking), 100e18);
+        staking.stake(100e18, 0);
+        vm.stopPrank();
+        (,, uint48 unlockTime,,,) = staking.positions(ALICE);
+        uint256 activeTime = uint256(unlockTime) - 30 days;
+        StakedVotesAdapter votes = new StakedVotesAdapter(staking);
+        assertEq(votes.getVotes(ALICE), 100e18);
+
+        vm.warp(unlockTime);
+        assertEq(votes.getVotes(ALICE), 0);
+        vm.warp(uint256(unlockTime) + 1);
+        assertEq(votes.getPastVotes(ALICE, activeTime), 100e18);
+        assertEq(votes.getPastVotes(ALICE, unlockTime), 0);
+        assertEq(votes.getPastTotalSupply(unlockTime), 0);
     }
 
     function testStakedVotesAdapterDoesNotPermitDelegatingLockedVotes() public {

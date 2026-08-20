@@ -25,10 +25,11 @@ for every item below before preparing a broadcast transaction:
 | Staking token | Checksummed address, decimals, symbol, runtime code hash, and token-behavior review |
 | Lock tiers | Duration, reward-weight BPS, governance-weight BPS, and active state for each tier |
 | Authority | Individual bootstrap, multisig, or token governor; final timelock and signer policy |
+| Governor parameters | Proposal threshold, quorum percentage, and timestamp-clock voting delay/period in seconds |
 | Guardian | Pause-only address, response procedure, and confirmation it differs from routine operators |
 | Protocol revenue | Fee-recipient address and accounting owner |
 | Reward schedules | Reward token, interval, claim period, permissionless setting, executor incentive, and unclaimed destination |
-| Eligibility semantics | Approval that checkpoint weight at epoch start is eligible, including stake still deposited after its unlock time until withdrawal |
+| Eligibility semantics | Confirmation that only positions actively locked at the epoch-start timestamp have reward weight; expired-but-unwithdrawn positions have zero reward and governance weight |
 | Fee composition | Approval that router-to-staking funding charges 1% in each module, leaving about 98.01% before executor incentives |
 | Unclaimed funds | Destination and sweep policy; every epoch pins the destination active when it is closed |
 | Immutable mode | Whether and when to freeze; freezing is irreversible and a later guardian pause cannot be resumed |
@@ -51,8 +52,8 @@ All gates are mandatory for a production broadcast:
    compatibility test.
 5. A Robinhood Chain mainnet fork rehearsal uses chain ID 4663 and current onchain state. It
    exercises stake, increase, extend, epoch funding, late execution, claims, sweeping, pause,
-   zero-weight epoch rollover, withdrawals while paused, basket adapter write-off/recovery, and
-   every governance transition.
+   exact unlock-time weight expiry, pre- and post-expiry relocking, zero-weight epoch rollover,
+   withdrawals while paused, basket adapter write-off/recovery, and every governance transition.
 6. The deployment script is simulated without broadcast and its decoded constructor arguments,
    role grants, expected addresses, and runtime hashes match the signed manifest.
 7. A testnet or isolated canary completes one entire small-value lifecycle before mainnet funding.
@@ -73,7 +74,8 @@ Deploy and configure in this order:
 1. Deploy the chosen governance controller. Use an address controller during bootstrap when
    routes or schedules require post-constructor configuration.
 2. Deploy `StakingEngine` with the staking token and reviewed lock tiers.
-3. Deploy `StakedVotesAdapter` if governance will use locked, non-delegated voting weight.
+3. Deploy `StakedVotesAdapter` if governance will use locked, non-delegated voting weight. Its
+   ERC-6372 clock is timestamp-based, so Governor delay and period parameters are seconds.
 4. If token governance is selected, deploy/configure the timelock and `SinjohGovernor`, grant
    proposer/canceller/executor roles, and remove bootstrap administration.
 5. Deploy `SinjohStakingEngine` with the same controller, guardian, `StakingEngine`, and protocol
@@ -131,6 +133,7 @@ are present and live bytecode matches. A mismatch fails closed and must never of
 Add a **Staking** workspace to `/portfolio` with:
 
 - connected-wallet stake amount, tier, unlock time, reward weight, and voting weight;
+- explicit zero-weight and relock states at the exact unlock timestamp, even before withdrawal;
 - stake, increase, extend, and withdraw actions, with approval/permit handling where supported;
 - withdrawals available while protocol funding/execution is paused;
 - active reward schedules grouped by reward token;

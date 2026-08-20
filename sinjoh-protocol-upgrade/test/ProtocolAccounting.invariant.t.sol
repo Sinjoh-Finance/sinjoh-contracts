@@ -268,6 +268,7 @@ contract ProtocolAccountingInvariantTest is InvariantTestBase {
         distributor = new SinjohStakingEngine(controller, GUARDIAN, staking, PROTOCOL);
         AirdropFundingHandler airdropHandler =
             new AirdropFundingHandler(airdropToken, distributor, staking);
+        vm.warp(block.timestamp + 1);
         vm.roll(block.number + 1);
         uint256 scheduleId = distributor.createSchedule(
             SinjohStakingEngine.ScheduleInput({

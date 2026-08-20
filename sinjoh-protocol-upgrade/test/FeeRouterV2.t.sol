@@ -120,6 +120,7 @@ contract FeeRouterV2Test is TestBase {
         token.approve(address(staking), 100e18);
         staking.stake(100e18, 0);
         vm.stopPrank();
+        vm.warp(block.timestamp + 1);
         vm.roll(block.number + 1);
 
         SinjohStakingEngine rewards =

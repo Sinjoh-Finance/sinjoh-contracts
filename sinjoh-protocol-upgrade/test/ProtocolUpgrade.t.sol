@@ -105,6 +105,7 @@ contract ProtocolUpgradeTest is TestBase {
         token.approve(address(staking), type(uint256).max);
         staking.stake(100e18, 1);
         vm.stopPrank();
+        vm.warp(block.timestamp + 1);
         vm.roll(block.number + 1);
 
         SinjohStakingEngine distributor =
@@ -147,9 +148,11 @@ contract ProtocolUpgradeTest is TestBase {
         token.approve(address(staking), 100e18);
         staking.stake(100e18, 0);
         vm.stopPrank();
-        vm.roll(block.number + 1);
-        assertEq(staking.getPastRewardWeight(ALICE, block.number - 1), 100e18);
-        assertTrue(staking.getPastUnlockTime(ALICE, block.number - 1) >= block.timestamp + 1 days);
+        (,, uint48 unlockTime,,,) = staking.positions(ALICE);
+        uint256 stakeTime = uint256(unlockTime) - 1 days;
+        vm.warp(stakeTime + 1);
+        assertEq(staking.getPastRewardWeight(ALICE, stakeTime), 100e18);
+        assertEq(staking.getPastUnlockTime(ALICE, stakeTime), unlockTime);
     }
 
     function testYieldBasketEnforcesAllocationAndDistributesHarvestOnly() public {

@@ -10,6 +10,7 @@ import { IGovernanceController } from "./interfaces/IGovernanceController.sol";
 import { IStakingSnapshot } from "./interfaces/IStakingSnapshot.sol";
 
 /// @notice Single-position fixed-tier staking with separate voting and reward checkpoints.
+/// @dev Checkpoints use timestamp timepoints. Weight is active only while `timepoint < unlockTime`.
 contract StakingEngine is Governed, ReentrancyGuard, IStakingSnapshot {
     using SafeERC20 for IERC20;
     using Checkpoints for Checkpoints.Trace256;
@@ -17,6 +18,8 @@ contract StakingEngine is Governed, ReentrancyGuard, IStakingSnapshot {
     uint16 public constant BPS = 10_000;
     uint8 public constant MAX_TIERS = 8;
     uint16 public constant MAX_WEIGHT_BPS = 20_000;
+    // Exclusive upper bound for a sparse Fenwick tree keyed by every uint48 timestamp.
+    uint256 private constant EXPIRY_TREE_SIZE = 1 << 48;
 
     struct LockTier {
         uint32 duration;
@@ -42,6 +45,7 @@ contract StakingEngine is Governed, ReentrancyGuard, IStakingSnapshot {
     error PositionLocked(uint256 unlockTime);
     error PositionExpired(uint256 unlockTime);
     error FutureLookup();
+    error InvalidExpiryAccounting();
     error InexactTransfer(uint256 expected, uint256 received);
 
     event TierSet(
@@ -67,6 +71,8 @@ contract StakingEngine is Governed, ReentrancyGuard, IStakingSnapshot {
     mapping(address account => Checkpoints.Trace256) private _unlockTimes;
     Checkpoints.Trace256 private _totalVotes;
     Checkpoints.Trace256 private _totalRewardWeights;
+    mapping(uint256 node => int256 delta) private _voteExpiries;
+    mapping(uint256 node => int256 delta) private _rewardExpiries;
 
     constructor(
         IGovernanceController controller,
@@ -181,44 +187,69 @@ contract StakingEngine is Governed, ReentrancyGuard, IStakingSnapshot {
         emit Withdrawn(msg.sender, position.amount);
     }
 
-    function getPastVotes(address account, uint256 blockNumber) external view returns (uint256) {
-        return _past(_votes[account], blockNumber);
+    function getPastVotes(address account, uint256 timepoint) external view returns (uint256) {
+        _validatePastTimepoint(timepoint);
+        return _activeAt(_votes[account], _unlockTimes[account], timepoint);
     }
 
-    function getPastTotalSupply(uint256 blockNumber) external view returns (uint256) {
-        return _past(_totalVotes, blockNumber);
+    function getPastTotalSupply(uint256 timepoint) external view returns (uint256) {
+        _validatePastTimepoint(timepoint);
+        return _activeTotalAt(_totalVotes, _voteExpiries, timepoint);
     }
 
-    function getPastRewardWeight(address account, uint256 blockNumber)
+    function getPastRewardWeight(address account, uint256 timepoint)
         external
         view
         returns (uint256)
     {
-        return _past(_rewardWeights[account], blockNumber);
+        _validatePastTimepoint(timepoint);
+        return _activeAt(_rewardWeights[account], _unlockTimes[account], timepoint);
     }
 
-    function getPastTotalRewardWeight(uint256 blockNumber) external view returns (uint256) {
-        return _past(_totalRewardWeights, blockNumber);
+    function getPastTotalRewardWeight(uint256 timepoint) external view returns (uint256) {
+        _validatePastTimepoint(timepoint);
+        return _activeTotalAt(_totalRewardWeights, _rewardExpiries, timepoint);
     }
 
-    function getPastUnlockTime(address account, uint256 blockNumber)
-        external
-        view
-        returns (uint256)
-    {
-        return _past(_unlockTimes[account], blockNumber);
+    function getPastEligibleRewardWeight(
+        address account,
+        uint256 checkpointTimepoint,
+        uint256 eligibilityTimepoint
+    ) external view returns (uint256) {
+        _validateEligibilityTimepoints(checkpointTimepoint, eligibilityTimepoint);
+        return _activeAt(
+            _rewardWeights[account],
+            _unlockTimes[account],
+            checkpointTimepoint,
+            eligibilityTimepoint
+        );
+    }
+
+    function getPastEligibleTotalRewardWeight(
+        uint256 checkpointTimepoint,
+        uint256 eligibilityTimepoint
+    ) external view returns (uint256) {
+        _validateEligibilityTimepoints(checkpointTimepoint, eligibilityTimepoint);
+        return _activeTotalAt(
+            _totalRewardWeights, _rewardExpiries, checkpointTimepoint, eligibilityTimepoint
+        );
+    }
+
+    function getPastUnlockTime(address account, uint256 timepoint) external view returns (uint256) {
+        _validatePastTimepoint(timepoint);
+        return _unlockTimes[account].upperLookupRecent(timepoint);
     }
 
     function currentVotes(address account) external view returns (uint256) {
-        return _votes[account].latest();
+        return _activeAt(_votes[account], _unlockTimes[account], block.timestamp);
     }
 
     function currentTotalVotes() external view returns (uint256) {
-        return _totalVotes.latest();
+        return _activeTotalAt(_totalVotes, _voteExpiries, block.timestamp);
     }
 
     function currentRewardWeight(address account) external view returns (uint256) {
-        return _rewardWeights[account].latest();
+        return _activeAt(_rewardWeights[account], _unlockTimes[account], block.timestamp);
     }
 
     function _writePosition(
@@ -228,26 +259,106 @@ contract StakingEngine is Governed, ReentrancyGuard, IStakingSnapshot {
         uint16 rewardWeightBps,
         uint16 governanceWeightBps
     ) private {
+        uint256 timepoint = block.timestamp;
         uint256 oldVotes = _votes[account].latest();
         uint256 oldRewards = _rewardWeights[account].latest();
+        uint256 oldUnlockTime = _unlockTimes[account].latest();
+        bool oldActive = oldUnlockTime > timepoint;
         uint256 newVotes = amount * governanceWeightBps / BPS;
         uint256 newRewards = amount * rewardWeightBps / BPS;
-        _votes[account].push(block.number, newVotes);
-        _rewardWeights[account].push(block.number, newRewards);
-        _unlockTimes[account].push(block.number, unlockTime);
-        _totalVotes.push(block.number, _totalVotes.latest() + newVotes - oldVotes);
+
+        if (oldActive) {
+            _scheduleExpiry(oldUnlockTime, -_signedWeight(oldVotes), -_signedWeight(oldRewards));
+        }
+        if (unlockTime > timepoint) {
+            _scheduleExpiry(unlockTime, _signedWeight(newVotes), _signedWeight(newRewards));
+        }
+
+        _votes[account].push(timepoint, newVotes);
+        _rewardWeights[account].push(timepoint, newRewards);
+        _unlockTimes[account].push(timepoint, unlockTime);
+        _totalVotes.push(timepoint, _totalVotes.latest() + newVotes - (oldActive ? oldVotes : 0));
         _totalRewardWeights.push(
-            block.number, _totalRewardWeights.latest() + newRewards - oldRewards
+            timepoint, _totalRewardWeights.latest() + newRewards - (oldActive ? oldRewards : 0)
         );
     }
 
-    function _past(Checkpoints.Trace256 storage trace, uint256 blockNumber)
+    function _activeAt(
+        Checkpoints.Trace256 storage weights,
+        Checkpoints.Trace256 storage unlockTimes,
+        uint256 timepoint
+    ) private view returns (uint256) {
+        return _activeAt(weights, unlockTimes, timepoint, timepoint);
+    }
+
+    function _activeAt(
+        Checkpoints.Trace256 storage weights,
+        Checkpoints.Trace256 storage unlockTimes,
+        uint256 checkpointTimepoint,
+        uint256 eligibilityTimepoint
+    ) private view returns (uint256) {
+        uint256 unlockTime = unlockTimes.upperLookupRecent(checkpointTimepoint);
+        if (unlockTime == 0 || eligibilityTimepoint >= unlockTime) return 0;
+        return weights.upperLookupRecent(checkpointTimepoint);
+    }
+
+    function _activeTotalAt(
+        Checkpoints.Trace256 storage total,
+        mapping(uint256 node => int256 delta) storage expiries,
+        uint256 timepoint
+    ) private view returns (uint256) {
+        return _activeTotalAt(total, expiries, timepoint, timepoint);
+    }
+
+    function _activeTotalAt(
+        Checkpoints.Trace256 storage total,
+        mapping(uint256 node => int256 delta) storage expiries,
+        uint256 checkpointTimepoint,
+        uint256 eligibilityTimepoint
+    ) private view returns (uint256) {
+        uint256 base = total.upperLookupRecent(checkpointTimepoint);
+        int256 expired = _expiryPrefix(expiries, eligibilityTimepoint);
+        if (expired < 0 || uint256(expired) > base) revert InvalidExpiryAccounting();
+        return base - uint256(expired);
+    }
+
+    function _scheduleExpiry(uint256 unlockTime, int256 voteDelta, int256 rewardDelta) private {
+        // Point updates make expiry prefix sums queryable without iterating stakers. Updating an
+        // active position first cancels its still-future point and then schedules the replacement.
+        uint256 index = unlockTime;
+        while (index < EXPIRY_TREE_SIZE) {
+            _voteExpiries[index] += voteDelta;
+            _rewardExpiries[index] += rewardDelta;
+            index += index & (~index + 1);
+        }
+    }
+
+    function _expiryPrefix(mapping(uint256 node => int256 delta) storage tree, uint256 timepoint)
         private
         view
-        returns (uint256)
+        returns (int256 total)
     {
-        if (blockNumber >= block.number) revert FutureLookup();
-        return trace.upperLookupRecent(blockNumber);
+        uint256 index = timepoint;
+        while (index != 0) {
+            total += tree[index];
+            index &= index - 1;
+        }
+    }
+
+    function _validatePastTimepoint(uint256 timepoint) private view {
+        if (timepoint >= block.timestamp) revert FutureLookup();
+    }
+
+    function _validateEligibilityTimepoints(
+        uint256 checkpointTimepoint,
+        uint256 eligibilityTimepoint
+    ) private view {
+        if (checkpointTimepoint > eligibilityTimepoint || eligibilityTimepoint >= block.timestamp) revert FutureLookup();
+    }
+
+    function _signedWeight(uint256 weight) private pure returns (int256) {
+        if (weight > uint256(type(int256).max)) revert InvalidExpiryAccounting();
+        return int256(weight);
     }
 
     function _activeTier(uint8 tierId) private view returns (LockTier memory tier) {
