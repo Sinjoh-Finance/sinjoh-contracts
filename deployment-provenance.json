@@ -6,7 +6,7 @@
   },
   "legacyRepository": "Sinjoh-Finance/sinjoh-legacy",
   "contractsRepository": "Sinjoh-Finance/sinjoh-contracts",
-  "verifiedAt": "2026-08-18",
+  "verifiedAt": "2026-08-20",
   "freeze": {
     "tag": "provenance/pre-reorganization-2026-08-18",
     "originalCommit": "01628f65885e732ffb7a2d84dce2f4065221e048",
@@ -108,7 +108,13 @@
       "originalCommit": "036972edec6b07a2f867bbe1582d3e51aaae0a65",
       "filteredCommit": "41d7373ac06491f4b6ceb5d049604dc024051913",
       "runtimeChecks": 11
+    },
+    {
+      "tag": "deploy/mainnet/launch-staking-engine-2026-08-20",
+      "originalCommit": "2ad644ef758b3766026b3f53c43e59ae8499c4d2",
+      "filteredCommit": "2ad644ef758b3766026b3f53c43e59ae8499c4d2",
+      "runtimeChecks": 1
     }
   ],
-  "runtimeChecksTotal": 72
+  "runtimeChecksTotal": 73
 }
