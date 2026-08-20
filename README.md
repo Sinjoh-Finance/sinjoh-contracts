@@ -26,6 +26,7 @@ independent Foundry package with pinned compiler settings and its own tests.
 | [`sinjoh-treasury-vault`](./sinjoh-treasury-vault) | Treasury custody and joint-account governance modules. |
 | [`sinjoh-pons-v1-adapter`](./sinjoh-pons-v1-adapter) | Pons v1 fee forwarding. |
 | [`sinjoh-launchpad-adapters`](./sinjoh-launchpad-adapters) | Pons v1/v2, Flap, pools.trade, and letscash.fun integrations. |
+| [`sinjoh-protocol-upgrade`](./sinjoh-protocol-upgrade) | Source-only governed fee routing, staking, claim distributions, yield baskets, and dynamic funding bands. |
 | [`sinjoh-integration`](./sinjoh-integration) | Cross-package and production-behavior integration tests. |
 
 The packages compose through copied interfaces and ordinary calls or asset

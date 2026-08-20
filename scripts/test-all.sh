@@ -12,6 +12,7 @@ packages=(
   sinjoh-treasury-vault
   sinjoh-pons-v1-adapter
   sinjoh-launchpad-adapters
+  sinjoh-protocol-upgrade
   sinjoh-integration
 )
 
