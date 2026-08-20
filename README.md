@@ -18,7 +18,7 @@ independent Foundry package with pinned compiler settings and its own tests.
 | --- | --- |
 | [`sinjoh-fee-router`](./sinjoh-fee-router) | Immutable fee collection, normalization, allocation, and sink routing. |
 | [`sinjoh-revenue-collector`](./sinjoh-revenue-collector) | Stable protocol-revenue endpoint with a governance-selected processor. |
-| [`sinjoh-airdrop-distributor`](./sinjoh-airdrop-distributor) | Cumulative Merkle-sum holder distributions. |
+| [`sinjoh-airdrop-distributor`](./sinjoh-airdrop-distributor) | Default standard cumulative Merkle-sum holder distributions; no staking required. |
 | [`sinjoh-liquidity-manager`](./sinjoh-liquidity-manager) | Permanent full-range Uniswap v3/v4 liquidity management. |
 | [`sinjoh-funding-bands`](./sinjoh-funding-bands) | Creator-funded, one-sided v3/v4 market-cap bands and settlement. |
 | [`sinjoh-raffle-rewards`](./sinjoh-raffle-rewards) | Holder raffles, round accounting, and prize delivery. |
@@ -26,6 +26,7 @@ independent Foundry package with pinned compiler settings and its own tests.
 | [`sinjoh-treasury-vault`](./sinjoh-treasury-vault) | Treasury custody and joint-account governance modules. |
 | [`sinjoh-pons-v1-adapter`](./sinjoh-pons-v1-adapter) | Pons v1 fee forwarding. |
 | [`sinjoh-launchpad-adapters`](./sinjoh-launchpad-adapters) | Pons v1/v2, Flap, pools.trade, and letscash.fun integrations. |
+| [`sinjoh-protocol-upgrade`](./sinjoh-protocol-upgrade) | Source-only governed fee routing, optional staking-driven claim distributions, yield baskets, and dynamic funding bands. |
 | [`sinjoh-integration`](./sinjoh-integration) | Cross-package and production-behavior integration tests. |
 
 The packages compose through copied interfaces and ordinary calls or asset
