@@ -55,15 +55,20 @@ vote amount. Calculate the desired
 | `FeeRouterV2` | Versioned project-fee routing | Atomic route sets, delayed activation, protected rollback target, immutable 1% fee, exact transfers, per-route failure escrow and retry, guardian or governance route pause |
 | `StakingEngine` | Simple token staking | One token equals one reward unit and one vote, timestamped raw-balance checkpoints, immediate partial/full unstaking, exact transfers, unstaking while paused |
 | `SinjohStakingEngine` | Claim-based staking distributions | 30-minute minimum epochs, zero-stake rollover, prefunded liabilities, batched claims, executor reward caps, unclaimed sweep |
+| `SinjohLaunchStakingEngine` | Opt-in staking airdrops for new launches | One shared sink keyed by launched token, raw active-stake snapshots, immediate unstaking, isolated router/token/asset reward accounts, zero-stake rollover |
 | `YieldBasket` | Allowlisted harvest-only portfolio | Per-adapter caps, token-specific reward routes, pause-preserving configuration, loss write-off/recovery, non-deposit-token recovery, exact accounting |
 | `DynamicFundingBands` | Prefunded post-launch commitments | Activation delay, fresh TWAP cadence, minimum distance, confirmation clock, immutable active terms, exact payouts, per-asset/subject commitments |
 
 The existing `sinjoh-airdrop-distributor` remains the default standard airdrop path and does
-not require recipients to stake. `SinjohStakingEngine` is a separate, optional path for
-staking-driven rewards; its schedules intentionally derive eligibility and allocation from raw
-staked-balance checkpoints in `StakingEngine`. Deployments and interfaces should present these as
-distinct
-airdrop products rather than treating staking as a prerequisite for ordinary airdrops.
+not require recipients to stake. New launches may instead opt into `SinjohLaunchStakingEngine`.
+The fee router passes the launched token as the subject, so every token has an independent raw
+stake ledger even though the platform uses one shared sink. A wallet may withdraw available stake
+immediately. Only its balance at a completed epoch snapshot determines that epoch's claim.
+
+The older `StakingEngine` plus `SinjohStakingEngine` pair is a single-token governed module. It is
+not the launch-platform staking feature and must not be used to route rewards for unrelated token
+launches. Interfaces must present standard holder airdrops and opt-in launch staking as distinct
+products rather than treating staking as a prerequisite for ordinary airdrops.
 Claims use full-precision proportional allocation against each epoch's funded amount and
 eligible stake; only unavoidable per-account division dust remains sweepable after expiry.
 If an epoch-start checkpoint has no stake, permissionless execution advances the epoch
