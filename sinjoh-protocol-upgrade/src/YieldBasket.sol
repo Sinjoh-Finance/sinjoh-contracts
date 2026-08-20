@@ -32,6 +32,15 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
         uint48 lastDistributionAt;
         uint256 principalAllocated;
         uint256 sharesHeld;
+    }
+
+    struct RewardRouteInput {
+        address rewardToken;
+        address distributor;
+        bytes distributionConfig;
+    }
+
+    struct RewardRoute {
         address distributor;
         bytes distributionConfig;
     }
@@ -48,13 +57,13 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
 
     event Funded(address indexed funder, uint256 amount, uint256 totalPrincipal);
     event AdapterConfigured(
-        address indexed adapter,
-        uint16 allocationLimitBps,
-        uint32 distributionInterval,
-        address indexed distributor
+        address indexed adapter, uint16 allocationLimitBps, uint32 distributionInterval
     );
     event AdapterStatusChanged(address indexed adapter, AdapterStatus status);
-    event AdapterRewardTokensSet(address indexed adapter, address[] rewardTokens);
+    event AdapterRewardRouteSet(
+        address indexed adapter, address indexed rewardToken, address indexed distributor
+    );
+    event AdapterRewardRoutesCleared(address indexed adapter);
     event Allocated(address indexed adapter, uint256 assets, uint256 shares);
     event WithdrawnFromAdapter(
         address indexed adapter,
@@ -65,6 +74,12 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
     );
     event IdlePrincipalWithdrawn(address indexed recipient, uint256 amount);
     event IdleValueRealized(address indexed recipient, uint256 amount);
+    event AdapterWrittenOff(
+        address indexed adapter, uint256 sharesWrittenOff, uint256 principalWrittenOff
+    );
+    event WrittenOffSharesRecovered(
+        address indexed adapter, uint256 sharesRecovered, uint256 assetsRecovered
+    );
     event Harvested(
         address indexed adapter, address indexed rewardToken, uint256 amount, address distributor
     );
@@ -82,6 +97,8 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
     mapping(address rewardToken => uint256 amount) public cumulativeRealizedYield;
     mapping(address adapter => address[] rewardTokens) private _adapterRewardTokens;
     mapping(address adapter => mapping(address rewardToken => bool)) public isAdapterRewardToken;
+    mapping(address adapter => mapping(address rewardToken => RewardRoute)) private _rewardRoutes;
+    mapping(address adapter => uint256 shares) public writtenOffShares;
 
     constructor(IGovernanceController controller, address guardian, IERC20 depositAsset_)
         Governed(controller, guardian)
@@ -113,19 +130,19 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
     function configureAdapter(
         IYieldAdapter adapter,
         uint16 allocationLimitBps,
-        uint32 distributionInterval,
-        address distributor,
-        bytes calldata distributionConfig
+        uint32 distributionInterval
     ) external onlyGovernance {
         address adapterAddress = address(adapter);
         if (
             adapterAddress.code.length == 0 || adapter.asset() != address(depositAsset)
                 || allocationLimitBps == 0 || allocationLimitBps > BPS
-                || distributionInterval < 30 minutes || distributor.code.length == 0
-                || distributionConfig.length > 2_048
+                || distributionInterval < 30 minutes
         ) revert InvalidConfiguration();
-        if (!approvedAdapter[adapterAddress]) {
-            if (adapterCount == MAX_ADAPTERS) revert InvalidConfiguration();
+        bool newlyApproved = !approvedAdapter[adapterAddress];
+        if (newlyApproved) {
+            if (adapterCount == MAX_ADAPTERS || writtenOffShares[adapterAddress] != 0) {
+                revert InvalidConfiguration();
+            }
             approvedAdapter[adapterAddress] = true;
             ++adapterCount;
             _adapterIndex[adapterAddress] = _adapters.length + 1;
@@ -137,38 +154,35 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
         }
         existing.allocationLimitBps = allocationLimitBps;
         existing.distributionInterval = distributionInterval;
-        existing.status = AdapterStatus.ACTIVE;
-        existing.distributor = distributor;
-        existing.distributionConfig = distributionConfig;
-        emit AdapterConfigured(
-            adapterAddress, allocationLimitBps, distributionInterval, distributor
-        );
+        if (newlyApproved) existing.status = AdapterStatus.ACTIVE;
+        emit AdapterConfigured(adapterAddress, allocationLimitBps, distributionInterval);
     }
 
-    function setAdapterRewardTokens(IYieldAdapter adapter, address[] calldata rewardTokens)
+    function setAdapterRewardRoutes(IYieldAdapter adapter, RewardRouteInput[] calldata routes)
         external
         onlyGovernance
     {
         address adapterAddress = address(adapter);
         if (
-            !approvedAdapter[adapterAddress] || rewardTokens.length == 0
-                || rewardTokens.length > MAX_REWARDS_PER_HARVEST
+            !approvedAdapter[adapterAddress] || routes.length == 0
+                || routes.length > MAX_REWARDS_PER_HARVEST
         ) revert InvalidConfiguration();
-        address[] storage previous = _adapterRewardTokens[adapterAddress];
-        for (uint256 i; i < previous.length; ++i) {
-            isAdapterRewardToken[adapterAddress][previous[i]] = false;
-        }
-        delete _adapterRewardTokens[adapterAddress];
-        for (uint256 i; i < rewardTokens.length; ++i) {
-            address rewardToken = rewardTokens[i];
+        _clearRewardRoutes(adapterAddress);
+        for (uint256 i; i < routes.length; ++i) {
+            address rewardToken = routes[i].rewardToken;
             if (
                 rewardToken.code.length == 0 || rewardToken == address(depositAsset)
+                    || routes[i].distributor.code.length == 0
+                    || routes[i].distributionConfig.length > 2_048
                     || isAdapterRewardToken[adapterAddress][rewardToken]
             ) revert InvalidConfiguration();
             isAdapterRewardToken[adapterAddress][rewardToken] = true;
             _adapterRewardTokens[adapterAddress].push(rewardToken);
+            _rewardRoutes[adapterAddress][rewardToken] = RewardRoute({
+                distributor: routes[i].distributor, distributionConfig: routes[i].distributionConfig
+            });
+            emit AdapterRewardRouteSet(adapterAddress, rewardToken, routes[i].distributor);
         }
-        emit AdapterRewardTokensSet(adapterAddress, rewardTokens);
     }
 
     function setAdapterStatus(IYieldAdapter adapter, AdapterStatus status) external {
@@ -197,7 +211,7 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
             revert InvalidConfiguration();
         }
         approvedAdapter[adapterAddress] = false;
-        config.status = AdapterStatus.DISABLED;
+        _clearRewardRoutes(adapterAddress);
         --adapterCount;
         uint256 index = _adapterIndex[adapterAddress] - 1;
         uint256 lastIndex = _adapters.length - 1;
@@ -208,6 +222,7 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
         }
         _adapters.pop();
         delete _adapterIndex[adapterAddress];
+        delete _adapterConfigs[adapterAddress];
         emit AdapterStatusChanged(adapterAddress, AdapterStatus.DISABLED);
     }
 
@@ -220,7 +235,10 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
     {
         address adapterAddress = address(adapter);
         AdapterConfig storage config = _adapterConfigs[adapterAddress];
-        if (!approvedAdapter[adapterAddress] || config.status != AdapterStatus.ACTIVE) {
+        if (
+            !approvedAdapter[adapterAddress] || config.status != AdapterStatus.ACTIVE
+                || writtenOffShares[adapterAddress] != 0
+        ) {
             revert AdapterNotApproved();
         }
         if (amount == 0 || amount > idlePrincipal) revert InvalidAmount();
@@ -274,6 +292,43 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
         // Assets above recovered principal remain idle, non-distributable value until governance
         // explicitly realizes them with `realizeIdleValue`.
         emit WithdrawnFromAdapter(adapterAddress, shares, assets, recoveredPrincipal, realizedLoss);
+    }
+
+    /// @notice Abandons an irrecoverable adapter position after governance has fully paused it.
+    /// @dev Written-off shares remain recoverable as non-principal value if the adapter revives.
+    function writeOffAdapter(IYieldAdapter adapter) external onlyGovernance {
+        address adapterAddress = address(adapter);
+        AdapterConfig storage config = _adapterConfigs[adapterAddress];
+        if (
+            !approvedAdapter[adapterAddress] || config.status != AdapterStatus.FULLY_PAUSED
+                || config.principalAllocated == 0 || config.sharesHeld == 0
+        ) revert InvalidConfiguration();
+        uint256 principal = config.principalAllocated;
+        uint256 shares = config.sharesHeld;
+        config.principalAllocated = 0;
+        config.sharesHeld = 0;
+        writtenOffShares[adapterAddress] += shares;
+        managedPrincipal -= principal;
+        cumulativeRealizedLoss += principal;
+        emit AdapterWrittenOff(adapterAddress, shares, principal);
+    }
+
+    /// @notice Recovers value from shares previously written off without restoring principal.
+    function recoverWrittenOffShares(IYieldAdapter adapter, uint256 shares)
+        external
+        onlyGovernance
+        nonReentrant
+        returns (uint256 assets)
+    {
+        address adapterAddress = address(adapter);
+        uint256 available = writtenOffShares[adapterAddress];
+        if (shares == 0 || shares > available) revert InvalidAmount();
+        uint256 beforeBalance = depositAsset.balanceOf(address(this));
+        assets = adapter.withdraw(shares);
+        uint256 received = depositAsset.balanceOf(address(this)) - beforeBalance;
+        if (assets == 0 || received != assets) revert InexactTransfer(assets, received);
+        writtenOffShares[adapterAddress] = available - shares;
+        emit WrittenOffSharesRecovered(adapterAddress, shares, assets);
     }
 
     function withdrawIdlePrincipal(address recipient, uint256 amount)
@@ -348,17 +403,18 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
                 : 0;
             if (received != amount) revert InexactTransfer(amount, received);
             cumulativeRealizedYield[rewardToken] += amount;
+            RewardRoute storage route = _rewardRoutes[adapterAddress][rewardToken];
             uint256 beforeFundingBalance = afterBalance;
-            token.forceApprove(config.distributor, amount);
-            uint256 fundedReceived = ISinjohFundable(config.distributor)
-                .fund(rewardToken, amount, config.distributionConfig);
-            token.forceApprove(config.distributor, 0);
+            token.forceApprove(route.distributor, amount);
+            uint256 fundedReceived = ISinjohFundable(route.distributor)
+                .fund(rewardToken, amount, route.distributionConfig);
+            token.forceApprove(route.distributor, 0);
             if (fundedReceived != amount) revert SinkReceiptMismatch(amount, fundedReceived);
             uint256 finalBalance = token.balanceOf(address(this));
             uint256 spent =
                 beforeFundingBalance >= finalBalance ? beforeFundingBalance - finalBalance : 0;
             if (spent != amount) revert InexactTransfer(amount, spent);
-            emit Harvested(adapterAddress, rewardToken, amount, config.distributor);
+            emit Harvested(adapterAddress, rewardToken, amount, route.distributor);
         }
     }
 
@@ -368,6 +424,14 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
 
     function getAdapterRewardTokens(address adapter) external view returns (address[] memory) {
         return _adapterRewardTokens[adapter];
+    }
+
+    function getAdapterRewardRoute(address adapter, address rewardToken)
+        external
+        view
+        returns (RewardRoute memory)
+    {
+        return _rewardRoutes[adapter][rewardToken];
     }
 
     function getAdapters() external view returns (address[] memory) {
@@ -409,6 +473,17 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
         uint256 afterBalance = token.balanceOf(recipient);
         uint256 received = afterBalance >= beforeBalance ? afterBalance - beforeBalance : 0;
         if (received != amount) revert InexactTransfer(amount, received);
+    }
+
+    function _clearRewardRoutes(address adapter) private {
+        address[] storage previous = _adapterRewardTokens[adapter];
+        for (uint256 i; i < previous.length; ++i) {
+            address rewardToken = previous[i];
+            isAdapterRewardToken[adapter][rewardToken] = false;
+            delete _rewardRoutes[adapter][rewardToken];
+        }
+        delete _adapterRewardTokens[adapter];
+        emit AdapterRewardRoutesCleared(adapter);
     }
 
     function _validateExposure(uint256 principalAfterWithdrawal) private view {

@@ -51,10 +51,10 @@ block numbers. The proposal threshold is an absolute vote amount. Calculate the 
 
 | Contract | Purpose | Main safety properties |
 | --- | --- | --- |
-| `FeeRouterV2` | Versioned project-fee routing | Atomic route sets, delayed activation, rollback window, immutable 1% fee, exact transfers, guardian or governance route pause |
+| `FeeRouterV2` | Versioned project-fee routing | Atomic route sets, delayed activation, protected rollback target, immutable 1% fee, exact transfers, guardian or governance route pause |
 | `StakingEngine` | Fixed-tier token locks | Separate voting/reward checkpoints, exact deposits and withdrawals, withdrawals remain available while paused, tier changes apply on new or renewed locks |
-| `SinjohStakingEngine` | Claim-based staking distributions | 30-minute minimum epochs, permissionless or governed closing, prefunded liabilities, batched claims, executor reward caps, unclaimed sweep |
-| `YieldBasket` | Allowlisted harvest-only portfolio | Per-adapter caps, exact deposit consumption, reward-token allowlists, fresh-balance-delta harvest checks, share and principal accounting, explicit loss and gain handling |
+| `SinjohStakingEngine` | Claim-based staking distributions | 30-minute minimum epochs, zero-weight rollover, prefunded liabilities, batched claims, executor reward caps, unclaimed sweep |
+| `YieldBasket` | Allowlisted harvest-only portfolio | Per-adapter caps, token-specific reward routes, pause-preserving configuration, loss write-off/recovery, exact accounting |
 | `DynamicFundingBands` | Prefunded post-launch commitments | Activation delay, fresh TWAP cadence, minimum distance, confirmation clock, immutable active terms, exact payouts, per-asset/subject commitments |
 
 The existing `sinjoh-airdrop-distributor` remains the default standard airdrop path and does
@@ -64,6 +64,9 @@ from `StakingEngine` checkpoints. Deployments and interfaces should present thes
 airdrop products rather than treating staking as a prerequisite for ordinary airdrops.
 Claims use full-precision proportional allocation against each epoch's funded amount and
 eligible weight; only unavoidable per-account division dust remains sweepable after expiry.
+If an epoch-start checkpoint has no reward weight, permissionless execution advances the epoch
+clock without creating an epoch or paying an executor. Pending rewards and their liability remain
+intact for the next eligible window instead of becoming stranded.
 
 The router's fundable actions include airdrops, baskets, raffles, bands, swap-and-send adapters,
 and liquidity adapters. Every non-direct destination must implement `ISinjohFundable`; there is
@@ -72,18 +75,25 @@ no generic governance call surface.
 ## Accounting and fee rules
 
 - The Fee Router removes its immutable 1% protocol fee before project routes are evaluated.
-  Remainder carry makes splitting intake unable to reduce the cumulative fee.
+  Remainder carry makes splitting intake unable to reduce the cumulative fee. Re-activating the
+  already-active configuration is rejected so a stale governance transaction cannot overwrite
+  the known-good rollback target.
 - The distributor keeps the existing Sinjoh service rule: a cumulative 1% fee on gross funding.
   `totalLiability[token]` tracks all unpaid net rewards and is covered by the contract balance.
 - Dynamic bands charge their cumulative 1% service fee only when backing redeems. Pending,
   active, and armed bands remain fully prefunded.
-- Basket principal is never harvested. An adapter must transfer an allowlisted reward token
-  during the same `harvest` call, the reported amount must equal the measured balance delta,
-  and the configured distributor must consume that exact amount before success is recorded.
+- Basket principal is never harvested. Each allowlisted reward token has its own distributor and
+  distribution configuration, so multi-reward adapters can route every asset independently.
+  An adapter must transfer the token during the same `harvest` call, the reported amount must
+  equal the measured balance delta, and its configured distributor must consume that exact amount.
   Adapter withdrawals realize losses against managed principal. Value above principal remains
   idle and non-distributable until governance calls `realizeIdleValue`. `basketValue()` exposes
   current adapter-reported assets, managed principal, and deposit-asset-denominated unrealized
   gain or loss; per-token realized yield remains available through `cumulativeRealizedYield`.
+  Reconfiguration preserves an emergency adapter pause. Removing an adapter clears every reward
+  route. For an irrecoverable fully paused adapter, governance can explicitly write off principal
+  and later recover revived shares only as non-principal value; the adapter cannot be reapproved
+  or receive a new allocation while written-off shares remain.
 
 These fees are module-local and stack across integrations. For example, Fee Router intake routed
 into the distributor or a band pays the router's 1% first and the destination module's 1% on its
@@ -102,9 +112,12 @@ stake added later in the same block. This keeps the stored eligible-weight denom
 equal to the set of positions that can claim; enforcing “locked through epoch end” would require
 expiry-aware aggregate checkpoints rather than silently diluting eligible users. An unlock time
 makes a position withdrawable but does not retroactively erase its historical epoch or governance
-checkpoints. Users can claim up to 64 strictly increasing epoch IDs in one transaction. Each
-epoch pins its own claim deadline and unclaimed-funds destination, and late execution starts a
-fresh claim window.
+checkpoints. Version 1 does not automatically decay weight at unlock: an unlocked-but-unwithdrawn
+position remains deposited, keeps its configured reward and governance weight, and can be
+withdrawn immediately. This economic choice must be disclosed and approved in the production
+parameter manifest. Users can claim up to 64 strictly increasing epoch IDs in one transaction.
+Each epoch pins its own claim deadline and unclaimed-funds destination, and late execution starts
+a fresh claim window.
 
 ## Dynamic-band lifecycle
 
@@ -122,8 +135,10 @@ in-range TWAP must be recorded at least once per configured TWAP window; an out-
 or observation gap resets continuity. `redeem` obtains another fresh TWAP and pays only after
 the uninterrupted confirmation period. Freshness requires a strictly advancing oracle
 `updatedAt`, so a cached observation cannot arm and redeem a band. A self-funding creator or
-governance can cancel before
-activation; terms and backing cannot move after activation. `committedByAsset` and
+governance can cancel before activation. A compatible oracle must return the timestamp through
+which the TWAP was evaluated and must advance it when a later window can be evaluated even if no
+trade occurred; an oracle that returns only the last swap timestamp is incompatible. Terms and
+backing cannot move after activation. `committedByAsset` and
 `committedBySubject` are the canonical overlap/exposure views. `totalCommitted` is a nominal
 cross-asset counter and must not be treated as a common-unit valuation. For a Fee Router
 `FUND_BAND` route, encode a `BandInput` template with `amount = 0`; each runtime route amount
@@ -140,8 +155,9 @@ forge test
 
 The suite includes unit, integration, 1,000-run fuzz, and 256-run stateful invariant tests.
 It covers the full governor-vote-queue-timelock-execute lifecycle, cumulative fee resistance,
-same-block staking exclusion, claim solvency, harvest injection attempts, adapter loss/gain
-accounting, atomic route rollback, and prefunded band commitments.
+zero-weight staking rollover, claim solvency, multi-reward routing, harvest injection attempts,
+adapter pause/write-off/recovery, atomic route rollback protection, quiet-market oracle refresh,
+and prefunded band commitments.
 
 ## Deployment order
 

@@ -51,6 +51,7 @@ contract FeeRouterV2 is Governed, ReentrancyGuard {
     error InvalidConfiguration();
     error ConfigurationNotReady(uint256 activatesAt);
     error InvalidConfigurationId();
+    error ConfigurationAlreadyActive(uint256 configId);
     error RollbackUnavailable();
     error RoutePaused(uint256 routeIndex);
     error InvalidAmount();
@@ -128,6 +129,7 @@ contract FeeRouterV2 is Governed, ReentrancyGuard {
     function activateConfiguration(uint256 configId) external onlyGovernance {
         Configuration storage configuration = configurations[configId];
         if (!configuration.exists) revert InvalidConfigurationId();
+        if (configId == activeConfigurationId) revert ConfigurationAlreadyActive(configId);
         if (block.timestamp < configuration.activatesAt) {
             revert ConfigurationNotReady(configuration.activatesAt);
         }

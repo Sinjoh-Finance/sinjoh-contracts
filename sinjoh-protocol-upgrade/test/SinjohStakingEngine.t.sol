@@ -34,15 +34,24 @@ contract SinjohStakingEngineTest is TestBase {
         staking = new StakingEngine(controller, GUARDIAN, IERC20(address(token)), tiers);
     }
 
-    function testSameBlockStakeIsConservativelyExcludedFromNewEpoch() public {
+    function testZeroWeightEpochRollsPendingFundingIntoNextEligibleWindow() public {
         _stake(ALICE, 100e18, 1);
         SinjohStakingEngine distributor = _distributor();
         uint256 scheduleId = distributor.createSchedule(_schedule(true, 0, 0, 0));
         _fund(distributor, scheduleId, 10_000e18);
         vm.roll(block.number + 1);
         vm.warp(30 minutes + 1);
-        vm.expectRevert(SinjohStakingEngine.NoEligibleStake.selector);
         distributor.executeEpoch(scheduleId);
+        SinjohStakingEngine.DistributionSchedule memory schedule =
+            distributor.getSchedule(scheduleId);
+        assertEq(schedule.latestEpochId, 0);
+        assertEq(schedule.pendingRewards, 9_900e18);
+        assertEq(distributor.totalLiability(address(token)), 9_900e18);
+
+        vm.warp(schedule.nextEpoch);
+        vm.roll(block.number + 1);
+        distributor.executeEpoch(scheduleId);
+        assertEq(distributor.claimable(scheduleId, 1, ALICE), 9_900e18);
     }
 
     function testBatchedClaimsAndLiabilityAccounting() public {

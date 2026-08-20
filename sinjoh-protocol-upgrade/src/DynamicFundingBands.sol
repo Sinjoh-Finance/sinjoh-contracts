@@ -74,6 +74,7 @@ contract DynamicFundingBands is Governed, ReentrancyGuard, ISinjohFundable {
     error InvalidState();
     error ActivationPending(uint256 activationTime);
     error BandExpired();
+    error ExpiryPending(uint256 expiryTime);
     error PriceNotQualified(uint256 priceE18);
     error ConfirmationPending(uint256 executableAt);
     error StalePrice();
@@ -264,7 +265,7 @@ contract DynamicFundingBands is Governed, ReentrancyGuard, ISinjohFundable {
             band.status != BandStatus.PENDING && band.status != BandStatus.ACTIVE
                 && band.status != BandStatus.ARMED
         ) revert InvalidState();
-        if (block.timestamp < band.expiryTime) revert BandExpired();
+        if (block.timestamp < band.expiryTime) revert ExpiryPending(band.expiryTime);
         band.status = BandStatus.EXPIRED;
         totalCommitted -= band.amount;
         committedByAsset[band.fundingAsset] -= band.amount;

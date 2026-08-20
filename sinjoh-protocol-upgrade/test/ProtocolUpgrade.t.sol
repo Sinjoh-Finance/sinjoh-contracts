@@ -158,10 +158,12 @@ contract ProtocolUpgradeTest is TestBase {
         MockYieldAdapter adapter = new MockYieldAdapter(address(token), reward);
         YieldBasket basket = new YieldBasket(controller, GUARDIAN, IERC20(address(token)));
         adapter.setBasket(address(basket));
-        basket.configureAdapter(adapter, 5_000, 30 minutes, address(sink), "");
-        address[] memory rewards = new address[](1);
-        rewards[0] = address(reward);
-        basket.setAdapterRewardTokens(adapter, rewards);
+        basket.configureAdapter(adapter, 5_000, 30 minutes);
+        YieldBasket.RewardRouteInput[] memory routes = new YieldBasket.RewardRouteInput[](1);
+        routes[0] = YieldBasket.RewardRouteInput({
+            rewardToken: address(reward), distributor: address(sink), distributionConfig: ""
+        });
+        basket.setAdapterRewardRoutes(adapter, routes);
 
         token.mint(address(this), 1_000e18);
         token.approve(address(basket), type(uint256).max);

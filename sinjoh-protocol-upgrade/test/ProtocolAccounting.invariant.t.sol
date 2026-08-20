@@ -93,10 +93,12 @@ contract BasketFundingHandler is TestBase {
         sink = sink_;
         token.approve(address(basket_), type(uint256).max);
         adapter_.setBasket(address(basket_));
-        basket_.configureAdapter(adapter_, 10_000, 30 minutes, address(sink_), "");
-        address[] memory rewards = new address[](1);
-        rewards[0] = address(reward_);
-        basket_.setAdapterRewardTokens(adapter_, rewards);
+        basket_.configureAdapter(adapter_, 10_000, 30 minutes);
+        YieldBasket.RewardRouteInput[] memory routes = new YieldBasket.RewardRouteInput[](1);
+        routes[0] = YieldBasket.RewardRouteInput({
+            rewardToken: address(reward_), distributor: address(sink_), distributionConfig: ""
+        });
+        basket_.setAdapterRewardRoutes(adapter_, routes);
     }
 
     function fund(uint96 rawAmount) external {

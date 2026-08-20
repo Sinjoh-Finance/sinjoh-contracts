@@ -62,6 +62,15 @@ contract DynamicFundingBandsTest is TestBase {
         assertEq(bands.totalCommitted(), 0);
     }
 
+    function testExpireBeforeDeadlineReportsExpiryPending() public {
+        uint256 bandId = _create(10_000, 110e18, 120e18, 500);
+        DynamicFundingBands.FundingBand memory band = bands.getBand(bandId);
+        vm.expectRevert(
+            abi.encodeWithSelector(DynamicFundingBands.ExpiryPending.selector, band.expiryTime)
+        );
+        bands.expire(bandId);
+    }
+
     function testOutOfRangeObservationDisarmsConfirmationClock() public {
         uint256 bandId = _create(10_000, 110e18, 130e18, 500);
         vm.warp(1 hours + 1);
@@ -86,6 +95,18 @@ contract DynamicFundingBandsTest is TestBase {
         vm.expectPartialRevert(DynamicFundingBands.ObservationNotAdvanced.selector);
         bands.redeem(bandId);
         oracle.setPrice(120e18);
+        bands.redeem(bandId);
+        assertTrue(bands.bandStatus(bandId) == DynamicFundingBands.BandStatus.REDEEMED);
+    }
+
+    function testQuietMarketCanAdvanceTwapEvaluationWithoutATrade() public {
+        uint256 bandId = _create(10_000, 110e18, 130e18, 500);
+        vm.warp(1 hours + 1);
+        bands.activate(bandId);
+        oracle.setPrice(120e18);
+        bands.observe(bandId);
+        vm.warp(block.timestamp + 5 minutes);
+        oracle.refresh();
         bands.redeem(bandId);
         assertTrue(bands.bandStatus(bandId) == DynamicFundingBands.BandStatus.REDEEMED);
     }

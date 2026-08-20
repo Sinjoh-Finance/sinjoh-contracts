@@ -72,10 +72,12 @@ contract MockFundable is ISinjohFundable {
 contract MockYieldAdapter is IYieldAdapter {
     address public immutable asset;
     MockERC20 public immutable reward;
+    MockERC20 public secondReward;
     address public basket;
     uint256 public totalAssets;
     uint256 public shares;
     uint256 public nextReward;
+    uint256 public nextSecondReward;
     uint16 public withdrawBps = 10_000;
     bool public mintReward = true;
     bool public pullFunds = true;
@@ -91,6 +93,11 @@ contract MockYieldAdapter is IYieldAdapter {
 
     function setNextReward(uint256 value) external {
         nextReward = value;
+    }
+
+    function setSecondReward(MockERC20 token, uint256 value) external {
+        secondReward = token;
+        nextSecondReward = value;
     }
 
     function setWithdrawBps(uint16 value) external {
@@ -129,10 +136,18 @@ contract MockYieldAdapter is IYieldAdapter {
         uint256 amount = nextReward;
         nextReward = 0;
         if (mintReward) reward.mint(basket, amount);
-        rewardTokens = new address[](1);
-        amounts = new uint256[](1);
+        uint256 secondAmount = nextSecondReward;
+        nextSecondReward = 0;
+        bool hasSecond = address(secondReward) != address(0);
+        if (hasSecond && mintReward) secondReward.mint(basket, secondAmount);
+        rewardTokens = new address[](hasSecond ? 2 : 1);
+        amounts = new uint256[](hasSecond ? 2 : 1);
         rewardTokens[0] = address(reward);
         amounts[0] = amount;
+        if (hasSecond) {
+            rewardTokens[1] = address(secondReward);
+            amounts[1] = secondAmount;
+        }
     }
 }
 
@@ -146,6 +161,10 @@ contract MockTwapOracle is ITwapOracle {
 
     function setPrice(uint256 value) external {
         price = value;
+        updatedAt = uint48(block.timestamp);
+    }
+
+    function refresh() external {
         updatedAt = uint48(block.timestamp);
     }
 

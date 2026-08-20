@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 interface Vm {
     function expectRevert() external;
     function expectRevert(bytes4 selector) external;
+    function expectRevert(bytes calldata revertData) external;
     function expectPartialRevert(bytes4 selector) external;
     function prank(address sender) external;
     function startPrank(address sender) external;

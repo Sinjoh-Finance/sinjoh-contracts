@@ -19,7 +19,6 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
     uint32 public constant MIN_INTERVAL = 30 minutes;
     uint16 public constant MAX_EXECUTOR_REWARD_BPS = 100;
     uint16 public constant MAX_BATCH_CLAIMS = 64;
-    uint256 public constant INDEX_SCALE = 1e18;
 
     struct ScheduleInput {
         address rewardToken;
@@ -56,7 +55,6 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
         address unclaimedDestination;
         uint256 fundedAmount;
         uint256 eligibleWeight;
-        uint256 rewardPerWeight;
         uint256 claimedAmount;
     }
 
@@ -65,7 +63,6 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
     error InvalidSchedule();
     error EpochNotDue(uint256 dueAt);
     error EpochNotFunded();
-    error NoEligibleStake();
     error InvalidEpoch();
     error AlreadyClaimed();
     error Ineligible();
@@ -86,6 +83,9 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
         uint256 fundedAmount,
         uint256 eligibleWeight,
         uint256 executorReward
+    );
+    event EmptyEpochSkipped(
+        uint256 indexed scheduleId, uint64 snapshotBlock, uint256 pendingRewards, uint48 nextEpoch
     );
     event Claimed(
         uint256 indexed scheduleId, uint64 indexed epochId, address indexed account, uint256 amount
@@ -205,7 +205,13 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
         if (funded == 0) revert EpochNotFunded();
         uint64 snapshotBlock = schedule.epochStartBlock;
         uint256 totalWeight = staking.getPastTotalRewardWeight(snapshotBlock);
-        if (totalWeight == 0) revert NoEligibleStake();
+        if (totalWeight == 0) {
+            schedule.epochStartTime = uint48(block.timestamp);
+            schedule.epochStartBlock = _snapshotBlock();
+            schedule.nextEpoch = uint48(block.timestamp) + schedule.interval;
+            emit EmptyEpochSkipped(scheduleId, snapshotBlock, funded, schedule.nextEpoch);
+            return;
+        }
 
         uint256 executorReward = schedule.fixedExecutorReward;
         uint256 variableReward = funded * schedule.executorRewardBps / BPS;
@@ -226,7 +232,6 @@ contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
             unclaimedDestination: schedule.unclaimedDestination,
             fundedAmount: distributable,
             eligibleWeight: totalWeight,
-            rewardPerWeight: distributable * INDEX_SCALE / totalWeight,
             claimedAmount: 0
         });
         schedule.pendingRewards = 0;

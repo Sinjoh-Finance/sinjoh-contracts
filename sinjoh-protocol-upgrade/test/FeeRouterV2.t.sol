@@ -198,6 +198,24 @@ contract FeeRouterV2Test is TestBase {
         assertTrue(firstId != secondId);
     }
 
+    function testDuplicateActivationCannotDestroyRollbackTarget() public {
+        uint256 firstId = _activate(_directRoute());
+        FeeRouterV2.Route[] memory replacement = _directRoute();
+        replacement[0].recipient = address(0xCAFE);
+        uint256 secondId = router.proposeConfiguration(replacement);
+        vm.warp(block.timestamp + 1 hours);
+        router.activateConfiguration(secondId);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(FeeRouterV2.ConfigurationAlreadyActive.selector, secondId)
+        );
+        router.activateConfiguration(secondId);
+        assertEq(router.previousConfigurationId(), firstId);
+
+        router.rollbackConfiguration();
+        assertEq(router.activeConfigurationId(), firstId);
+    }
+
     function testAtomicConfigurationSupportsIndependentTokenShareSets() public {
         MockERC20 secondToken = new MockERC20();
         FeeRouterV2.Route[] memory routes = new FeeRouterV2.Route[](2);

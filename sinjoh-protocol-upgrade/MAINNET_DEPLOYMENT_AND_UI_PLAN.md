@@ -46,15 +46,19 @@ All gates are mandatory for a production broadcast:
    the repository-wide test script, 1,000-run fuzz tests, and 256-run invariants pass.
 3. Exact-transfer behavior of every selected staking and reward token is verified. Fee-on-transfer,
    rebasing-during-transfer, or other inexact tokens are rejected.
-4. A Robinhood Chain mainnet fork rehearsal uses chain ID 4663 and current onchain state. It
+4. Every concrete TWAP oracle advances its evaluation timestamp on a later valid window even when
+   no intervening trade occurred. An implementation that reports only the last swap time fails the
+   compatibility test.
+5. A Robinhood Chain mainnet fork rehearsal uses chain ID 4663 and current onchain state. It
    exercises stake, increase, extend, epoch funding, late execution, claims, sweeping, pause,
-   withdrawals while paused, and every governance transition.
-5. The deployment script is simulated without broadcast and its decoded constructor arguments,
+   zero-weight epoch rollover, withdrawals while paused, basket adapter write-off/recovery, and
+   every governance transition.
+6. The deployment script is simulated without broadcast and its decoded constructor arguments,
    role grants, expected addresses, and runtime hashes match the signed manifest.
-6. A testnet or isolated canary completes one entire small-value lifecycle before mainnet funding.
-7. The UI preview reads the same finalized block from direct RPC and its indexed source, and the
+7. A testnet or isolated canary completes one entire small-value lifecycle before mainnet funding.
+8. The UI preview reads the same finalized block from direct RPC and its indexed source, and the
    balances, liabilities, schedules, epochs, claims, and positions reconcile.
-8. Explorer verification, canonical deployment records, SDK ABI provenance, monitoring, incident
+9. Explorer verification, canonical deployment records, SDK ABI provenance, monitoring, incident
    owners, and the UI rollback flag are ready before enabling the public surface.
 
 ## Deployment implementation
@@ -161,8 +165,8 @@ fees, claim deadlines, and verified addresses. Label the existing standard airdr
 Index these events from the deployment block:
 
 - `Staked`, `StakeIncreased`, `LockExtended`, `Withdrawn`, and `TierSet`;
-- `ScheduleCreated`, `ScheduleUpdated`, `Funded`, `EpochExecuted`, `Claimed`, and
-  `UnclaimedSwept`;
+- `ScheduleCreated`, `ScheduleUpdated`, `Funded`, `EpochExecuted`, `EmptyEpochSkipped`, `Claimed`,
+  and `UnclaimedSwept`;
 - controller changes, pauses, and Fee Router configuration activation.
 
 Direct RPC remains the source of truth for transaction preparation and claimability. Indexed data

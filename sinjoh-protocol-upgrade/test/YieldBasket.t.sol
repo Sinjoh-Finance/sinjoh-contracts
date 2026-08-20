@@ -29,10 +29,8 @@ contract YieldBasketTest is TestBase {
         adapter = new MockYieldAdapter(address(asset), reward);
         basket = new YieldBasket(controller, GUARDIAN, IERC20(address(asset)));
         adapter.setBasket(address(basket));
-        basket.configureAdapter(adapter, 5_000, 30 minutes, address(sink), "");
-        address[] memory rewards = new address[](1);
-        rewards[0] = address(reward);
-        basket.setAdapterRewardTokens(adapter, rewards);
+        basket.configureAdapter(adapter, 5_000, 30 minutes);
+        _setRoute(adapter, reward, sink, "");
     }
 
     function testHarvestDistributesOnlyFreshAllowlistedRewards() public {
@@ -71,7 +69,7 @@ contract YieldBasketTest is TestBase {
     function testAdapterCapCannotBeReducedBelowExistingExposure() public {
         _fundAndAllocate(1_000e18, 500e18);
         vm.expectRevert(YieldBasket.AllocationLimitExceeded.selector);
-        basket.configureAdapter(adapter, 4_999, 30 minutes, address(sink), "");
+        basket.configureAdapter(adapter, 4_999, 30 minutes);
     }
 
     function testAdapterCannotMislabelExistingBasketAssetsAsYield() public {
@@ -87,10 +85,96 @@ contract YieldBasketTest is TestBase {
     }
 
     function testDepositAssetCanNeverBeConfiguredAsHarvestedReward() public {
-        address[] memory rewards = new address[](1);
-        rewards[0] = address(asset);
+        YieldBasket.RewardRouteInput[] memory routes = new YieldBasket.RewardRouteInput[](1);
+        routes[0] = YieldBasket.RewardRouteInput({
+            rewardToken: address(asset), distributor: address(sink), distributionConfig: ""
+        });
         vm.expectRevert(YieldBasket.InvalidConfiguration.selector);
-        basket.setAdapterRewardTokens(adapter, rewards);
+        basket.setAdapterRewardRoutes(adapter, routes);
+    }
+
+    function testConfigureAdapterPreservesGuardianPause() public {
+        vm.prank(GUARDIAN);
+        basket.setAdapterStatus(adapter, YieldBasket.AdapterStatus.FULLY_PAUSED);
+        basket.configureAdapter(adapter, 6_000, 1 hours);
+        YieldBasket.AdapterConfig memory config = basket.getAdapterConfig(address(adapter));
+        assertTrue(config.status == YieldBasket.AdapterStatus.FULLY_PAUSED);
+        vm.expectRevert(YieldBasket.AdapterNotApproved.selector);
+        basket.allocate(adapter, 1);
+    }
+
+    function testMultiRewardAdapterUsesTokenSpecificRoutes() public {
+        MockERC20 secondReward = new MockERC20();
+        MockFundable secondSink = new MockFundable();
+        YieldBasket.RewardRouteInput[] memory routes = new YieldBasket.RewardRouteInput[](2);
+        routes[0] = YieldBasket.RewardRouteInput({
+            rewardToken: address(reward), distributor: address(sink), distributionConfig: hex"01"
+        });
+        routes[1] = YieldBasket.RewardRouteInput({
+            rewardToken: address(secondReward),
+            distributor: address(secondSink),
+            distributionConfig: hex"02"
+        });
+        basket.setAdapterRewardRoutes(adapter, routes);
+        YieldBasket.RewardRoute memory firstRoute =
+            basket.getAdapterRewardRoute(address(adapter), address(reward));
+        YieldBasket.RewardRoute memory secondRoute =
+            basket.getAdapterRewardRoute(address(adapter), address(secondReward));
+        assertEq(firstRoute.distributor, address(sink));
+        assertEq(secondRoute.distributor, address(secondSink));
+        assertTrue(keccak256(firstRoute.distributionConfig) == keccak256(hex"01"));
+        assertTrue(keccak256(secondRoute.distributionConfig) == keccak256(hex"02"));
+        _fundAndAllocate(1_000e18, 500e18);
+        adapter.setNextReward(50e18);
+        adapter.setSecondReward(secondReward, 25e18);
+        vm.warp(block.timestamp + 30 minutes);
+        basket.harvest(adapter);
+        assertEq(sink.funded(address(reward)), 50e18);
+        assertEq(secondSink.funded(address(secondReward)), 25e18);
+        assertEq(sink.funded(address(secondReward)), 0);
+        assertEq(secondSink.funded(address(reward)), 0);
+    }
+
+    function testFullyLostAdapterCanBeWrittenOffAndIdlePrincipalWithdrawn() public {
+        _fundAndAllocate(1_000e18, 500e18);
+        adapter.setWithdrawBps(0);
+        vm.prank(GUARDIAN);
+        basket.setAdapterStatus(adapter, YieldBasket.AdapterStatus.FULLY_PAUSED);
+        basket.writeOffAdapter(adapter);
+
+        YieldBasket.AdapterConfig memory config = basket.getAdapterConfig(address(adapter));
+        assertEq(config.principalAllocated, 0);
+        assertEq(config.sharesHeld, 0);
+        assertEq(basket.writtenOffShares(address(adapter)), 500e18);
+        assertEq(basket.managedPrincipal(), 500e18);
+        assertEq(basket.cumulativeRealizedLoss(), 500e18);
+
+        basket.removeAdapter(adapter);
+        basket.withdrawIdlePrincipal(BOB, 500e18);
+        assertEq(asset.balanceOf(BOB), 500e18);
+        assertEq(basket.managedPrincipal(), 0);
+
+        vm.expectRevert(YieldBasket.InvalidConfiguration.selector);
+        basket.configureAdapter(adapter, 5_000, 30 minutes);
+        adapter.setWithdrawBps(10_000);
+        basket.recoverWrittenOffShares(adapter, 500e18);
+        assertEq(basket.writtenOffShares(address(adapter)), 0);
+        assertEq(basket.idleUnrealizedValue(), 500e18);
+        basket.configureAdapter(adapter, 5_000, 30 minutes);
+    }
+
+    function testRemoveAdapterClearsRewardRoutesBeforeReapproval() public {
+        basket.removeAdapter(adapter);
+        assertEq(basket.getAdapterRewardTokens(address(adapter)).length, 0);
+        assertEq(
+            basket.getAdapterRewardRoute(address(adapter), address(reward)).distributor, address(0)
+        );
+
+        basket.configureAdapter(adapter, 5_000, 30 minutes);
+        adapter.setNextReward(1e18);
+        vm.warp(block.timestamp + 30 minutes);
+        vm.expectRevert(YieldBasket.InvalidConfiguration.selector);
+        basket.harvest(adapter);
     }
 
     function testLossReducesManagedPrincipalWithoutCreatingPhantomIdleFunds() public {
@@ -149,5 +233,20 @@ contract YieldBasketTest is TestBase {
         asset.approve(address(basket), funded);
         basket.fund(address(asset), funded, "");
         basket.allocate(adapter, allocated);
+    }
+
+    function _setRoute(
+        MockYieldAdapter routeAdapter,
+        MockERC20 routeReward,
+        MockFundable distributor,
+        bytes memory config
+    ) private {
+        YieldBasket.RewardRouteInput[] memory routes = new YieldBasket.RewardRouteInput[](1);
+        routes[0] = YieldBasket.RewardRouteInput({
+            rewardToken: address(routeReward),
+            distributor: address(distributor),
+            distributionConfig: config
+        });
+        basket.setAdapterRewardRoutes(routeAdapter, routes);
     }
 }
