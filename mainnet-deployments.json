@@ -52,6 +52,22 @@
     }
   },
   "currentInfrastructure": {
+    "launchStakingEngine": {
+      "address": "0x1f20bF432206C133C08FCCaC4857B22e2327CE2b",
+      "deploymentTransaction": "0x2271aaa33905873d5dd0486e042cb5118e3703460205016edf5c2cb37ccc1bbd",
+      "deploymentBlock": 41666632,
+      "runtimeCodeHash": "0x4da43ef12471fdfefd88fdb3eebf47dbe13aee37ddb752bc7ab2a92f26876d34",
+      "purpose": "Shared multi-token staking and snapshot-reward sink for new Sinjoh launches that explicitly require staking for airdrops. Standard holder airdrops remain the default.",
+      "verified": {
+        "sourceCommit": "2ad644ef758b3766026b3f53c43e59ae8499c4d2",
+        "protocolFeeRecipient": "0x5Bb7582557F5be30b62c335Ad3ccf4bA79E138c5",
+        "protocolFeeBps": 100,
+        "minimumIntervalSeconds": 3600,
+        "maximumIntervalSeconds": 2592000,
+        "minimumClaimPeriodSeconds": 86400,
+        "maximumClaimPeriodSeconds": 31536000
+      }
+    },
     "fundingBands": {
       "deployedAt": "2026-08-15",
       "sourceCommit": "036972edec6b07a2f867bbe1582d3e51aaae0a65",
