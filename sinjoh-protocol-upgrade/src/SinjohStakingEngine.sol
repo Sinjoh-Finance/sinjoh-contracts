@@ -4,13 +4,14 @@ pragma solidity 0.8.28;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { Governed } from "./governance/Governed.sol";
 import { IGovernanceController } from "./interfaces/IGovernanceController.sol";
 import { IStakingSnapshot } from "./interfaces/IStakingSnapshot.sol";
 import { ISinjohFundable } from "./interfaces/ISinjohFundable.sol";
 
 /// @notice Permissionless epoch closing and batched start-of-epoch checkpoint claims for stakers.
-contract AirdropDistributorV2 is Governed, ReentrancyGuard, ISinjohFundable {
+contract SinjohStakingEngine is Governed, ReentrancyGuard, ISinjohFundable {
     using SafeERC20 for IERC20;
 
     uint16 public constant BPS = 10_000;
@@ -261,7 +262,7 @@ contract AirdropDistributorV2 is Governed, ReentrancyGuard, ISinjohFundable {
             if (claimed[scheduleId][epochId][msg.sender]) revert AlreadyClaimed();
             uint256 weight = staking.getPastRewardWeight(msg.sender, epoch.snapshotBlock);
             if (weight == 0) revert Ineligible();
-            uint256 amount = weight * epoch.rewardPerWeight / INDEX_SCALE;
+            uint256 amount = Math.mulDiv(weight, epoch.fundedAmount, epoch.eligibleWeight);
             if (amount == 0) revert InvalidAmount();
             claimed[scheduleId][epochId][msg.sender] = true;
             epoch.claimedAmount += amount;
@@ -297,7 +298,7 @@ contract AirdropDistributorV2 is Governed, ReentrancyGuard, ISinjohFundable {
         ) return 0;
         uint256 weight = staking.getPastRewardWeight(account, epoch.snapshotBlock);
         if (weight == 0) return 0;
-        return weight * epoch.rewardPerWeight / INDEX_SCALE;
+        return Math.mulDiv(weight, epoch.fundedAmount, epoch.eligibleWeight);
     }
 
     function getSchedule(uint256 scheduleId) external view returns (DistributionSchedule memory) {

@@ -4,7 +4,7 @@ pragma solidity 0.8.28;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { AddressGovernanceController } from "../src/governance/AddressGovernanceController.sol";
 import { IGovernanceController } from "../src/interfaces/IGovernanceController.sol";
-import { AirdropDistributorV2 } from "../src/AirdropDistributorV2.sol";
+import { SinjohStakingEngine } from "../src/SinjohStakingEngine.sol";
 import { DynamicFundingBands } from "../src/DynamicFundingBands.sol";
 import { StakingEngine } from "../src/StakingEngine.sol";
 import { YieldBasket } from "../src/YieldBasket.sol";
@@ -13,10 +13,10 @@ import { MockERC20, MockFundable, MockTwapOracle, MockYieldAdapter } from "./moc
 
 contract AirdropFundingHandler is TestBase {
     MockERC20 public immutable token;
-    AirdropDistributorV2 public immutable distributor;
+    SinjohStakingEngine public immutable distributor;
     uint256 public scheduleId;
 
-    constructor(MockERC20 token_, AirdropDistributorV2 distributor_, StakingEngine staking_) {
+    constructor(MockERC20 token_, SinjohStakingEngine distributor_, StakingEngine staking_) {
         token = token_;
         distributor = distributor_;
         token_.mint(address(this), 1e18);
@@ -37,7 +37,7 @@ contract AirdropFundingHandler is TestBase {
     }
 
     function execute() external {
-        AirdropDistributorV2.DistributionSchedule memory schedule =
+        SinjohStakingEngine.DistributionSchedule memory schedule =
             distributor.getSchedule(scheduleId);
         if (schedule.pendingRewards == 0) return;
         if (block.timestamp < schedule.nextEpoch) vm.warp(schedule.nextEpoch);
@@ -46,11 +46,11 @@ contract AirdropFundingHandler is TestBase {
     }
 
     function claimLatest() external {
-        AirdropDistributorV2.DistributionSchedule memory schedule =
+        SinjohStakingEngine.DistributionSchedule memory schedule =
             distributor.getSchedule(scheduleId);
         uint64 epochId = schedule.latestEpochId;
         if (epochId == 0 || distributor.claimed(scheduleId, epochId, address(this))) return;
-        AirdropDistributorV2.Epoch memory epoch = distributor.getEpoch(scheduleId, epochId);
+        SinjohStakingEngine.Epoch memory epoch = distributor.getEpoch(scheduleId, epochId);
         if (block.timestamp > epoch.claimDeadline) return;
         uint64[] memory epochIds = new uint64[](1);
         epochIds[0] = epochId;
@@ -58,11 +58,11 @@ contract AirdropFundingHandler is TestBase {
     }
 
     function sweepLatest() external {
-        AirdropDistributorV2.DistributionSchedule memory schedule =
+        SinjohStakingEngine.DistributionSchedule memory schedule =
             distributor.getSchedule(scheduleId);
         uint64 epochId = schedule.latestEpochId;
         if (epochId == 0) return;
-        AirdropDistributorV2.Epoch memory epoch = distributor.getEpoch(scheduleId, epochId);
+        SinjohStakingEngine.Epoch memory epoch = distributor.getEpoch(scheduleId, epochId);
         if (epoch.claimedAmount == epoch.fundedAmount) return;
         if (block.timestamp <= epoch.claimDeadline) vm.warp(uint256(epoch.claimDeadline) + 1);
         distributor.sweepUnclaimed(scheduleId, epochId);
@@ -242,7 +242,7 @@ contract ProtocolAccountingInvariantTest is InvariantTestBase {
     address private constant PROTOCOL = address(0xFEE);
 
     MockERC20 private airdropToken;
-    AirdropDistributorV2 private distributor;
+    SinjohStakingEngine private distributor;
     MockERC20 private basketToken;
     YieldBasket private basket;
     MockERC20 private basketReward;
@@ -263,12 +263,12 @@ contract ProtocolAccountingInvariantTest is InvariantTestBase {
         });
         StakingEngine staking =
             new StakingEngine(controller, GUARDIAN, IERC20(address(airdropToken)), tiers);
-        distributor = new AirdropDistributorV2(controller, GUARDIAN, staking, PROTOCOL);
+        distributor = new SinjohStakingEngine(controller, GUARDIAN, staking, PROTOCOL);
         AirdropFundingHandler airdropHandler =
             new AirdropFundingHandler(airdropToken, distributor, staking);
         vm.roll(block.number + 1);
         uint256 scheduleId = distributor.createSchedule(
-            AirdropDistributorV2.ScheduleInput({
+            SinjohStakingEngine.ScheduleInput({
                 rewardToken: address(airdropToken),
                 interval: 30 minutes,
                 claimPeriod: 1 days,

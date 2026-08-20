@@ -17,7 +17,7 @@ not mutate the storage or behavior of the currently deployed v1 contracts.
                   |                   |
                   +----------+--------+
                              |
-                  AirdropDistributorV2
+                  SinjohStakingEngine
                              |
                        StakingEngine
 ```
@@ -53,15 +53,17 @@ block numbers. The proposal threshold is an absolute vote amount. Calculate the 
 | --- | --- | --- |
 | `FeeRouterV2` | Versioned project-fee routing | Atomic route sets, delayed activation, rollback window, immutable 1% fee, exact transfers, guardian or governance route pause |
 | `StakingEngine` | Fixed-tier token locks | Separate voting/reward checkpoints, exact deposits and withdrawals, withdrawals remain available while paused, tier changes apply on new or renewed locks |
-| `AirdropDistributorV2` | Claim-based staking distributions | 30-minute minimum epochs, permissionless or governed closing, prefunded liabilities, batched claims, executor reward caps, unclaimed sweep |
+| `SinjohStakingEngine` | Claim-based staking distributions | 30-minute minimum epochs, permissionless or governed closing, prefunded liabilities, batched claims, executor reward caps, unclaimed sweep |
 | `YieldBasket` | Allowlisted harvest-only portfolio | Per-adapter caps, exact deposit consumption, reward-token allowlists, fresh-balance-delta harvest checks, share and principal accounting, explicit loss and gain handling |
 | `DynamicFundingBands` | Prefunded post-launch commitments | Activation delay, fresh TWAP cadence, minimum distance, confirmation clock, immutable active terms, exact payouts, per-asset/subject commitments |
 
 The existing `sinjoh-airdrop-distributor` remains the default standard airdrop path and does
-not require recipients to stake. `AirdropDistributorV2` is a separate, optional path for
+not require recipients to stake. `SinjohStakingEngine` is a separate, optional path for
 staking-driven rewards; its schedules intentionally derive eligibility and allocation weight
 from `StakingEngine` checkpoints. Deployments and interfaces should present these as distinct
 airdrop products rather than treating staking as a prerequisite for ordinary airdrops.
+Claims use full-precision proportional allocation against each epoch's funded amount and
+eligible weight; only unavoidable per-account division dust remains sweepable after expiry.
 
 The router's fundable actions include airdrops, baskets, raffles, bands, swap-and-send adapters,
 and liquidity adapters. Every non-direct destination must implement `ISinjohFundable`; there is
@@ -159,3 +161,7 @@ accounting, atomic route rollback, and prefunded band commitments.
 Do not deploy this package to mainnet until its concrete adapters, oracle, parameters, role
 assignments, and bytecode have passed an independent security audit. No production addresses
 are claimed by this package.
+
+The implementation gates, deployment order, manifest requirements, canary, rollback, and
+supporting `/portfolio` UI work are specified in
+[`MAINNET_DEPLOYMENT_AND_UI_PLAN.md`](./MAINNET_DEPLOYMENT_AND_UI_PLAN.md).

@@ -5,12 +5,12 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { AddressGovernanceController } from "../src/governance/AddressGovernanceController.sol";
 import { Governed } from "../src/governance/Governed.sol";
 import { IGovernanceController } from "../src/interfaces/IGovernanceController.sol";
-import { AirdropDistributorV2 } from "../src/AirdropDistributorV2.sol";
+import { SinjohStakingEngine } from "../src/SinjohStakingEngine.sol";
 import { StakingEngine } from "../src/StakingEngine.sol";
 import { TestBase } from "./TestBase.sol";
 import { MockERC20 } from "./mocks/Mocks.sol";
 
-contract StakingAirdropTest is TestBase {
+contract SinjohStakingEngineTest is TestBase {
     address private constant GUARDIAN = address(0xBEEF);
     address private constant PROTOCOL = address(0xFEE);
     address private constant ALICE = address(0xA11CE);
@@ -36,19 +36,19 @@ contract StakingAirdropTest is TestBase {
 
     function testSameBlockStakeIsConservativelyExcludedFromNewEpoch() public {
         _stake(ALICE, 100e18, 1);
-        AirdropDistributorV2 distributor = _distributor();
+        SinjohStakingEngine distributor = _distributor();
         uint256 scheduleId = distributor.createSchedule(_schedule(true, 0, 0, 0));
         _fund(distributor, scheduleId, 10_000e18);
         vm.roll(block.number + 1);
         vm.warp(30 minutes + 1);
-        vm.expectRevert(AirdropDistributorV2.NoEligibleStake.selector);
+        vm.expectRevert(SinjohStakingEngine.NoEligibleStake.selector);
         distributor.executeEpoch(scheduleId);
     }
 
     function testBatchedClaimsAndLiabilityAccounting() public {
         _stake(ALICE, 100e18, 1);
         vm.roll(block.number + 1);
-        AirdropDistributorV2 distributor = _distributor();
+        SinjohStakingEngine distributor = _distributor();
         uint256 scheduleId = distributor.createSchedule(_schedule(true, 0, 0, 0));
 
         _fund(distributor, scheduleId, 10_000e18);
@@ -73,10 +73,49 @@ contract StakingAirdropTest is TestBase {
         assertEq(distributor.claimable(scheduleId, 1, ALICE), 0);
     }
 
+    function testFuzzProportionalClaimsRemainSolvent(
+        uint96 rawAliceStake,
+        uint96 rawBobStake,
+        uint96 rawFunding
+    ) public {
+        uint128 aliceStake = uint128(rawAliceStake) + 1;
+        uint128 bobStake = uint128(rawBobStake) + 1;
+        uint256 grossFunding = uint256(rawFunding) + 100;
+        _stake(ALICE, aliceStake, 0);
+        _stake(BOB, bobStake, 0);
+        vm.roll(block.number + 1);
+        SinjohStakingEngine distributor = _distributor();
+        uint256 scheduleId = distributor.createSchedule(_schedule(true, 0, 0, 0));
+        _fund(distributor, scheduleId, grossFunding);
+        vm.warp(block.timestamp + 30 minutes);
+        vm.roll(block.number + 1);
+        distributor.executeEpoch(scheduleId);
+
+        uint256 aliceClaim = distributor.claimable(scheduleId, 1, ALICE);
+        uint256 bobClaim = distributor.claimable(scheduleId, 1, BOB);
+        SinjohStakingEngine.Epoch memory epoch = distributor.getEpoch(scheduleId, 1);
+        assertTrue(aliceClaim + bobClaim <= epoch.fundedAmount);
+        assertTrue(epoch.fundedAmount - aliceClaim - bobClaim <= 1);
+
+        uint64[] memory epochIds = new uint64[](1);
+        epochIds[0] = 1;
+        if (aliceClaim != 0) {
+            vm.prank(ALICE);
+            distributor.claim(scheduleId, epochIds);
+        }
+        if (bobClaim != 0) {
+            vm.prank(BOB);
+            distributor.claim(scheduleId, epochIds);
+        }
+        assertEq(
+            distributor.totalLiability(address(token)), epoch.fundedAmount - aliceClaim - bobClaim
+        );
+    }
+
     function testExecutorRewardsAreCappedAndRemainSolvent() public {
         _stake(ALICE, 100e18, 1);
         vm.roll(block.number + 1);
-        AirdropDistributorV2 distributor = _distributor();
+        SinjohStakingEngine distributor = _distributor();
         uint256 scheduleId = distributor.createSchedule(_schedule(true, 100, 100, 50));
         _fund(distributor, scheduleId, 10_000);
         vm.roll(block.number + 1);
@@ -91,7 +130,7 @@ contract StakingAirdropTest is TestBase {
     function testRestrictedScheduleRequiresGovernanceExecutor() public {
         _stake(ALICE, 100e18, 1);
         vm.roll(block.number + 1);
-        AirdropDistributorV2 distributor = _distributor();
+        SinjohStakingEngine distributor = _distributor();
         uint256 scheduleId = distributor.createSchedule(_schedule(false, 0, 0, 0));
         _fund(distributor, scheduleId, 10_000);
         vm.roll(block.number + 1);
@@ -162,7 +201,7 @@ contract StakingAirdropTest is TestBase {
         _stake(ALICE, 100e18, 1);
         _stake(BOB, 300e18, 1);
         vm.roll(block.number + 1);
-        AirdropDistributorV2 distributor = _distributor();
+        SinjohStakingEngine distributor = _distributor();
         uint256 firstSchedule = distributor.createSchedule(_schedule(true, 0, 0, 0));
         uint256 secondSchedule = distributor.createSchedule(_schedule(true, 0, 0, 0));
         _fund(distributor, firstSchedule, 10_001);
@@ -191,7 +230,7 @@ contract StakingAirdropTest is TestBase {
         _stake(ALICE, 100e18, 0);
         vm.warp(23 hours + 45 minutes);
         vm.roll(block.number + 1);
-        AirdropDistributorV2 distributor = _distributor();
+        SinjohStakingEngine distributor = _distributor();
         uint256 scheduleId = distributor.createSchedule(_schedule(true, 0, 0, 0));
         _fund(distributor, scheduleId, 10_000);
         vm.warp(24 hours + 15 minutes);
@@ -207,13 +246,13 @@ contract StakingAirdropTest is TestBase {
     function testLateExecutionAlwaysCreatesAFreshClaimWindow() public {
         _stake(ALICE, 100e18, 1);
         vm.roll(block.number + 1);
-        AirdropDistributorV2 distributor = _distributor();
+        SinjohStakingEngine distributor = _distributor();
         uint256 scheduleId = distributor.createSchedule(_schedule(true, 0, 0, 0));
         _fund(distributor, scheduleId, 10_000);
         vm.warp(3 days);
         vm.roll(block.number + 1);
         distributor.executeEpoch(scheduleId);
-        AirdropDistributorV2.Epoch memory epoch = distributor.getEpoch(scheduleId, 1);
+        SinjohStakingEngine.Epoch memory epoch = distributor.getEpoch(scheduleId, 1);
         assertEq(epoch.claimDeadline, block.timestamp + 1 days);
         uint256 expectedClaim = distributor.claimable(scheduleId, 1, ALICE);
         uint64[] memory epochIds = new uint64[](1);
@@ -227,13 +266,13 @@ contract StakingAirdropTest is TestBase {
     function testEpochPreservesItsOriginalUnclaimedDestination() public {
         _stake(ALICE, 100e18, 1);
         vm.roll(block.number + 1);
-        AirdropDistributorV2 distributor = _distributor();
+        SinjohStakingEngine distributor = _distributor();
         uint256 scheduleId = distributor.createSchedule(_schedule(true, 0, 0, 0));
         _fund(distributor, scheduleId, 10_000);
         vm.warp(30 minutes + 1);
         vm.roll(block.number + 1);
         distributor.executeEpoch(scheduleId);
-        AirdropDistributorV2.ScheduleInput memory updated = _schedule(true, 0, 0, 0);
+        SinjohStakingEngine.ScheduleInput memory updated = _schedule(true, 0, 0, 0);
         updated.unclaimedDestination = ALICE;
         distributor.updateSchedule(scheduleId, updated);
         vm.warp(block.timestamp + 1 days + 1);
@@ -245,7 +284,7 @@ contract StakingAirdropTest is TestBase {
     function testUnclaimedRewardsSweepAfterDeadlineAndClearLiability() public {
         _stake(ALICE, 100e18, 1);
         vm.roll(block.number + 1);
-        AirdropDistributorV2 distributor = _distributor();
+        SinjohStakingEngine distributor = _distributor();
         uint256 scheduleId = distributor.createSchedule(_schedule(true, 0, 0, 0));
         _fund(distributor, scheduleId, 10_000);
         vm.warp(30 minutes + 1);
@@ -260,9 +299,9 @@ contract StakingAirdropTest is TestBase {
     function testScheduleUpdateDoesNotRewriteCurrentEpochStart() public {
         _stake(ALICE, 100e18, 1);
         vm.roll(block.number + 1);
-        AirdropDistributorV2 distributor = _distributor();
+        SinjohStakingEngine distributor = _distributor();
         uint256 scheduleId = distributor.createSchedule(_schedule(true, 0, 0, 0));
-        AirdropDistributorV2.ScheduleInput memory updated = _schedule(true, 0, 0, 0);
+        SinjohStakingEngine.ScheduleInput memory updated = _schedule(true, 0, 0, 0);
         updated.interval = 2 days;
         updated.claimPeriod = 3 days;
         distributor.updateSchedule(scheduleId, updated);
@@ -270,7 +309,7 @@ contract StakingAirdropTest is TestBase {
         vm.warp(30 minutes + 1);
         vm.roll(block.number + 1);
         distributor.executeEpoch(scheduleId);
-        AirdropDistributorV2.Epoch memory epoch = distributor.getEpoch(scheduleId, 1);
+        SinjohStakingEngine.Epoch memory epoch = distributor.getEpoch(scheduleId, 1);
         assertEq(epoch.startTime, 1);
         assertEq(epoch.endTime, 30 minutes + 1);
     }
@@ -283,8 +322,8 @@ contract StakingAirdropTest is TestBase {
         vm.stopPrank();
     }
 
-    function _distributor() private returns (AirdropDistributorV2) {
-        return new AirdropDistributorV2(controller, GUARDIAN, staking, PROTOCOL);
+    function _distributor() private returns (SinjohStakingEngine) {
+        return new SinjohStakingEngine(controller, GUARDIAN, staking, PROTOCOL);
     }
 
     function _schedule(
@@ -292,8 +331,8 @@ contract StakingAirdropTest is TestBase {
         uint128 fixedReward,
         uint16 rewardBps,
         uint128 rewardCap
-    ) private view returns (AirdropDistributorV2.ScheduleInput memory) {
-        return AirdropDistributorV2.ScheduleInput({
+    ) private view returns (SinjohStakingEngine.ScheduleInput memory) {
+        return SinjohStakingEngine.ScheduleInput({
             rewardToken: address(token),
             interval: 30 minutes,
             claimPeriod: 1 days,
@@ -305,7 +344,7 @@ contract StakingAirdropTest is TestBase {
         });
     }
 
-    function _fund(AirdropDistributorV2 distributor, uint256 scheduleId, uint256 amount) private {
+    function _fund(SinjohStakingEngine distributor, uint256 scheduleId, uint256 amount) private {
         token.mint(address(this), amount);
         token.approve(address(distributor), amount);
         distributor.fund(address(token), amount, abi.encode(scheduleId));

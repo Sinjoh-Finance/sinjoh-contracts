@@ -7,7 +7,7 @@ import { ImmutableGovernanceController } from "../src/governance/ImmutableGovern
 import { IGovernanceController } from "../src/interfaces/IGovernanceController.sol";
 import { FeeRouterV2 } from "../src/FeeRouterV2.sol";
 import { StakingEngine } from "../src/StakingEngine.sol";
-import { AirdropDistributorV2 } from "../src/AirdropDistributorV2.sol";
+import { SinjohStakingEngine } from "../src/SinjohStakingEngine.sol";
 import { YieldBasket } from "../src/YieldBasket.sol";
 import { DynamicFundingBands } from "../src/DynamicFundingBands.sol";
 import { TestBase } from "./TestBase.sol";
@@ -107,9 +107,9 @@ contract ProtocolUpgradeTest is TestBase {
         vm.stopPrank();
         vm.roll(block.number + 1);
 
-        AirdropDistributorV2 distributor =
-            new AirdropDistributorV2(controller, GUARDIAN, staking, PROTOCOL);
-        AirdropDistributorV2.ScheduleInput memory input = AirdropDistributorV2.ScheduleInput({
+        SinjohStakingEngine distributor =
+            new SinjohStakingEngine(controller, GUARDIAN, staking, PROTOCOL);
+        SinjohStakingEngine.ScheduleInput memory input = SinjohStakingEngine.ScheduleInput({
             rewardToken: address(token),
             interval: 30 minutes,
             claimPeriod: 7 days,

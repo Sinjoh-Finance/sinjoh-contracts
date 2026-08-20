@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.28;
 
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { AddressGovernanceController } from "../src/governance/AddressGovernanceController.sol";
 import { IGovernanceController } from "../src/interfaces/IGovernanceController.sol";
 import { FeeRouterV2 } from "../src/FeeRouterV2.sol";
 import { DynamicFundingBands } from "../src/DynamicFundingBands.sol";
+import { SinjohStakingEngine } from "../src/SinjohStakingEngine.sol";
+import { StakingEngine } from "../src/StakingEngine.sol";
 import { TestBase } from "./TestBase.sol";
 import { MockERC20, MockFundable, MockTwapOracle } from "./mocks/Mocks.sol";
 
@@ -103,6 +106,62 @@ contract FeeRouterV2Test is TestBase {
         assertEq(band.amount, 9_900);
         assertEq(token.balanceOf(address(bands)), 9_900);
         assertEq(bands.committedByAsset(address(token)), 9_900);
+    }
+
+    function testFundStakingRouteAppliesBothFeesAndFundsClaims() public {
+        StakingEngine.LockTier[] memory tiers = new StakingEngine.LockTier[](1);
+        tiers[0] = StakingEngine.LockTier({
+            duration: 30 days, rewardWeightBps: 10_000, governanceWeightBps: 10_000, enabled: true
+        });
+        StakingEngine staking =
+            new StakingEngine(controller, GUARDIAN, IERC20(address(token)), tiers);
+        token.mint(ALICE, 100e18);
+        vm.startPrank(ALICE);
+        token.approve(address(staking), 100e18);
+        staking.stake(100e18, 0);
+        vm.stopPrank();
+        vm.roll(block.number + 1);
+
+        SinjohStakingEngine rewards =
+            new SinjohStakingEngine(controller, GUARDIAN, staking, PROTOCOL);
+        uint256 scheduleId = rewards.createSchedule(
+            SinjohStakingEngine.ScheduleInput({
+                rewardToken: address(token),
+                interval: 30 minutes,
+                claimPeriod: 1 days,
+                permissionlessExecution: true,
+                fixedExecutorReward: 0,
+                executorRewardBps: 0,
+                executorRewardCap: 0,
+                unclaimedDestination: address(0xB0B)
+            })
+        );
+        FeeRouterV2.Route[] memory routes = new FeeRouterV2.Route[](1);
+        routes[0] = FeeRouterV2.Route({
+            inputToken: address(token),
+            recipient: address(rewards),
+            shareBps: 10_000,
+            action: FeeRouterV2.Action.FUND_AIRDROP,
+            config: abi.encode(scheduleId)
+        });
+        _activate(routes);
+        token.mint(address(router), 10_000);
+        router.sync(address(token));
+
+        SinjohStakingEngine.DistributionSchedule memory schedule = rewards.getSchedule(scheduleId);
+        assertEq(token.balanceOf(PROTOCOL), 199);
+        assertEq(schedule.pendingRewards, 9_801);
+        assertEq(rewards.totalLiability(address(token)), 9_801);
+
+        vm.warp(block.timestamp + 30 minutes);
+        vm.roll(block.number + 1);
+        rewards.executeEpoch(scheduleId);
+        uint64[] memory epochIds = new uint64[](1);
+        epochIds[0] = 1;
+        vm.prank(ALICE);
+        rewards.claim(scheduleId, epochIds);
+        assertEq(token.balanceOf(ALICE), 9_801);
+        assertEq(rewards.totalLiability(address(token)), 0);
     }
 
     function testGovernanceCanPauseAndResumeIndividualRoute() public {
