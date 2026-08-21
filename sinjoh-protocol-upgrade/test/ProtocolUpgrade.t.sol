@@ -145,7 +145,8 @@ contract ProtocolUpgradeTest is TestBase {
         MockERC20 reward = new MockERC20();
         MockFundable sink = new MockFundable();
         MockYieldAdapter adapter = new MockYieldAdapter(address(token), reward);
-        YieldBasket basket = new YieldBasket(controller, GUARDIAN, IERC20(address(token)));
+        YieldBasket basket =
+            new YieldBasket(controller, GUARDIAN, IERC20(address(token)), address(sink));
         adapter.setBasket(address(basket));
         basket.configureAdapter(adapter, 5_000, 30 minutes);
         YieldBasket.RewardRouteInput[] memory routes = new YieldBasket.RewardRouteInput[](1);

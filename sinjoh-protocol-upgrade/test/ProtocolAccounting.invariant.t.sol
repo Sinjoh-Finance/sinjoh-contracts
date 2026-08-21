@@ -287,7 +287,9 @@ contract ProtocolAccountingInvariantTest is InvariantTestBase {
         AddressGovernanceController basketController = new AddressGovernanceController(
             address(basketHandler), IGovernanceController.Mode.INDIVIDUAL
         );
-        basket = new YieldBasket(basketController, GUARDIAN, IERC20(address(basketToken)));
+        basket = new YieldBasket(
+            basketController, GUARDIAN, IERC20(address(basketToken)), address(basketHandler)
+        );
         basketAdapter = new MockYieldAdapter(address(basketToken), basketReward);
         basketSink = new MockFundable();
         basketHandler.initialize(basket, basketReward, basketAdapter, basketSink);

@@ -78,7 +78,7 @@ contract GovernanceTest is TestBase {
         TimelockController timelock =
             new TimelockController(1 hours, noProposers, executors, address(this));
         SinjohGovernor governor =
-            new SinjohGovernor("Sinjoh Staked Governor", votes, timelock, 1, 5, 0, 10, GUARDIAN);
+            new SinjohGovernor("Sinjoh Staked Governor", votes, timelock, 1, 5, 0, 10);
         timelock.grantRole(timelock.PROPOSER_ROLE(), address(governor));
         timelock.grantRole(timelock.CANCELLER_ROLE(), address(governor));
         timelock.renounceRole(timelock.DEFAULT_ADMIN_ROLE(), address(this));

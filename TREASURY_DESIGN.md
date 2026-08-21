@@ -148,6 +148,27 @@ revenue collector's owner works identically) and stack in any order.
   adapter, never the whole vault (cap it with RateCap per destination).
 - **Voting, vetoes, escrows, markets** — all governor-module internals (§3).
 
+### 2.7 Treasury Vault v2 composition: yield baskets
+
+"Vault v2" is a deployment composition, not a larger custody kernel. The same Joint or
+timelock controls the transfer-only `SinjohTreasuryVault` and an isolated `YieldBasket`. The
+basket pins the vault as its immutable treasury return address; principal withdrawals, measured
+ERC-4626 gains, revived write-off recoveries, and recovered tokens have no configurable recipient.
+
+Because the vault never approves tokens or executes basket calldata, funding uses three governed
+steps: prepare an exact amount, transfer that amount from the vault, then complete registration.
+Preparation snapshots both balances; completion requires the basket to have increased and the
+treasury to have decreased by the same exact amount. Unsolicited deposit tokens remain in a
+separate unregistered bucket and can only be swept back to treasury. Timelock governance should
+batch all three steps atomically. Joint deployments execute them as separate proposals and must
+avoid any other treasury movement between the prepare and complete steps; interference produces a
+mismatch and requires cancellation/return, never partial registration.
+
+Each adapter is immutable and basket-bound. The manifest pins the basket's deterministic CREATE
+address before adapters are deployed, then the basket deployment and every adapter binding are
+read back before activation calldata is handed to governance. Adapter loss is limited to allocated
+basket principal and cannot expand the vault's transfer-only authority surface.
+
 ---
 
 ## 3. Governor modules
@@ -192,14 +213,13 @@ periods. The kernel's dead-man rail is the backstop, not the plan.
 
 ### v2 — Agora (token-holder voting)
 
-- OZ-Governor-v5-style voting deployed non-upgradeably: fractional counting,
-  timestamp clock, late-quorum extension; parameters movable only within frozen
-  ranges.
-- Default lane is **optimistic**: a proposer role queues instructions that execute
-  after a delay unless token holders veto above a threshold (Taiko/Aragon pattern).
-  Full votes reserved for large actions.
-- Veto-escrow (scaled-down Lido Dual Governance) ships later as middleware between
-  Agora and the vault — not baked into Agora v1.
+- One subject token held in a wallet at the proposal snapshot is one vote.
+- The token-holder module reads the subject token's existing historical wallet-balance
+  checkpoints and occupies the same vault governor slot as Joint.
+- No staking, delegation, fractional voting, optimistic lane, or veto layer in v1.
+- Every treasury action follows the same propose → vote → queue → timelock → execute path.
+- The timelock directly holds the vault governor slot; the Governor is its only proposer and
+  canceller, and execution is permissionless.
 
 ### v3 — Delphi (futarchy)
 

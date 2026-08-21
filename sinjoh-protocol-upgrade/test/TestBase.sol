@@ -12,6 +12,13 @@ interface Vm {
     function warp(uint256 timestamp) external;
     function roll(uint256 blockNumber) external;
     function chainId(uint256 newChainId) external;
+    function computeCreateAddress(address deployer, uint256 nonce) external pure returns (address);
+    function createSelectFork(string calldata urlOrAlias) external returns (uint256 forkId);
+    function envOr(string calldata name, string calldata defaultValue)
+        external
+        returns (string memory value);
+    function envOr(string calldata name, address defaultValue) external returns (address value);
+    function envOr(string calldata name, uint256 defaultValue) external returns (uint256 value);
 }
 
 abstract contract TestBase {

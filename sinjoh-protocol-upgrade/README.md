@@ -39,9 +39,13 @@ mode. `ImmutableGovernanceController` is only suitable when every required setti
 to constructors. Freezing is irreversible; a later guardian pause is therefore a permanent
 shutdown because no authority remains to resume.
 
-`SinjohGovernor` composes OpenZeppelin Governor, settings, simple vote counting, quorum,
-proposal-guardian, and timelock modules. Use an ERC20Votes token for liquid or delegated
-voting. Use `StakedVotesAdapter` over `StakingEngine` for non-delegated staked-token voting.
+`SinjohGovernor` composes OpenZeppelin Governor, settings, simple vote counting, quorum, and
+timelock modules. Token-holder treasuries use the subject token's historical wallet-balance
+checkpoints directly: one token held at the proposal snapshot is one vote, with no staking or
+delegation step. `TokenHolderTreasuryFactory` deploys a Governor and timelock as an alternative
+governor module for the existing `SinjohTreasuryVault` governor slot. It can either create a new
+vault with that module installed or create only the module for the vault's standard delayed
+governor handoff. It does not create or modify the subject token.
 Voting delay and period use the vote source's ERC-6372 clock; the included staking adapter uses
 timestamps, so those settings are measured in seconds. The proposal threshold is an absolute
 vote amount. Calculate the desired
@@ -54,9 +58,11 @@ vote amount. Calculate the desired
 | --- | --- | --- |
 | `FeeRouterV2` | Versioned project-fee routing | Atomic route sets, delayed activation, protected rollback target, immutable 1% fee, exact transfers, per-route failure escrow and retry, guardian or governance route pause |
 | `StakingEngine` | Simple token staking | One token equals one reward unit and one vote, timestamped raw-balance checkpoints, immediate partial/full unstaking, exact transfers, unstaking while paused |
+| `TokenHolderTreasuryFactory` | Token-holder governor module for Treasury Vaults | Existing subject-token checkpoints, new-vault or delayed-handoff installation, Governor-only proposing/cancelling, public timelock execution, no retained factory role |
 | `SinjohStakingEngine` | Claim-based staking distributions | 30-minute minimum epochs, zero-stake rollover, prefunded liabilities, batched claims, executor reward caps, unclaimed sweep |
 | `SinjohLaunchStakingEngine` | Opt-in staking airdrops for new launches | One shared sink keyed by launched token, raw active-stake snapshots, immediate unstaking, isolated router/token/asset reward accounts, zero-stake rollover |
-| `YieldBasket` | Allowlisted harvest-only portfolio | Per-adapter caps, token-specific reward routes, pause-preserving configuration, loss write-off/recovery, non-deposit-token recovery, exact accounting |
+| `YieldBasket` | Treasury-bound, allowlisted harvest-only portfolio | Exact vault-transfer registration, immutable treasury returns, per-adapter caps, token-specific reward routes, loss write-off/recovery, unsolicited-token isolation |
+| `ERC4626YieldAdapter` | Basket-bound ERC-4626 integration | Exact transfers, preview compliance checks, immutable basket/vault binding, no arbitrary calls or reward claims |
 | `DynamicFundingBands` | Prefunded post-launch commitments | Activation delay, fresh TWAP cadence, minimum distance, confirmation clock, immutable active terms, exact payouts, per-asset/subject commitments |
 
 The existing `sinjoh-airdrop-distributor` remains the default standard airdrop path and does
@@ -97,8 +103,13 @@ no generic governance call surface.
   distribution configuration, so multi-reward adapters can route every asset independently.
   An adapter must transfer the token during the same `harvest` call, the reported amount must
   equal the measured balance delta, and its configured distributor must consume that exact amount.
-  Adapter withdrawals realize losses against managed principal. Value above principal remains
-  idle and non-distributable until governance calls `realizeIdleValue`. `basketValue()` exposes
+  Treasury funding uses a prepare/transfer/complete handshake that snapshots both the immutable
+  treasury and basket balances. Registration succeeds only when the basket rose and treasury fell
+  by the same exact prepared amount; the transfer-only vault never approves or calls the basket.
+  Adapter withdrawals realize losses against managed principal. Measured value above principal is
+  tracked separately from unsolicited deposit tokens and remains non-distributable until
+  governance calls `realizeIdleValue`. Every principal withdrawal, realized gain, revived
+  write-off recovery, and token recovery is forced to the immutable treasury. `basketValue()` exposes
   current adapter-reported assets, managed principal, and deposit-asset-denominated unrealized
   gain or loss; per-token realized yield remains available through `cumulativeRealizedYield`.
   Reconfiguration preserves an emergency adapter pause. Removing an adapter clears every reward
@@ -106,8 +117,8 @@ no generic governance call surface.
   and later recover revived shares only as non-principal value; the adapter cannot be reapproved
   or receive a new allocation while written-off shares remain. Tokens that reach the basket
   outside a verified harvest remain excluded from realized yield and can be moved only through the
-  governance-only `recoverNonDepositAsset`; the deposit asset is never eligible for that escape
-  hatch because it may represent principal or unrealized value.
+  governance-only `recoverNonDepositAsset`; unregistered deposit tokens have a distinct
+  `sweepUnregisteredDepositAsset` path that can return only to treasury.
 
 Protocol-fee remainder carry and outgoing exact-transfer checks are implemented once in the
 internal `ProtocolAccounting` library and reused across the router, staking, distribution, basket,
@@ -179,6 +190,12 @@ protection, quiet-market oracle refresh, and prefunded band commitments.
 
 ## Deployment order
 
+For token-holder Treasury Vault governance, deploy `TokenHolderTreasuryFactory` once. Call
+`createTokenHolderTreasury` to create a new vault with token governance installed from genesis, or
+`createTokenHolderGovernor` to produce the Governor/timelock module used in an existing vault's
+normal delayed governor handoff. The subject token must already expose historical wallet-balance
+votes through `IVotes`.
+
 The staking-only deployment script is manifest-driven and deploys
 `AddressGovernanceController`, `StakingEngine`, the optional `StakedVotesAdapter`, and
 `SinjohStakingEngine`. Copy `deployments/staking-engine.parameters.example.json` to an untracked,
@@ -196,6 +213,36 @@ The script accepts only Robinhood Chain mainnet (`4663`) or testnet (`46630`), c
 signer's address, requires a separate emergency guardian, and pins the staking token by runtime
 code hash. It does not create schedules, freeze governance, or print the private key. Those are
 separate reviewed actions after the canary.
+
+The governance/yield deployment is separately gated by
+`deployments/governance-yield-basket.parameters.example.json`. It accepts mainnet chain ID `4663`
+only and validates the deployer, authority mode and runtime hash, final timelock roles, treasury
+constructor readbacks, guardian separation, deposit asset, every adapter cap/runtime hash, and
+every reward token/distributor/runtime hash and route. The manifest pins the basket's deterministic
+CREATE address, and every adapter must immutably report that exact basket before broadcast. It
+deploys the controller and immutable
+treasury-bound basket, then returns the exact configuration calldata for execution by the declared
+Joint or timelock; the deployer never receives temporary basket authority.
+Basket-bound adapters may be deployed first against the manifest's predicted basket address; the
+deployment reverts unless the created basket exactly matches it.
+
+```sh
+YIELD_DEPLOYMENT_MANIFEST=/absolute/path/to/reviewed-yield-parameters.json \
+DEPLOYER_PRIVATE_KEY=... \
+forge script script/DeployGovernanceYieldBasket.s.sol:DeployGovernanceYieldBasket \
+  --rpc-url "$ROBINHOOD_RPC_URL"
+```
+
+After selecting an audited ERC-4626 vault, run the opt-in fork canary with a deliberately small
+funding account. It executes deposit, valuation, full redemption, and treasury return locally:
+
+```sh
+ROBINHOOD_MAINNET_RPC_URL=... \
+YIELD_CANARY_ERC4626_VAULT=0x... \
+YIELD_CANARY_FUNDER=0x... \
+YIELD_CANARY_AMOUNT=... \
+forge test --match-contract ERC4626YieldAdapterMainnetForkTest -vv
+```
 
 1. Select an ERC20Votes source or deploy the raw-balance `StakingEngine` plus
    `StakedVotesAdapter`.

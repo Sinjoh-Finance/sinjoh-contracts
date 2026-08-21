@@ -46,6 +46,12 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
         bytes distributionConfig;
     }
 
+    struct PendingTreasuryFunding {
+        uint256 amount;
+        uint256 basketBalanceBefore;
+        uint256 treasuryBalanceBefore;
+    }
+
     error InvalidAddress();
     error InvalidConfiguration();
     error AdapterNotApproved();
@@ -55,8 +61,19 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
     error InexactTransfer(uint256 expected, uint256 received);
     error SinkReceiptMismatch(uint256 expected, uint256 received);
     error RewardNotAllowlisted(address rewardToken);
+    error TreasuryFundingInProgress();
+    error NoTreasuryFundingPrepared();
+    error TreasuryFundingMismatch(
+        uint256 expected, uint256 basketBalanceIncrease, uint256 treasuryBalanceDecrease
+    );
+    error InsufficientAccountedAssets(uint256 required, uint256 available);
 
     event Funded(address indexed funder, uint256 amount, uint256 totalPrincipal);
+    event TreasuryFundingPrepared(
+        uint256 amount, uint256 basketBalanceBefore, uint256 treasuryBalanceBefore
+    );
+    event TreasuryFundingCancelled(uint256 amount);
+    event TreasuryFundingRegistered(uint256 amount, uint256 totalPrincipal);
     event AdapterConfigured(
         address indexed adapter, uint16 allocationLimitBps, uint32 distributionInterval
     );
@@ -75,6 +92,7 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
     );
     event IdlePrincipalWithdrawn(address indexed recipient, uint256 amount);
     event IdleValueRealized(address indexed recipient, uint256 amount);
+    event UnregisteredDepositAssetSwept(address indexed treasury, uint256 amount);
     event AdapterWrittenOff(
         address indexed adapter, uint256 sharesWrittenOff, uint256 principalWrittenOff
     );
@@ -89,10 +107,13 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
     );
 
     IERC20 public immutable depositAsset;
+    address public immutable treasury;
     uint256 public totalPrincipalContributed;
     uint256 public managedPrincipal;
     uint256 public idlePrincipal;
+    uint256 public realizedIdleValue;
     uint256 public cumulativeRealizedLoss;
+    PendingTreasuryFunding public pendingTreasuryFunding;
     uint8 public adapterCount;
     mapping(address adapter => AdapterConfig) private _adapterConfigs;
     mapping(address adapter => bool) public approvedAdapter;
@@ -104,11 +125,22 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
     mapping(address adapter => mapping(address rewardToken => RewardRoute)) private _rewardRoutes;
     mapping(address adapter => uint256 shares) public writtenOffShares;
 
-    constructor(IGovernanceController controller, address guardian, IERC20 depositAsset_)
-        Governed(controller, guardian)
-    {
-        if (address(depositAsset_).code.length == 0) revert InvalidAddress();
+    constructor(
+        IGovernanceController controller,
+        address guardian,
+        IERC20 depositAsset_,
+        address treasury_
+    ) Governed(controller, guardian) {
+        if (address(depositAsset_).code.length == 0 || treasury_.code.length == 0) {
+            revert InvalidAddress();
+        }
         depositAsset = depositAsset_;
+        treasury = treasury_;
+    }
+
+    modifier whenNoTreasuryFundingPending() {
+        if (pendingTreasuryFunding.amount != 0) revert TreasuryFundingInProgress();
+        _;
     }
 
     /// @inheritdoc ISinjohFundable
@@ -116,6 +148,7 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
         external
         nonReentrant
         whenNotPaused
+        whenNoTreasuryFundingPending
         returns (uint256 received)
     {
         if (asset != address(depositAsset) || amount == 0 || config.length != 0) {
@@ -125,10 +158,67 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
         depositAsset.safeTransferFrom(msg.sender, address(this), amount);
         received = depositAsset.balanceOf(address(this)) - beforeBalance;
         if (received != amount) revert InexactTransfer(amount, received);
+        _requireAccountedAssets(amount);
         totalPrincipalContributed += amount;
         managedPrincipal += amount;
         idlePrincipal += amount;
         emit Funded(msg.sender, amount, totalPrincipalContributed);
+    }
+
+    /// @notice Snapshots the exact balance movement expected from the immutable treasury.
+    /// @dev Governance must prepare before instructing a transfer-only treasury vault. Completion
+    /// verifies both ends of the transfer, so an unsolicited basket deposit cannot become
+    /// registered principal unless the treasury's balance fell by the same exact amount.
+    function prepareTreasuryFunding(uint256 amount)
+        external
+        onlyGovernance
+        nonReentrant
+        whenNotPaused
+        whenNoTreasuryFundingPending
+    {
+        if (amount == 0) revert InvalidAmount();
+        uint256 basketBalance = depositAsset.balanceOf(address(this));
+        uint256 treasuryBalance = depositAsset.balanceOf(treasury);
+        if (treasuryBalance < amount) revert InvalidAmount();
+        pendingTreasuryFunding = PendingTreasuryFunding({
+            amount: amount,
+            basketBalanceBefore: basketBalance,
+            treasuryBalanceBefore: treasuryBalance
+        });
+        emit TreasuryFundingPrepared(amount, basketBalance, treasuryBalance);
+    }
+
+    /// @notice Registers a previously prepared exact treasury-to-basket token transfer.
+    function completeTreasuryFunding() external onlyGovernance nonReentrant whenNotPaused {
+        PendingTreasuryFunding memory pending = pendingTreasuryFunding;
+        if (pending.amount == 0) revert NoTreasuryFundingPrepared();
+        uint256 basketBalance = depositAsset.balanceOf(address(this));
+        uint256 treasuryBalance = depositAsset.balanceOf(treasury);
+        uint256 basketIncrease = basketBalance >= pending.basketBalanceBefore
+            ? basketBalance - pending.basketBalanceBefore
+            : 0;
+        uint256 treasuryDecrease = pending.treasuryBalanceBefore >= treasuryBalance
+            ? pending.treasuryBalanceBefore - treasuryBalance
+            : 0;
+        if (basketIncrease != pending.amount || treasuryDecrease != pending.amount) {
+            revert TreasuryFundingMismatch(pending.amount, basketIncrease, treasuryDecrease);
+        }
+        _requireAccountedAssets(pending.amount);
+        delete pendingTreasuryFunding;
+        totalPrincipalContributed += pending.amount;
+        managedPrincipal += pending.amount;
+        idlePrincipal += pending.amount;
+        emit Funded(treasury, pending.amount, totalPrincipalContributed);
+        emit TreasuryFundingRegistered(pending.amount, totalPrincipalContributed);
+    }
+
+    /// @notice Cancels a prepared snapshot after a failed, interrupted, or abandoned transfer.
+    /// @dev Any tokens already transferred remain unregistered and can only be swept to treasury.
+    function cancelTreasuryFunding() external onlyGovernance {
+        uint256 amount = pendingTreasuryFunding.amount;
+        if (amount == 0) revert NoTreasuryFundingPrepared();
+        delete pendingTreasuryFunding;
+        emit TreasuryFundingCancelled(amount);
     }
 
     function configureAdapter(
@@ -139,8 +229,8 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
         address adapterAddress = address(adapter);
         if (
             adapterAddress.code.length == 0 || adapter.asset() != address(depositAsset)
-                || allocationLimitBps == 0 || allocationLimitBps > BPS
-                || distributionInterval < 30 minutes
+                || adapter.basket() != address(this) || allocationLimitBps == 0
+                || allocationLimitBps > BPS || distributionInterval < 30 minutes
         ) revert InvalidConfiguration();
         bool newlyApproved = !approvedAdapter[adapterAddress];
         if (newlyApproved) {
@@ -235,6 +325,7 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
         onlyGovernance
         nonReentrant
         whenNotPaused
+        whenNoTreasuryFundingPending
         returns (uint256 shares)
     {
         address adapterAddress = address(adapter);
@@ -268,6 +359,7 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
         external
         onlyGovernance
         nonReentrant
+        whenNoTreasuryFundingPending
         returns (uint256 assets)
     {
         address adapterAddress = address(adapter);
@@ -289,6 +381,7 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
         uint256 recoveredPrincipal = assets < principalReduction ? assets : principalReduction;
         uint256 realizedLoss = principalReduction - recoveredPrincipal;
         idlePrincipal += recoveredPrincipal;
+        realizedIdleValue += assets - recoveredPrincipal;
         if (realizedLoss != 0) {
             managedPrincipal -= realizedLoss;
             cumulativeRealizedLoss += realizedLoss;
@@ -322,6 +415,7 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
         external
         onlyGovernance
         nonReentrant
+        whenNoTreasuryFundingPending
         returns (uint256 assets)
     {
         address adapterAddress = address(adapter);
@@ -332,51 +426,63 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
         uint256 received = depositAsset.balanceOf(address(this)) - beforeBalance;
         if (assets == 0 || received != assets) revert InexactTransfer(assets, received);
         writtenOffShares[adapterAddress] = available - shares;
+        ProtocolAccounting.sendExact(depositAsset, treasury, assets);
         emit WrittenOffSharesRecovered(adapterAddress, shares, assets);
     }
 
-    function withdrawIdlePrincipal(address recipient, uint256 amount)
+    function withdrawIdlePrincipal(uint256 amount)
         external
         onlyGovernance
         nonReentrant
+        whenNoTreasuryFundingPending
     {
-        if (
-            recipient == address(0) || recipient == address(this) || amount == 0
-                || amount > idlePrincipal
-        ) revert InvalidAmount();
+        if (amount == 0 || amount > idlePrincipal) revert InvalidAmount();
         _validateExposure(managedPrincipal - amount);
         idlePrincipal -= amount;
         managedPrincipal -= amount;
-        ProtocolAccounting.sendExact(depositAsset, recipient, amount);
-        emit IdlePrincipalWithdrawn(recipient, amount);
+        ProtocolAccounting.sendExact(depositAsset, treasury, amount);
+        emit IdlePrincipalWithdrawn(treasury, amount);
     }
 
-    function realizeIdleValue(address recipient, uint256 amount)
+    function realizeIdleValue(uint256 amount)
         external
         onlyGovernance
         nonReentrant
+        whenNoTreasuryFundingPending
     {
-        if (
-            recipient == address(0) || recipient == address(this) || amount == 0
-                || amount > idleUnrealizedValue()
-        ) revert InvalidAmount();
-        ProtocolAccounting.sendExact(depositAsset, recipient, amount);
-        emit IdleValueRealized(recipient, amount);
+        if (amount == 0 || amount > realizedIdleValue) revert InvalidAmount();
+        realizedIdleValue -= amount;
+        ProtocolAccounting.sendExact(depositAsset, treasury, amount);
+        emit IdleValueRealized(treasury, amount);
+    }
+
+    /// @notice Returns deposit tokens not registered as principal or known adapter gain.
+    function sweepUnregisteredDepositAsset(uint256 amount)
+        external
+        onlyGovernance
+        nonReentrant
+        whenNoTreasuryFundingPending
+    {
+        if (amount == 0 || amount > unregisteredDepositAssets()) {
+            revert InvalidAmount();
+        }
+        ProtocolAccounting.sendExact(depositAsset, treasury, amount);
+        emit UnregisteredDepositAssetSwept(treasury, amount);
     }
 
     /// @notice Recovers tokens received outside a verified adapter harvest.
     /// @dev The deposit asset is excluded because it may represent principal or unrealized value.
-    function recoverNonDepositAsset(IERC20 token, address recipient, uint256 amount)
+    function recoverNonDepositAsset(IERC20 token, uint256 amount)
         external
         onlyGovernance
         nonReentrant
     {
         if (
             address(token).code.length == 0 || address(token) == address(depositAsset)
-                || recipient == address(0) || recipient == address(this) || amount == 0
+                || amount == 0
         ) revert InvalidConfiguration();
-        ProtocolAccounting.sendExact(token, recipient, amount);
-        emit NonDepositAssetRecovered(address(token), recipient, amount);
+        ProtocolAccounting.sendExact(token, treasury, amount);
+        emit NonDepositAssetRecovered(address(token), treasury, amount);
     }
 
     function harvest(IYieldAdapter adapter) external nonReentrant whenNotPaused {
@@ -469,7 +575,9 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
             uint256 unrealizedLoss
         )
     {
-        currentAssets = depositAsset.balanceOf(address(this));
+        uint256 idleBalance = depositAsset.balanceOf(address(this));
+        uint256 accountedIdle = idlePrincipal + realizedIdleValue;
+        currentAssets = idleBalance < accountedIdle ? idleBalance : accountedIdle;
         for (uint256 i; i < _adapters.length; ++i) {
             currentAssets += IYieldAdapter(_adapters[i]).totalAssets();
         }
@@ -482,8 +590,13 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
     }
 
     function idleUnrealizedValue() public view returns (uint256) {
+        return realizedIdleValue;
+    }
+
+    function unregisteredDepositAssets() public view returns (uint256) {
         uint256 balance = depositAsset.balanceOf(address(this));
-        return balance > idlePrincipal ? balance - idlePrincipal : 0;
+        uint256 accounted = idlePrincipal + realizedIdleValue;
+        return balance > accounted ? balance - accounted : 0;
     }
 
     function _clearRewardRoutes(address adapter) private {
@@ -505,5 +618,11 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
                     > principalAfterWithdrawal * config.allocationLimitBps / BPS
             ) revert AllocationLimitExceeded();
         }
+    }
+
+    function _requireAccountedAssets(uint256 principalIncrease) private view {
+        uint256 required = idlePrincipal + realizedIdleValue + principalIncrease;
+        uint256 available = depositAsset.balanceOf(address(this));
+        if (available < required) revert InsufficientAccountedAssets(required, available);
     }
 }

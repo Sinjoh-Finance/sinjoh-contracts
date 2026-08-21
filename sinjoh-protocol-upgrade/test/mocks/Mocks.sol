@@ -2,9 +2,82 @@
 pragma solidity 0.8.28;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { ERC4626 } from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import { IERC5805 } from "@openzeppelin/contracts/interfaces/IERC5805.sol";
+import { Checkpoints } from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
+import { Time } from "@openzeppelin/contracts/utils/types/Time.sol";
 import { ISinjohFundable } from "../../src/interfaces/ISinjohFundable.sol";
 import { IYieldAdapter } from "../../src/interfaces/IYieldAdapter.sol";
 import { ITwapOracle } from "../../src/interfaces/ITwapOracle.sol";
+
+/// @dev Test stand-in for a subject token whose historical wallet balances are IVotes power.
+contract MockDirectVotesToken is ERC20, IERC5805 {
+    using Checkpoints for Checkpoints.Trace256;
+
+    mapping(address account => Checkpoints.Trace256 checkpoints) private _balanceCheckpoints;
+    Checkpoints.Trace256 private _supplyCheckpoints;
+
+    error DelegationUnsupported();
+    error FutureLookup(uint256 timepoint, uint48 clock);
+
+    constructor(address holder, uint256 supply) ERC20("Subject Token", "SUBJECT") {
+        _mint(holder, supply);
+    }
+
+    function clock() public view returns (uint48) {
+        return Time.blockNumber();
+    }
+
+    function CLOCK_MODE() external pure returns (string memory) {
+        return "mode=blocknumber&from=default";
+    }
+
+    function getVotes(address account) external view returns (uint256) {
+        return balanceOf(account);
+    }
+
+    function getPastVotes(address account, uint256 timepoint) external view returns (uint256) {
+        _validateTimepoint(timepoint);
+        return _balanceCheckpoints[account].upperLookupRecent(timepoint);
+    }
+
+    function getPastTotalSupply(uint256 timepoint) external view returns (uint256) {
+        _validateTimepoint(timepoint);
+        return _supplyCheckpoints.upperLookupRecent(timepoint);
+    }
+
+    function delegates(address) external pure returns (address) {
+        return address(0);
+    }
+
+    function delegate(address) external pure {
+        revert DelegationUnsupported();
+    }
+
+    function delegateBySig(address, uint256, uint256, uint8, bytes32, bytes32) external pure {
+        revert DelegationUnsupported();
+    }
+
+    function _update(address from, address to, uint256 value) internal override {
+        super._update(from, to, value);
+        uint256 timepoint = clock();
+        if (from == address(0) || to == address(0)) {
+            _supplyCheckpoints.push(timepoint, totalSupply());
+        }
+        if (from != address(0)) {
+            _balanceCheckpoints[from].push(timepoint, balanceOf(from));
+        }
+        if (to != address(0)) {
+            _balanceCheckpoints[to].push(timepoint, balanceOf(to));
+        }
+    }
+
+    function _validateTimepoint(uint256 timepoint) private view {
+        uint48 currentTimepoint = clock();
+        if (timepoint >= currentTimepoint) revert FutureLookup(timepoint, currentTimepoint);
+    }
+}
 
 contract MockERC20 {
     string public name = "Mock";
@@ -49,18 +122,35 @@ contract MockERC20 {
     }
 }
 
+contract MockRebasingERC20 is MockERC20 {
+    function rebaseUp(address account, uint256 amount) external {
+        totalSupply += amount;
+        balanceOf[account] += amount;
+    }
+}
+
+contract MockERC4626 is ERC4626 {
+    constructor(IERC20 asset_) ERC20("Mock Vault Share", "MVS") ERC4626(asset_) { }
+}
+
 contract MockFundable is ISinjohFundable {
     mapping(address => uint256) public funded;
     bool public pullFunds = true;
+    bool public shouldRevert;
 
     function setPullFunds(bool value) external {
         pullFunds = value;
+    }
+
+    function setShouldRevert(bool value) external {
+        shouldRevert = value;
     }
 
     function fund(address asset, uint256 amount, bytes calldata)
         external
         returns (uint256 received)
     {
+        require(!shouldRevert, "REVERTING_DISTRIBUTOR");
         if (pullFunds) {
             require(IERC20(asset).transferFrom(msg.sender, address(this), amount));
         }
@@ -81,6 +171,9 @@ contract MockYieldAdapter is IYieldAdapter {
     uint16 public withdrawBps = 10_000;
     bool public mintReward = true;
     bool public pullFunds = true;
+    bool public revertDeposit;
+    bool public revertWithdraw;
+    bool public revertHarvest;
 
     constructor(address asset_, MockERC20 reward_) {
         asset = asset_;
@@ -116,7 +209,14 @@ contract MockYieldAdapter is IYieldAdapter {
         pullFunds = value;
     }
 
+    function setReverts(bool deposit_, bool withdraw_, bool harvest_) external {
+        revertDeposit = deposit_;
+        revertWithdraw = withdraw_;
+        revertHarvest = harvest_;
+    }
+
     function deposit(uint256 amount) external returns (uint256 mintedShares) {
+        require(!revertDeposit, "REVERTING_DEPOSIT");
         if (pullFunds) require(IERC20(asset).transferFrom(msg.sender, address(this), amount));
         totalAssets += amount;
         shares += amount;
@@ -124,6 +224,7 @@ contract MockYieldAdapter is IYieldAdapter {
     }
 
     function withdraw(uint256 shareAmount) external returns (uint256 assets) {
+        require(!revertWithdraw, "REVERTING_WITHDRAW");
         shares -= shareAmount;
         totalAssets -= shareAmount;
         assets = shareAmount * withdrawBps / 10_000;
@@ -133,6 +234,7 @@ contract MockYieldAdapter is IYieldAdapter {
     }
 
     function harvest() external returns (address[] memory rewardTokens, uint256[] memory amounts) {
+        require(!revertHarvest, "REVERTING_HARVEST");
         uint256 amount = nextReward;
         nextReward = 0;
         if (mintReward) reward.mint(basket, amount);

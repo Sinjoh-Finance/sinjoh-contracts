@@ -6,13 +6,13 @@ import { AddressGovernanceController } from "../src/governance/AddressGovernance
 import { IGovernanceController } from "../src/interfaces/IGovernanceController.sol";
 import { Governed } from "../src/governance/Governed.sol";
 import { YieldBasket } from "../src/YieldBasket.sol";
+import { SinjohTreasuryVault } from "@sinjoh-treasury/SinjohTreasuryVault.sol";
 import { TestBase } from "./TestBase.sol";
-import { MockERC20, MockFundable, MockYieldAdapter } from "./mocks/Mocks.sol";
+import { MockERC20, MockFundable, MockRebasingERC20, MockYieldAdapter } from "./mocks/Mocks.sol";
 
 contract YieldBasketTest is TestBase {
     address private constant GUARDIAN = address(0xBEEF);
     address private constant ALICE = address(0xA11CE);
-    address private constant BOB = address(0xB0B);
 
     AddressGovernanceController private controller;
     MockERC20 private asset;
@@ -28,7 +28,7 @@ contract YieldBasketTest is TestBase {
         reward = new MockERC20();
         sink = new MockFundable();
         adapter = new MockYieldAdapter(address(asset), reward);
-        basket = new YieldBasket(controller, GUARDIAN, IERC20(address(asset)));
+        basket = new YieldBasket(controller, GUARDIAN, IERC20(address(asset)), address(sink));
         adapter.setBasket(address(basket));
         basket.configureAdapter(adapter, 5_000, 30 minutes);
         _setRoute(adapter, reward, sink, "");
@@ -67,6 +67,25 @@ contract YieldBasketTest is TestBase {
         assertEq(basket.cumulativeRealizedYield(address(reward)), 0);
     }
 
+    function testRevertingAdapterAndDistributorCannotCorruptAccounting() public {
+        _fundAndAllocate(1_000e18, 500e18);
+        adapter.setReverts(false, true, false);
+        vm.expectRevert();
+        basket.withdrawFromAdapter(adapter, 500e18);
+        YieldBasket.AdapterConfig memory config = basket.getAdapterConfig(address(adapter));
+        assertEq(config.principalAllocated, 500e18);
+        assertEq(basket.managedPrincipal(), 1_000e18);
+
+        adapter.setReverts(false, false, false);
+        sink.setShouldRevert(true);
+        adapter.setNextReward(50e18);
+        vm.warp(block.timestamp + 30 minutes);
+        vm.expectRevert();
+        basket.harvest(adapter);
+        assertEq(basket.cumulativeRealizedYield(address(reward)), 0);
+        assertEq(sink.funded(address(reward)), 0);
+    }
+
     function testAdapterCapCannotBeReducedBelowExistingExposure() public {
         _fundAndAllocate(1_000e18, 500e18);
         vm.expectRevert(YieldBasket.AllocationLimitExceeded.selector);
@@ -84,23 +103,23 @@ contract YieldBasketTest is TestBase {
         assertEq(reward.balanceOf(address(basket)), 50e18);
         assertEq(sink.funded(address(reward)), 0);
 
-        basket.recoverNonDepositAsset(IERC20(address(reward)), BOB, 50e18);
+        basket.recoverNonDepositAsset(IERC20(address(reward)), 50e18);
         assertEq(reward.balanceOf(address(basket)), 0);
-        assertEq(reward.balanceOf(BOB), 50e18);
+        assertEq(reward.balanceOf(address(sink)), 50e18);
     }
 
     function testOnlyGovernanceCanRecoverNonDepositAssets() public {
         reward.mint(address(basket), 50e18);
         vm.prank(ALICE);
         vm.expectRevert(Governed.Unauthorized.selector);
-        basket.recoverNonDepositAsset(IERC20(address(reward)), BOB, 50e18);
+        basket.recoverNonDepositAsset(IERC20(address(reward)), 50e18);
         assertEq(reward.balanceOf(address(basket)), 50e18);
     }
 
     function testDepositAssetCannotBeRecoveredThroughTokenEscapeHatch() public {
         asset.mint(address(basket), 50e18);
         vm.expectRevert(YieldBasket.InvalidConfiguration.selector);
-        basket.recoverNonDepositAsset(IERC20(address(asset)), BOB, 50e18);
+        basket.recoverNonDepositAsset(IERC20(address(asset)), 50e18);
         assertEq(asset.balanceOf(address(basket)), 50e18);
     }
 
@@ -170,8 +189,8 @@ contract YieldBasketTest is TestBase {
         assertEq(basket.cumulativeRealizedLoss(), 500e18);
 
         basket.removeAdapter(adapter);
-        basket.withdrawIdlePrincipal(BOB, 500e18);
-        assertEq(asset.balanceOf(BOB), 500e18);
+        basket.withdrawIdlePrincipal(500e18);
+        assertEq(asset.balanceOf(address(sink)), 500e18);
         assertEq(basket.managedPrincipal(), 0);
 
         vm.expectRevert(YieldBasket.InvalidConfiguration.selector);
@@ -179,7 +198,8 @@ contract YieldBasketTest is TestBase {
         adapter.setWithdrawBps(10_000);
         basket.recoverWrittenOffShares(adapter, 500e18);
         assertEq(basket.writtenOffShares(address(adapter)), 0);
-        assertEq(basket.idleUnrealizedValue(), 500e18);
+        assertEq(basket.idleUnrealizedValue(), 0);
+        assertEq(asset.balanceOf(address(sink)), 1_000e18);
         basket.configureAdapter(adapter, 5_000, 30 minutes);
     }
 
@@ -216,8 +236,8 @@ contract YieldBasketTest is TestBase {
         basket.withdrawFromAdapter(adapter, 500e18);
         assertEq(basket.idlePrincipal(), 1_000e18);
         assertEq(basket.idleUnrealizedValue(), 100e18);
-        basket.realizeIdleValue(ALICE, 100e18);
-        assertEq(asset.balanceOf(ALICE), 100e18);
+        basket.realizeIdleValue(100e18);
+        assertEq(asset.balanceOf(address(sink)), 100e18);
         assertEq(basket.idleUnrealizedValue(), 0);
     }
 
@@ -241,11 +261,64 @@ contract YieldBasketTest is TestBase {
     function testIdleWithdrawalCannotSilentlyBreakAllocationCap() public {
         _fundAndAllocate(1_000e18, 500e18);
         vm.expectRevert(YieldBasket.AllocationLimitExceeded.selector);
-        basket.withdrawIdlePrincipal(BOB, 1);
+        basket.withdrawIdlePrincipal(1);
         basket.withdrawFromAdapter(adapter, 500e18);
-        basket.withdrawIdlePrincipal(BOB, 1_000e18);
-        assertEq(asset.balanceOf(BOB), 1_000e18);
+        basket.withdrawIdlePrincipal(1_000e18);
+        assertEq(asset.balanceOf(address(sink)), 1_000e18);
         assertEq(basket.managedPrincipal(), 0);
+    }
+
+    function testTreasuryTransferRegistersThenAllocatesWithoutAllowance() public {
+        SinjohTreasuryVault vault = new SinjohTreasuryVault(address(this), 1 days, address(0), 0);
+        YieldBasket treasuryBasket =
+            new YieldBasket(controller, GUARDIAN, IERC20(address(asset)), address(vault));
+        MockYieldAdapter treasuryAdapter = new MockYieldAdapter(address(asset), reward);
+        treasuryAdapter.setBasket(address(treasuryBasket));
+        treasuryBasket.configureAdapter(treasuryAdapter, 10_000, 30 minutes);
+
+        asset.mint(address(vault), 1_000e18);
+        treasuryBasket.prepareTreasuryFunding(1_000e18);
+        vault.transfer(address(asset), 1_000e18, address(treasuryBasket));
+        treasuryBasket.completeTreasuryFunding();
+        treasuryBasket.allocate(treasuryAdapter, 1_000e18);
+
+        assertEq(asset.allowance(address(vault), address(treasuryBasket)), 0);
+        assertEq(treasuryBasket.managedPrincipal(), 1_000e18);
+        assertEq(treasuryBasket.idlePrincipal(), 0);
+    }
+
+    function testUnsolicitedDepositCannotSatisfyTreasuryFundingSnapshot() public {
+        SinjohTreasuryVault vault = new SinjohTreasuryVault(address(this), 1 days, address(0), 0);
+        YieldBasket treasuryBasket =
+            new YieldBasket(controller, GUARDIAN, IERC20(address(asset)), address(vault));
+        asset.mint(address(vault), 1_000e18);
+        asset.mint(ALICE, 1_000e18);
+
+        treasuryBasket.prepareTreasuryFunding(1_000e18);
+        vm.prank(ALICE);
+        assertTrue(asset.transfer(address(treasuryBasket), 1_000e18));
+        vm.expectPartialRevert(YieldBasket.TreasuryFundingMismatch.selector);
+        treasuryBasket.completeTreasuryFunding();
+        treasuryBasket.cancelTreasuryFunding();
+
+        assertEq(treasuryBasket.managedPrincipal(), 0);
+        assertEq(treasuryBasket.unregisteredDepositAssets(), 1_000e18);
+        treasuryBasket.sweepUnregisteredDepositAsset(1_000e18);
+        assertEq(asset.balanceOf(address(vault)), 2_000e18);
+    }
+
+    function testRebasingBalanceDriftRejectsTreasuryRegistration() public {
+        MockRebasingERC20 rebasingAsset = new MockRebasingERC20();
+        SinjohTreasuryVault vault = new SinjohTreasuryVault(address(this), 1 days, address(0), 0);
+        YieldBasket treasuryBasket =
+            new YieldBasket(controller, GUARDIAN, IERC20(address(rebasingAsset)), address(vault));
+        rebasingAsset.mint(address(vault), 1_000e18);
+        treasuryBasket.prepareTreasuryFunding(500e18);
+        rebasingAsset.rebaseUp(address(vault), 1);
+        vault.transfer(address(rebasingAsset), 500e18, address(treasuryBasket));
+        vm.expectPartialRevert(YieldBasket.TreasuryFundingMismatch.selector);
+        treasuryBasket.completeTreasuryFunding();
+        assertEq(treasuryBasket.managedPrincipal(), 0);
     }
 
     function _fundAndAllocate(uint256 funded, uint128 allocated) private {

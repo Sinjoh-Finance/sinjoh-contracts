@@ -7,9 +7,6 @@ import {
     GovernorCountingSimple
 } from "@openzeppelin/contracts/governance/extensions/GovernorCountingSimple.sol";
 import {
-    GovernorProposalGuardian
-} from "@openzeppelin/contracts/governance/extensions/GovernorProposalGuardian.sol";
-import {
     GovernorSettings
 } from "@openzeppelin/contracts/governance/extensions/GovernorSettings.sol";
 import {
@@ -22,14 +19,13 @@ import {
 import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 
 /// @notice Configurable token-holder governor with mandatory timelocked execution.
-/// @dev The guardian may cancel proposals but cannot execute calls or transfer treasury assets.
+/// @dev The timelock executes successful proposals and holds governed permissions.
 contract SinjohGovernor is
     Governor,
     GovernorSettings,
     GovernorCountingSimple,
     GovernorVotesQuorumFraction,
-    GovernorTimelockControl,
-    GovernorProposalGuardian
+    GovernorTimelockControl
 {
     constructor(
         string memory name_,
@@ -38,17 +34,14 @@ contract SinjohGovernor is
         uint48 votingDelay_,
         uint32 votingPeriod_,
         uint256 proposalThreshold_,
-        uint256 quorumNumerator_,
-        address proposalGuardian_
+        uint256 quorumNumerator_
     )
         Governor(name_)
         GovernorSettings(votingDelay_, votingPeriod_, proposalThreshold_)
         GovernorVotes(votes_)
         GovernorVotesQuorumFraction(quorumNumerator_)
         GovernorTimelockControl(timelock_)
-    {
-        _setProposalGuardian(proposalGuardian_);
-    }
+    { }
 
     function state(uint256 proposalId)
         public
@@ -113,15 +106,6 @@ contract SinjohGovernor is
         bytes32 descriptionHash
     ) internal override(Governor, GovernorTimelockControl) returns (uint256) {
         return super._cancel(targets, values, calldatas, descriptionHash);
-    }
-
-    function _validateCancel(uint256 proposalId, address caller)
-        internal
-        view
-        override(Governor, GovernorProposalGuardian)
-        returns (bool)
-    {
-        return super._validateCancel(proposalId, caller);
     }
 
     function _executor()

@@ -4,8 +4,11 @@ test = "test"
 script = "script"
 out = "out"
 cache_path = "cache"
-libs = ["../sinjoh-treasury-vault/lib"]
-remappings = ["@openzeppelin/contracts/=../sinjoh-treasury-vault/lib/openzeppelin-contracts/contracts/"]
+libs = ["../sinjoh-treasury-vault/lib", "../sinjoh-treasury-vault/src"]
+remappings = [
+    "@openzeppelin/contracts/=../sinjoh-treasury-vault/lib/openzeppelin-contracts/contracts/",
+    "@sinjoh-treasury/=../sinjoh-treasury-vault/src/",
+]
 solc_version = "0.8.28"
 evm_version = "cancun"
 optimizer = true
