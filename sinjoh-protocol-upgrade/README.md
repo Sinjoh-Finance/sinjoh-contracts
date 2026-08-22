@@ -50,7 +50,8 @@ Voting delay and period use the vote source's ERC-6372 clock; the included staki
 timestamps, so those settings are measured in seconds. The proposal threshold is an absolute
 vote amount. Calculate the desired
 0.5-1% threshold from expected voting supply when deploying. Quorum is an integer percentage;
-5-15 is the recommended launch range.
+5-15 is the recommended launch range. The factory rejects zero voting delay, period, proposal
+threshold, or quorum and enforces a minimum one-hour execution timelock.
 
 ## Contracts
 
@@ -104,8 +105,10 @@ no generic governance call surface.
   An adapter must transfer the token during the same `harvest` call, the reported amount must
   equal the measured balance delta, and its configured distributor must consume that exact amount.
   Treasury funding uses a prepare/transfer/complete handshake that snapshots both the immutable
-  treasury and basket balances. Registration succeeds only when the basket rose and treasury fell
-  by the same exact prepared amount; the transfer-only vault never approves or calls the basket.
+  treasury and basket balances. Registration succeeds only when the basket rose by at least the
+  prepared amount and treasury fell by exactly that amount; excess basket tokens stay unregistered.
+  Timelocks execute those calls in one proposal, while a Joint uses its self-authorized
+  `executeBatch` so the same flow is atomic. The transfer-only vault never approves or calls the basket.
   Adapter withdrawals realize losses against managed principal. Measured value above principal is
   tracked separately from unsolicited deposit tokens and remains non-distributable until
   governance calls `realizeIdleValue`. Every principal withdrawal, realized gain, revived
@@ -114,7 +117,9 @@ no generic governance call surface.
   gain or loss; per-token realized yield remains available through `cumulativeRealizedYield`.
   Reconfiguration preserves an emergency adapter pause. Removing an adapter clears every reward
   route. For an irrecoverable fully paused adapter, governance can explicitly write off principal
-  and later recover revived shares only as non-principal value; the adapter cannot be reapproved
+  and later recover revived shares only as non-principal value. ERC-4626 positions also expose an
+  explicit lossy recovery path after write-off so a preview-non-compliant vault cannot trap the
+  position; exact share spend and asset receipt checks still apply. The adapter cannot be reapproved
   or receive a new allocation while written-off shares remain. Tokens that reach the basket
   outside a verified harvest remain excluded from realized yield and can be moved only through the
   governance-only `recoverNonDepositAsset`; unregistered deposit tokens have a distinct

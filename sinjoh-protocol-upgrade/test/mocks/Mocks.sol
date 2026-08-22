@@ -133,6 +133,25 @@ contract MockERC4626 is ERC4626 {
     constructor(IERC20 asset_) ERC20("Mock Vault Share", "MVS") ERC4626(asset_) { }
 }
 
+contract MockNonCompliantERC4626 is MockERC4626 {
+    uint16 public redeemBps = 10_000;
+
+    constructor(IERC20 asset_) MockERC4626(asset_) { }
+
+    function setRedeemBps(uint16 value) external {
+        redeemBps = value;
+    }
+
+    function redeem(uint256 shares, address receiver, address owner)
+        public
+        override
+        returns (uint256 assets)
+    {
+        assets = previewRedeem(shares) * redeemBps / 10_000;
+        _withdraw(_msgSender(), receiver, owner, assets, shares);
+    }
+}
+
 contract MockFundable is ISinjohFundable {
     mapping(address => uint256) public funded;
     bool public pullFunds = true;

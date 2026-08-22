@@ -7,7 +7,7 @@ import { ERC4626YieldAdapter } from "../src/adapters/ERC4626YieldAdapter.sol";
 import { IGovernanceController } from "../src/interfaces/IGovernanceController.sol";
 import { YieldBasket } from "../src/YieldBasket.sol";
 import { TestBase } from "./TestBase.sol";
-import { MockERC20, MockERC4626, MockFundable } from "./mocks/Mocks.sol";
+import { MockERC20, MockERC4626, MockFundable, MockNonCompliantERC4626 } from "./mocks/Mocks.sol";
 
 contract ERC4626YieldAdapterTest is TestBase {
     address private constant GUARDIAN = address(0xBEEF);
@@ -71,5 +71,53 @@ contract ERC4626YieldAdapterTest is TestBase {
         asset.approve(address(basket), 1_000e18);
         vm.expectPartialRevert(YieldBasket.InexactTransfer.selector);
         basket.fund(address(asset), 1_000e18, "");
+    }
+
+    function testWrittenOffPositionHasLossyExitWhenVaultUnderdeliversPreview() public {
+        MockNonCompliantERC4626 badVault = new MockNonCompliantERC4626(IERC20(address(asset)));
+        ERC4626YieldAdapter badAdapter = new ERC4626YieldAdapter(address(basket), badVault);
+        basket.configureAdapter(badAdapter, 10_000, 30 minutes);
+
+        asset.mint(address(this), 1_000e18);
+        asset.approve(address(basket), 1_000e18);
+        basket.fund(address(asset), 1_000e18, "");
+        uint256 shares = basket.allocate(badAdapter, 1_000e18);
+        uint256 previewedAssets = badVault.previewRedeem(shares);
+        badVault.setRedeemBps(5_000);
+
+        vm.expectPartialRevert(ERC4626YieldAdapter.NonCompliantPreview.selector);
+        basket.withdrawFromAdapter(badAdapter, shares);
+        assertEq(badVault.balanceOf(address(badAdapter)), shares);
+
+        vm.prank(GUARDIAN);
+        basket.setAdapterStatus(badAdapter, YieldBasket.AdapterStatus.FULLY_PAUSED);
+        basket.writeOffAdapter(badAdapter);
+        uint256 recovered = basket.recoverWrittenOffSharesLossy(badAdapter, shares);
+
+        assertEq(recovered, previewedAssets / 2);
+        assertEq(basket.writtenOffShares(address(badAdapter)), 0);
+        assertEq(asset.balanceOf(address(treasury)), recovered);
+        assertEq(badVault.balanceOf(address(badAdapter)), 0);
+    }
+
+    function testWrittenOffPositionCanBeClearedWhenVaultReturnsNothing() public {
+        MockNonCompliantERC4626 badVault = new MockNonCompliantERC4626(IERC20(address(asset)));
+        ERC4626YieldAdapter badAdapter = new ERC4626YieldAdapter(address(basket), badVault);
+        basket.configureAdapter(badAdapter, 10_000, 30 minutes);
+
+        asset.mint(address(this), 1_000e18);
+        asset.approve(address(basket), 1_000e18);
+        basket.fund(address(asset), 1_000e18, "");
+        uint256 shares = basket.allocate(badAdapter, 1_000e18);
+        badVault.setRedeemBps(0);
+
+        vm.prank(GUARDIAN);
+        basket.setAdapterStatus(badAdapter, YieldBasket.AdapterStatus.FULLY_PAUSED);
+        basket.writeOffAdapter(badAdapter);
+        uint256 recovered = basket.recoverWrittenOffSharesLossy(badAdapter, shares);
+
+        assertEq(recovered, 0);
+        assertEq(basket.writtenOffShares(address(badAdapter)), 0);
+        assertEq(badVault.balanceOf(address(badAdapter)), 0);
     }
 }

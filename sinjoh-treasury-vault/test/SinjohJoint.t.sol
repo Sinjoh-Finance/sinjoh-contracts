@@ -166,6 +166,65 @@ contract SinjohJointTest is TestBase {
         assertTrue(!joint.getProposal(proposalId).executed);
     }
 
+    function testBatchExecutesAtomicallyThroughOneProposal() public {
+        token.mint(address(vault), 100);
+        address[] memory targets = new address[](2);
+        uint256[] memory values = new uint256[](2);
+        bytes[] memory data = new bytes[](2);
+        targets[0] = address(vault);
+        targets[1] = address(vault);
+        data[0] = _transferCall(40);
+        data[1] = _transferCall(60);
+
+        vm.prank(SIGNER_A);
+        uint256 proposalId = joint.propose(
+            address(joint), 0, abi.encodeCall(joint.executeBatch, (targets, values, data))
+        );
+        vm.prank(SIGNER_B);
+        joint.confirm(proposalId);
+        vm.prank(SIGNER_A);
+        joint.execute(proposalId);
+
+        assertEq(token.balanceOf(RECIPIENT), 100);
+        assertEq(token.balanceOf(address(vault)), 0);
+    }
+
+    function testBatchFailureRevertsEveryCall() public {
+        token.mint(address(vault), 50);
+        address[] memory targets = new address[](2);
+        uint256[] memory values = new uint256[](2);
+        bytes[] memory data = new bytes[](2);
+        targets[0] = address(vault);
+        targets[1] = address(vault);
+        data[0] = _transferCall(40);
+        data[1] = _transferCall(20);
+
+        vm.prank(SIGNER_A);
+        uint256 proposalId = joint.propose(
+            address(joint), 0, abi.encodeCall(joint.executeBatch, (targets, values, data))
+        );
+        vm.prank(SIGNER_B);
+        joint.confirm(proposalId);
+        vm.prank(SIGNER_A);
+        vm.expectPartialRevert(SinjohJoint.ExecutionFailed.selector);
+        joint.execute(proposalId);
+
+        assertEq(token.balanceOf(RECIPIENT), 0);
+        assertEq(token.balanceOf(address(vault)), 50);
+        assertTrue(!joint.getProposal(proposalId).executed);
+    }
+
+    function testBatchRequiresSelfCall() public {
+        address[] memory targets = new address[](1);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory data = new bytes[](1);
+        targets[0] = address(vault);
+
+        vm.prank(SIGNER_A);
+        vm.expectPartialRevert(SinjohJoint.NotSelf.selector);
+        joint.executeBatch(targets, values, data);
+    }
+
     function testExpiredProposalCannotBeConfirmedOrExecuted() public {
         token.mint(address(vault), 10);
         uint256 proposalId = _proposeVaultTransfer(10);

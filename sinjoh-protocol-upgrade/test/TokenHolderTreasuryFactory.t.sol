@@ -138,6 +138,46 @@ contract TokenHolderTreasuryFactoryTest is TestBase {
         factory.createTokenHolderTreasury(address(plainToken), "Unsupported", _config());
     }
 
+    function testRejectsUnsafeGovernanceConfiguration() public {
+        TokenHolderTreasuryFactory.GovernanceConfig memory config = _config();
+
+        config.votingDelay = 0;
+        vm.expectRevert(
+            abi.encodeWithSelector(TokenHolderTreasuryFactory.InvalidVotingDelay.selector, 0)
+        );
+        factory.createTokenHolderTreasury(address(subjectToken), "Unsafe", config);
+
+        config = _config();
+        config.votingPeriod = 0;
+        vm.expectRevert(
+            abi.encodeWithSelector(TokenHolderTreasuryFactory.InvalidVotingPeriod.selector, 0)
+        );
+        factory.createTokenHolderTreasury(address(subjectToken), "Unsafe", config);
+
+        config = _config();
+        config.proposalThreshold = 0;
+        vm.expectRevert(
+            abi.encodeWithSelector(TokenHolderTreasuryFactory.InvalidProposalThreshold.selector, 0)
+        );
+        factory.createTokenHolderTreasury(address(subjectToken), "Unsafe", config);
+
+        config = _config();
+        config.quorumNumerator = 0;
+        vm.expectRevert(
+            abi.encodeWithSelector(TokenHolderTreasuryFactory.InvalidQuorumNumerator.selector, 0)
+        );
+        factory.createTokenHolderTreasury(address(subjectToken), "Unsafe", config);
+
+        config = _config();
+        config.timelockDelay = 1 hours - 1;
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TokenHolderTreasuryFactory.InvalidTimelockDelay.selector, 1 hours - 1
+            )
+        );
+        factory.createTokenHolderTreasury(address(subjectToken), "Unsafe", config);
+    }
+
     function _governorExecute(
         SinjohGovernor governor,
         address[] memory targets,

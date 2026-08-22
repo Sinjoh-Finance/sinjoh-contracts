@@ -5,12 +5,12 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import { IYieldAdapter } from "../interfaces/IYieldAdapter.sol";
+import { ILossyYieldAdapter } from "../interfaces/ILossyYieldAdapter.sol";
 
 /// @notice Basket-bound adapter for a reviewed ERC-4626 vault.
 /// @dev ERC-4626 yield compounds into the share price. It is realized as deposit asset when shares
 /// are redeemed; this adapter intentionally has no separate reward-token harvest path.
-contract ERC4626YieldAdapter is IYieldAdapter, ReentrancyGuard {
+contract ERC4626YieldAdapter is ILossyYieldAdapter, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     address public immutable basket;
@@ -73,16 +73,33 @@ contract ERC4626YieldAdapter is IYieldAdapter, ReentrancyGuard {
     }
 
     function withdraw(uint256 shares) external onlyBasket nonReentrant returns (uint256 assets) {
+        return _withdraw(shares, true);
+    }
+
+    /// @notice Redeems shares without trusting the vault's preview during written-off recovery.
+    /// @dev Only the bound basket can call this. Exact share spend and asset receipt remain checked.
+    function withdrawLossy(uint256 shares)
+        external
+        onlyBasket
+        nonReentrant
+        returns (uint256 assets)
+    {
+        return _withdraw(shares, false);
+    }
+
+    function _withdraw(uint256 shares, bool enforcePreview) private returns (uint256 assets) {
         uint256 shareBalanceBefore = vault.balanceOf(address(this));
         if (shares == 0 || shares > shareBalanceBefore) revert InvalidAmount();
-        uint256 previewedAssets = vault.previewRedeem(shares);
+        uint256 previewedAssets = enforcePreview ? vault.previewRedeem(shares) : 0;
         uint256 basketBalanceBefore = _asset.balanceOf(basket);
         assets = vault.redeem(shares, basket, address(this));
         uint256 shareBalanceAfter = vault.balanceOf(address(this));
         uint256 spentShares =
             shareBalanceBefore >= shareBalanceAfter ? shareBalanceBefore - shareBalanceAfter : 0;
         if (spentShares != shares) revert InexactTransfer(shares, spentShares);
-        if (assets < previewedAssets) revert NonCompliantPreview(previewedAssets, assets);
+        if (enforcePreview && assets < previewedAssets) {
+            revert NonCompliantPreview(previewedAssets, assets);
+        }
         uint256 basketBalanceAfter = _asset.balanceOf(basket);
         uint256 received = basketBalanceAfter >= basketBalanceBefore
             ? basketBalanceAfter - basketBalanceBefore

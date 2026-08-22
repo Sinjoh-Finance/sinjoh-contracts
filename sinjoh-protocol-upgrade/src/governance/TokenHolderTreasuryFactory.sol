@@ -12,6 +12,13 @@ import { SinjohGovernor } from "./SinjohGovernor.sol";
 /// Standard treasuries. The subject token must expose historical holder balances through IVotes.
 /// This factory does not create or modify tokens and retains no role after deployment.
 contract TokenHolderTreasuryFactory {
+    uint48 public constant MIN_VOTING_DELAY = 1;
+    uint32 public constant MIN_VOTING_PERIOD = 1;
+    uint256 public constant MIN_PROPOSAL_THRESHOLD = 1;
+    uint256 public constant MIN_QUORUM_NUMERATOR = 1;
+    uint256 public constant MAX_QUORUM_NUMERATOR = 100;
+    uint256 public constant MIN_TIMELOCK_DELAY = 1 hours;
+
     TokenHolderTimelockDeployer private immutable _timelockDeployer;
     TokenHolderGovernorDeployer private immutable _governorDeployer;
     TokenHolderVaultDeployer private immutable _vaultDeployer;
@@ -30,6 +37,11 @@ contract TokenHolderTreasuryFactory {
     mapping(address vault => address timelock) public timelockForVault;
 
     error InvalidSubjectToken(address subjectToken);
+    error InvalidVotingDelay(uint48 votingDelay);
+    error InvalidVotingPeriod(uint32 votingPeriod);
+    error InvalidProposalThreshold(uint256 proposalThreshold);
+    error InvalidQuorumNumerator(uint256 quorumNumerator);
+    error InvalidTimelockDelay(uint256 timelockDelay);
 
     event TokenHolderGovernorCreated(
         address indexed creator,
@@ -85,6 +97,7 @@ contract TokenHolderTreasuryFactory {
         string calldata governorName,
         GovernanceConfig calldata config
     ) private returns (SinjohGovernor governor, TimelockController timelock) {
+        _validateGovernanceConfig(config);
         _validateSubjectToken(subjectToken);
 
         timelock = _timelockDeployer.deploy(config.timelockDelay, address(this));
@@ -105,6 +118,27 @@ contract TokenHolderTreasuryFactory {
         emit TokenHolderGovernorCreated(
             msg.sender, subjectToken, address(governor), address(timelock)
         );
+    }
+
+    function _validateGovernanceConfig(GovernanceConfig calldata config) private pure {
+        if (config.votingDelay < MIN_VOTING_DELAY) {
+            revert InvalidVotingDelay(config.votingDelay);
+        }
+        if (config.votingPeriod < MIN_VOTING_PERIOD) {
+            revert InvalidVotingPeriod(config.votingPeriod);
+        }
+        if (config.proposalThreshold < MIN_PROPOSAL_THRESHOLD) {
+            revert InvalidProposalThreshold(config.proposalThreshold);
+        }
+        if (
+            config.quorumNumerator < MIN_QUORUM_NUMERATOR
+                || config.quorumNumerator > MAX_QUORUM_NUMERATOR
+        ) {
+            revert InvalidQuorumNumerator(config.quorumNumerator);
+        }
+        if (config.timelockDelay < MIN_TIMELOCK_DELAY) {
+            revert InvalidTimelockDelay(config.timelockDelay);
+        }
     }
 
     function _validateSubjectToken(address subjectToken) private view {

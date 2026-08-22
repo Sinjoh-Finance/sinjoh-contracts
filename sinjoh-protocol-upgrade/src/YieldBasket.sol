@@ -8,6 +8,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { Governed } from "./governance/Governed.sol";
 import { IGovernanceController } from "./interfaces/IGovernanceController.sol";
 import { ISinjohFundable } from "./interfaces/ISinjohFundable.sol";
+import { ILossyYieldAdapter } from "./interfaces/ILossyYieldAdapter.sol";
 import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
 import { ProtocolAccounting } from "./libraries/ProtocolAccounting.sol";
 
@@ -189,6 +190,7 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
     }
 
     /// @notice Registers a previously prepared exact treasury-to-basket token transfer.
+    /// @dev Extra tokens sent to the basket remain unregistered and cannot stall completion.
     function completeTreasuryFunding() external onlyGovernance nonReentrant whenNotPaused {
         PendingTreasuryFunding memory pending = pendingTreasuryFunding;
         if (pending.amount == 0) revert NoTreasuryFundingPrepared();
@@ -200,7 +202,7 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
         uint256 treasuryDecrease = pending.treasuryBalanceBefore >= treasuryBalance
             ? pending.treasuryBalanceBefore - treasuryBalance
             : 0;
-        if (basketIncrease != pending.amount || treasuryDecrease != pending.amount) {
+        if (basketIncrease < pending.amount || treasuryDecrease != pending.amount) {
             revert TreasuryFundingMismatch(pending.amount, basketIncrease, treasuryDecrease);
         }
         _requireAccountedAssets(pending.amount);
@@ -425,6 +427,28 @@ contract YieldBasket is Governed, ReentrancyGuard, ISinjohFundable {
         assets = adapter.withdraw(shares);
         uint256 received = depositAsset.balanceOf(address(this)) - beforeBalance;
         if (assets == 0 || received != assets) revert InexactTransfer(assets, received);
+        writtenOffShares[adapterAddress] = available - shares;
+        ProtocolAccounting.sendExact(depositAsset, treasury, assets);
+        emit WrittenOffSharesRecovered(adapterAddress, shares, assets);
+    }
+
+    /// @notice Recovers a written-off position even when an adapter's vault underdelivers preview.
+    /// @dev Principal was already fully written off. The adapter must still prove the exact shares
+    /// spent and exact assets delivered, and all recovered value is forced to the treasury.
+    function recoverWrittenOffSharesLossy(ILossyYieldAdapter adapter, uint256 shares)
+        external
+        onlyGovernance
+        nonReentrant
+        whenNoTreasuryFundingPending
+        returns (uint256 assets)
+    {
+        address adapterAddress = address(adapter);
+        uint256 available = writtenOffShares[adapterAddress];
+        if (shares == 0 || shares > available) revert InvalidAmount();
+        uint256 beforeBalance = depositAsset.balanceOf(address(this));
+        assets = adapter.withdrawLossy(shares);
+        uint256 received = depositAsset.balanceOf(address(this)) - beforeBalance;
+        if (received != assets) revert InexactTransfer(assets, received);
         writtenOffShares[adapterAddress] = available - shares;
         ProtocolAccounting.sendExact(depositAsset, treasury, assets);
         emit WrittenOffSharesRecovered(adapterAddress, shares, assets);

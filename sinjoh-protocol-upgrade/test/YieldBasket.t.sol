@@ -287,24 +287,23 @@ contract YieldBasketTest is TestBase {
         assertEq(treasuryBasket.idlePrincipal(), 0);
     }
 
-    function testUnsolicitedDepositCannotSatisfyTreasuryFundingSnapshot() public {
+    function testUnsolicitedDepositRemainsUnregisteredWithoutStallingTreasuryFunding() public {
         SinjohTreasuryVault vault = new SinjohTreasuryVault(address(this), 1 days, address(0), 0);
         YieldBasket treasuryBasket =
             new YieldBasket(controller, GUARDIAN, IERC20(address(asset)), address(vault));
         asset.mint(address(vault), 1_000e18);
-        asset.mint(ALICE, 1_000e18);
+        asset.mint(ALICE, 1);
 
         treasuryBasket.prepareTreasuryFunding(1_000e18);
         vm.prank(ALICE);
-        assertTrue(asset.transfer(address(treasuryBasket), 1_000e18));
-        vm.expectPartialRevert(YieldBasket.TreasuryFundingMismatch.selector);
+        assertTrue(asset.transfer(address(treasuryBasket), 1));
+        vault.transfer(address(asset), 1_000e18, address(treasuryBasket));
         treasuryBasket.completeTreasuryFunding();
-        treasuryBasket.cancelTreasuryFunding();
 
-        assertEq(treasuryBasket.managedPrincipal(), 0);
-        assertEq(treasuryBasket.unregisteredDepositAssets(), 1_000e18);
-        treasuryBasket.sweepUnregisteredDepositAsset(1_000e18);
-        assertEq(asset.balanceOf(address(vault)), 2_000e18);
+        assertEq(treasuryBasket.managedPrincipal(), 1_000e18);
+        assertEq(treasuryBasket.unregisteredDepositAssets(), 1);
+        treasuryBasket.sweepUnregisteredDepositAsset(1);
+        assertEq(asset.balanceOf(address(vault)), 1);
     }
 
     function testRebasingBalanceDriftRejectsTreasuryRegistration() public {

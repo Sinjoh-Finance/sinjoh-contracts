@@ -157,17 +157,20 @@ ERC-4626 gains, revived write-off recoveries, and recovered tokens have no confi
 
 Because the vault never approves tokens or executes basket calldata, funding uses three governed
 steps: prepare an exact amount, transfer that amount from the vault, then complete registration.
-Preparation snapshots both balances; completion requires the basket to have increased and the
-treasury to have decreased by the same exact amount. Unsolicited deposit tokens remain in a
-separate unregistered bucket and can only be swept back to treasury. Timelock governance should
-batch all three steps atomically. Joint deployments execute them as separate proposals and must
-avoid any other treasury movement between the prepare and complete steps; interference produces a
-mismatch and requires cancellation/return, never partial registration.
+Preparation snapshots both balances; completion requires the basket to have increased by at least
+the prepared amount and the treasury to have decreased by exactly that amount. Any excess deposit
+tokens remain in a separate unregistered bucket and can only be swept back to treasury. Timelock
+governance batches all three calls in one proposal. Joint governance proposes one self-call to
+`executeBatch`, which executes the same three calls atomically and reverts the entire batch if any
+call fails. No externally interruptible funding window is required for either governance model.
 
 Each adapter is immutable and basket-bound. The manifest pins the basket's deterministic CREATE
 address before adapters are deployed, then the basket deployment and every adapter binding are
 read back before activation calldata is handed to governance. Adapter loss is limited to allocated
-basket principal and cannot expand the vault's transfer-only authority surface.
+basket principal and cannot expand the vault's transfer-only authority surface. Once governance
+fully pauses and writes off an ERC-4626 position, it may use the explicit lossy recovery path if
+the vault's redemption result no longer satisfies its preview; exact shares spent and assets
+received are still measured, and recovered value can only return to treasury.
 
 ---
 

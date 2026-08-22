@@ -48,6 +48,8 @@ contract SinjohJoint is ReentrancyGuard {
     error NotConfirmed(uint256 proposalId, address signer);
     error ThresholdNotMet(uint256 proposalId, uint256 confirmations);
     error ExecutionFailed(uint256 proposalId);
+    error InvalidBatch();
+    error BatchCallFailed(uint256 index);
 
     event Deposited(address indexed sender, uint256 amount);
     event ProposalCreated(
@@ -61,6 +63,7 @@ contract SinjohJoint is ReentrancyGuard {
     event ProposalConfirmed(uint256 indexed proposalId, address indexed signer);
     event ConfirmationRevoked(uint256 indexed proposalId, address indexed signer);
     event ProposalExecuted(uint256 indexed proposalId, address indexed executor);
+    event BatchCallExecuted(uint256 indexed index, address indexed target, uint256 value);
     event SignerReplaced(address indexed previousSigner, address indexed newSigner);
 
     modifier onlySigner() {
@@ -160,6 +163,29 @@ contract SinjohJoint is ReentrancyGuard {
         if (!success) revert ExecutionFailed(proposalId);
 
         emit ProposalExecuted(proposalId, msg.sender);
+    }
+
+    /// @notice Atomically executes multiple calls through one approved proposal.
+    /// @dev Callable only by proposing a call from this Joint to itself. Any failed call reverts
+    /// the entire batch, including every earlier call in the same transaction.
+    function executeBatch(
+        address[] calldata targets,
+        uint256[] calldata values,
+        bytes[] calldata data
+    ) external {
+        if (msg.sender != address(this)) revert NotSelf(msg.sender);
+        uint256 length = targets.length;
+        if (length == 0 || length != values.length || length != data.length) {
+            revert InvalidBatch();
+        }
+
+        for (uint256 i; i < length; ++i) {
+            address target = targets[i];
+            if (target == address(0)) revert InvalidTarget(target);
+            (bool success,) = target.call{ value: values[i] }(data[i]);
+            if (!success) revert BatchCallFailed(i);
+            emit BatchCallExecuted(i, target, values[i]);
+        }
     }
 
     /// @notice Swaps one signer for another; callable only through an executed proposal.

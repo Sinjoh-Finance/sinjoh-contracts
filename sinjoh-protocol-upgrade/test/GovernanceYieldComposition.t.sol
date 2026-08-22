@@ -48,15 +48,21 @@ contract GovernanceYieldCompositionTest is TestBase {
         );
 
         asset.mint(address(treasury), 1_000e18);
-        _jointExecute(
-            joint, address(basket), abi.encodeCall(basket.prepareTreasuryFunding, (1_000e18))
-        );
+        address[] memory fundingTargets = new address[](3);
+        uint256[] memory fundingValues = new uint256[](3);
+        bytes[] memory fundingData = new bytes[](3);
+        fundingTargets[0] = address(basket);
+        fundingData[0] = abi.encodeCall(basket.prepareTreasuryFunding, (1_000e18));
+        fundingTargets[1] = address(treasury);
+        fundingData[1] =
+            abi.encodeCall(treasury.transfer, (address(asset), 1_000e18, address(basket)));
+        fundingTargets[2] = address(basket);
+        fundingData[2] = abi.encodeCall(basket.completeTreasuryFunding, ());
         _jointExecute(
             joint,
-            address(treasury),
-            abi.encodeCall(treasury.transfer, (address(asset), 1_000e18, address(basket)))
+            address(joint),
+            abi.encodeCall(joint.executeBatch, (fundingTargets, fundingValues, fundingData))
         );
-        _jointExecute(joint, address(basket), abi.encodeCall(basket.completeTreasuryFunding, ()));
         _jointExecute(
             joint, address(basket), abi.encodeCall(basket.allocate, (adapter, uint128(1_000e18)))
         );
