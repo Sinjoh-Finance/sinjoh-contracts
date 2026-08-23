@@ -23,9 +23,11 @@ Vault being enabled.
 The clock is timestamp-based. Parameters and vote source are immutable in the first release.
 Changing governance rules requires a new separately audited deployment.
 
-Using `referenceSupply` keeps staked governance launchable before tokens are staked. A proposer
+Using `referenceSupply` keeps staked governance launchable before tokens are staked. The deployment
+must prove that the supplied value equals the subject token's immutable `initialSupply`. A proposer
 must hold enough voting power from the selected source at `clock() - 1` to meet the absolute
-threshold. Quorum remains a percentage of the source's historical eligible supply.
+threshold, rounded up to one raw token unit when necessary. Quorum remains a percentage of the
+source's historical eligible supply.
 
 ## 3. Vote sources
 

@@ -14,7 +14,7 @@ OpenZeppelin Contracts 5.6.1 is imported from the repository's pinned vendored d
 | `ProjectVotesToken` | implemented |
 | Staking + PoS NFT | implemented |
 | Multisig Accounts | implemented |
-| Token Governance | pending |
+| Token Governance | implemented |
 | Registry + Treasury Vaults | pending |
 | Router | pending |
 | Airdrop | pending |
@@ -30,3 +30,9 @@ forge fmt --check
 forge build --sizes
 forge test
 ```
+
+Token Governance is deployed atomically as one `ProjectTimelockV2` that creates and permanently
+binds its `ProjectGovernorV2`. The Governor is the sole proposer/canceller, execution is open only
+for mature scheduled operations, and role/delay mutation is disabled. Controlled modules authorize
+the Timelock address directly. Liquid voting reads `ProjectVotesToken`; staked voting reads
+`ProjectStakingPoolV2`. Neither path requires delegation.

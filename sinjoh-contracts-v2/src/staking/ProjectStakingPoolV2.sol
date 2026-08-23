@@ -9,6 +9,7 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
 import { Checkpoints } from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
 import { Time } from "@openzeppelin/contracts/utils/types/Time.sol";
 import { IProjectControlled } from "../interfaces/IProjectControlled.sol";
+import { IProjectStakedVoteSource } from "../interfaces/IProjectStakedVoteSource.sol";
 import { IProjectTokenIdentity } from "../interfaces/IProjectTokenIdentity.sol";
 import { IProjectStakingPositionSource } from "../interfaces/IProjectStakingPositionSource.sol";
 import { IProjectStakingTransferReceiver } from "../interfaces/IProjectStakingTransferReceiver.sol";
@@ -22,6 +23,8 @@ import { ProjectPoSNFT } from "./ProjectPoSNFT.sol";
 contract ProjectStakingPoolV2 is
     IERC5805,
     IProjectControlled,
+    IProjectTokenIdentity,
+    IProjectStakedVoteSource,
     IProjectStakingPositionSource,
     IProjectStakingTransferReceiver,
     ReentrancyGuard
@@ -39,9 +42,9 @@ contract ProjectStakingPoolV2 is
         uint64 unlockAt;
     }
 
-    address public immutable registry;
-    IERC20 public immutable subject;
-    bytes32 public immutable override projectId;
+    address public immutable override registry;
+    IERC20 public immutable override subject;
+    bytes32 public immutable override(IProjectControlled, IProjectTokenIdentity) projectId;
     address public immutable treasury;
     address public immutable override controller;
     address public immutable guardian;

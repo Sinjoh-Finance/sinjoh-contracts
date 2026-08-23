@@ -7,6 +7,8 @@ import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/ERC2
 import { IERC5805 } from "@openzeppelin/contracts/interfaces/IERC5805.sol";
 import { Checkpoints } from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
 import { Time } from "@openzeppelin/contracts/utils/types/Time.sol";
+import { IProjectReferenceSupply } from "../interfaces/IProjectReferenceSupply.sol";
+import { IProjectTokenIdentity } from "../interfaces/IProjectTokenIdentity.sol";
 import { ProjectIds } from "../libraries/ProjectIds.sol";
 import { SinjohV2Constants } from "../libraries/SinjohV2Constants.sol";
 
@@ -14,7 +16,14 @@ import { SinjohV2Constants } from "../libraries/SinjohV2Constants.sol";
 /// @dev Voting is never delegated. Immutable protocol-custody exclusions contribute neither
 /// account votes nor eligible voting supply. The zero address, this token, and the canonical burn
 /// address are always excluded without launcher configuration.
-contract ProjectVotesToken is ERC20, ERC20Burnable, ERC20Permit, IERC5805 {
+contract ProjectVotesToken is
+    ERC20,
+    ERC20Burnable,
+    ERC20Permit,
+    IERC5805,
+    IProjectTokenIdentity,
+    IProjectReferenceSupply
+{
     using Checkpoints for Checkpoints.Trace256;
 
     uint256 public constant MAX_ADDITIONAL_VOTING_EXCLUSIONS = 61;
@@ -25,10 +34,10 @@ contract ProjectVotesToken is ERC20, ERC20Burnable, ERC20Permit, IERC5805 {
         uint256 amount;
     }
 
-    address public immutable registry;
+    address public immutable override registry;
     address public immutable creator;
-    bytes32 public immutable projectId;
-    uint256 public immutable initialSupply;
+    bytes32 public immutable override projectId;
+    uint256 public immutable override initialSupply;
 
     uint256 private _eligibleVotingSupply;
     mapping(address account => bool excluded) private _additionalVotingExclusion;
