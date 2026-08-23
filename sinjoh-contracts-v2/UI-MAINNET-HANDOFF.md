@@ -1,9 +1,13 @@
 # Sinjoh Contracts V2 mainnet UI handoff
 
-Status: **deployed and verified, not promoted into production consumers**  
-Chain: Robinhood Chain mainnet (`4663`)  
-Deployment date: `2026-08-23`  
-Source commit: `ddec345432e464bf87e8ab4f463132c67282cdca`  
+Status: **deployed and verified, not promoted into production consumers**
+
+Chain: Robinhood Chain mainnet (`4663`)
+
+Deployment date: `2026-08-23`
+
+Source commit: `ddec345432e464bf87e8ab4f463132c67282cdca`
+
 Deployment blocks: `44346587` through `44346591`
 
 This is the handoff for the comprehensive pre-wiring sweep. It does not authorize a production
@@ -35,7 +39,8 @@ node script/verify-deployed-release.mjs deployments/project-launcher-v2-4663-dde
 | `ProjectRegistryV2` | `0x608f4951AE73976EcEfB15a409B72d84e367F340` | `0x1acba80386751647f010d4e227746ddc8f61ed12112de17d43252e6598e1142d` | `0x93281bb6dfdfaa69991371bc360311f56cdcd019537720f77afbb5941fab8ac7` |
 | `ProjectLaunchDeployerV2` | `0x62e2bb69C72c3baa72ddf9CeD4AdfC664Fa10dFa` | `0xdc8db2c6c2cae04a410ce9d925f74e04e336f134871e376aaa56dc9e62b44d3d` | `0x96193f8d3dd8d884cfa07641f8aae732de5baa71bca003d16dda335ce444bab2` |
 
-Explorer base: `https://robinhoodchain.blockscout.com`  
+Explorer base: `https://robinhoodchain.blockscout.com`
+
 Sourcify base: `https://repo.sourcify.dev/4663`
 
 The browser should transact only with the Launcher. The deployment engine and creation-code stores
