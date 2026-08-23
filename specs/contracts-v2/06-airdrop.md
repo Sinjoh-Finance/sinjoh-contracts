@@ -21,8 +21,9 @@ Weight is the eligible project-token wallet balance at the epoch snapshot.
 ### Staker mode
 
 Weight is the wallet's aggregate active stake represented by PoS NFTs at the epoch snapshot. The
-worker reconstructs ownership from staking/NFT events and verifies totals against the staking
-pool's historical checkpoints.
+staking pool's aggregate historical checkpoints provide the canonical on-chain weight directly;
+the worker reconstructs ownership from staking/NFT events to build and independently audit the
+distribution artifact.
 
 For both modes:
 
@@ -47,19 +48,26 @@ Every epoch excludes:
   Funding Bands, Basket vaults, and other predicted protocol custody addresses;
 - Pons locker `0xda4bCee76B29EFEc9697Fcf663601c2042043968`.
 
-The effective set is immutable for the Airdrop deployment and included in its configuration hash.
+The effective set is immutable for the Airdrop deployment, enumerable on-chain, and included in
+its configuration hash. Zero, the Airdrop, subject token, burn address, Pons locker, Treasury, and
+staked eligibility source (when present) are automatic exclusions; the launcher supplies the
+remaining sorted predicted custody addresses.
 In staker mode, protocol contracts cannot own eligible PoS NFTs unless they are explicitly allowed
 at launch; the Treasury is excluded by default.
 
 ## 4. Why snapshots use a committed tree
 
 ERC-20 and ERC-721 contracts cannot enumerate all historical owners on-chain. A reference indexer
-therefore reconstructs the deterministic snapshot and an immutable attestor commits an independent,
-direction-aware Merkle-sum root for each epoch.
+therefore reconstructs the deterministic snapshot and an immutable attestor signs an EIP-712
+commitment that any keeper may relay. Each direction-aware Merkle node commits its eligible weight
+sum, entitlement sum, and subtree leaf count.
 
-The attestor can misweight or omit a wallet. It cannot commit more epoch entitlement than the
-Airdrop has funded, replace an epoch root, pay an excluded address, redirect a proof to another
-recipient, or make total payments exceed liabilities.
+Every pushed leaf is checked against `getPastVotes(holder, snapshotTime)`, and the proof's root
+weight must equal `getPastTotalSupply(snapshotTime)` after immutable exclusions. The leaf amount
+must equal the on-chain proportional formula. The attestor therefore cannot misweight or omit an
+eligible wallet, commit more entitlement than funded, replace an epoch root, pay an excluded
+address, redirect a proof, or make total payments exceed liabilities. Its remaining role is to
+authorize the complete published artifact and its block/time snapshot binding.
 
 The UI/operator must publish the full leaf/proof artifact for independent recomputation. Replacing
 the attestor requires a new Airdrop deployment; project governance cannot silently rotate it.
@@ -85,7 +93,8 @@ The first funding fixes:
 - eligibility mode and immutable exclusion hash;
 - division-dust destination (Treasury, next epoch, or original funder).
 
-Later funding must match the canonical account config hash.
+Later funding may provide the same canonical config or empty config to reuse the already-fixed
+account configuration without repeated application-side encoding.
 
 ## 6. Epoch commitments
 
@@ -96,23 +105,28 @@ struct EpochCommitment {
     uint64 epochId;
     uint64 snapshotBlock;
     bytes32 snapshotBlockHash;
+    uint48 snapshotTime;
     bytes32 rootHash;
     uint256 rootSum;
     uint256 epochAmount;
     uint256 totalEligibleWeight;
+    uint32 leafCount;
+    bytes32 artifactHash;
 }
 ```
 
 Rules:
 
 1. epoch IDs and snapshot blocks strictly increase;
-2. the chain-specific L2 block number/hash interface validates snapshot finality;
+2. the first release validates finality and the signed block hash through the EVM block-hash
+   window; the signed timestamp selects the existing timestamp checkpoint source;
 3. commitment is within the chain's verifiable block-hash window;
 4. root hash/sum, epoch amount, and total eligible weight are nonzero;
 5. epoch amount is no greater than uncommitted funded balance;
 6. root sum is no greater than `epochAmount`; any difference is explicit integer-division dust;
 7. a root is immutable after commitment;
-8. the same snapshot cannot fund two epochs for the same account unless their assets/accounts differ.
+8. the same snapshot cannot fund two epochs for the same account unless their assets/accounts differ;
+9. the root weight sum equals the on-chain total eligible weight after exclusions.
 
 If eligible weight is zero, no epoch is committed; funding rolls forward.
 
@@ -127,17 +141,21 @@ function push(
 ) external;
 ```
 
-Anyone may submit a bounded batch. Each leaf commits `(accountId, epochId, snapshotBlock, holder,
-amount)`. The contract verifies the independent epoch proof and pays that holder at most once for
-the epoch.
+Anyone may submit a bounded batch. Each leaf commits `(accountId, epochId, snapshotBlock,
+snapshotTime, holder, weight, amount)`. The contract verifies the historical holder weight,
+proportional entitlement, direction, sibling weight sums, sibling amount sums, sibling leaf counts,
+and independent epoch root, then pays that holder at most once for the epoch.
 
-Transfer failure records the holder's exact retryable credit and continues the batch through an
-isolated self-call. Anyone may retry, but payment can only reach the proven holder. Payment requires
-no signature or wallet transaction from the holder.
+Transfer failure records the holder's exact retryable credit and continues the batch through a
+gas-bounded isolated self-call with bounded revert-data capture. Anyone may retry, but payment can
+only reach the proven holder. Payment requires no signature or wallet transaction from the holder.
 
-Processing a valid leaf increments `settledEntitlement` exactly once whether its transfer succeeds
-or becomes a retryable credit. An epoch can finalize only when `settledEntitlement == rootSum`.
+Processing a valid leaf increments `settledEntitlement` and `settledLeafCount` exactly once whether
+its transfer succeeds or becomes a retryable credit. An epoch can finalize only when both the
+committed leaf count and `rootSum` are fully settled.
 The finalizer sends only `epochAmount - rootSum` integer-division dust to the configured destination.
+A rejecting Treasury/funder destination receives an exact retryable credit instead of blocking
+finalization.
 A keeper cannot skip a leaf and sweep its entitlement. Retryable credits remain payable after
 finalization, and finalization does not affect any later independent epoch.
 
@@ -160,6 +178,11 @@ balance(airdrop, asset) >=
   + protocolOwed(asset)
 ```
 
+Per-account and per-epoch status views return all configuration, funding, committed work,
+retryable work, leaf progress, and finalization state in one call. Raw un-attributed transfers are
+reported as surplus and may be recovered permissionlessly only to the immutable Treasury (or the
+creator when no Treasury exists); they never become an arbitrary caller's funding account.
+
 Events:
 
 - `AccountConfigured(accountId, funder, asset, mode, configHash)`;
@@ -168,6 +191,7 @@ Events:
 - `PaymentSucceeded(accountId, epochId, holder, amount)`;
 - `PaymentDeferred(accountId, epochId, holder, amount, reasonHash)`;
 - `CreditDelivered(holder, asset, amount)`;
+- `DustDeferred(accountId, epochId, destination, asset, amount, reasonHash)`;
 - `EpochFinalized(accountId, epochId, divisionDust, destination)`.
 
 ## 10. Required worker checks
@@ -176,8 +200,8 @@ Events:
 2. verify snapshot hashes through at least two independent RPC endpoints;
 3. cross-check holder-mode supply or staker-mode total against on-chain historical values;
 4. apply the immutable complete exclusion set;
-5. sort unique holders and compute every nonzero raw-unit proportional amount with checked
-   arithmetic;
+5. sort every unique positive-weight holder, including a zero-entitlement leaf when integer
+   flooring produces zero, and compute proportional amounts with checked arithmetic;
 6. publish complete leaves/proofs and a deterministic artifact hash;
 7. push every nonzero leaf and retry transfer failures;
 8. reconcile aggregate payments against on-chain liabilities before finalization.
@@ -193,7 +217,8 @@ Events:
 6. Holders receive pushed payments without signatures or claim transactions.
 7. A reverting recipient cannot block other recipients and retains an exact retryable credit.
 8. A falsified weight, sibling sum, direction, account, epoch, or recipient proof reverts.
-9. An attestor cannot commit entitlements above account funding or replace a committed root.
+9. An attestor cannot change a checkpointed weight, omit positive eligible weight, commit
+   entitlements above account funding, or replace a committed root.
 10. The 1% service fee is correct on cumulative gross funding despite split deposits.
 11. Basket harvest integration creates the correct holder/staker account and cadence.
 12. An epoch cannot finalize until every committed leaf is paid or converted into the proven

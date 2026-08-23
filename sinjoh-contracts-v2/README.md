@@ -18,7 +18,7 @@ OpenZeppelin Contracts 5.6.1 is imported from the repository's pinned vendored d
 | Treasury Vaults | implemented |
 | Registry | implemented |
 | Router | implemented |
-| Airdrop | pending |
+| Airdrop | implemented |
 | Basket | pending |
 | Funding Bands | pending |
 | Raffle/Liquidity v2 binding | pending |
@@ -54,3 +54,9 @@ remainder, and executes constructor-initialized or governance-versioned typed ro
 allocation prevents micro-batch bias; failed and paused shares remain exact versioned escrow for
 permissionless retry or governance re-keying into an active same-asset action. Its work/action and
 approval views are designed for direct keeper and frontend consumption.
+
+`ProjectAirdropV2` creates immutable per-funder reward accounts and pushes holder- or staker-mode
+payments without recipient claims. EIP-712 epoch commitments are permissionlessly relayed, while
+on-chain checkpoints and direction-aware weight/amount Merkle sums verify every proportional leaf.
+Failed recipients and dust destinations become exact retryable credits; one-call account/epoch
+status and proof/hash helpers support frontends, workers, and independent artifact verification.
