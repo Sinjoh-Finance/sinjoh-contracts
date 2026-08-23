@@ -20,7 +20,7 @@ OpenZeppelin Contracts 5.6.1 is imported from the repository's pinned vendored d
 | Router | implemented |
 | Airdrop | implemented |
 | Basket | implemented |
-| Funding Bands | pending |
+| Funding Bands | implemented |
 | Raffle/Liquidity v2 binding | pending |
 | Launcher | pending |
 
@@ -68,3 +68,12 @@ delivery remains exactly retryable. Optional governance updates perform an atomi
 rebalance. Principal can leave only through resumable NFT burn settlement, with an optional exact
 project-token burn price and in-kind tax. The per-Basket Vault is a deterministic clone of one
 audited implementation so the launch is both address-predictable and EVM-size compliant.
+
+`ProjectFundingBandsV2` lets the project controller atomically commit Treasury-held project tokens
+to post-launch market-cap bands whenever the current verified cap is below a band's lower bound.
+It holds the canonical position NFT, requires an advancing sustained-price observation before
+permissionless settlement, charges the cumulative 1% quote fee exactly once, and delivers through
+seven typed destinations. Failed delivery remains fully backed and retryable; governance recovery
+can only select another allowed same-project destination. Fixed reference supply prevents token
+mints or burns from moving band boundaries, while proof-approved guards and adapters keep AMM and
+oracle complexity out of the creator flow.

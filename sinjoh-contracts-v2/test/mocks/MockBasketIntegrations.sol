@@ -45,6 +45,7 @@ contract MockBasketModule is IProjectModule, IProjectFundable, IERC721Receiver {
     address public immutable eligibilitySource;
     bool public failFunding;
     mapping(address asset => uint256 amount) public funded;
+    mapping(address asset => uint256 amount) public basketRouted;
 
     error ForcedFailure();
 
@@ -92,6 +93,17 @@ contract MockBasketModule is IProjectModule, IProjectFundable, IERC721Receiver {
         }
         funded[asset] += amount;
         return amount;
+    }
+
+    function deposit(address asset, uint256 amount, bool routeToBasket) external {
+        IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
+        funded[asset] += amount;
+        if (routeToBasket) basketRouted[asset] += amount;
+    }
+
+    function depositNative(bool routeToBasket) external payable {
+        funded[address(0)] += msg.value;
+        if (routeToBasket) basketRouted[address(0)] += msg.value;
     }
 
     function onERC721Received(address, address, uint256, bytes calldata)

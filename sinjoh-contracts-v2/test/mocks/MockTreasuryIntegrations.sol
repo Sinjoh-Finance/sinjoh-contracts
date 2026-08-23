@@ -64,6 +64,19 @@ contract MockProjectController is IProjectControlled {
         if (!success) assembly ("memory-safe") { revert(add(returned, 32), mload(returned)) }
         return returned;
     }
+
+    function executeBatch(address[] calldata targets, bytes[] calldata data)
+        external
+        returns (bytes[] memory results)
+    {
+        require(targets.length == data.length, "length");
+        results = new bytes[](targets.length);
+        for (uint256 i; i < targets.length; ++i) {
+            (bool success, bytes memory returned) = targets[i].call(data[i]);
+            if (!success) assembly ("memory-safe") { revert(add(returned, 32), mload(returned)) }
+            results[i] = returned;
+        }
+    }
 }
 
     contract MockProjectPriceGuard is IProjectPriceGuard {
