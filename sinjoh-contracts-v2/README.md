@@ -15,7 +15,8 @@ OpenZeppelin Contracts 5.6.1 is imported from the repository's pinned vendored d
 | Staking + PoS NFT | implemented |
 | Multisig Accounts | implemented |
 | Token Governance | implemented |
-| Registry + Treasury Vaults | pending |
+| Treasury Vaults | implemented |
+| Registry | pending |
 | Router | pending |
 | Airdrop | pending |
 | Basket | pending |
@@ -36,3 +37,9 @@ binds its `ProjectGovernorV2`. The Governor is the sole proposer/canceller, exec
 for mature scheduled operations, and role/delay mutation is disabled. Controlled modules authorize
 the Timelock address directly. Liquid voting reads `ProjectVotesToken`; staked voting reads
 `ProjectStakingPoolV2`. Neither path requires delegation.
+
+`ProjectTreasuryVaultV2` uses the same controller ABI with either independent governance model. It
+provides exact native/ERC-20 accounting, guarded proof-approved swaps, optional policy-based Basket
+reservations with permissionless keeper execution, and typed Basket NFT management without a
+generic arbitrary-call surface. Frontends and keepers can read complete route status and verify an
+exact swap approval on-chain.

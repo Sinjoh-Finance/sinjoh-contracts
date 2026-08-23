@@ -62,7 +62,8 @@ function swap(
     uint256 amountIn,
     uint256 callerMinOut,
     bytes calldata routeData,
-    bytes calldata guardData
+    bytes calldata guardData,
+    bytes32[] calldata approvalProof
 ) external onlyGovernance returns (uint256 amountOut);
 ```
 
@@ -73,6 +74,11 @@ mismatch. Swap output stays in the Treasury.
 
 The Treasury cannot call an unapproved DEX, lend funds, grant a standing allowance, or forward
 arbitrary calldata.
+
+`swapApprovalLeaf(...)` gives tooling the canonical domain-separated approval leaf, while
+`isSwapApproved(..., approvalProof)` lets a frontend validate an exact integration without
+reproducing Merkle verification logic. The leaf binds the chain, project, adapter and guard
+addresses and runtime code hashes, input/output assets, and route hash.
 
 ## 6. Automatic basket routing
 
@@ -115,6 +121,10 @@ The Treasury implements ERC-721 receiving and only accepts registered Basket NFT
 - pay the configured project-token burn price from Treasury balance;
 - receive all unlocked basket assets net of burn tax.
 
+Transferring the active routed Basket NFT or beginning its burn atomically disables that route and
+releases its unexecuted reservations. This prevents an obsolete route from making Treasury funds
+appear stuck.
+
 These are typed operations against the registered Basket Manager. The Treasury cannot invoke an
 arbitrary method on an NFT contract.
 
@@ -142,7 +152,8 @@ Events:
 - `BasketNftReceived/Transferred/Burned(tokenId, ...)`.
 
 Views return available/reserved balance by asset, active basket policy, pending keeper work,
-registered Basket NFTs, and approved swap integrations.
+registered Basket NFTs, and approved swap integrations. `basketRouteStatus(asset)` returns the
+complete keeper state for one asset in a single call.
 
 ## 10. Invariants
 
