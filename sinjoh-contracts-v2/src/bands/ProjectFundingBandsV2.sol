@@ -16,7 +16,10 @@ import {
     FundingBandDestination,
     FundingBandObservation,
     FundingBandState,
-    FundingBandSwapConfig
+    FundingBandSwapConfig,
+    FundingBandsDeploymentConfig,
+    FundingBandsMarketConfig,
+    FundingBandsProjectConfig
 } from "./FundingBandTypes.sol";
 import { IFundingBandMarketCapGuard } from "../interfaces/IFundingBandMarketCapGuard.sol";
 import { IFundingBandPositionAdapter } from "../interfaces/IFundingBandPositionAdapter.sol";
@@ -217,126 +220,137 @@ contract ProjectFundingBandsV2 is
         _;
     }
 
-    constructor(
-        address registry_,
-        address subject_,
-        address creator_,
-        address controller_,
-        address treasury_,
-        address router_,
-        address airdrop_,
-        address raffle_,
-        address protocolFeeRecipient_,
-        address canonicalPool_,
-        address quoteAsset_,
-        uint256 referenceSupply_,
-        bytes32 integrationApprovalRoot_,
-        address marketCapGuard_,
-        address positionAdapter_,
-        uint48 confirmationPeriod_,
-        uint48 maximumObservationAge_,
-        bytes32[] memory integrationApprovalProof
-    ) {
-        if (registry_.code.length == 0) {
-            revert InvalidRegistry(registry_);
-        }
-        if (subject_.code.length == 0) revert InvalidSubject(subject_);
-        if (creator_ == address(0) || creator_ == BURN_ADDRESS) revert InvalidCreator(creator_);
-        if (controller_.code.length == 0 || controller_ == BURN_ADDRESS) {
-            revert InvalidController(controller_);
-        }
-        if (
-            protocolFeeRecipient_ == address(0) || protocolFeeRecipient_ == BURN_ADDRESS
-                || protocolFeeRecipient_ == address(this)
-        ) revert InvalidFeeRecipient(protocolFeeRecipient_);
-        if (canonicalPool_.code.length == 0) revert InvalidCanonicalPool(canonicalPool_);
-        if (quoteAsset_.code.length == 0 || quoteAsset_ == subject_) {
-            revert InvalidIntegration();
-        }
-        if (marketCapGuard_.code.length == 0 || positionAdapter_.code.length == 0) {
-            revert InvalidIntegration();
-        }
-        if (
-            confirmationPeriod_ < MIN_CONFIRMATION_PERIOD
-                || confirmationPeriod_ > MAX_CONFIRMATION_PERIOD
-        ) {
-            revert InvalidConfirmationPeriod(confirmationPeriod_);
-        }
-        if (maximumObservationAge_ == 0 || maximumObservationAge_ > confirmationPeriod_) {
-            revert InvalidObservationAge(maximumObservationAge_);
-        }
-        bytes32 expectedProjectId = ProjectIds.derive(block.chainid, registry_, subject_);
-        if (
-            IProjectTokenIdentity(subject_).registry() != registry_
-                || IProjectTokenIdentity(subject_).projectId() != expectedProjectId
-        ) revert InvalidSubject(subject_);
-        if (
-            IProjectControlled(controller_).projectId() != expectedProjectId
-                || IProjectControlled(controller_).controller() != controller_
-        ) revert InvalidController(controller_);
-        uint256 currentSupply = IERC20(subject_).totalSupply();
-        if (referenceSupply_ == 0 || currentSupply != referenceSupply_) {
-            revert InvalidReferenceSupply(currentSupply, referenceSupply_);
-        }
-        _validateModule(treasury_, registry_, subject_, expectedProjectId, true);
-        _validateModule(router_, registry_, subject_, expectedProjectId, false);
-        _validateModule(airdrop_, registry_, subject_, expectedProjectId, false);
-        _validateModule(raffle_, registry_, subject_, expectedProjectId, false);
+    constructor(bytes memory encodedConfig) {
+        FundingBandsDeploymentConfig memory config =
+            abi.decode(encodedConfig, (FundingBandsDeploymentConfig));
+        FundingBandsProjectConfig memory project = config.project;
+        FundingBandsMarketConfig memory market = config.market;
+        bytes32 expectedProjectId = _validateDeployment(project, market);
 
-        registry = registry_;
-        subject = subject_;
-        creator = creator_;
+        registry = project.registry;
+        subject = project.subject;
+        creator = project.creator;
         projectId = expectedProjectId;
-        controller = controller_;
-        treasury = treasury_;
-        router = router_;
-        airdrop = airdrop_;
-        raffle = raffle_;
-        protocolFeeRecipient = protocolFeeRecipient_;
-        canonicalPool = canonicalPool_;
-        quoteAsset = quoteAsset_;
-        referenceSupply = referenceSupply_;
-        integrationApprovalRoot = integrationApprovalRoot_;
-        marketCapGuard = IFundingBandMarketCapGuard(marketCapGuard_);
-        positionAdapter = IFundingBandPositionAdapter(positionAdapter_);
-        positionManager = IFundingBandPositionAdapter(positionAdapter_).positionManager();
-        confirmationPeriod = confirmationPeriod_;
-        maximumObservationAge = maximumObservationAge_;
+        controller = project.controller;
+        treasury = project.treasury;
+        router = project.router;
+        airdrop = project.airdrop;
+        raffle = project.raffle;
+        protocolFeeRecipient = project.protocolFeeRecipient;
+        canonicalPool = market.canonicalPool;
+        quoteAsset = market.quoteAsset;
+        referenceSupply = market.referenceSupply;
+        integrationApprovalRoot = market.integrationApprovalRoot;
+        marketCapGuard = IFundingBandMarketCapGuard(market.marketCapGuard);
+        positionAdapter = IFundingBandPositionAdapter(market.positionAdapter);
+        positionManager = IFundingBandPositionAdapter(market.positionAdapter).positionManager();
+        confirmationPeriod = market.confirmationPeriod;
+        maximumObservationAge = market.maximumObservationAge;
 
-        uint32 guardTwapWindow = IFundingBandMarketCapGuard(marketCapGuard_).minimumTwapWindow();
-        if (guardTwapWindow < MIN_TWAP_WINDOW || guardTwapWindow < confirmationPeriod_) {
-            revert InvalidTwapWindow(guardTwapWindow, confirmationPeriod_);
-        }
-        if (
-            IFundingBandMarketCapGuard(marketCapGuard_).bandsContract() != address(this)
-                || IFundingBandMarketCapGuard(marketCapGuard_).subject() != subject_
-                || IFundingBandMarketCapGuard(marketCapGuard_).canonicalPool() != canonicalPool_
-                || IFundingBandMarketCapGuard(marketCapGuard_).referenceSupply() != referenceSupply_
-                || IFundingBandPositionAdapter(positionAdapter_).bandsContract() != address(this)
-                || IFundingBandPositionAdapter(positionAdapter_).subject() != subject_
-                || IFundingBandPositionAdapter(positionAdapter_).quoteAsset() != quoteAsset_
-                || IFundingBandPositionAdapter(positionAdapter_).canonicalPool() != canonicalPool_
-                || positionManager.code.length == 0
-        ) revert InvalidIntegration();
-        bytes32 leaf = integrationApprovalLeaf();
-        if (!MerkleProof.verify(integrationApprovalProof, integrationApprovalRoot_, leaf)) {
-            revert IntegrationNotApproved(leaf);
-        }
+        _validateBoundIntegrations(project, market);
         emit FundingBandsCreated(
             expectedProjectId,
-            subject_,
-            controller_,
-            creator_,
-            treasury_,
-            canonicalPool_,
-            quoteAsset_,
-            referenceSupply_,
-            marketCapGuard_,
-            positionAdapter_,
-            confirmationPeriod_,
-            maximumObservationAge_,
-            integrationApprovalRoot_
+            project.subject,
+            project.controller,
+            project.creator,
+            project.treasury,
+            market.canonicalPool,
+            market.quoteAsset,
+            market.referenceSupply,
+            market.marketCapGuard,
+            market.positionAdapter,
+            market.confirmationPeriod,
+            market.maximumObservationAge,
+            market.integrationApprovalRoot
         );
+    }
+
+    function _validateDeployment(
+        FundingBandsProjectConfig memory project,
+        FundingBandsMarketConfig memory market
+    ) private view returns (bytes32 expectedProjectId) {
+        if (project.registry.code.length == 0) {
+            revert InvalidRegistry(project.registry);
+        }
+        if (project.subject.code.length == 0) revert InvalidSubject(project.subject);
+        if (project.creator == address(0) || project.creator == BURN_ADDRESS) {
+            revert InvalidCreator(project.creator);
+        }
+        if (project.controller.code.length == 0 || project.controller == BURN_ADDRESS) {
+            revert InvalidController(project.controller);
+        }
+        if (
+            project.protocolFeeRecipient == address(0)
+                || project.protocolFeeRecipient == BURN_ADDRESS
+                || project.protocolFeeRecipient == address(this)
+        ) revert InvalidFeeRecipient(project.protocolFeeRecipient);
+        if (market.canonicalPool.code.length == 0) {
+            revert InvalidCanonicalPool(market.canonicalPool);
+        }
+        if (
+            market.quoteAsset.code.length == 0 || market.quoteAsset == project.subject
+                || market.marketCapGuard.code.length == 0 || market.positionAdapter.code.length == 0
+        ) revert InvalidIntegration();
+        if (
+            market.confirmationPeriod < MIN_CONFIRMATION_PERIOD
+                || market.confirmationPeriod > MAX_CONFIRMATION_PERIOD
+        ) revert InvalidConfirmationPeriod(market.confirmationPeriod);
+        if (
+            market.maximumObservationAge == 0
+                || market.maximumObservationAge > market.confirmationPeriod
+        ) revert InvalidObservationAge(market.maximumObservationAge);
+
+        expectedProjectId = ProjectIds.derive(block.chainid, project.registry, project.subject);
+        if (
+            IProjectTokenIdentity(project.subject).registry() != project.registry
+                || IProjectTokenIdentity(project.subject).projectId() != expectedProjectId
+        ) revert InvalidSubject(project.subject);
+        if (
+            IProjectControlled(project.controller).projectId() != expectedProjectId
+                || IProjectControlled(project.controller).controller() != project.controller
+        ) revert InvalidController(project.controller);
+        uint256 currentSupply = IERC20(project.subject).totalSupply();
+        if (market.referenceSupply == 0 || currentSupply != market.referenceSupply) {
+            revert InvalidReferenceSupply(currentSupply, market.referenceSupply);
+        }
+        _validateModule(
+            project.treasury, project.registry, project.subject, expectedProjectId, true
+        );
+        _validateModule(project.router, project.registry, project.subject, expectedProjectId, false);
+        _validateModule(
+            project.airdrop, project.registry, project.subject, expectedProjectId, false
+        );
+        _validateModule(project.raffle, project.registry, project.subject, expectedProjectId, false);
+    }
+
+    function _validateBoundIntegrations(
+        FundingBandsProjectConfig memory project,
+        FundingBandsMarketConfig memory market
+    ) private view {
+        uint32 guardTwapWindow = IFundingBandMarketCapGuard(market.marketCapGuard)
+            .minimumTwapWindow();
+        if (guardTwapWindow < MIN_TWAP_WINDOW || guardTwapWindow < market.confirmationPeriod) {
+            revert InvalidTwapWindow(guardTwapWindow, market.confirmationPeriod);
+        }
+        if (
+            IFundingBandMarketCapGuard(market.marketCapGuard).bandsContract() != address(this)
+                || IFundingBandMarketCapGuard(market.marketCapGuard).subject() != project.subject
+                || IFundingBandMarketCapGuard(market.marketCapGuard).canonicalPool()
+                    != market.canonicalPool
+                || IFundingBandMarketCapGuard(market.marketCapGuard).referenceSupply()
+                    != market.referenceSupply
+                || IFundingBandPositionAdapter(market.positionAdapter).bandsContract()
+                    != address(this)
+                || IFundingBandPositionAdapter(market.positionAdapter).subject() != project.subject
+                || IFundingBandPositionAdapter(market.positionAdapter).quoteAsset()
+                    != market.quoteAsset
+                || IFundingBandPositionAdapter(market.positionAdapter).canonicalPool()
+                    != market.canonicalPool || positionManager.code.length == 0
+        ) revert InvalidIntegration();
+        bytes32 leaf = integrationApprovalLeaf();
+        if (!MerkleProof.verify(
+                market.integrationApprovalProof, market.integrationApprovalRoot, leaf
+            )) revert IntegrationNotApproved(leaf);
     }
 
     function createBand(FundingBandConfig calldata config, bytes calldata observationData)

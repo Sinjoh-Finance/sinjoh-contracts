@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import { AirdropEligibilityMode } from "../airdrop/AirdropTypes.sol";
 import { ERC4626BasketYieldAdapterFactory } from "../adapters/ERC4626BasketYieldAdapterFactory.sol";
 import { BasketConfig } from "../basket/BasketTypes.sol";
+import { FundingBandsDeploymentConfig } from "../bands/FundingBandTypes.sol";
 import { ProjectTimelockV2 } from "../governance/ProjectTimelockV2.sol";
 import { Create3V2 } from "../libraries/Create3V2.sol";
 import { SinjohV2Constants } from "../libraries/SinjohV2Constants.sol";
@@ -375,29 +376,34 @@ contract ProjectLaunchDeployerV2 {
                 BANDS,
                 config,
                 preview.launchConfigHash,
-                abi.encode(
-                    registry,
-                    a.subject,
-                    config.creator,
-                    a.controller,
-                    a.treasury,
-                    a.router,
-                    a.airdrop,
-                    a.raffle,
-                    protocolFeeRecipient,
-                    config.launchProfile.canonicalPool,
-                    config.bands.quoteAsset,
-                    config.totalSupply,
-                    integrationApprovalRoot,
-                    config.bands.marketCapGuard,
-                    config.bands.positionAdapter,
-                    config.bands.confirmationPeriod,
-                    config.bands.maximumObservationAge,
-                    config.bands.integrationApprovalProof
-                )
+                abi.encode(abi.encode(_bandsDeploymentConfig(config, a)))
             );
             _requireExpected(BANDS, a.fundingBands, deployed);
         }
+    }
+
+    function _bandsDeploymentConfig(
+        ProjectLaunchConfig calldata config,
+        ProjectLaunchAddresses memory a
+    ) private view returns (FundingBandsDeploymentConfig memory deployment) {
+        deployment.project.registry = registry;
+        deployment.project.subject = a.subject;
+        deployment.project.creator = config.creator;
+        deployment.project.controller = a.controller;
+        deployment.project.treasury = a.treasury;
+        deployment.project.router = a.router;
+        deployment.project.airdrop = a.airdrop;
+        deployment.project.raffle = a.raffle;
+        deployment.project.protocolFeeRecipient = protocolFeeRecipient;
+        deployment.market.canonicalPool = config.launchProfile.canonicalPool;
+        deployment.market.quoteAsset = config.bands.quoteAsset;
+        deployment.market.referenceSupply = config.totalSupply;
+        deployment.market.integrationApprovalRoot = integrationApprovalRoot;
+        deployment.market.marketCapGuard = config.bands.marketCapGuard;
+        deployment.market.positionAdapter = config.bands.positionAdapter;
+        deployment.market.confirmationPeriod = config.bands.confirmationPeriod;
+        deployment.market.maximumObservationAge = config.bands.maximumObservationAge;
+        deployment.market.integrationApprovalProof = config.bands.integrationApprovalProof;
     }
 
     function _deployBasketAdapters(

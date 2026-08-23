@@ -5,7 +5,10 @@ import { Test } from "forge-std/Test.sol";
 import {
     FundingBandConfig,
     FundingBandDestination,
-    FundingBandState
+    FundingBandState,
+    FundingBandsDeploymentConfig,
+    FundingBandsMarketConfig,
+    FundingBandsProjectConfig
 } from "../../src/bands/FundingBandTypes.sol";
 import { ProjectFundingBandsV2 } from "../../src/bands/ProjectFundingBandsV2.sol";
 import { ProjectTreasuryVaultV2 } from "../../src/treasury/ProjectTreasuryVaultV2.sol";
@@ -59,24 +62,32 @@ contract ProjectTreasuryFundingBandsV2IntegrationTest is Test {
             predictedBands, subject, quote, pool, guard, adapter, subject.totalSupply()
         );
         ProjectFundingBandsV2 bands = new ProjectFundingBandsV2(
-            address(registry),
-            address(subject),
-            CREATOR,
-            address(controller),
-            address(treasury),
-            address(0),
-            address(0),
-            address(0),
-            address(0xFEE),
-            address(pool),
-            address(quote),
-            subject.totalSupply(),
-            approvalRoot,
-            address(guard),
-            address(adapter),
-            15 minutes,
-            5 minutes,
-            new bytes32[](0)
+            abi.encode(
+                FundingBandsDeploymentConfig({
+                    project: FundingBandsProjectConfig({
+                        registry: address(registry),
+                        subject: address(subject),
+                        creator: CREATOR,
+                        controller: address(controller),
+                        treasury: address(treasury),
+                        router: address(0),
+                        airdrop: address(0),
+                        raffle: address(0),
+                        protocolFeeRecipient: address(0xFEE)
+                    }),
+                    market: FundingBandsMarketConfig({
+                        canonicalPool: address(pool),
+                        quoteAsset: address(quote),
+                        referenceSupply: subject.totalSupply(),
+                        integrationApprovalRoot: approvalRoot,
+                        marketCapGuard: address(guard),
+                        positionAdapter: address(adapter),
+                        confirmationPeriod: 15 minutes,
+                        maximumObservationAge: 5 minutes,
+                        integrationApprovalProof: new bytes32[](0)
+                    })
+                })
+            )
         );
         assertEq(address(bands), predictedBands);
         guard.setObservation(

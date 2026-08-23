@@ -22803,94 +22803,9 @@ export const projectFundingBandsV2Abi = [
         "type": "constructor",
         "inputs": [
             {
-                "name": "registry_",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "subject_",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "creator_",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "controller_",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "treasury_",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "router_",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "airdrop_",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "raffle_",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "protocolFeeRecipient_",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "canonicalPool_",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "quoteAsset_",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "referenceSupply_",
-                "type": "uint256",
-                "internalType": "uint256"
-            },
-            {
-                "name": "integrationApprovalRoot_",
-                "type": "bytes32",
-                "internalType": "bytes32"
-            },
-            {
-                "name": "marketCapGuard_",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "positionAdapter_",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "confirmationPeriod_",
-                "type": "uint48",
-                "internalType": "uint48"
-            },
-            {
-                "name": "maximumObservationAge_",
-                "type": "uint48",
-                "internalType": "uint48"
-            },
-            {
-                "name": "integrationApprovalProof",
-                "type": "bytes32[]",
-                "internalType": "bytes32[]"
+                "name": "encodedConfig",
+                "type": "bytes",
+                "internalType": "bytes"
             }
         ],
         "stateMutability": "nonpayable"

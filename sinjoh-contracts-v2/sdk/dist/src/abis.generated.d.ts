@@ -17508,77 +17508,9 @@ export declare const basketNftV2Abi: readonly [{
 export declare const projectFundingBandsV2Abi: readonly [{
     readonly type: "constructor";
     readonly inputs: readonly [{
-        readonly name: "registry_";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "subject_";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "creator_";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "controller_";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "treasury_";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "router_";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "airdrop_";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "raffle_";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "protocolFeeRecipient_";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "canonicalPool_";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "quoteAsset_";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "referenceSupply_";
-        readonly type: "uint256";
-        readonly internalType: "uint256";
-    }, {
-        readonly name: "integrationApprovalRoot_";
-        readonly type: "bytes32";
-        readonly internalType: "bytes32";
-    }, {
-        readonly name: "marketCapGuard_";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "positionAdapter_";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "confirmationPeriod_";
-        readonly type: "uint48";
-        readonly internalType: "uint48";
-    }, {
-        readonly name: "maximumObservationAge_";
-        readonly type: "uint48";
-        readonly internalType: "uint48";
-    }, {
-        readonly name: "integrationApprovalProof";
-        readonly type: "bytes32[]";
-        readonly internalType: "bytes32[]";
+        readonly name: "encodedConfig";
+        readonly type: "bytes";
+        readonly internalType: "bytes";
     }];
     readonly stateMutability: "nonpayable";
 }, {

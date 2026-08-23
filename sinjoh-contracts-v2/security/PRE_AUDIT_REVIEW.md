@@ -7,7 +7,18 @@ Status: **engineering review in progress; not an independent audit and not produ
 The package currently passes `forge fmt --check`, `forge lint`, `forge build --sizes`, the complete
 Foundry unit/fuzz/invariant/integration suite, and `npm test --prefix sdk`. Foundry invariants use
 256 runs × 64 calls and fuzz tests use 1,000 runs. The suite contains the specified 25 integration
-flows and all eight required end-to-end journeys (plus a separate staker-dividend journey).
+flows, two cross-module system invariant suites, and all eight required end-to-end journeys (plus a
+separate staker-dividend journey).
+
+`script/coverage.sh` runs the all-modules Launcher suite under production compiler settings, then
+runs source-only LCOV coverage for every other suite under Foundry's minimum-IR instrumentation.
+The split is required because coverage instrumentation expands the Launcher's stored creation code
+past EIP-3860 even though the production-mode launch passes. The script uses temporary in-package
+dependency links to work around Foundry Solar's inability to resolve relative imports outside the
+package root and removes them on exit. The retained report is `security/coverage.lcov`: 4,407 / 8,311
+lines (53.03%), 670 / 1,295 functions (51.74%), and 392 / 1,657 branches (23.66%) across all source,
+including copied interfaces, external libraries, and defensive error paths. The instrumented run
+completed 409 tests with zero failures and one explicitly environment-gated fork skip.
 
 Slither/Aderyn/Semgrep were not installed in the review environment. Their findings are therefore
 **not dispositioned**. The release preflight requires independent audit evidence and cannot be used

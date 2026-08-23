@@ -19,6 +19,38 @@ enum FundingBandDestination {
     BASKET_VIA_TREASURY
 }
 
+/// @notice Project identity, controller, and typed destination bindings for Funding Bands.
+struct FundingBandsProjectConfig {
+    address registry;
+    address subject;
+    address creator;
+    address controller;
+    address treasury;
+    address router;
+    address airdrop;
+    address raffle;
+    address protocolFeeRecipient;
+}
+
+/// @notice Canonical market, position, observation, and approval bindings for Funding Bands.
+struct FundingBandsMarketConfig {
+    address canonicalPool;
+    address quoteAsset;
+    uint256 referenceSupply;
+    bytes32 integrationApprovalRoot;
+    address marketCapGuard;
+    address positionAdapter;
+    uint48 confirmationPeriod;
+    uint48 maximumObservationAge;
+    bytes32[] integrationApprovalProof;
+}
+
+/// @notice Named immutable deployment inputs for one project's Funding Bands module.
+struct FundingBandsDeploymentConfig {
+    FundingBandsProjectConfig project;
+    FundingBandsMarketConfig market;
+}
+
 struct FundingBandConfig {
     uint128 lowerMarketCapUsdE8;
     uint128 upperMarketCapUsdE8;

@@ -7,7 +7,10 @@ import {
     FundingBandDeliveryConfig,
     FundingBandDestination,
     FundingBandState,
-    FundingBandSwapConfig
+    FundingBandSwapConfig,
+    FundingBandsDeploymentConfig,
+    FundingBandsMarketConfig,
+    FundingBandsProjectConfig
 } from "../src/bands/FundingBandTypes.sol";
 import { ProjectFundingBandsV2 } from "../src/bands/ProjectFundingBandsV2.sol";
 import { MockRegistry } from "./mocks/MockRegistry.sol";
@@ -73,24 +76,32 @@ abstract contract FundingBandsTestBase is Test {
         bytes32[] memory integrationProof = new bytes32[](1);
         integrationProof[0] = swapLeaf;
         bands = new ProjectFundingBandsV2(
-            address(registry),
-            address(subject),
-            CREATOR,
-            address(projectController),
-            address(treasury),
-            address(router),
-            address(airdrop),
-            address(raffle),
-            FEE_RECIPIENT,
-            address(pool),
-            address(quote),
-            referenceSupply,
-            root,
-            address(guard),
-            address(positionAdapter),
-            15 minutes,
-            5 minutes,
-            integrationProof
+            abi.encode(
+                FundingBandsDeploymentConfig({
+                    project: FundingBandsProjectConfig({
+                        registry: address(registry),
+                        subject: address(subject),
+                        creator: CREATOR,
+                        controller: address(projectController),
+                        treasury: address(treasury),
+                        router: address(router),
+                        airdrop: address(airdrop),
+                        raffle: address(raffle),
+                        protocolFeeRecipient: FEE_RECIPIENT
+                    }),
+                    market: FundingBandsMarketConfig({
+                        canonicalPool: address(pool),
+                        quoteAsset: address(quote),
+                        referenceSupply: referenceSupply,
+                        integrationApprovalRoot: root,
+                        marketCapGuard: address(guard),
+                        positionAdapter: address(positionAdapter),
+                        confirmationPeriod: 15 minutes,
+                        maximumObservationAge: 5 minutes,
+                        integrationApprovalProof: integrationProof
+                    })
+                })
+            )
         );
         assertEq(address(bands), predictedBands);
     }
