@@ -24,9 +24,10 @@ The release can be rechecked without a signer:
 
 ```bash
 source /tmp/sinjoh-v2-mainnet-release.env
-export RELEASE_GIT_COMMIT="$(git -C .. rev-parse HEAD)"
-export RELEASE_SOURCE_TREE_HASH="$(git -C .. rev-parse HEAD:sinjoh-contracts-v2)"
+export RELEASE_GIT_COMMIT="$(jq -r .gitCommit deployments/project-launcher-v2-4663-ddec345.json)"
+export RELEASE_SOURCE_TREE_HASH="$(jq -r .sourceTreeHash deployments/project-launcher-v2-4663-ddec345.json)"
 export RELEASE_BUILD_HASH="$(jq -r .buildHash deployments/project-launcher-v2-4663-ddec345.json)"
+test "$(git -C .. rev-parse "${RELEASE_GIT_COMMIT}:sinjoh-contracts-v2")" = "$RELEASE_SOURCE_TREE_HASH"
 node script/verify-release-manifest.mjs deployments/project-launcher-v2-4663-ddec345.json
 node script/verify-deployed-release.mjs deployments/project-launcher-v2-4663-ddec345.json
 ```
