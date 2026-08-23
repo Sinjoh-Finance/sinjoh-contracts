@@ -156,7 +156,8 @@ Validation:
 `ProjectLauncherV2.launch(config)` performs one atomic transaction:
 
 1. validate the canonical launch config;
-2. predict every CREATE2 module address from `(creator, salt, launchConfigHash, version)`;
+2. predict every module address with the Launcher's CREATE3-style, initcode-independent deployer
+   from `(creator, salt, launchConfigHash, version, moduleKey)`;
 3. compute the full immutable system/voting/airdrop exclusion set;
 4. deploy the subject token with the predicted exclusions;
 5. deploy staking/PoS NFT first when staked votes are selected;
@@ -171,6 +172,14 @@ Validation:
 
 Any failure reverts the complete launch. There is no half-launched project and no temporary factory
 controller power that must be cleaned up later.
+
+Address prediction must be independent of constructor arguments. The launch graph intentionally
+contains immutable cycles: Staking stores the Token Governance Timelock while that Timelock stores
+Staking as its vote source, and the token exclusion list contains modules that themselves store the
+token address. Plain CREATE2 over each contract's full initcode cannot resolve these cycles. The
+Launcher therefore uses a CREATE3-style ephemeral deployer whose CREATE2 address is derived from
+the module key and whose single CREATE deploys the final non-upgradeable contract with its complete
+constructor arguments. The ephemeral deployer has no post-deployment role or custody authority.
 
 ## 6. Module combinations
 

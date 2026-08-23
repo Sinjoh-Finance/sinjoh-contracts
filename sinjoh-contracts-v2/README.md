@@ -16,7 +16,7 @@ OpenZeppelin Contracts 5.6.1 is imported from the repository's pinned vendored d
 | Multisig Accounts | implemented |
 | Token Governance | implemented |
 | Treasury Vaults | implemented |
-| Registry | pending |
+| Registry | implemented |
 | Router | pending |
 | Airdrop | pending |
 | Basket | pending |
@@ -43,3 +43,8 @@ provides exact native/ERC-20 accounting, guarded proof-approved swaps, optional 
 reservations with permissionless keeper execution, and typed Basket NFT management without a
 generic arbitrary-call surface. Frontends and keepers can read complete route status and verify an
 exact swap approval on-chain.
+
+`ProjectRegistryV2` is an append-only canonical discovery layer. One record tells clients which
+governance workflow and modules are enabled, resolves every explicit address without bytecode
+probing, and supports only controller-authored UI metadata revisions. It has no project control,
+asset custody, deployment, recovery, or generic execution authority.
