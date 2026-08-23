@@ -120,5 +120,8 @@ the resulting Launcher address.
 
 The framework-neutral TypeScript package in `sdk/` generates typed ABIs directly from the Foundry
 artifacts. It exposes launch prediction/preflight, project discovery, typed governance-action
-encoding, and one-call pending-work helpers for the UI and keeper surfaces. Solidity and TypeScript
-share canonical calldata fixtures so generated integrations cannot silently drift from contracts.
+encoding, and one-call pending-work helpers for the UI and keeper surfaces. Funding Band helpers
+accept human-readable USD bounds, validate simple destination choices, compose the mandatory atomic
+Treasury-prefund + band-create batch, and encode that same batch for either Multisig Accounts or
+Token Governance. Solidity and TypeScript share canonical calldata fixtures so generated
+integrations cannot silently drift from contracts.

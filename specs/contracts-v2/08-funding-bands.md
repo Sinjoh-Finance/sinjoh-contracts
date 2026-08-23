@@ -218,6 +218,11 @@ simulates the full batch, and translates custom errors into corrective UI copy. 
 or project-specific configuration: they read live IDs and call arm, disarm, settle, retry, or fee
 forwarding when the corresponding preflight succeeds.
 
+The SDK exposes the band as one product-level operation: it converts human-readable USD bounds to
+the canonical 8-decimal units, validates the simple destinations locally, constructs the exact
+Treasury-prefund + band-create action pair, and encodes that same atomic batch for either Multisig
+Accounts or Token Governance. Frontends do not maintain separate governance-specific band logic.
+
 ## 11. Invariants
 
 1. Every active band position is owned by the Funding Bands contract and maps to one band.

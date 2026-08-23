@@ -3,6 +3,7 @@ import type {
   ContractFunctionReturnType,
 } from "viem";
 import {
+  projectFundingBandsV2Abi,
   projectLauncherV2Abi,
   projectRegistryV2Abi,
 } from "./abis.generated.js";
@@ -24,3 +25,9 @@ export type ProjectRecord = ContractFunctionReturnType<
   "view",
   "project"
 >;
+
+export type FundingBandConfig = ContractFunctionArgs<
+  typeof projectFundingBandsV2Abi,
+  "nonpayable",
+  "createBand"
+>[0];
