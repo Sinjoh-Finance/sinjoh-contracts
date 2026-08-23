@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import test from "node:test";
 import { decodeFunctionData } from "viem";
-import { buildFundingBandCreationActions, encodeGovernanceAction, encodeMultisigSubmission, encodeTokenGovernanceProposal, erc4626BasketYieldAdapterFactoryAbi, fundingBandDestination, marketCapUsdE8, projectFundingBandsV2Abi, projectGovernorV2Abi, projectLauncherV2Abi, projectMultisigAccountV2Abi, projectRegistryV2Abi, projectTreasuryVaultV2Abi, simpleFundingBandConfig, } from "../src/index.js";
+import { buildFundingBandCreationActions, buildLaunchFromPreset, encodeGovernanceAction, encodeMultisigSubmission, encodeTokenGovernanceProposal, erc4626BasketYieldAdapterFactoryAbi, fundingBandDestination, marketCapUsdE8, projectFundingBandsV2Abi, projectGovernorV2Abi, projectLauncherV2Abi, projectMultisigAccountV2Abi, projectRegistryV2Abi, projectTreasuryVaultV2Abi, simpleFundingBandConfig, launchErrorMessage, } from "../src/index.js";
 const fixture = JSON.parse(await readFile(resolve(process.cwd(), "fixtures/treasury-send.json"), "utf8"));
 test("exports the required project discovery and launch ABI", () => {
     assert.ok(projectLauncherV2Abi.some((item) => item.type === "function" && item.name === "predictLaunch"));
@@ -60,5 +60,44 @@ test("rejects invalid funding-band product inputs before wallet submission", () 
         destination: fundingBandDestination.creator,
     }), /Upper market cap/);
     assert.throws(() => marketCapUsdE8("0"), /greater than zero/);
+});
+test("hydrates a reviewed launch preset from creator-owned fields only", () => {
+    const curatedConfig = {
+        governanceMode: 1,
+        launchProfile: { canonicalPool: "0x0000000000000000000000000000000000009000" },
+    };
+    const config = buildLaunchFromPreset({ id: "base-all-modules", protocolVersion: "2.0.0", config: curatedConfig }, {
+        creator: "0x0000000000000000000000000000000000001000",
+        name: " Project ",
+        symbol: " PRJ ",
+        totalSupply: 1000n,
+        salt: `0x${"11".repeat(32)}`,
+        tokenAllocations: [
+            { recipient: "0x0000000000000000000000000000000000002000", amount: 750n },
+            { recipient: "0x0000000000000000000000000000000000003000", amount: 250n },
+        ],
+    });
+    assert.equal(config.name, "Project");
+    assert.equal(config.symbol, "PRJ");
+    assert.equal(config.governanceMode, 1);
+    assert.deepEqual(config.launchProfile, curatedConfig.launchProfile);
+});
+test("rejects creator mistakes locally and returns corrective launch copy", () => {
+    const preset = {
+        id: "reviewed",
+        protocolVersion: "2.0.0",
+        config: {},
+    };
+    assert.throws(() => buildLaunchFromPreset(preset, {
+        creator: "0x0000000000000000000000000000000000001000",
+        name: "Project",
+        symbol: "PRJ",
+        totalSupply: 10n,
+        salt: `0x${"22".repeat(32)}`,
+        tokenAllocations: [
+            { recipient: "0x0000000000000000000000000000000000002000", amount: 9n },
+        ],
+    }), /add up to the total supply exactly/);
+    assert.match(launchErrorMessage("InvalidModuleDependencies"), /requires another feature/);
 });
 //# sourceMappingURL=sdk.test.js.map
