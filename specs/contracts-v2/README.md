@@ -57,7 +57,9 @@ the other protocols are specified around the product vision rather than retrofit
 6. The treasury owns every basket created with that treasury. Burning the Basket NFT is the only
    operation that unlocks basket principal.
 7. Holder and staker airdrops are proportional. The creator participates normally when eligible;
-   liquidity pools and the Pons locker are ineligible.
+   the canonical burn address, liquidity pools, and the Pons locker are ineligible. Burn-address
+   balances are also excluded from voting power, voting supply, staking eligibility, and Raffle
+   tickets.
 8. The first release creates at most one primary Basket per project Treasury; the Basket Manager
    may serve many different projects/Basket NFTs.
 9. Raffle and permanent-liquidity product behavior remains unchanged.

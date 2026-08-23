@@ -54,6 +54,8 @@ Vote source is selected once at launch.
 
 The project token is the direct vote source. One eligible token held at the proposal snapshot is
 one vote. Historical balances and eligible supply are automatic; no delegation or adapter exists.
+Tokens held by the zero address, canonical burn address, or immutable system-custody exclusions
+contribute zero to both account voting power and eligible voting supply.
 
 ### Staked-token voting
 
@@ -63,6 +65,8 @@ owned by a wallet and exposes current/historical owner balances and total staked
 
 The PoS NFT is the position receipt. The Governor does not enumerate NFTs and does not trust a
 caller-provided token ID. NFT mint, transfer, and burn automatically update owner checkpoints.
+The staking protocol rejects positions or NFT transfers to the canonical burn address, so it cannot
+acquire staked votes or increase the staked-voting denominator.
 
 ## 4. Proposal lifecycle
 
@@ -151,6 +155,8 @@ executor, voteSource)` and `EmergencyPathPaused(module, selector, guardian)`.
 7. The multisig cannot execute with one confirmation or duplicate a signer confirmation.
 8. No delegate or delegate-by-signature flow can assign votes to another wallet.
 9. Guardian pause cannot transfer assets or prevent matured position redemption.
+10. Project tokens held by the canonical burn address produce zero liquid votes and are excluded
+    from quorum supply; the address cannot own a PoS position or acquire staked votes.
 
 ## 10. Out of scope
 

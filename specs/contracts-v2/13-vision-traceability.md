@@ -51,7 +51,7 @@ is a coverage check, not a replacement for the protocol specifications.
 | Airdrop receives assets | standardized attributed funding from Router, Basket, Treasury, Bands, or EOA |
 | holder or PoS-staker mode | immutable mode per funding account/instance and deterministic snapshot algorithm |
 | proportional share of tokens or staked tokens | independent epoch formula based on total eligible weight |
-| exclude LP and Pons locker; creator included | canonical custody/Pons exclusions are mandatory; creator is eligible normally |
+| exclude burn address, LP, and Pons locker; creator included | canonical burn/custody/Pons exclusions are mandatory; creator is eligible normally |
 
 ## Raffle and Liquidity
 
@@ -87,6 +87,7 @@ is a coverage check, not a replacement for the protocol specifications.
 | --- | --- |
 | launch combinations work together | deterministic atomic launcher predicts, deploys, validates, and registers all enabled modules |
 | no manual vote activation | v2 token/staking pool expose automatic raw-balance historical votes; no delegation/adapters |
+| burned or burn-address tokens earn nothing | canonical burn address is excluded from liquid votes/supply, PoS ownership, Airdrop weights, and Raffle tickets |
 | one place to discover a project | append-only Project Registry record with every enabled module |
 | holders do not manually claim ordinary distributions | keeper pushes verified Airdrop/Raffle payments |
 | automation is understandable | every due/retry state has views/events; keepers have no entitlement or configuration power |

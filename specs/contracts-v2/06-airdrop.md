@@ -37,7 +37,8 @@ bonus and the creator is not automatically excluded.
 
 Every epoch excludes:
 
-- zero and dead addresses;
+- the zero address and canonical burn address
+  `0x000000000000000000000000000000000000dEaD`;
 - the Airdrop contract;
 - the project token contract;
 - the canonical project liquidity pool or PoolManager/position custody addresses configured at
@@ -188,13 +189,14 @@ Events:
 2. The same proportional test passes using aggregate PoS NFT stake in staker mode.
 3. The creator receives its proportional amount when eligible.
 4. The canonical LP and Pons locker receive zero even when they hold project tokens.
-5. Holders receive pushed payments without signatures or claim transactions.
-6. A reverting recipient cannot block other recipients and retains an exact retryable credit.
-7. A falsified weight, sibling sum, direction, account, epoch, or recipient proof reverts.
-8. An attestor cannot commit entitlements above account funding or replace a committed root.
-9. The 1% service fee is correct on cumulative gross funding despite split deposits.
-10. Basket harvest integration creates the correct holder/staker account and cadence.
-11. An epoch cannot finalize until every committed leaf is paid or converted into the proven
+5. The canonical burn address receives zero and its balance is removed from total eligible weight.
+6. Holders receive pushed payments without signatures or claim transactions.
+7. A reverting recipient cannot block other recipients and retains an exact retryable credit.
+8. A falsified weight, sibling sum, direction, account, epoch, or recipient proof reverts.
+9. An attestor cannot commit entitlements above account funding or replace a committed root.
+10. The 1% service fee is correct on cumulative gross funding despite split deposits.
+11. Basket harvest integration creates the correct holder/staker account and cadence.
+12. An epoch cannot finalize until every committed leaf is paid or converted into the proven
     holder's retryable credit; only division dust can leave through the dust destination.
 
 ## 12. Out of scope

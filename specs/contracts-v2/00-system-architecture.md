@@ -36,6 +36,11 @@ The implementation must keep four concepts separate:
 Owning a Basket NFT does not create votes. Holding a PoS NFT does not grant treasury-call
 authority. Governance may configure a module, but it cannot rewrite historical eligibility.
 
+The canonical burn address `0x000000000000000000000000000000000000dEaD` is never an eligible
+participant. Its balances contribute zero to Airdrop rewards, Raffle tickets, liquid or staked
+votes, and the corresponding eligible-supply denominators. Protocol burns still use the project
+token's burn function rather than treating a transfer to this address as a supply-reducing burn.
+
 ## 3. Shared project identity
 
 Every module stores immutable `projectId` and `subject` values and must verify that a referenced

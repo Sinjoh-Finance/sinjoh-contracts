@@ -40,8 +40,10 @@ The pool measures its subject-token balance before/after transfer and requires t
 `amount`. It stores the position, mints the NFT to `recipient`, updates aggregate current/historical
 stake for `recipient`, and updates total-staked checkpoints atomically.
 
-Recipient must be nonzero and able to receive ERC-721 safely when it is a contract. A user may stake
-for another wallet; the recipient owns the position and its eligibility.
+Recipient must be nonzero, must not be the canonical burn address
+`0x000000000000000000000000000000000000dEaD`, and must be able to receive ERC-721 safely when it is
+a contract. A user may stake for another wallet; the recipient owns the position and its
+eligibility.
 
 ## 4. PoS NFT ownership and transfer
 
@@ -55,6 +57,8 @@ it moves the right to redeem that position.
 Transfer rules:
 
 - zero-address transfer occurs only during burn;
+- transfer to the canonical burn address reverts; destroying a position requires the defined
+  matured `unstake` flow rather than stranding its NFT;
 - the staking pool is the only minter and burner;
 - approvals follow ERC-721;
 - a transfer at timestamp `t` affects snapshots at/after `t`, never an earlier snapshot;
@@ -136,6 +140,8 @@ all token IDs on-chain.
 5. No separate votes adapter or delegation transaction is required for staked governance.
 6. Pausing new stakes does not pause transfers or matured unstaking.
 7. Surplus recovery cannot make the pool balance lower than active stake.
+8. Staking for, or transferring a PoS NFT to, the canonical burn address reverts, and it never
+   contributes staked voting or Airdrop weight.
 
 ## 11. Out of scope
 

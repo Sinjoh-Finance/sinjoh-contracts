@@ -50,26 +50,28 @@ The implementation must encode these as unit/fuzz assertions and stateful invari
 3. **Authority consistency:** every governed module resolves the same immutable executor.
 4. **Vote conservation:** liquid/staked owner voting units and eligible voting supply update once per
    mint/transfer/burn/stake/NFT transfer/unstake.
-5. **Stake backing:** staking-pool subject balance is at least active position amount and surplus is
+5. **Burn-address exclusion:** the canonical burn address contributes zero to liquid/staked votes,
+   eligible voting supply, Airdrop weight, and Raffle tickets; it cannot receive a PoS position.
+6. **Stake backing:** staking-pool subject balance is at least active position amount and surplus is
    never counted as stake.
-6. **Treasury backing:** reserved Basket routing never exceeds Treasury balance and is excluded from
+7. **Treasury backing:** reserved Basket routing never exceeds Treasury balance and is excluded from
    ordinary available balance.
-7. **Router conservation:** pending + route escrow + protocol owed is fully backed per asset; a
+8. **Router conservation:** pending + route escrow + protocol owed is fully backed per asset; a
    batch's successful + failed shares equal the net batch amount.
-8. **Airdrop conservation:** uncommitted + committed unpaid + retry credits + protocol owed is fully
+9. **Airdrop conservation:** uncommitted + committed unpaid + retry credits + protocol owed is fully
    backed per reward asset.
-9. **Basket ownership:** only Basket NFT burn finalization releases principal, and net owner proceeds
+10. **Basket ownership:** only Basket NFT burn finalization releases principal, and net owner proceeds
    plus tax equals every measured unlocked amount.
-10. **Basket yield:** cumulative dividends never exceed cumulative realized yield after loss recovery.
-11. **Band conservation:** position proceeds are delivered or escrowed exactly once after position
+11. **Basket yield:** cumulative dividends never exceed cumulative realized yield after loss recovery.
+12. **Band conservation:** position proceeds are delivered or escrowed exactly once after position
    close; settlement/delivery retry cannot re-charge fees.
-12. **Raffle/Liquidity preservation:** every invariant in their existing normative specifications
+13. **Raffle/Liquidity preservation:** every invariant in their existing normative specifications
    remains true under v2 funding/binding.
-13. **Fee integrity:** every 1% service fee equals the floor of cumulative fee base, with remainder
+14. **Fee integrity:** every 1% service fee equals the floor of cumulative fee base, with remainder
    carry preventing transaction-splitting avoidance.
-14. **No arbitrary execution:** no module can call an unapproved target/selector or retain unlimited
+15. **No arbitrary execution:** no module can call an unapproved target/selector or retain unlimited
    allowance.
-15. **Cross-module conservation:** every asset leaving one module is measured as receipt, recipient
+16. **Cross-module conservation:** every asset leaving one module is measured as receipt, recipient
    credit, burn, permanent position principal, or explicit retryable failure in the next module.
 
 ## 5. Asset compatibility

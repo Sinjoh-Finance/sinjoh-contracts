@@ -34,7 +34,8 @@ vote; there is no self-delegation transaction or separate votes adapter.
 The token receives an immutable sorted exclusion list at construction. Balances held by these
 addresses have zero voting power and are removed from voting supply:
 
-- zero and dead addresses;
+- the zero address and canonical burn address
+  `0x000000000000000000000000000000000000dEaD`;
 - the project token itself;
 - predicted treasury, router, staking pool, airdrop, raffle, liquidity manager, bands, and basket
   vault addresses;
@@ -203,12 +204,15 @@ and validate a module's membership without array scans.
 2. Reusing a creator/salt/config tuple cannot create a second project.
 3. A staked-governance launch without staking reverts before any deployment.
 4. Every new v2 token returns correct past wallet balances and past eligible voting supply across
-   mint, transfer, burn, and transfers into/out of excluded custody.
+   mint, transfer, burn, transfers into/out of excluded custody, and transfers into/out of the
+   canonical burn address.
 5. No holder must call `delegate` before liquid voting power appears.
 6. The project record cannot be overwritten or assigned to a different subject.
 7. Factories, launcher, and deployer retain no authority after a successful launch.
 8. The all-modules integration test funds the router, treasury, raffle, liquidity, basket, and
    bands without manually setting a missing project address.
+9. `getVotes(burnAddress)` and `getPastVotes(burnAddress, timepoint)` return zero, and the address's
+   historical balance is excluded from `getPastTotalSupply(timepoint)`.
 
 ## 10. Out of scope
 

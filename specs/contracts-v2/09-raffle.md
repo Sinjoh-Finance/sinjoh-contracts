@@ -20,6 +20,8 @@ introduced as incidental contracts-v2 integration work.
 - immutable snapshot or minimum-balance ticket basis;
 - immutable complete exclusions for pools, curves, hooks, lockers, vesting, treasuries, escrows,
   and other subject-token custody addresses;
+- automatic exclusion of the zero address and canonical burn address
+  `0x000000000000000000000000000000000000dEaD` from ticket weight and total tickets;
 - deterministic Merkle-sum ticket tree committed before randomness;
 - prize reservation before the seed exists;
 - verifiable randomness through the audited immutable randomness adapter;
@@ -82,6 +84,8 @@ No token-holder action is required to receive a prize; the keeper submits winnin
 4. Predicted launch addresses produce a complete exclusion list before Raffle deployment.
 5. A project with staking enabled has the same Raffle ticket behavior as a project without staking.
 6. Factories, launcher, Router, Treasury, and governance cannot modify an initialized Raffle.
+7. The canonical burn address always has zero tickets and is excluded from the committed ticket
+   total even when it holds project tokens.
 
 ## 6. Out of scope
 
