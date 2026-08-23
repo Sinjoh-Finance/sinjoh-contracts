@@ -17,6 +17,13 @@ The protocol has three narrow components:
 - one `BasketVaultV2` per token ID: custodies the Basket's assets and talks only to its configured
   adapters.
 
+`BasketVaultV2` is deployed as a deterministic OpenZeppelin minimal-proxy clone of the platform's
+audited implementation. This keeps every Basket's storage and custody isolated without exceeding
+EVM deployment-size limits. The Launcher predicts the Manager and Vault addresses before adapter
+configuration, deploys the complete project, then calls the permissionless one-time
+`finalizePrimaryBasket`. Finalization validates every runtime binding and proof, starts the harvest
+clock, and safely mints the NFT to the Treasury in the same launch transaction.
+
 `BasketVaultV2` is the Basket's own treasury referenced in the product model. It is separate from
 the project Treasury, and it can release principal only through the Basket burn lifecycle.
 
@@ -27,41 +34,55 @@ The first release mints at most one primary Basket to each project Treasury.
 ## 3. Configuration
 
 ```solidity
-enum HarvestCadence { ONE_DAY, SEVEN_DAYS }
-enum EligibilityMode { HOLDERS, STAKERS }
-enum BurnTaxDestination { CREATOR, TREASURY, ROUTER, AIRDROP }
-
-struct TargetAsset {
+struct BasketTarget {
     address depositAsset;
     address yieldAdapter;
+    uint16 targetWeightBps;
+    address[] rewardAssets;
+    bytes32[] yieldApprovalProof;
+}
+
+struct BasketSwapLeg {
+    address inputAsset;
+    uint8 targetIndex;
     address swapAdapter;
     address priceGuard;
-    uint16 targetWeightBps;
     uint16 maxSlippageBps;
     bytes routeData;
+    bytes32[] approvalProof;
+}
+
+struct BasketAllocationConfig {
+    address[] inputAssets;
+    BasketTarget[] targets;
+    BasketSwapLeg[] swapLegs;
 }
 
 struct BasketConfig {
-    bytes32 projectId;
-    address subject;
-    address treasury;
-    address airdrop;
-    HarvestCadence cadence;
-    EligibilityMode eligibilityMode;
+    BasketHarvestCadence cadence;
+    BasketEligibilityMode eligibilityMode;
     bool governanceUpdatesEnabled;
     uint16 burnTaxBps;
-    BurnTaxDestination burnTaxDestination;
+    BasketBurnTaxDestination burnTaxDestination;
     uint256 burnPriceSubject;
-    TargetAsset[] targets;
+    bytes airdropAccountConfig;
+    BasketAllocationConfig allocation;
 }
 ```
 
 Rules:
 
 - one to eight targets;
+- one to eight sorted, unique funding input assets;
 - target weights total exactly 10,000 basis points;
 - deposit assets and adapters are unique and within the project's immutable approval root;
-- adapter, route, and guard runtime/config hashes are frozen in the configuration version;
+- every input/target pair whose assets differ has exactly one swap leg; extra, duplicate, and
+  incomplete legs are rejected;
+- adapter, route, guard, runtime code hashes, maximum slippage, project, chain, and exact Basket
+  Vault are committed by the immutable approval root;
+- reward assets are sorted, unique, explicit, and cannot duplicate their target's deposit asset;
+- no more than 32 distinct assets may be tracked across the Basket's configuration history, keeping
+  harvest and redemption work bounded;
 - cadence is exactly 24 hours or 7 days;
 - staker eligibility requires the project staking module;
 - burn tax is optional and capped at 5,000 basis points;
@@ -69,6 +90,12 @@ Rules:
 - burn price is denominated in raw project-token units and may be zero;
 - burn tax and burn price are immutable for the life of the Basket;
 - the Treasury and project binding are immutable.
+
+The Launcher/UI builds proofs and canonical ABI encoding automatically. Creators choose assets,
+weights, cadence, eligibility, burn tax, and burn price; they are not expected to construct route
+matrices, Merkle proofs, clone salts, or Airdrop account bytes manually. Readable configuration
+hashes, target status, next-harvest time, pending dividends, and redemption assets are exposed for
+frontends and keepers.
 
 ## 4. Platform-approved yield adapters
 
@@ -89,6 +116,11 @@ interface IBasketYieldAdapter {
 Admission requires an audited implementation, exact balance-delta behavior, a mainnet-fork deposit/
 harvest/full-exit test, no caller-selected target, and an exit path that cannot redirect assets away
 from the Basket vault. An adapter cannot be shared across Basket vaults.
+
+For deterministic verification, both `harvest` and `exitAll` return the complete sorted list
+`depositAsset + configured rewardAssets`, including zero amounts. The Vault rejects missing,
+additional, reordered, duplicated, or misreported outputs by comparing every value to its measured
+balance delta.
 
 ## 5. Funding and allocation
 
@@ -138,12 +170,22 @@ first restore the adapter to its principal high-water mark before becoming distr
 
 A failure for one reward asset records that asset as pending and does not reclassify or lose it.
 Anyone may retry. Pending dividends are liabilities and cannot be reinvested as principal.
+The Airdrop's mandatory exclusions apply unchanged: the canonical burn address, Pons locker,
+liquidity/custody exclusions, and any configured ineligible address receive no Basket dividend and
+contribute no eligible distribution weight. The creator remains eligible when holding qualifying
+tokens or stake.
 
 ## 8. Governance updates and rebalancing
 
 If `governanceUpdatesEnabled == false`, target assets/weights are immutable. If enabled, project
 governance may activate a complete new target configuration drawn only from the immutable approval
 root.
+
+The first release performs this bounded rebalance atomically: it exits up to eight old targets,
+validates the complete replacement input/target/route matrix, and reallocates every replacement
+input balance. Any failure reverts the entire governance execution, including adapter exits. Assets
+not named as replacement inputs remain idle and locked in the Basket Vault for later governance or
+burn redemption; they are never swept elsewhere.
 
 Rebalancing may:
 

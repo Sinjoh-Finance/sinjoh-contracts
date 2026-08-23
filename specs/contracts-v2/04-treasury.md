@@ -20,6 +20,13 @@ logic. It is deployed with immutable project ID, subject, creator, controller, r
 approved integration root. It has no recovery owner, controller handoff, proxy admin, or factory
 role.
 
+When Basket is enabled, the CREATE3 Launcher supplies the Basket Manager's final predicted address
+to the Treasury before the Manager bytecode exists. The constructor accepts that nonzero predicted
+address to avoid a circular deployment dependency; every Basket operation requires Manager
+bytecode and validates project identity, NFT contract, token ID, and Treasury ownership at runtime,
+and Registry registration repeats the complete binding check before launch completion. This is not
+a post-launch setter and the immutable address cannot be replaced.
+
 ## 3. Receiving assets
 
 The Treasury accepts:

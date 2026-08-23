@@ -40,6 +40,23 @@ contract ProjectTreasuryVaultV2Test is TreasuryTestBase {
         );
     }
 
+    function testConstructorAcceptsPredictedManagerAndRuntimeUseRequiresBytecode() public {
+        address predictedManager = address(0xBEEF);
+        ProjectTreasuryVaultV2 predictedVault = new ProjectTreasuryVaultV2(
+            address(registry),
+            address(token),
+            CREATOR,
+            address(projectController),
+            bytes32(0),
+            predictedManager
+        );
+        assertEq(predictedVault.basketManager(), predictedManager);
+        vm.expectPartialRevert(ProjectTreasuryVaultV2.InvalidBasketManager.selector);
+        projectController.execute(
+            address(predictedVault), abi.encodeCall(predictedVault.syncBasketNft, (BASKET_ID))
+        );
+    }
+
     function testNativeReceiveAndExplicitDepositHavePredictableAccounting() public {
         vm.prank(DEPOSITOR);
         (bool sent,) = address(vault).call{ value: 2 ether }("");

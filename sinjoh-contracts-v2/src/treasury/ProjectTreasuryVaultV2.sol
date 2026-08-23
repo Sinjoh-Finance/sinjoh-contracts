@@ -151,10 +151,9 @@ contract ProjectTreasuryVaultV2 is
         if (controller_.code.length == 0 || controller_ == BURN_ADDRESS) {
             revert InvalidController(controller_);
         }
-        if (
-            basketManager_ != address(0)
-                && (basketManager_.code.length == 0 || basketManager_ == BURN_ADDRESS)
-        ) {
+        // The CREATE3 Launcher supplies the Manager's final address before deploying its bytecode.
+        // Every operational path and Registry registration validate the deployed contract later.
+        if (basketManager_ == BURN_ADDRESS) {
             revert InvalidBasketManager(basketManager_);
         }
 
@@ -733,7 +732,7 @@ contract ProjectTreasuryVaultV2 is
     }
 
     function _requireOwnedBasket(uint256 basketId) private view {
-        if (basketManager == address(0)) revert InvalidBasketManager(address(0));
+        if (basketManager.code.length == 0) revert InvalidBasketManager(basketManager);
         bytes32 actualProjectId = IProjectBasketManager(basketManager).basketProjectId(basketId);
         if (actualProjectId != projectId) {
             revert InvalidBasketProject(basketId, projectId, actualProjectId);
@@ -743,7 +742,7 @@ contract ProjectTreasuryVaultV2 is
     }
 
     function _basketNft() private view returns (IERC721 nft) {
-        if (basketManager == address(0)) revert InvalidBasketManager(address(0));
+        if (basketManager.code.length == 0) revert InvalidBasketManager(basketManager);
         nft = IProjectBasketManager(basketManager).basketNFT();
         if (address(nft).code.length == 0) revert InvalidBasketNft(address(nft));
     }

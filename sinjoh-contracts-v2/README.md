@@ -19,7 +19,7 @@ OpenZeppelin Contracts 5.6.1 is imported from the repository's pinned vendored d
 | Registry | implemented |
 | Router | implemented |
 | Airdrop | implemented |
-| Basket | pending |
+| Basket | implemented |
 | Funding Bands | pending |
 | Raffle/Liquidity v2 binding | pending |
 | Launcher | pending |
@@ -60,3 +60,11 @@ payments without recipient claims. EIP-712 epoch commitments are permissionlessl
 on-chain checkpoints and direction-aware weight/amount Merkle sums verify every proportional leaf.
 Failed recipients and dust destinations become exact retryable credits; one-call account/epoch
 status and proof/hash helpers support frontends, workers, and independent artifact verification.
+
+`BasketManagerV2`, `BasketNFTV2`, and each isolated `BasketVaultV2` implement locked yield baskets.
+Funding follows a complete proof-approved input/target route matrix, realized yield is harvested on
+the selected daily or weekly cadence into the matching Airdrop account, and failed downstream
+delivery remains exactly retryable. Optional governance updates perform an atomic in-vault
+rebalance. Principal can leave only through resumable NFT burn settlement, with an optional exact
+project-token burn price and in-kind tax. The per-Basket Vault is a deterministic clone of one
+audited implementation so the launch is both address-predictable and EVM-size compliant.

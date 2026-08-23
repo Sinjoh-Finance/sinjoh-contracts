@@ -26,6 +26,10 @@ contract MockProjectToken is ERC20 {
         _mint(recipient, amount);
     }
 
+    function burn(uint256 amount) external {
+        _burn(msg.sender, amount);
+    }
+
     function _update(address from, address to, uint256 amount) internal override {
         uint256 fee = from != address(0) && to != address(0) ? amount * transferFeeBps / 10_000 : 0;
         if (fee != 0) {
