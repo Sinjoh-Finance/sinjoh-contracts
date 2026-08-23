@@ -27,6 +27,7 @@ library RaffleTypes {
         address priceGuard;
         bytes routeData;
         bytes guardData;
+        bytes32[] approvalProof;
     }
 
     /// @notice Deployment configuration. Hashed to `configHash` and frozen at initialization.

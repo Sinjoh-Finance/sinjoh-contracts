@@ -31,7 +31,7 @@ import {
 contract ProjectLaunchDeployerV2 {
     uint32 private constant PROTOCOL_VERSION = 2;
     address private constant BURN_ADDRESS = SinjohV2Constants.BURN_ADDRESS;
-    address private constant PONS_LOCKER = 0xda4bCee76B29EFEc9697Fcf663601c2042043968;
+    address private constant PONS_LOCKER = 0x736D76699C26D0d966744cAe304C000d471f7F35;
     uint256 private constant REQUIRED_CODE_STORES = 10;
     uint256 private constant REQUIRED_CODE_STORES_WITHOUT_BASKET = 9;
 
@@ -262,7 +262,8 @@ contract ProjectLaunchDeployerV2 {
                 a.treasury == address(0) ? config.creator : a.treasury,
                 a.controller,
                 config.staking.guardian,
-                config.staking.lockDuration
+                config.staking.lockDuration,
+                _tokenExclusions(config, a)
             )
         );
         _requireExpected(STAKING, a.stakingPool, deployed);
@@ -324,7 +325,7 @@ contract ProjectLaunchDeployerV2 {
             );
             _requireExpected(RAFFLE, a.raffle, deployed);
             ProjectRaffleV2(payable(deployed))
-                .initialize(registry, a.subject, _raffleConfig(config, a));
+                .initialize(registry, a.subject, integrationApprovalRoot, _raffleConfig(config, a));
         }
         if (config.modules.liquidity) {
             address deployed = _deploy(
@@ -338,7 +339,8 @@ contract ProjectLaunchDeployerV2 {
                     v4PositionManager,
                     v4StateView,
                     permit2,
-                    protocolFeeRecipient
+                    protocolFeeRecipient,
+                    integrationApprovalRoot
                 )
             );
             _requireExpected(LIQUIDITY, a.liquidityManager, deployed);
@@ -424,7 +426,6 @@ contract ProjectLaunchDeployerV2 {
             deployment.market.v3IntegrationFactory = address(fundingBandV3IntegrationFactory);
             deployment.market.twapWindow = config.bands.twapWindow;
             deployment.market.quoteUsdOracle = config.bands.quoteUsdOracle;
-            deployment.market.tickReferenceQuoteUsdE8 = config.bands.tickReferenceQuoteUsdE8;
             deployment.market.marketCapGuard = address(0);
             deployment.market.positionAdapter = address(0);
         }

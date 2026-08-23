@@ -26,14 +26,15 @@ import { MockProjectToken } from "../mocks/MockProjectToken.sol";
 import { MockProjectController } from "../mocks/MockTreasuryIntegrations.sol";
 import { MockBasketAsset, MockBasketModule } from "../mocks/MockBasketIntegrations.sol";
 import {
+    MockFundingBandQuoteUsdOracle,
     MockV3BandFactory,
     MockV3BandPool,
     MockV3BandPositionManager
 } from "../mocks/MockUniswapV3BandPosition.sol";
 
 contract ProjectFundingBandsV3AutoDeploymentTest is Test {
-    bytes32 private constant BAND_INTEGRATION_DOMAIN =
-        keccak256("SINJOH_V2_FUNDING_BAND_INTEGRATION");
+    bytes32 private constant BAND_FACTORY_INTEGRATION_DOMAIN =
+        keccak256("SINJOH_V2_FUNDING_BAND_FACTORY_INTEGRATION");
 
     struct System {
         MockProjectToken subject;
@@ -41,6 +42,7 @@ contract ProjectFundingBandsV3AutoDeploymentTest is Test {
         MockProjectController controller;
         MockV3BandPool pool;
         MockV3BandPositionManager positionManager;
+        MockFundingBandQuoteUsdOracle quoteUsdOracle;
         ProjectFundingBandsV2 bands;
         address predictedBands;
         address predictedGuard;
@@ -99,6 +101,10 @@ contract ProjectFundingBandsV3AutoDeploymentTest is Test {
         system.pool.setCurrentTick(quoteSideTick);
         system.bands.armSettlement(bandId, "");
         vm.warp(block.timestamp + 15 minutes);
+        system.quoteUsdOracle
+            .setObservation(
+                1e8, uint48(block.timestamp), keccak256(abi.encode("QUSD", block.timestamp))
+            );
         system.pool
             .setCurrentTick(subjectIsToken0 ? quoteSideTick + spacing : quoteSideTick - spacing);
         uint128 grossQuote = 1_000e18;
@@ -135,6 +141,8 @@ contract ProjectFundingBandsV3AutoDeploymentTest is Test {
         FundingBandV3IntegrationFactory factory = new FundingBandV3IntegrationFactory(
             address(v3Factory), address(system.positionManager)
         );
+        system.quoteUsdOracle = new MockFundingBandQuoteUsdOracle(address(system.quote));
+        system.quoteUsdOracle.setObservation(1e8, uint48(block.timestamp), keccak256("QUSD"));
 
         system.predictedBands = vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
         FundingBandV3IntegrationConfig memory integration = FundingBandV3IntegrationConfig({
@@ -144,13 +152,16 @@ contract ProjectFundingBandsV3AutoDeploymentTest is Test {
             canonicalPool: address(system.pool),
             referenceSupply: system.subject.totalSupply(),
             twapWindow: 15 minutes,
-            quoteUsdOracle: address(0),
-            tickReferenceQuoteUsdE8: 1e8,
+            quoteUsdOracle: address(system.quoteUsdOracle),
             maximumOracleAge: 5 minutes
         });
         (system.predictedGuard, system.predictedAdapter) = factory.predict(integration);
         system.approvalLeaf = _approvalLeaf(
-            address(system.pool), address(system.quote), address(system.positionManager)
+            address(factory),
+            address(v3Factory),
+            address(system.quote),
+            address(system.positionManager),
+            address(system.quoteUsdOracle)
         );
         FundingBandsDeploymentConfig memory deployment;
         deployment.project = FundingBandsProjectConfig({
@@ -173,8 +184,7 @@ contract ProjectFundingBandsV3AutoDeploymentTest is Test {
             positionAdapter: address(0),
             v3IntegrationFactory: address(factory),
             twapWindow: 15 minutes,
-            quoteUsdOracle: address(0),
-            tickReferenceQuoteUsdE8: 1e8,
+            quoteUsdOracle: address(system.quoteUsdOracle),
             confirmationPeriod: 15 minutes,
             maximumObservationAge: 5 minutes,
             integrationApprovalProof: new bytes32[](0)
@@ -182,20 +192,25 @@ contract ProjectFundingBandsV3AutoDeploymentTest is Test {
         system.bands = new ProjectFundingBandsV2(abi.encode(deployment));
     }
 
-    function _approvalLeaf(address pool, address quote, address positionManager)
-        private
-        view
-        returns (bytes32)
-    {
+    function _approvalLeaf(
+        address integrationFactory,
+        address factory,
+        address quote,
+        address positionManager,
+        address quoteUsdOracle
+    ) private view returns (bytes32) {
         bytes32 inner = keccak256(
             abi.encode(
-                BAND_INTEGRATION_DOMAIN,
+                BAND_FACTORY_INTEGRATION_DOMAIN,
                 block.chainid,
-                pool.codehash,
+                integrationFactory,
+                factory,
+                factory.codehash,
                 quote,
-                keccak256(type(UniswapV3FundingBandMarketCapGuard).runtimeCode),
-                keccak256(type(UniswapV3FundingBandPositionAdapter).runtimeCode),
-                positionManager.codehash
+                positionManager,
+                positionManager.codehash,
+                quoteUsdOracle,
+                quoteUsdOracle.codehash
             )
         );
         return keccak256(bytes.concat(inner));

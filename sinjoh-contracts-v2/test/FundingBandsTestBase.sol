@@ -61,7 +61,9 @@ abstract contract FundingBandsTestBase is Test {
         router = _module();
         airdrop = _module();
         raffle = _module();
-        guard = new MockFundingBandGuard(address(subject), address(pool), referenceSupply);
+        guard = new MockFundingBandGuard(
+            address(subject), address(quote), address(pool), referenceSupply
+        );
         positionAdapter =
             new MockFundingBandPositionAdapter(address(subject), address(quote), address(pool));
         swapAdapter = new MockProjectSwapAdapter();
@@ -172,7 +174,6 @@ abstract contract FundingBandsTestBase is Test {
         FundingBandSwapConfig memory conversion = FundingBandSwapConfig({
             swapAdapter: address(swapAdapter),
             priceGuard: address(priceGuard),
-            maxSlippageBps: 100,
             routeData: hex"babe",
             guardData: bytes(""),
             approvalProof: proof
@@ -220,12 +221,11 @@ abstract contract FundingBandsTestBase is Test {
     {
         bytes32 inner = keccak256(
             abi.encode(
-                keccak256("SINJOH_V2_FUNDING_BAND_INTEGRATION"),
+                keccak256("SINJOH_V2_FUNDING_BAND_PAIR_INTEGRATION"),
                 block.chainid,
-                address(pool).codehash,
-                address(quote),
+                address(guard),
                 address(guard).codehash,
-                address(positionAdapter).codehash,
+                address(positionAdapter),
                 address(positionAdapter).codehash
             )
         );
@@ -235,14 +235,12 @@ abstract contract FundingBandsTestBase is Test {
     function _swapLeaf() private view returns (bytes32) {
         bytes32 inner = keccak256(
             abi.encode(
-                keccak256("SINJOH_V2_FUNDING_BAND_SWAP"),
+                keccak256("SINJOH_V2_SWAP_INTEGRATION_APPROVAL"),
                 block.chainid,
-                address(quote),
-                address(subject),
+                address(swapAdapter),
                 address(swapAdapter).codehash,
-                address(priceGuard).codehash,
-                uint16(100),
-                keccak256(hex"babe")
+                address(priceGuard),
+                address(priceGuard).codehash
             )
         );
         return keccak256(bytes.concat(inner));

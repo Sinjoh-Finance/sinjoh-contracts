@@ -38,6 +38,7 @@ contract ProjectLiquidityManagerV2FuzzTest is Test {
         MockV3PositionManager v3PositionManager = new MockV3PositionManager();
         MockPermit2 permit2 = new MockPermit2();
         MockV4PositionManager v4PositionManager = new MockV4PositionManager(permit2);
+        bytes32 approvalRoot = _swapApprovalLeaf(address(adapter), address(guard));
         manager = new ProjectLiquidityManagerV2(
             address(registry),
             address(subject),
@@ -46,7 +47,8 @@ contract ProjectLiquidityManagerV2FuzzTest is Test {
             address(v4PositionManager),
             address(new MockV4StateView()),
             address(permit2),
-            address(0xFEE)
+            address(0xFEE),
+            approvalRoot
         );
         quote.mint(address(this), type(uint128).max);
         quote.approve(address(manager), type(uint256).max);
@@ -74,7 +76,7 @@ contract ProjectLiquidityManagerV2FuzzTest is Test {
         config.quoteSwapBps = swapBps;
         bytes32 projectId = subject.projectId();
         vm.expectRevert(ProjectLiquidityManagerV2.InvalidConfiguration.selector);
-        manager.fund(projectId, address(subject), address(quote), 1_000, abi.encode(config));
+        manager.fund(projectId, address(subject), address(quote), 1_000, _fundingData(config));
         assertFalse(manager.accountStatus(manager.projectAccountId(address(this))).configured);
     }
 
@@ -101,7 +103,7 @@ contract ProjectLiquidityManagerV2FuzzTest is Test {
         vm.startPrank(OTHER_FUNDER);
         quote.approve(address(manager), second);
         manager.fund(
-            subject.projectId(), address(subject), address(quote), second, abi.encode(config)
+            subject.projectId(), address(subject), address(quote), second, _fundingData(config)
         );
         vm.stopPrank();
 
@@ -128,7 +130,7 @@ contract ProjectLiquidityManagerV2FuzzTest is Test {
                 measured
             )
         );
-        manager.fund(projectId, address(subject), address(quote), amount, abi.encode(config));
+        manager.fund(projectId, address(subject), address(quote), amount, _fundingData(config));
 
         assertFalse(manager.accountStatus(manager.projectAccountId(address(this))).configured);
         assertEq(manager.totalLiability(address(quote)), 0);
@@ -136,8 +138,38 @@ contract ProjectLiquidityManagerV2FuzzTest is Test {
 
     function _fund(uint256 amount, ProjectLiquidityManagerV2.Config memory config) private {
         manager.fund(
-            subject.projectId(), address(subject), address(quote), amount, abi.encode(config)
+            subject.projectId(), address(subject), address(quote), amount, _fundingData(config)
         );
+    }
+
+    function _fundingData(ProjectLiquidityManagerV2.Config memory config)
+        private
+        pure
+        returns (bytes memory)
+    {
+        return abi.encode(
+            ProjectLiquidityManagerV2.FundingConfig({
+                config: config, integrationApprovalProof: new bytes32[](0)
+            })
+        );
+    }
+
+    function _swapApprovalLeaf(address swapAdapter, address priceGuard)
+        private
+        view
+        returns (bytes32)
+    {
+        bytes32 inner = keccak256(
+            abi.encode(
+                keccak256("SINJOH_V2_SWAP_INTEGRATION_APPROVAL"),
+                block.chainid,
+                swapAdapter,
+                swapAdapter.codehash,
+                priceGuard,
+                priceGuard.codehash
+            )
+        );
+        return keccak256(bytes.concat(inner));
     }
 
     function _config() private view returns (ProjectLiquidityManagerV2.Config memory config) {

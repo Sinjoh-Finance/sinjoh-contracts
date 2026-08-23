@@ -1,17 +1,20 @@
 import { readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
+
+const requireFromSdk = createRequire(new URL("../sdk/package.json", import.meta.url));
+const { concatHex, encodeAbiParameters, keccak256, stringToHex } = requireFromSdk("viem");
 
 const manifestPath = process.argv[2];
 if (!manifestPath) throw new Error("usage: node script/verify-release-manifest.mjs <manifest.json>");
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
 const zeroAddress = `0x${"0".repeat(40)}`;
 const zeroBytes32 = `0x${"0".repeat(64)}`;
+const addressPattern = /^0x[0-9a-fA-F]{40}$/;
+const bytes32Pattern = /^0x[0-9a-fA-F]{64}$/;
 
 const required = [
   "chainId", "protocolVersion", "gitCommit", "sourceTreeHash", "buildHash", "compiler",
-  "evmVersion", "optimizerEnabled", "optimizerRuns", "viaIr", "auditReportVersion",
-  "auditEvidence", "auditEvidenceHash", "forkEvidence", "forkEvidenceHash", "testnetEvidence",
-  "testnetEvidenceHash", "roleEvidence", "roleEvidenceHash", "assetFlowEvidence",
-  "assetFlowEvidenceHash",
+  "evmVersion", "optimizerEnabled", "optimizerRuns", "viaIr",
   "broadcaster", "protocolFeeRecipient",
   "registry", "deploymentEngine", "launcher", "raffleImplementation",
   "raffleImplementationRuntimeHash",
@@ -21,10 +24,20 @@ const required = [
   "erc4626YieldAdapterFactory", "erc4626YieldAdapterFactoryRuntimeHash",
   "erc4626YieldAdapterRuntimeHash",
   "fundingBandV3IntegrationFactory", "fundingBandV3IntegrationFactoryRuntimeHash",
-  "fundingBandMarketCapGuardRuntimeHash", "fundingBandPositionAdapterRuntimeHash",
+  "fundingBandMarketCapGuardRuntimeTemplateHash",
+  "fundingBandPositionAdapterRuntimeTemplateHash",
   "v3Factory", "v3FactoryRuntimeHash", "v3PositionManager", "v3PositionManagerRuntimeHash",
   "v4PositionManager", "v4PositionManagerRuntimeHash", "v4StateView",
   "v4StateViewRuntimeHash", "permit2", "permit2RuntimeHash", "integrationApprovalRoot",
+  "projectSwapAdapter", "projectSwapAdapterRuntimeHash", "fundingBandQuoteUsdOracle",
+  "fundingBandQuoteUsdOracleRuntimeHash", "fundingBandQuoteAsset",
+  "fundingBandQuoteAssetRuntimeHash", "fundingBandQuoteUsdAggregator",
+  "fundingBandQuoteUsdAggregatorRuntimeHash", "projectV3PriceGuard500",
+  "projectV3PriceGuard500RuntimeHash", "projectV3PriceGuard3000",
+  "projectV3PriceGuard3000RuntimeHash", "projectV3PriceGuard10000",
+  "projectV3PriceGuard10000RuntimeHash", "swapApprovalLeaf500", "swapApprovalLeaf3000",
+  "swapApprovalLeaf10000", "fundingBandIntegrationLeaf", "swapApprovalProof500",
+  "swapApprovalProof3000", "swapApprovalProof10000", "fundingBandIntegrationProof",
   "registryRuntimeHash", "deploymentEngineRuntimeHash", "launcherRuntimeHash",
   "tokenCreationCodeHash", "multisigCreationCodeHash", "timelockCreationCodeHash",
   "stakingCreationCodeHash", "treasuryCreationCodeHash", "airdropCreationCodeHash",
@@ -44,7 +57,7 @@ const expected = {
   compiler: "solc-0.8.28",
   evmVersion: "cancun",
   optimizerEnabled: true,
-  optimizerRuns: 1000,
+  optimizerRuns: 200,
   viaIr: true,
   basketEnabled: false,
   basketVaultImplementation: zeroAddress,
@@ -53,17 +66,6 @@ const expected = {
   erc4626YieldAdapterFactoryRuntimeHash: zeroBytes32,
   erc4626YieldAdapterRuntimeHash: zeroBytes32,
   basketCreationCodeHash: zeroBytes32,
-  auditReportVersion: process.env.AUDIT_REPORT_VERSION,
-  auditEvidence: process.env.AUDIT_EVIDENCE_PATH,
-  auditEvidenceHash: process.env.AUDIT_EVIDENCE_HASH,
-  forkEvidence: process.env.FORK_EVIDENCE_PATH,
-  forkEvidenceHash: process.env.FORK_EVIDENCE_HASH,
-  testnetEvidence: process.env.TESTNET_EVIDENCE_PATH,
-  testnetEvidenceHash: process.env.TESTNET_EVIDENCE_HASH,
-  roleEvidence: process.env.ROLE_EVIDENCE_PATH,
-  roleEvidenceHash: process.env.ROLE_EVIDENCE_HASH,
-  assetFlowEvidence: process.env.ASSET_FLOW_EVIDENCE_PATH,
-  assetFlowEvidenceHash: process.env.ASSET_FLOW_EVIDENCE_HASH,
 };
 for (const [key, value] of Object.entries(expected)) {
   if (manifest[key] !== value) {
@@ -73,7 +75,12 @@ for (const [key, value] of Object.entries(expected)) {
 
 const approvedReleaseValues = {
   protocolFeeRecipient: "PROTOCOL_FEE_RECIPIENT",
-  integrationApprovalRoot: "INTEGRATION_APPROVAL_ROOT",
+  projectSwapAdapter: "PROJECT_SWAP_ADAPTER",
+  projectSwapAdapterRuntimeHash: "PROJECT_SWAP_ADAPTER_RUNTIME_HASH",
+  fundingBandQuoteAsset: "FUNDING_BAND_QUOTE_ASSET",
+  fundingBandQuoteAssetRuntimeHash: "FUNDING_BAND_QUOTE_ASSET_RUNTIME_HASH",
+  fundingBandQuoteUsdAggregator: "FUNDING_BAND_QUOTE_USD_AGGREGATOR",
+  fundingBandQuoteUsdAggregatorRuntimeHash: "FUNDING_BAND_QUOTE_USD_AGGREGATOR_RUNTIME_HASH",
   randomnessAdapter: "RANDOMNESS_ADAPTER",
   randomnessAdapterRuntimeHash: "RANDOMNESS_ADAPTER_RUNTIME_HASH",
   v3Factory: "V3_FACTORY",
@@ -92,18 +99,103 @@ for (const [key, environmentKey] of Object.entries(approvedReleaseValues)) {
     throw new Error(`release manifest '${key}' does not match the approved release value`);
   }
 }
+if (manifest.integrationApprovalRoot === zeroBytes32) {
+  throw new Error("release manifest integrationApprovalRoot must be nonzero");
+}
+for (const key of [
+  "swapApprovalProof500", "swapApprovalProof3000", "swapApprovalProof10000",
+  "fundingBandIntegrationProof",
+]) {
+  if (!Array.isArray(manifest[key]) || manifest[key].length !== 2
+      || manifest[key].some((value) => !bytes32Pattern.test(value))) {
+    throw new Error(`release manifest '${key}' must contain exactly two bytes32 nodes`);
+  }
+}
 
-const addressPattern = /^0x[0-9a-fA-F]{40}$/;
-const bytes32Pattern = /^0x[0-9a-fA-F]{64}$/;
+const bytes32Type = { type: "bytes32" };
+const uint256Type = { type: "uint256" };
+const addressType = { type: "address" };
+const doubleHash = (types, values) => keccak256(keccak256(encodeAbiParameters(types, values)));
+const swapDomain = keccak256(stringToHex("SINJOH_V2_SWAP_INTEGRATION_APPROVAL"));
+const fundingBandFactoryDomain = keccak256(
+  stringToHex("SINJOH_V2_FUNDING_BAND_FACTORY_INTEGRATION"),
+);
+const swapLeaf = (guard, guardRuntimeHash) => doubleHash(
+  [bytes32Type, uint256Type, addressType, bytes32Type, addressType, bytes32Type],
+  [
+    swapDomain,
+    BigInt(manifest.chainId),
+    manifest.projectSwapAdapter,
+    manifest.projectSwapAdapterRuntimeHash,
+    guard,
+    guardRuntimeHash,
+  ],
+);
+const computedLeaves = {
+  swapApprovalLeaf500: swapLeaf(
+    manifest.projectV3PriceGuard500,
+    manifest.projectV3PriceGuard500RuntimeHash,
+  ),
+  swapApprovalLeaf3000: swapLeaf(
+    manifest.projectV3PriceGuard3000,
+    manifest.projectV3PriceGuard3000RuntimeHash,
+  ),
+  swapApprovalLeaf10000: swapLeaf(
+    manifest.projectV3PriceGuard10000,
+    manifest.projectV3PriceGuard10000RuntimeHash,
+  ),
+  fundingBandIntegrationLeaf: doubleHash(
+    [
+      bytes32Type, uint256Type, addressType, addressType, bytes32Type,
+      addressType, addressType, bytes32Type, addressType, bytes32Type,
+    ],
+    [
+      fundingBandFactoryDomain,
+      BigInt(manifest.chainId),
+      manifest.fundingBandV3IntegrationFactory,
+      manifest.v3Factory,
+      manifest.v3FactoryRuntimeHash,
+      manifest.fundingBandQuoteAsset,
+      manifest.v3PositionManager,
+      manifest.v3PositionManagerRuntimeHash,
+      manifest.fundingBandQuoteUsdOracle,
+      manifest.fundingBandQuoteUsdOracleRuntimeHash,
+    ],
+  ),
+};
+for (const [key, computed] of Object.entries(computedLeaves)) {
+  if (manifest[key].toLowerCase() !== computed.toLowerCase()) {
+    throw new Error(`release manifest '${key}' does not match its exact approved integration`);
+  }
+}
+if (new Set(Object.values(computedLeaves).map((value) => value.toLowerCase())).size !== 4) {
+  throw new Error("release manifest integration approval leaves must be unique");
+}
+const processProof = (leaf, proof) => proof.reduce((hash, sibling) => {
+  const ordered = BigInt(hash) < BigInt(sibling) ? [hash, sibling] : [sibling, hash];
+  return keccak256(concatHex(ordered));
+}, leaf);
+const proofFields = {
+  swapApprovalLeaf500: "swapApprovalProof500",
+  swapApprovalLeaf3000: "swapApprovalProof3000",
+  swapApprovalLeaf10000: "swapApprovalProof10000",
+  fundingBandIntegrationLeaf: "fundingBandIntegrationProof",
+};
+for (const [leafField, proofField] of Object.entries(proofFields)) {
+  const computedRoot = processProof(manifest[leafField], manifest[proofField]);
+  if (computedRoot.toLowerCase() !== manifest.integrationApprovalRoot.toLowerCase()) {
+    throw new Error(`release manifest '${proofField}' does not reconstruct integrationApprovalRoot`);
+  }
+}
+
 for (const [key, value] of Object.entries(manifest)) {
   if (key.endsWith("RuntimeHash") || key.endsWith("CodeHash") || key === "integrationApprovalRoot") {
     if (!bytes32Pattern.test(value)) throw new Error(`release manifest '${key}' is not bytes32`);
   }
-  if (key.endsWith("EvidenceHash") && !/^[0-9a-fA-F]{64}$/.test(value)) {
-    throw new Error(`release manifest '${key}' is not a SHA-256 hash`);
-  }
   if (
     key.endsWith("Factory") || key.endsWith("Manager") || key.endsWith("Implementation")
+      || key.endsWith("Adapter") || key.endsWith("Guard") || key.endsWith("Oracle")
+      || key.endsWith("Aggregator") || key.endsWith("Asset")
       || ["broadcaster", "protocolFeeRecipient", "registry", "deploymentEngine", "launcher",
         "randomnessAdapter", "v3Factory", "v4StateView", "permit2"].includes(key)
   ) {

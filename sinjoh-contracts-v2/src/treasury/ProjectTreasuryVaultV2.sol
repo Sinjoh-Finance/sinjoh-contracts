@@ -18,6 +18,7 @@ import { IProjectRegistryView } from "../interfaces/IProjectRegistryView.sol";
 import { IProjectSwapAdapter } from "../interfaces/IProjectSwapAdapter.sol";
 import { IProjectTokenIdentity } from "../interfaces/IProjectTokenIdentity.sol";
 import { ProjectIds } from "../libraries/ProjectIds.sol";
+import { IntegrationApproval } from "../libraries/IntegrationApproval.sol";
 import { SinjohV2Constants } from "../libraries/SinjohV2Constants.sol";
 
 /// @notice Narrow project Treasury controlled by one immutable Multisig Account or Timelock.
@@ -322,7 +323,7 @@ contract ProjectTreasuryVaultV2 is
         }
 
         bytes32 routeHash = keccak256(routeData);
-        bytes32 approvalLeaf = swapApprovalLeaf(adapter, priceGuard, assetIn, assetOut, routeHash);
+        bytes32 approvalLeaf = swapApprovalLeaf(adapter, priceGuard);
         if (
             integrationApprovalRoot == bytes32(0)
                 || !MerkleProof.verifyCalldata(approvalProof, integrationApprovalRoot, approvalLeaf)
@@ -367,42 +368,22 @@ contract ProjectTreasuryVaultV2 is
         emit TreasurySwap(assetIn, assetOut, amountIn, amountOut, routeHash);
     }
 
-    function swapApprovalLeaf(
-        address adapter,
-        address priceGuard,
-        address assetIn,
-        address assetOut,
-        bytes32 routeHash
-    ) public view returns (bytes32) {
-        bytes32 inner = keccak256(
-            abi.encode(
-                TREASURY_SWAP_APPROVAL_DOMAIN,
-                block.chainid,
-                adapter.codehash,
-                priceGuard.codehash,
-                assetIn,
-                assetOut,
-                routeHash
-            )
-        );
-        return keccak256(bytes.concat(inner));
+    function swapApprovalLeaf(address adapter, address priceGuard) public view returns (bytes32) {
+        return IntegrationApproval.swapLeaf(adapter, priceGuard);
     }
 
     /// @notice Frontend-safe approval check for an exact adapter, guard, pair, and route.
     /// @dev This keeps clients from having to reproduce the leaf's domain separation and hashing.
-    function isSwapApproved(
-        address adapter,
-        address priceGuard,
-        address assetIn,
-        address assetOut,
-        bytes32 routeHash,
-        bytes32[] calldata approvalProof
-    ) external view returns (bool) {
+    function isSwapApproved(address adapter, address priceGuard, bytes32[] calldata approvalProof)
+        external
+        view
+        returns (bool)
+    {
         if (
             integrationApprovalRoot == bytes32(0) || adapter.code.length == 0
                 || priceGuard.code.length == 0
         ) return false;
-        bytes32 leaf = swapApprovalLeaf(adapter, priceGuard, assetIn, assetOut, routeHash);
+        bytes32 leaf = swapApprovalLeaf(adapter, priceGuard);
         return MerkleProof.verifyCalldata(approvalProof, integrationApprovalRoot, leaf);
     }
 

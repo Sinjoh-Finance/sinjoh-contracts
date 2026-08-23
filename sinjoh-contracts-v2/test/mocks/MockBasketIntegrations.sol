@@ -65,6 +65,10 @@ contract MockBasketModule is IProjectModule, IProjectFundable, IERC721Receiver {
 
     receive() external payable { }
 
+    function basketManager() external view returns (address) {
+        return eligibilitySource;
+    }
+
     function setFailFunding(bool fail) external {
         failFunding = fail;
     }

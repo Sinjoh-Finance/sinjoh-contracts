@@ -49,7 +49,8 @@ abstract contract GovernanceTestBase is TestBase {
             TREASURY,
             STAKING_CONTROLLER,
             address(0),
-            LOCK_DURATION
+            LOCK_DURATION,
+            new address[](0)
         );
         posNFT = stakingPool.posNFT();
         if (createStakes) {

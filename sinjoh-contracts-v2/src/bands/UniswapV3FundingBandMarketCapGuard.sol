@@ -20,13 +20,13 @@ contract UniswapV3FundingBandMarketCapGuard is IFundingBandMarketCapGuard {
 
     address public override bandsContract;
     address public override subject;
-    address public quoteAsset;
+    address public override quoteAsset;
     address public override canonicalPool;
-    address public factory;
+    address public override factory;
     uint256 public override referenceSupply;
     uint32 public override minimumTwapWindow;
-    address public quoteUsdOracle;
-    uint256 public tickReferenceQuoteUsdE8;
+    address public override quoteUsdOracle;
+    uint256 public override tickReferenceQuoteUsdE8;
     uint48 public maximumOracleAge;
     uint256 public quoteUnit;
     int24 public tickSpacing;
@@ -51,7 +51,6 @@ contract UniswapV3FundingBandMarketCapGuard is IFundingBandMarketCapGuard {
         uint256 referenceSupply_,
         uint32 twapWindow_,
         address quoteUsdOracle_,
-        uint256 tickReferenceQuoteUsdE8_,
         uint48 maximumOracleAge_
     ) {
         if (bandsContract_ == address(0)) {
@@ -65,15 +64,20 @@ contract UniswapV3FundingBandMarketCapGuard is IFundingBandMarketCapGuard {
         if (factory_.code.length == 0) revert InvalidAddress(factory_);
         if (
             referenceSupply_ == 0 || twapWindow_ == 0 || twapWindow_ > MAX_TWAP_WINDOW
-                || tickReferenceQuoteUsdE8_ == 0 || maximumOracleAge_ == 0
+                || maximumOracleAge_ == 0
         ) revert InvalidConfiguration();
         uint8 quoteDecimals = IERC20Metadata(quoteAsset_).decimals();
         if (quoteDecimals > MAX_QUOTE_DECIMALS) revert InvalidConfiguration();
         if (
-            quoteUsdOracle_ != address(0)
-                && (quoteUsdOracle_.code.length == 0
-                    || IFundingBandQuoteUsdOracle(quoteUsdOracle_).quoteAsset() != quoteAsset_)
+            quoteUsdOracle_.code.length == 0
+                || IFundingBandQuoteUsdOracle(quoteUsdOracle_).quoteAsset() != quoteAsset_
         ) revert InvalidAddress(quoteUsdOracle_);
+        (uint256 launchQuoteUsdE8, uint48 quoteObservedAt,) =
+            IFundingBandQuoteUsdOracle(quoteUsdOracle_).latestPriceUsdE8();
+        if (
+            launchQuoteUsdE8 == 0 || quoteObservedAt > block.timestamp
+                || block.timestamp - quoteObservedAt > maximumOracleAge_
+        ) revert InvalidQuoteUsdObservation();
 
         IUniswapV3Pool pool = IUniswapV3Pool(canonicalPool_);
         address token0 = subject_ < quoteAsset_ ? subject_ : quoteAsset_;
@@ -94,7 +98,7 @@ contract UniswapV3FundingBandMarketCapGuard is IFundingBandMarketCapGuard {
         referenceSupply = referenceSupply_;
         minimumTwapWindow = twapWindow_;
         quoteUsdOracle = quoteUsdOracle_;
-        tickReferenceQuoteUsdE8 = tickReferenceQuoteUsdE8_;
+        tickReferenceQuoteUsdE8 = launchQuoteUsdE8;
         maximumOracleAge = maximumOracleAge_;
         quoteUnit = 10 ** quoteDecimals;
         tickSpacing = spacing;
@@ -193,13 +197,6 @@ contract UniswapV3FundingBandMarketCapGuard is IFundingBandMarketCapGuard {
         returns (uint256 priceUsdE8, uint48 observedAt, bytes32 observationId)
     {
         uint48 currentTime = uint48(block.timestamp);
-        if (quoteUsdOracle == address(0)) {
-            return (
-                tickReferenceQuoteUsdE8,
-                currentTime,
-                keccak256(abi.encode("FIXED_QUOTE_USD", quoteAsset, tickReferenceQuoteUsdE8))
-            );
-        }
         (priceUsdE8, observedAt, observationId) =
             IFundingBandQuoteUsdOracle(quoteUsdOracle).latestPriceUsdE8();
         if (priceUsdE8 == 0 || observationId == bytes32(0) || observedAt > currentTime) {

@@ -88,8 +88,14 @@ export const fundingBandDestination = {
   basketViaTreasury: 6,
 } as const;
 
-const FUNDING_BAND_INTEGRATION_DOMAIN = keccak256(
-  stringToHex("SINJOH_V2_FUNDING_BAND_INTEGRATION"),
+const SWAP_INTEGRATION_DOMAIN = keccak256(
+  stringToHex("SINJOH_V2_SWAP_INTEGRATION_APPROVAL"),
+);
+const FUNDING_BAND_FACTORY_INTEGRATION_DOMAIN = keccak256(
+  stringToHex("SINJOH_V2_FUNDING_BAND_FACTORY_INTEGRATION"),
+);
+const FUNDING_BAND_PAIR_INTEGRATION_DOMAIN = keccak256(
+  stringToHex("SINJOH_V2_FUNDING_BAND_PAIR_INTEGRATION"),
 );
 
 /**
@@ -97,46 +103,79 @@ const FUNDING_BAND_INTEGRATION_DOMAIN = keccak256(
  * The leaf approves reviewed code and market infrastructure; each deployed guard separately binds
  * and validates its project's exact reference supply.
  */
-export function fundingBandIntegrationApprovalLeaf(parameters: {
+export function swapIntegrationApprovalLeaf(parameters: {
   chainId: bigint;
-  poolRuntimeHash: Hex;
-  quoteAsset: Address;
-  marketCapGuardRuntimeHash: Hex;
-  positionAdapterRuntimeHash: Hex;
-  positionManagerRuntimeHash: Hex;
+  adapter: Address;
+  adapterRuntimeHash: Hex;
+  priceGuard: Address;
+  priceGuardRuntimeHash: Hex;
 }): Hex {
-  if (parameters.chainId <= 0n) throw new RangeError("Chain ID must be greater than zero");
-  if (!isAddress(parameters.quoteAsset) || /^0x0{40}$/i.test(parameters.quoteAsset)) {
-    throw new RangeError("Quote asset must be a valid nonzero address");
-  }
-  assertBytes32(parameters.poolRuntimeHash, "Pool runtime hash");
+  assertChainId(parameters.chainId);
+  assertNonzeroAddress(parameters.adapter, "Swap adapter");
+  assertNonzeroAddress(parameters.priceGuard, "Price guard");
+  assertBytes32(parameters.adapterRuntimeHash, "Swap adapter runtime hash");
+  assertBytes32(parameters.priceGuardRuntimeHash, "Price guard runtime hash");
+  return doubleHash([
+    { type: "bytes32" }, { type: "uint256" }, { type: "address" },
+    { type: "bytes32" }, { type: "address" }, { type: "bytes32" },
+  ], [
+    SWAP_INTEGRATION_DOMAIN, parameters.chainId, parameters.adapter,
+    parameters.adapterRuntimeHash, parameters.priceGuard, parameters.priceGuardRuntimeHash,
+  ]);
+}
+
+export function fundingBandFactoryIntegrationApprovalLeaf(parameters: {
+  chainId: bigint;
+  integrationFactory: Address;
+  v3Factory: Address;
+  v3FactoryRuntimeHash: Hex;
+  quoteAsset: Address;
+  positionManager: Address;
+  positionManagerRuntimeHash: Hex;
+  quoteUsdOracle: Address;
+  quoteUsdOracleRuntimeHash: Hex;
+}): Hex {
+  assertChainId(parameters.chainId);
+  assertNonzeroAddress(parameters.integrationFactory, "Funding Band integration factory");
+  assertNonzeroAddress(parameters.v3Factory, "V3 factory");
+  assertNonzeroAddress(parameters.quoteAsset, "Quote asset");
+  assertNonzeroAddress(parameters.positionManager, "Position manager");
+  assertNonzeroAddress(parameters.quoteUsdOracle, "Quote/USD oracle");
+  assertBytes32(parameters.v3FactoryRuntimeHash, "V3 factory runtime hash");
+  assertBytes32(parameters.positionManagerRuntimeHash, "Position manager runtime hash");
+  assertBytes32(parameters.quoteUsdOracleRuntimeHash, "Quote/USD oracle runtime hash");
+  return doubleHash([
+    { type: "bytes32" }, { type: "uint256" }, { type: "address" },
+    { type: "address" }, { type: "bytes32" }, { type: "address" },
+    { type: "address" }, { type: "bytes32" }, { type: "address" }, { type: "bytes32" },
+  ], [
+    FUNDING_BAND_FACTORY_INTEGRATION_DOMAIN, parameters.chainId,
+    parameters.integrationFactory, parameters.v3Factory, parameters.v3FactoryRuntimeHash,
+    parameters.quoteAsset, parameters.positionManager, parameters.positionManagerRuntimeHash,
+    parameters.quoteUsdOracle, parameters.quoteUsdOracleRuntimeHash,
+  ]);
+}
+
+export function fundingBandPairIntegrationApprovalLeaf(parameters: {
+  chainId: bigint;
+  marketCapGuard: Address;
+  marketCapGuardRuntimeHash: Hex;
+  positionAdapter: Address;
+  positionAdapterRuntimeHash: Hex;
+}): Hex {
+  assertChainId(parameters.chainId);
+  assertNonzeroAddress(parameters.marketCapGuard, "Market-cap guard");
+  assertNonzeroAddress(parameters.positionAdapter, "Position adapter");
   assertBytes32(parameters.marketCapGuardRuntimeHash, "Market-cap guard runtime hash");
   assertBytes32(parameters.positionAdapterRuntimeHash, "Position adapter runtime hash");
-  assertBytes32(parameters.positionManagerRuntimeHash, "Position manager runtime hash");
-
-  const inner = keccak256(
-    encodeAbiParameters(
-      [
-        { type: "bytes32" },
-        { type: "uint256" },
-        { type: "bytes32" },
-        { type: "address" },
-        { type: "bytes32" },
-        { type: "bytes32" },
-        { type: "bytes32" },
-      ],
-      [
-        FUNDING_BAND_INTEGRATION_DOMAIN,
-        parameters.chainId,
-        parameters.poolRuntimeHash,
-        parameters.quoteAsset,
-        parameters.marketCapGuardRuntimeHash,
-        parameters.positionAdapterRuntimeHash,
-        parameters.positionManagerRuntimeHash,
-      ],
-    ),
-  );
-  return keccak256(inner);
+  return doubleHash([
+    { type: "bytes32" }, { type: "uint256" }, { type: "address" },
+    { type: "bytes32" }, { type: "address" }, { type: "bytes32" },
+  ], [
+    FUNDING_BAND_PAIR_INTEGRATION_DOMAIN, parameters.chainId, parameters.marketCapGuard,
+    parameters.marketCapGuardRuntimeHash, parameters.positionAdapter,
+    parameters.positionAdapterRuntimeHash,
+  ]);
 }
 
 export type SimpleFundingBandDestination =
@@ -203,4 +242,19 @@ export function buildFundingBandCreationActions(parameters: {
 
 function assertBytes32(value: Hex, label: string): void {
   if (!isHex(value) || value.length !== 66) throw new RangeError(`${label} must be exactly 32 bytes`);
+}
+
+function assertChainId(value: bigint): void {
+  if (value <= 0n) throw new RangeError("Chain ID must be greater than zero");
+}
+
+function assertNonzeroAddress(value: Address, label: string): void {
+  if (!isAddress(value) || /^0x0{40}$/i.test(value)) {
+    throw new RangeError(`${label} must be a valid nonzero address`);
+  }
+}
+
+function doubleHash(types: readonly object[], values: readonly unknown[]): Hex {
+  const inner = keccak256(encodeAbiParameters(types as never, values as never));
+  return keccak256(inner);
 }

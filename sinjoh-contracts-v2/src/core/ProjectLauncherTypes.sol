@@ -60,7 +60,6 @@ struct BandsLaunchConfig {
     address positionAdapter;
     uint32 twapWindow;
     address quoteUsdOracle;
-    uint256 tickReferenceQuoteUsdE8;
     uint48 confirmationPeriod;
     uint48 maximumObservationAge;
     bytes32[] integrationApprovalProof;

@@ -16,6 +16,7 @@ import { IProjectSwapAdapter } from "../interfaces/IProjectSwapAdapter.sol";
 import { IProjectTokenIdentity } from "../interfaces/IProjectTokenIdentity.sol";
 import { IProjectTreasuryReceiver } from "../interfaces/IProjectTreasuryReceiver.sol";
 import { ProjectIds } from "../libraries/ProjectIds.sol";
+import { IntegrationApproval } from "../libraries/IntegrationApproval.sol";
 import { SinjohV2Constants } from "../libraries/SinjohV2Constants.sol";
 import { ProjectLiquidityManagerV2 } from "../liquidity/ProjectLiquidityManagerV2.sol";
 import {
@@ -617,43 +618,21 @@ contract ProjectRouterV2 is IProjectModule, IProjectControlled, IProjectFundable
         );
     }
 
-    function swapApprovalLeaf(
-        address adapter,
-        address priceGuard,
-        address assetIn,
-        address assetOut,
-        bytes32 routeHash
-    ) public view returns (bytes32) {
-        bytes32 inner = keccak256(
-            abi.encode(
-                SWAP_APPROVAL_DOMAIN,
-                block.chainid,
-                adapter.codehash,
-                priceGuard.codehash,
-                assetIn,
-                assetOut,
-                routeHash
-            )
-        );
-        return keccak256(bytes.concat(inner));
+    function swapApprovalLeaf(address adapter, address priceGuard) public view returns (bytes32) {
+        return IntegrationApproval.swapLeaf(adapter, priceGuard);
     }
 
-    function isSwapApproved(
-        address adapter,
-        address priceGuard,
-        address assetIn,
-        address assetOut,
-        bytes32 routeHash,
-        bytes32[] calldata proof
-    ) external view returns (bool) {
+    function isSwapApproved(address adapter, address priceGuard, bytes32[] calldata proof)
+        external
+        view
+        returns (bool)
+    {
         if (
             integrationApprovalRoot == bytes32(0) || adapter.code.length == 0
                 || priceGuard.code.length == 0
         ) return false;
         return MerkleProof.verifyCalldata(
-            proof,
-            integrationApprovalRoot,
-            swapApprovalLeaf(adapter, priceGuard, assetIn, assetOut, routeHash)
+            proof, integrationApprovalRoot, swapApprovalLeaf(adapter, priceGuard)
         );
     }
 
@@ -708,14 +687,14 @@ contract ProjectRouterV2 is IProjectModule, IProjectControlled, IProjectFundable
         returns (RouterAction memory)
     {
         if (action.actionType != RouterActionType.ADD_LIQUIDITY || action.actionConfig.length == 0) return action;
-        ProjectLiquidityManagerV2.Config memory liquidity =
-            abi.decode(action.actionConfig, (ProjectLiquidityManagerV2.Config));
-        if (liquidity.feeMode == ProjectLiquidityManagerV2.FeeMode.CREATOR) {
-            liquidity.feeRecipient = creator;
-        } else if (liquidity.feeMode == ProjectLiquidityManagerV2.FeeMode.TREASURY) {
-            liquidity.feeRecipient = treasury;
+        ProjectLiquidityManagerV2.FundingConfig memory funding =
+            abi.decode(action.actionConfig, (ProjectLiquidityManagerV2.FundingConfig));
+        if (funding.config.feeMode == ProjectLiquidityManagerV2.FeeMode.CREATOR) {
+            funding.config.feeRecipient = creator;
+        } else if (funding.config.feeMode == ProjectLiquidityManagerV2.FeeMode.TREASURY) {
+            funding.config.feeRecipient = treasury;
         }
-        action.actionConfig = abi.encode(liquidity);
+        action.actionConfig = abi.encode(funding);
         return action;
     }
 
@@ -799,13 +778,7 @@ contract ProjectRouterV2 is IProjectModule, IProjectControlled, IProjectFundable
         if (swapConfig.outputAsset == inputAsset || (burn && swapConfig.outputAsset != subject)) {
             revert InvalidAction(index, action.actionType);
         }
-        bytes32 leaf = swapApprovalLeaf(
-            action.adapter,
-            action.priceGuard,
-            inputAsset,
-            swapConfig.outputAsset,
-            keccak256(swapConfig.routeData)
-        );
+        bytes32 leaf = swapApprovalLeaf(action.adapter, action.priceGuard);
         if (
             integrationApprovalRoot == bytes32(0)
                 || !MerkleProof.verify(swapConfig.approvalProof, integrationApprovalRoot, leaf)

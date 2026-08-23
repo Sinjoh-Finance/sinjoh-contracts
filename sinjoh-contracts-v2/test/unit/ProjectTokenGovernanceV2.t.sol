@@ -404,7 +404,8 @@ contract ProjectStakedTokenGovernanceV2Test is GovernanceTestBase {
             TREASURY,
             STAKING_CONTROLLER,
             address(0),
-            LOCK_DURATION
+            LOCK_DURATION,
+            new address[](0)
         );
         ProjectTimelockV2 emptyGovernance = new ProjectTimelockV2(
             address(registry), address(token), address(emptyPool), _defaultConfig()

@@ -129,6 +129,24 @@ export function encodeAirdropRetryCreditCall(parameters) {
         }),
     };
 }
+/** Encodes a creditor-authorized redirect when the original receiver cannot accept payment. */
+export function encodeAirdropClaimCreditToCall(parameters) {
+    assertAddress(parameters.airdrop, "Airdrop contract");
+    assertAddress(parameters.asset, "Credit asset");
+    assertAddress(parameters.payoutRecipient, "Payout recipient");
+    if (parameters.maxAmount <= 0n)
+        throw new RangeError("Claim amount must be greater than zero");
+    return {
+        kind: "claim-credit",
+        to: getAddress(parameters.airdrop),
+        value: 0n,
+        data: encodeFunctionData({
+            abi: projectAirdropV2Abi,
+            functionName: "claimCreditTo",
+            args: [parameters.asset, parameters.maxAmount, parameters.payoutRecipient],
+        }),
+    };
+}
 /** Encodes finalization after on-chain status confirms every committed leaf is settled. */
 export function encodeAirdropFinalizeCall(parameters) {
     assertAddress(parameters.airdrop, "Airdrop contract");

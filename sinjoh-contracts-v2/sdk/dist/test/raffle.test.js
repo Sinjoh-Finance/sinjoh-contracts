@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import test from "node:test";
 import { decodeFunctionData } from "viem";
-import { buildRaffleRound, buildVerifiedRaffleRound, encodeRaffleClaimCalls, encodeRaffleCloseCall, encodeRaffleCommitCall, encodeRaffleRetryCall, projectRaffleV2Abi, raffleWinningIndex, reconcileRaffleSnapshots, reconstructRaffleSnapshot, } from "../src/index.js";
+import { buildRaffleRound, buildVerifiedRaffleRound, encodeRaffleClaimCalls, encodeRaffleCloseCall, encodeRaffleCommitCall, encodeRaffleRetryCall, encodeRaffleClaimOwedToCall, projectRaffleV2Abi, raffleWinningIndex, reconcileRaffleSnapshots, reconstructRaffleSnapshot, } from "../src/index.js";
 const treeFixture = JSON.parse(await readFile(resolve(process.cwd(), "../../sinjoh-raffle-rewards/test/fixtures/ticket-tree.json"), "utf8"));
 const slotFixture = JSON.parse(await readFile(resolve(process.cwd(), "../../sinjoh-raffle-rewards/test/fixtures/slot-indices.json"), "utf8"));
 test("matches the normative Solidity Raffle ticket-tree fixture exactly", () => {
@@ -141,6 +141,21 @@ test("encodes exact retry and terminal round work without redirectable recipient
             raffle, holder, stockAsset: "0x0000000000000000000000000000000000005000",
         }).data,
     }).functionName, "deliverStockOwed");
+    assert.deepEqual(decodeFunctionData({
+        abi: projectRaffleV2Abi,
+        data: encodeRaffleClaimOwedToCall({ raffle, payoutRecipient: holder }).data,
+    }), { functionName: "deliverOwedTo", args: [holder] });
+    assert.deepEqual(decodeFunctionData({
+        abi: projectRaffleV2Abi,
+        data: encodeRaffleClaimOwedToCall({
+            raffle,
+            payoutRecipient: holder,
+            stockAsset: "0x0000000000000000000000000000000000005000",
+        }).data,
+    }), {
+        functionName: "deliverStockOwedTo",
+        args: ["0x0000000000000000000000000000000000005000", holder],
+    });
     assert.equal(decodeFunctionData({
         abi: projectRaffleV2Abi,
         data: encodeRaffleCloseCall({ raffle, roundId: 1n, mode: "expire" }).data,

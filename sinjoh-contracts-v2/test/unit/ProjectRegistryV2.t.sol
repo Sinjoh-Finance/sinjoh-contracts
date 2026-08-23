@@ -111,7 +111,8 @@ contract ProjectRegistryV2Test is RegistryTestBase {
                     address(0x777),
                     address(projectController),
                     address(0),
-                    1 days
+                    1 days,
+                    new address[](0)
                 )
             )
         );
@@ -217,7 +218,8 @@ contract ProjectRegistryV2Test is RegistryTestBase {
                     address(0x777),
                     address(projectController),
                     address(0),
-                    1 days
+                    1 days,
+                    new address[](0)
                 )
             )
         );

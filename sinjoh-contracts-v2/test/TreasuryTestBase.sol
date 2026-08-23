@@ -108,20 +108,15 @@ abstract contract TreasuryTestBase is TestBase {
         );
     }
 
-    function _approvalLeaf(address assetIn, address assetOut, bytes32 routeHash)
-        internal
-        view
-        returns (bytes32)
-    {
+    function _approvalLeaf(address, address, bytes32) internal view returns (bytes32) {
         bytes32 inner = keccak256(
             abi.encode(
-                keccak256("SINJOH_V2_TREASURY_SWAP_APPROVAL"),
+                keccak256("SINJOH_V2_SWAP_INTEGRATION_APPROVAL"),
                 block.chainid,
+                address(adapter),
                 address(adapter).codehash,
-                address(priceGuard).codehash,
-                assetIn,
-                assetOut,
-                routeHash
+                address(priceGuard),
+                address(priceGuard).codehash
             )
         );
         return keccak256(bytes.concat(inner));

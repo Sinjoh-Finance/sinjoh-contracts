@@ -20,6 +20,7 @@ import {
 contract ProjectRaffleV2Test is Test {
     address private constant CREATOR = address(0xC0FFEE);
     address private constant HOLDER = address(0xA11CE);
+    address private constant PAYOUT_RECIPIENT = address(0xB0B);
     address private constant PROTOCOL_RECIPIENT = address(0xFEE);
     address private constant TAX_RECIPIENT = address(0x7A11);
     address private constant POOL = address(0xF00D);
@@ -65,9 +66,9 @@ contract ProjectRaffleV2Test is Test {
     function testImplementationAndCloneCannotInitializeTwice() public {
         RaffleTypes.Config memory config = _baseConfig();
         vm.expectRevert(ProjectRaffleV2.AlreadyInitialized.selector);
-        implementation.initialize(address(registry), address(subject), config);
+        implementation.initialize(address(registry), address(subject), bytes32(uint256(1)), config);
         vm.expectRevert(ProjectRaffleV2.AlreadyInitialized.selector);
-        raffle.initialize(address(registry), address(subject), config);
+        raffle.initialize(address(registry), address(subject), bytes32(uint256(1)), config);
     }
 
     function testCommonFundingSelectorIsExact() public pure {
@@ -78,13 +79,13 @@ contract ProjectRaffleV2Test is Test {
         RaffleTypes.Config memory config = _baseConfig();
         ProjectRaffleV2 candidate = ProjectRaffleV2(payable(Clones.clone(address(implementation))));
         vm.expectRevert(abi.encodeWithSelector(ProjectRaffleV2.InvalidRegistry.selector, HOLDER));
-        candidate.initialize(HOLDER, address(subject), config);
+        candidate.initialize(HOLDER, address(subject), bytes32(uint256(1)), config);
 
         MockRegistry otherRegistry = new MockRegistry();
         vm.expectRevert(
             abi.encodeWithSelector(ProjectRaffleV2.InvalidSubject.selector, address(subject))
         );
-        candidate.initialize(address(otherRegistry), address(subject), config);
+        candidate.initialize(address(otherRegistry), address(subject), bytes32(uint256(1)), config);
     }
 
     function testInitializationRejectsBurnAsOperationalRecipient() public {
@@ -92,7 +93,7 @@ contract ProjectRaffleV2Test is Test {
         config.protocolFeeRecipient = SinjohV2Constants.BURN_ADDRESS;
         ProjectRaffleV2 candidate = ProjectRaffleV2(payable(Clones.clone(address(implementation))));
         vm.expectRevert(ProjectRaffleV2.InvalidAddress.selector);
-        candidate.initialize(address(registry), address(subject), config);
+        candidate.initialize(address(registry), address(subject), bytes32(uint256(1)), config);
     }
 
     function testAttributedFundingValidatesProjectAssetConfigAndCumulativeFee() public {
@@ -179,10 +180,27 @@ contract ProjectRaffleV2Test is Test {
         assertEq(raffle.owed(HOLDER), 990);
         assertEq(raffle.totalOwed(), 990);
 
-        prizeAsset.setFailRecipient(HOLDER, false);
-        assertEq(raffle.deliverOwed(HOLDER), 990);
-        assertEq(prizeAsset.balanceOf(HOLDER), 990);
+        vm.prank(HOLDER);
+        assertEq(raffle.deliverOwedTo(PAYOUT_RECIPIENT), 990);
+        assertEq(prizeAsset.balanceOf(PAYOUT_RECIPIENT), 990);
         assertEq(raffle.owed(HOLDER), 0);
+    }
+
+    function testFinalizedSnapshotOlderThanArbSysLookupWindowCanCommit() public {
+        _fund(1_000);
+        uint64 snapshot = SNAPSHOT;
+        bytes32 snapshotHash = keccak256(abi.encode("old-finalized-snapshot", snapshot));
+        arbSys.setBlockNumber(snapshot + 300);
+        RaffleTypes.Leaf memory leaf = RaffleTypes.Leaf({ holder: HOLDER, tickets: 1 });
+        raffle.commitRound(
+            1,
+            snapshot,
+            snapshotHash,
+            raffle.leafHash(1, snapshot, HOLDER, leaf.tickets),
+            leaf.tickets
+        );
+        assertEq(raffle.roundStatus(1).snapshotBlock, snapshot);
+        assertEq(uint8(raffle.roundStatus(1).state), uint8(RaffleTypes.RoundState.COMMITTED));
     }
 
     function testHugeTokenRevertCannotBreakDeferredPaymentIsolation() public {
@@ -225,7 +243,8 @@ contract ProjectRaffleV2Test is Test {
             swapAdapter: address(adapter),
             priceGuard: address(guard),
             routeData: hex"1234",
-            guardData: bytes("")
+            guardData: bytes(""),
+            approvalProof: new bytes32[](0)
         });
         ProjectRaffleV2 stockRaffle = _deploy(config);
         prizeAsset.approve(address(stockRaffle), type(uint256).max);
@@ -239,7 +258,23 @@ contract ProjectRaffleV2Test is Test {
 
     function _deploy(RaffleTypes.Config memory config) private returns (ProjectRaffleV2 deployed) {
         deployed = ProjectRaffleV2(payable(Clones.clone(address(implementation))));
-        deployed.initialize(address(registry), address(subject), config);
+        deployed.initialize(address(registry), address(subject), _approvalRoot(config), config);
+    }
+
+    function _approvalRoot(RaffleTypes.Config memory config) private view returns (bytes32) {
+        if (config.stockRewards.length == 0) return bytes32(uint256(1));
+        RaffleTypes.StockReward memory reward = config.stockRewards[0];
+        bytes32 inner = keccak256(
+            abi.encode(
+                keccak256("SINJOH_V2_SWAP_INTEGRATION_APPROVAL"),
+                block.chainid,
+                reward.swapAdapter,
+                reward.swapAdapter.codehash,
+                reward.priceGuard,
+                reward.priceGuard.codehash
+            )
+        );
+        return keccak256(bytes.concat(inner));
     }
 
     function _baseConfig() private view returns (RaffleTypes.Config memory config) {

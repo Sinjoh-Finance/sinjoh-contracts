@@ -44,40 +44,63 @@ export const fundingBandDestination = {
     raffle: 5,
     basketViaTreasury: 6,
 };
-const FUNDING_BAND_INTEGRATION_DOMAIN = keccak256(stringToHex("SINJOH_V2_FUNDING_BAND_INTEGRATION"));
+const SWAP_INTEGRATION_DOMAIN = keccak256(stringToHex("SINJOH_V2_SWAP_INTEGRATION_APPROVAL"));
+const FUNDING_BAND_FACTORY_INTEGRATION_DOMAIN = keccak256(stringToHex("SINJOH_V2_FUNDING_BAND_FACTORY_INTEGRATION"));
+const FUNDING_BAND_PAIR_INTEGRATION_DOMAIN = keccak256(stringToHex("SINJOH_V2_FUNDING_BAND_PAIR_INTEGRATION"));
 /**
  * Builds the exact release-approval leaf for one production Funding Bands integration profile.
  * The leaf approves reviewed code and market infrastructure; each deployed guard separately binds
  * and validates its project's exact reference supply.
  */
-export function fundingBandIntegrationApprovalLeaf(parameters) {
-    if (parameters.chainId <= 0n)
-        throw new RangeError("Chain ID must be greater than zero");
-    if (!isAddress(parameters.quoteAsset) || /^0x0{40}$/i.test(parameters.quoteAsset)) {
-        throw new RangeError("Quote asset must be a valid nonzero address");
-    }
-    assertBytes32(parameters.poolRuntimeHash, "Pool runtime hash");
+export function swapIntegrationApprovalLeaf(parameters) {
+    assertChainId(parameters.chainId);
+    assertNonzeroAddress(parameters.adapter, "Swap adapter");
+    assertNonzeroAddress(parameters.priceGuard, "Price guard");
+    assertBytes32(parameters.adapterRuntimeHash, "Swap adapter runtime hash");
+    assertBytes32(parameters.priceGuardRuntimeHash, "Price guard runtime hash");
+    return doubleHash([
+        { type: "bytes32" }, { type: "uint256" }, { type: "address" },
+        { type: "bytes32" }, { type: "address" }, { type: "bytes32" },
+    ], [
+        SWAP_INTEGRATION_DOMAIN, parameters.chainId, parameters.adapter,
+        parameters.adapterRuntimeHash, parameters.priceGuard, parameters.priceGuardRuntimeHash,
+    ]);
+}
+export function fundingBandFactoryIntegrationApprovalLeaf(parameters) {
+    assertChainId(parameters.chainId);
+    assertNonzeroAddress(parameters.integrationFactory, "Funding Band integration factory");
+    assertNonzeroAddress(parameters.v3Factory, "V3 factory");
+    assertNonzeroAddress(parameters.quoteAsset, "Quote asset");
+    assertNonzeroAddress(parameters.positionManager, "Position manager");
+    assertNonzeroAddress(parameters.quoteUsdOracle, "Quote/USD oracle");
+    assertBytes32(parameters.v3FactoryRuntimeHash, "V3 factory runtime hash");
+    assertBytes32(parameters.positionManagerRuntimeHash, "Position manager runtime hash");
+    assertBytes32(parameters.quoteUsdOracleRuntimeHash, "Quote/USD oracle runtime hash");
+    return doubleHash([
+        { type: "bytes32" }, { type: "uint256" }, { type: "address" },
+        { type: "address" }, { type: "bytes32" }, { type: "address" },
+        { type: "address" }, { type: "bytes32" }, { type: "address" }, { type: "bytes32" },
+    ], [
+        FUNDING_BAND_FACTORY_INTEGRATION_DOMAIN, parameters.chainId,
+        parameters.integrationFactory, parameters.v3Factory, parameters.v3FactoryRuntimeHash,
+        parameters.quoteAsset, parameters.positionManager, parameters.positionManagerRuntimeHash,
+        parameters.quoteUsdOracle, parameters.quoteUsdOracleRuntimeHash,
+    ]);
+}
+export function fundingBandPairIntegrationApprovalLeaf(parameters) {
+    assertChainId(parameters.chainId);
+    assertNonzeroAddress(parameters.marketCapGuard, "Market-cap guard");
+    assertNonzeroAddress(parameters.positionAdapter, "Position adapter");
     assertBytes32(parameters.marketCapGuardRuntimeHash, "Market-cap guard runtime hash");
     assertBytes32(parameters.positionAdapterRuntimeHash, "Position adapter runtime hash");
-    assertBytes32(parameters.positionManagerRuntimeHash, "Position manager runtime hash");
-    const inner = keccak256(encodeAbiParameters([
-        { type: "bytes32" },
-        { type: "uint256" },
-        { type: "bytes32" },
-        { type: "address" },
-        { type: "bytes32" },
-        { type: "bytes32" },
-        { type: "bytes32" },
+    return doubleHash([
+        { type: "bytes32" }, { type: "uint256" }, { type: "address" },
+        { type: "bytes32" }, { type: "address" }, { type: "bytes32" },
     ], [
-        FUNDING_BAND_INTEGRATION_DOMAIN,
-        parameters.chainId,
-        parameters.poolRuntimeHash,
-        parameters.quoteAsset,
-        parameters.marketCapGuardRuntimeHash,
+        FUNDING_BAND_PAIR_INTEGRATION_DOMAIN, parameters.chainId, parameters.marketCapGuard,
+        parameters.marketCapGuardRuntimeHash, parameters.positionAdapter,
         parameters.positionAdapterRuntimeHash,
-        parameters.positionManagerRuntimeHash,
-    ]));
-    return keccak256(inner);
+    ]);
 }
 /** Converts a human-readable USD market cap into the protocol's fixed 8-decimal representation. */
 export function marketCapUsdE8(value) {
@@ -125,5 +148,18 @@ export function buildFundingBandCreationActions(parameters) {
 function assertBytes32(value, label) {
     if (!isHex(value) || value.length !== 66)
         throw new RangeError(`${label} must be exactly 32 bytes`);
+}
+function assertChainId(value) {
+    if (value <= 0n)
+        throw new RangeError("Chain ID must be greater than zero");
+}
+function assertNonzeroAddress(value, label) {
+    if (!isAddress(value) || /^0x0{40}$/i.test(value)) {
+        throw new RangeError(`${label} must be a valid nonzero address`);
+    }
+}
+function doubleHash(types, values) {
+    const inner = keccak256(encodeAbiParameters(types, values));
+    return keccak256(inner);
 }
 //# sourceMappingURL=actions.js.map

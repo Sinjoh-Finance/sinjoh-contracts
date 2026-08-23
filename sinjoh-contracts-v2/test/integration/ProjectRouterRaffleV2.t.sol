@@ -18,7 +18,9 @@ contract ProjectRouterRaffleV2IntegrationTest is RouterTestBase {
         MockRaffleRandomness randomness = new MockRaffleRandomness();
         ProjectRaffleV2 implementation = new ProjectRaffleV2();
         raffle = ProjectRaffleV2(payable(Clones.clone(address(implementation))));
-        raffle.initialize(address(registry), address(token), _config(randomness));
+        raffle.initialize(
+            address(registry), address(token), bytes32(uint256(1)), _config(randomness)
+        );
         raffleSink = MockRouterSink(payable(address(raffle)));
     }
 

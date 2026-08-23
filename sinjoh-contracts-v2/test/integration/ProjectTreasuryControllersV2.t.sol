@@ -191,13 +191,12 @@ contract ProjectTreasuryControllersV2IntegrationTest is TestBase {
     function _approvalLeaf() private view returns (bytes32) {
         bytes32 inner = keccak256(
             abi.encode(
-                keccak256("SINJOH_V2_TREASURY_SWAP_APPROVAL"),
+                keccak256("SINJOH_V2_SWAP_INTEGRATION_APPROVAL"),
                 block.chainid,
+                address(adapter),
                 address(adapter).codehash,
-                address(priceGuard).codehash,
-                address(assetA),
-                address(assetB),
-                keccak256(ROUTE_DATA)
+                address(priceGuard),
+                address(priceGuard).codehash
             )
         );
         return keccak256(bytes.concat(inner));

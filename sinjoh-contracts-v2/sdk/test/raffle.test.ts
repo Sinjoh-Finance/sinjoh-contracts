@@ -10,6 +10,7 @@ import {
   encodeRaffleCloseCall,
   encodeRaffleCommitCall,
   encodeRaffleRetryCall,
+  encodeRaffleClaimOwedToCall,
   projectRaffleV2Abi,
   raffleWinningIndex,
   reconcileRaffleSnapshots,
@@ -190,6 +191,21 @@ test("encodes exact retry and terminal round work without redirectable recipient
       raffle, holder, stockAsset: "0x0000000000000000000000000000000000005000",
     }).data,
   }).functionName, "deliverStockOwed");
+  assert.deepEqual(decodeFunctionData({
+    abi: projectRaffleV2Abi,
+    data: encodeRaffleClaimOwedToCall({ raffle, payoutRecipient: holder }).data,
+  }), { functionName: "deliverOwedTo", args: [holder] });
+  assert.deepEqual(decodeFunctionData({
+    abi: projectRaffleV2Abi,
+    data: encodeRaffleClaimOwedToCall({
+      raffle,
+      payoutRecipient: holder,
+      stockAsset: "0x0000000000000000000000000000000000005000",
+    }).data,
+  }), {
+    functionName: "deliverStockOwedTo",
+    args: ["0x0000000000000000000000000000000000005000", holder],
+  });
   assert.equal(decodeFunctionData({
     abi: projectRaffleV2Abi,
     data: encodeRaffleCloseCall({ raffle, roundId: 1n, mode: "expire" }).data,

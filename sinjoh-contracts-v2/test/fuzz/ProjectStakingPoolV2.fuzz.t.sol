@@ -29,7 +29,13 @@ contract ProjectStakingPoolV2FuzzTest is TestBase {
             "Project", "PRJ", address(registry), ALICE, allocations, new address[](0)
         );
         pool = new ProjectStakingPoolV2(
-            address(registry), address(token), TREASURY, GOVERNANCE, address(0), LOCK_DURATION
+            address(registry),
+            address(token),
+            TREASURY,
+            GOVERNANCE,
+            address(0),
+            LOCK_DURATION,
+            new address[](0)
         );
         posNFT = pool.posNFT();
         vm.prank(ALICE);

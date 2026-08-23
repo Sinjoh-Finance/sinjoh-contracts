@@ -255,26 +255,30 @@ contract ProjectRouterV2Test is RouterTestBase {
             feeMode: ProjectLiquidityManagerV2.FeeMode.CREATOR,
             feeRecipient: address(0)
         });
+        ProjectLiquidityManagerV2.FundingConfig memory funding =
+            ProjectLiquidityManagerV2.FundingConfig({
+                config: config, integrationApprovalProof: new bytes32[](0)
+            });
         RouterAction memory action = _sinkAction(
-            RouterActionType.ADD_LIQUIDITY, address(liquiditySink), 10_000, abi.encode(config)
+            RouterActionType.ADD_LIQUIDITY, address(liquiditySink), 10_000, abi.encode(funding)
         );
         ProjectRouterV2 router = _deployRouter(_singleRoute(address(assetA), action), bytes32(0));
-        config = abi.decode(
+        funding = abi.decode(
             router.routeAction(address(assetA), 1, 0).actionConfig,
-            (ProjectLiquidityManagerV2.Config)
+            (ProjectLiquidityManagerV2.FundingConfig)
         );
-        assertEq(config.feeRecipient, CREATOR);
+        assertEq(funding.config.feeRecipient, CREATOR);
 
-        config.feeMode = ProjectLiquidityManagerV2.FeeMode.TREASURY;
-        config.feeRecipient = address(0);
-        action.actionConfig = abi.encode(config);
+        funding.config.feeMode = ProjectLiquidityManagerV2.FeeMode.TREASURY;
+        funding.config.feeRecipient = address(0);
+        action.actionConfig = abi.encode(funding);
         RouterRouteInput memory next = _singleRoute(address(assetA), action)[0];
         _controllerCall(router, abi.encodeCall(router.activateRoute, (next)));
-        config = abi.decode(
+        funding = abi.decode(
             router.routeAction(address(assetA), 2, 0).actionConfig,
-            (ProjectLiquidityManagerV2.Config)
+            (ProjectLiquidityManagerV2.FundingConfig)
         );
-        assertEq(config.feeRecipient, address(treasury));
+        assertEq(funding.config.feeRecipient, address(treasury));
     }
 
     function testRevertingActionEscrowsOnlyItsShareAndOtherActionSettles() public {
@@ -366,26 +370,8 @@ contract ProjectRouterV2Test is RouterTestBase {
             actionConfig: abi.encode(config)
         });
         ProjectRouterV2 router = _deployRouter(_singleRoute(address(assetA), action), root);
-        assertTrue(
-            router.isSwapApproved(
-                address(adapter),
-                address(priceGuard),
-                address(assetA),
-                address(assetB),
-                keccak256(ROUTE_DATA),
-                new bytes32[](0)
-            )
-        );
-        assertFalse(
-            router.isSwapApproved(
-                address(adapter),
-                address(priceGuard),
-                address(assetA),
-                address(token),
-                keccak256(ROUTE_DATA),
-                new bytes32[](0)
-            )
-        );
+        assertTrue(router.isSwapApproved(address(adapter), address(priceGuard), new bytes32[](0)));
+        assertFalse(router.isSwapApproved(address(token), address(priceGuard), new bytes32[](0)));
         assetB.mint(address(adapter), 5_000);
         adapter.configure(5_000, type(uint256).max, false);
         priceGuard.setQuote(4_000, 2_000_000);

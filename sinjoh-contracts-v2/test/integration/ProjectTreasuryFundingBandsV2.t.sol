@@ -51,8 +51,9 @@ contract ProjectTreasuryFundingBandsV2IntegrationTest is Test {
 
         MockBasketAsset quote = new MockBasketAsset("Quote", "QUOTE");
         MockFundingBandPool pool = new MockFundingBandPool();
-        MockFundingBandGuard guard =
-            new MockFundingBandGuard(address(subject), address(pool), subject.totalSupply());
+        MockFundingBandGuard guard = new MockFundingBandGuard(
+            address(subject), address(quote), address(pool), subject.totalSupply()
+        );
         MockFundingBandPositionAdapter adapter =
             new MockFundingBandPositionAdapter(address(subject), address(quote), address(pool));
         address predictedBands = vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
@@ -84,7 +85,6 @@ contract ProjectTreasuryFundingBandsV2IntegrationTest is Test {
                         v3IntegrationFactory: address(0),
                         twapWindow: 0,
                         quoteUsdOracle: address(0),
-                        tickReferenceQuoteUsdE8: 0,
                         confirmationPeriod: 15 minutes,
                         maximumObservationAge: 5 minutes,
                         integrationApprovalProof: new bytes32[](0)
@@ -128,14 +128,15 @@ contract ProjectTreasuryFundingBandsV2IntegrationTest is Test {
         MockFundingBandGuard guard,
         MockFundingBandPositionAdapter adapter
     ) private view returns (bytes32) {
+        quote;
+        pool;
         bytes32 inner = keccak256(
             abi.encode(
-                keccak256("SINJOH_V2_FUNDING_BAND_INTEGRATION"),
+                keccak256("SINJOH_V2_FUNDING_BAND_PAIR_INTEGRATION"),
                 block.chainid,
-                address(pool).codehash,
-                address(quote),
+                address(guard),
                 address(guard).codehash,
-                address(adapter).codehash,
+                address(adapter),
                 address(adapter).codehash
             )
         );

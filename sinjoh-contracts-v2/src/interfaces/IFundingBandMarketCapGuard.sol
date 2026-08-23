@@ -7,9 +7,13 @@ import { FundingBandObservation } from "../bands/FundingBandTypes.sol";
 interface IFundingBandMarketCapGuard {
     function bandsContract() external view returns (address);
     function subject() external view returns (address);
+    function quoteAsset() external view returns (address);
     function canonicalPool() external view returns (address);
+    function factory() external view returns (address);
     function referenceSupply() external view returns (uint256);
     function minimumTwapWindow() external view returns (uint32);
+    function quoteUsdOracle() external view returns (address);
+    function tickReferenceQuoteUsdE8() external view returns (uint256);
     function observe(uint128 lowerMarketCapUsdE8, uint128 upperMarketCapUsdE8, bytes calldata data)
         external
         view

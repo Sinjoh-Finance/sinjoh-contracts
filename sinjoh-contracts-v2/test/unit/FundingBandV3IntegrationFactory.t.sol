@@ -14,6 +14,7 @@ import {
 } from "../../src/bands/UniswapV3FundingBandPositionAdapter.sol";
 import { MockERC20 } from "../mocks/liquidity/MockERC20.sol";
 import {
+    MockFundingBandQuoteUsdOracle,
     MockV3BandFactory,
     MockV3BandPool,
     MockV3BandPositionManager
@@ -31,6 +32,8 @@ contract FundingBandV3IntegrationFactoryTest is Test {
         MockV3BandPositionManager manager = new MockV3BandPositionManager(address(v3Factory));
         FundingBandV3IntegrationFactory integrationFactory =
             new FundingBandV3IntegrationFactory(address(v3Factory), address(manager));
+        MockFundingBandQuoteUsdOracle oracle = new MockFundingBandQuoteUsdOracle(address(quote));
+        oracle.setObservation(1e8, uint48(block.timestamp), keccak256("QUOTE"));
         FundingBandV3IntegrationConfig memory config = FundingBandV3IntegrationConfig({
             bandsContract: address(0xB4D5),
             subject: address(subject),
@@ -38,8 +41,7 @@ contract FundingBandV3IntegrationFactoryTest is Test {
             canonicalPool: address(pool),
             referenceSupply: 1_000_000e18,
             twapWindow: 15 minutes,
-            quoteUsdOracle: address(0),
-            tickReferenceQuoteUsdE8: 1e8,
+            quoteUsdOracle: address(oracle),
             maximumOracleAge: 1 hours
         });
 

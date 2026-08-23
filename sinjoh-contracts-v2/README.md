@@ -129,16 +129,16 @@ updates, so applications never predict or encode those addresses themselves.
 project in one creator transaction. Module addresses remain stable while launch settings are edited;
 Registry separately commits the exact final configuration hash. An ownerless deployment engine and
 immutable chunked creation-code stores keep runtime and initcode under EVM limits without proxies or
-retained project authority. Router destinations, Treasury Basket policy, Basket NFT ownership,
-ERC-4626 adapters, governance vote source, and custody exclusions are materialized automatically.
+retained project authority. Router destinations, governance vote source, and custody exclusions are
+materialized automatically. Basket selection is rejected by this release and will ship separately.
 The all-modules
 integration launch currently uses about 40.7M gas with a 50M regression ceiling; the target-chain
 limit must be confirmed in deployment rehearsal.
 
 The one-time release flow is invoked through `script/deploy-release.sh`; the raw Foundry broadcast
-script is not the supported entrypoint. Preflight refuses a dirty tree, wrong chain, missing
-audit/fork/testnet evidence, or mismatched external runtime hash, runs every local verification
-gate, and only then broadcasts. The deployment script independently verifies release wiring,
+script is not the supported entrypoint. Preflight refuses a dirty tree, wrong chain, or mismatched
+external runtime hash, runs every local verification gate, and only then broadcasts. The deployment
+script independently derives the integration-approval root and verifies release wiring,
 implementations, adapters, external dependencies, and module creation-code bindings before writing
 a schema-backed chain-specific manifest under `deployments/`. See
 [`deployments/README.md`](deployments/README.md).

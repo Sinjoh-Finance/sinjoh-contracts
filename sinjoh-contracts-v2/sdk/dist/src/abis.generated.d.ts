@@ -493,10 +493,6 @@ export declare const projectLauncherV2Abi: readonly [{
                 readonly type: "address";
                 readonly internalType: "address";
             }, {
-                readonly name: "tickReferenceQuoteUsdE8";
-                readonly type: "uint256";
-                readonly internalType: "uint256";
-            }, {
                 readonly name: "confirmationPeriod";
                 readonly type: "uint48";
                 readonly internalType: "uint48";
@@ -621,6 +617,10 @@ export declare const projectLauncherV2Abi: readonly [{
                     readonly name: "guardData";
                     readonly type: "bytes";
                     readonly internalType: "bytes";
+                }, {
+                    readonly name: "approvalProof";
+                    readonly type: "bytes32[]";
+                    readonly internalType: "bytes32[]";
                 }];
             }];
         }, {
@@ -981,10 +981,6 @@ export declare const projectLauncherV2Abi: readonly [{
                 readonly type: "address";
                 readonly internalType: "address";
             }, {
-                readonly name: "tickReferenceQuoteUsdE8";
-                readonly type: "uint256";
-                readonly internalType: "uint256";
-            }, {
                 readonly name: "confirmationPeriod";
                 readonly type: "uint48";
                 readonly internalType: "uint48";
@@ -1109,6 +1105,10 @@ export declare const projectLauncherV2Abi: readonly [{
                     readonly name: "guardData";
                     readonly type: "bytes";
                     readonly internalType: "bytes";
+                }, {
+                    readonly name: "approvalProof";
+                    readonly type: "bytes32[]";
+                    readonly internalType: "bytes32[]";
                 }];
             }];
         }, {
@@ -1567,10 +1567,6 @@ export declare const projectLauncherV2Abi: readonly [{
                 readonly type: "address";
                 readonly internalType: "address";
             }, {
-                readonly name: "tickReferenceQuoteUsdE8";
-                readonly type: "uint256";
-                readonly internalType: "uint256";
-            }, {
                 readonly name: "confirmationPeriod";
                 readonly type: "uint48";
                 readonly internalType: "uint48";
@@ -1695,6 +1691,10 @@ export declare const projectLauncherV2Abi: readonly [{
                     readonly name: "guardData";
                     readonly type: "bytes";
                     readonly internalType: "bytes";
+                }, {
+                    readonly name: "approvalProof";
+                    readonly type: "bytes32[]";
+                    readonly internalType: "bytes32[]";
                 }];
             }];
         }, {
@@ -2185,10 +2185,6 @@ export declare const projectLauncherV2Abi: readonly [{
                 readonly type: "address";
                 readonly internalType: "address";
             }, {
-                readonly name: "tickReferenceQuoteUsdE8";
-                readonly type: "uint256";
-                readonly internalType: "uint256";
-            }, {
                 readonly name: "confirmationPeriod";
                 readonly type: "uint48";
                 readonly internalType: "uint48";
@@ -2313,6 +2309,10 @@ export declare const projectLauncherV2Abi: readonly [{
                     readonly name: "guardData";
                     readonly type: "bytes";
                     readonly internalType: "bytes";
+                }, {
+                    readonly name: "approvalProof";
+                    readonly type: "bytes32[]";
+                    readonly internalType: "bytes32[]";
                 }];
             }];
         }, {
@@ -8153,18 +8153,6 @@ export declare const projectTreasuryVaultV2Abi: readonly [{
         readonly type: "address";
         readonly internalType: "address";
     }, {
-        readonly name: "assetIn";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "assetOut";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "routeHash";
-        readonly type: "bytes32";
-        readonly internalType: "bytes32";
-    }, {
         readonly name: "approvalProof";
         readonly type: "bytes32[]";
         readonly internalType: "bytes32[]";
@@ -8402,18 +8390,6 @@ export declare const projectTreasuryVaultV2Abi: readonly [{
         readonly name: "priceGuard";
         readonly type: "address";
         readonly internalType: "address";
-    }, {
-        readonly name: "assetIn";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "assetOut";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "routeHash";
-        readonly type: "bytes32";
-        readonly internalType: "bytes32";
     }];
     readonly outputs: readonly [{
         readonly name: "";
@@ -9856,18 +9832,6 @@ export declare const projectRouterV2Abi: readonly [{
         readonly type: "address";
         readonly internalType: "address";
     }, {
-        readonly name: "assetIn";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "assetOut";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "routeHash";
-        readonly type: "bytes32";
-        readonly internalType: "bytes32";
-    }, {
         readonly name: "proof";
         readonly type: "bytes32[]";
         readonly internalType: "bytes32[]";
@@ -10278,18 +10242,6 @@ export declare const projectRouterV2Abi: readonly [{
         readonly name: "priceGuard";
         readonly type: "address";
         readonly internalType: "address";
-    }, {
-        readonly name: "assetIn";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "assetOut";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "routeHash";
-        readonly type: "bytes32";
-        readonly internalType: "bytes32";
     }];
     readonly outputs: readonly [{
         readonly name: "";
@@ -11250,6 +11202,10 @@ export declare const projectStakingPoolV2Abi: readonly [{
         readonly name: "lockDuration_";
         readonly type: "uint64";
         readonly internalType: "uint64";
+    }, {
+        readonly name: "custodyExclusions_";
+        readonly type: "address[]";
+        readonly internalType: "address[]";
     }];
     readonly stateMutability: "nonpayable";
 }, {
@@ -11344,6 +11300,20 @@ export declare const projectStakingPoolV2Abi: readonly [{
         readonly name: "";
         readonly type: "address";
         readonly internalType: "address";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "custodyExcluded";
+    readonly inputs: readonly [{
+        readonly name: "account";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "excluded";
+        readonly type: "bool";
+        readonly internalType: "bool";
     }];
     readonly stateMutability: "view";
 }, {
@@ -12965,6 +12935,28 @@ export declare const projectAirdropV2Abi: readonly [{
         readonly internalType: "uint48";
     }];
     readonly stateMutability: "pure";
+}, {
+    readonly type: "function";
+    readonly name: "claimCreditTo";
+    readonly inputs: readonly [{
+        readonly name: "asset";
+        readonly type: "address";
+        readonly internalType: "address";
+    }, {
+        readonly name: "maxAmount";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "payoutRecipient";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "amount";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly stateMutability: "nonpayable";
 }, {
     readonly type: "function";
     readonly name: "commitEpoch";
@@ -17754,112 +17746,12 @@ export declare const projectFundingBandsV2Abi: readonly [{
     readonly stateMutability: "nonpayable";
 }, {
     readonly type: "function";
-    readonly name: "BAND_INTEGRATION_DOMAIN";
-    readonly inputs: readonly [];
-    readonly outputs: readonly [{
-        readonly name: "";
-        readonly type: "bytes32";
-        readonly internalType: "bytes32";
-    }];
-    readonly stateMutability: "view";
-}, {
-    readonly type: "function";
-    readonly name: "BAND_SWAP_DOMAIN";
-    readonly inputs: readonly [];
-    readonly outputs: readonly [{
-        readonly name: "";
-        readonly type: "bytes32";
-        readonly internalType: "bytes32";
-    }];
-    readonly stateMutability: "view";
-}, {
-    readonly type: "function";
-    readonly name: "BPS";
-    readonly inputs: readonly [];
-    readonly outputs: readonly [{
-        readonly name: "";
-        readonly type: "uint16";
-        readonly internalType: "uint16";
-    }];
-    readonly stateMutability: "view";
-}, {
-    readonly type: "function";
     readonly name: "BURN_ADDRESS";
     readonly inputs: readonly [];
     readonly outputs: readonly [{
         readonly name: "";
         readonly type: "address";
         readonly internalType: "address";
-    }];
-    readonly stateMutability: "view";
-}, {
-    readonly type: "function";
-    readonly name: "MAX_CONFIRMATION_PERIOD";
-    readonly inputs: readonly [];
-    readonly outputs: readonly [{
-        readonly name: "";
-        readonly type: "uint48";
-        readonly internalType: "uint48";
-    }];
-    readonly stateMutability: "view";
-}, {
-    readonly type: "function";
-    readonly name: "MAX_DESTINATION_CONFIG_BYTES";
-    readonly inputs: readonly [];
-    readonly outputs: readonly [{
-        readonly name: "";
-        readonly type: "uint256";
-        readonly internalType: "uint256";
-    }];
-    readonly stateMutability: "view";
-}, {
-    readonly type: "function";
-    readonly name: "MAX_LIVE_BANDS";
-    readonly inputs: readonly [];
-    readonly outputs: readonly [{
-        readonly name: "";
-        readonly type: "uint256";
-        readonly internalType: "uint256";
-    }];
-    readonly stateMutability: "view";
-}, {
-    readonly type: "function";
-    readonly name: "MIN_CONFIRMATION_PERIOD";
-    readonly inputs: readonly [];
-    readonly outputs: readonly [{
-        readonly name: "";
-        readonly type: "uint48";
-        readonly internalType: "uint48";
-    }];
-    readonly stateMutability: "view";
-}, {
-    readonly type: "function";
-    readonly name: "MIN_TWAP_WINDOW";
-    readonly inputs: readonly [];
-    readonly outputs: readonly [{
-        readonly name: "";
-        readonly type: "uint32";
-        readonly internalType: "uint32";
-    }];
-    readonly stateMutability: "view";
-}, {
-    readonly type: "function";
-    readonly name: "NATIVE_ASSET";
-    readonly inputs: readonly [];
-    readonly outputs: readonly [{
-        readonly name: "";
-        readonly type: "address";
-        readonly internalType: "address";
-    }];
-    readonly stateMutability: "view";
-}, {
-    readonly type: "function";
-    readonly name: "PROTOCOL_FEE_BPS";
-    readonly inputs: readonly [];
-    readonly outputs: readonly [{
-        readonly name: "";
-        readonly type: "uint16";
-        readonly internalType: "uint16";
     }];
     readonly stateMutability: "view";
 }, {
@@ -18005,6 +17897,16 @@ export declare const projectFundingBandsV2Abi: readonly [{
         readonly internalType: "bytes";
     }];
     readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "cancelBand";
+    readonly inputs: readonly [{
+        readonly name: "bandId";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly outputs: readonly [];
+    readonly stateMutability: "nonpayable";
 }, {
     readonly type: "function";
     readonly name: "canonicalPool";
@@ -18176,6 +18078,16 @@ export declare const projectFundingBandsV2Abi: readonly [{
     readonly stateMutability: "view";
 }, {
     readonly type: "function";
+    readonly name: "integrationFactory";
+    readonly inputs: readonly [];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
     readonly name: "isSwapApproved";
     readonly inputs: readonly [{
         readonly name: "swapConfig";
@@ -18189,10 +18101,6 @@ export declare const projectFundingBandsV2Abi: readonly [{
             readonly name: "priceGuard";
             readonly type: "address";
             readonly internalType: "address";
-        }, {
-            readonly name: "maxSlippageBps";
-            readonly type: "uint16";
-            readonly internalType: "uint16";
         }, {
             readonly name: "routeData";
             readonly type: "bytes";
@@ -18529,10 +18437,6 @@ export declare const projectFundingBandsV2Abi: readonly [{
             readonly type: "address";
             readonly internalType: "address";
         }, {
-            readonly name: "maxSlippageBps";
-            readonly type: "uint16";
-            readonly internalType: "uint16";
-        }, {
             readonly name: "routeData";
             readonly type: "bytes";
             readonly internalType: "bytes";
@@ -18604,6 +18508,26 @@ export declare const projectFundingBandsV2Abi: readonly [{
         readonly type: "uint48";
         readonly indexed: false;
         readonly internalType: "uint48";
+    }];
+    readonly anonymous: false;
+}, {
+    readonly type: "event";
+    readonly name: "BandCancelled";
+    readonly inputs: readonly [{
+        readonly name: "bandId";
+        readonly type: "uint256";
+        readonly indexed: true;
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "subjectReturned";
+        readonly type: "uint256";
+        readonly indexed: false;
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "quoteReturned";
+        readonly type: "uint256";
+        readonly indexed: false;
+        readonly internalType: "uint256";
     }];
     readonly anonymous: false;
 }, {
@@ -19882,6 +19806,20 @@ export declare const projectRaffleV2Abi: readonly [{
     readonly stateMutability: "nonpayable";
 }, {
     readonly type: "function";
+    readonly name: "deliverOwedTo";
+    readonly inputs: readonly [{
+        readonly name: "payoutRecipient";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "amount";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly stateMutability: "nonpayable";
+}, {
+    readonly type: "function";
     readonly name: "deliverStockOwed";
     readonly inputs: readonly [{
         readonly name: "holder";
@@ -19889,6 +19827,24 @@ export declare const projectRaffleV2Abi: readonly [{
         readonly internalType: "address";
     }, {
         readonly name: "asset";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "amount";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly stateMutability: "nonpayable";
+}, {
+    readonly type: "function";
+    readonly name: "deliverStockOwedTo";
+    readonly inputs: readonly [{
+        readonly name: "asset";
+        readonly type: "address";
+        readonly internalType: "address";
+    }, {
+        readonly name: "payoutRecipient";
         readonly type: "address";
         readonly internalType: "address";
     }];
@@ -19991,6 +19947,10 @@ export declare const projectRaffleV2Abi: readonly [{
         readonly name: "subject_";
         readonly type: "address";
         readonly internalType: "address";
+    }, {
+        readonly name: "integrationApprovalRoot_";
+        readonly type: "bytes32";
+        readonly internalType: "bytes32";
     }, {
         readonly name: "config";
         readonly type: "tuple";
@@ -20103,6 +20063,10 @@ export declare const projectRaffleV2Abi: readonly [{
                 readonly name: "guardData";
                 readonly type: "bytes";
                 readonly internalType: "bytes";
+            }, {
+                readonly name: "approvalProof";
+                readonly type: "bytes32[]";
+                readonly internalType: "bytes32[]";
             }];
         }];
     }];
@@ -20116,6 +20080,16 @@ export declare const projectRaffleV2Abi: readonly [{
         readonly name: "";
         readonly type: "bool";
         readonly internalType: "bool";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "integrationApprovalRoot";
+    readonly inputs: readonly [];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "bytes32";
+        readonly internalType: "bytes32";
     }];
     readonly stateMutability: "view";
 }, {
@@ -20533,6 +20507,24 @@ export declare const projectRaffleV2Abi: readonly [{
     readonly stateMutability: "view";
 }, {
     readonly type: "function";
+    readonly name: "stockIntegrationApprovalLeaf";
+    readonly inputs: readonly [{
+        readonly name: "adapter";
+        readonly type: "address";
+        readonly internalType: "address";
+    }, {
+        readonly name: "priceGuard";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "bytes32";
+        readonly internalType: "bytes32";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
     readonly name: "stockOwed";
     readonly inputs: readonly [{
         readonly name: "holder";
@@ -20581,6 +20573,10 @@ export declare const projectRaffleV2Abi: readonly [{
             readonly name: "guardData";
             readonly type: "bytes";
             readonly internalType: "bytes";
+        }, {
+            readonly name: "approvalProof";
+            readonly type: "bytes32[]";
+            readonly internalType: "bytes32[]";
         }];
     }];
     readonly stateMutability: "view";
@@ -21542,6 +21538,10 @@ export declare const projectLiquidityManagerV2Abi: readonly [{
         readonly name: "protocolFeeRecipient_";
         readonly type: "address";
         readonly internalType: "address";
+    }, {
+        readonly name: "integrationApprovalRoot_";
+        readonly type: "bytes32";
+        readonly internalType: "bytes32";
     }];
     readonly stateMutability: "nonpayable";
 }, {
@@ -21924,6 +21924,34 @@ export declare const projectLiquidityManagerV2Abi: readonly [{
         readonly internalType: "uint256";
     }];
     readonly stateMutability: "payable";
+}, {
+    readonly type: "function";
+    readonly name: "integrationApprovalRoot";
+    readonly inputs: readonly [];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "bytes32";
+        readonly internalType: "bytes32";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "liquidityIntegrationApprovalLeaf";
+    readonly inputs: readonly [{
+        readonly name: "adapter";
+        readonly type: "address";
+        readonly internalType: "address";
+    }, {
+        readonly name: "priceGuard";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "bytes32";
+        readonly internalType: "bytes32";
+    }];
+    readonly stateMutability: "view";
 }, {
     readonly type: "function";
     readonly name: "mint";

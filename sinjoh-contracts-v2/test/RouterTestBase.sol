@@ -153,16 +153,15 @@ abstract contract RouterTestBase is RegistryTestBase {
         );
     }
 
-    function _swapLeaf(address inputAsset, address outputAsset) internal view returns (bytes32) {
+    function _swapLeaf(address, address) internal view returns (bytes32) {
         bytes32 inner = keccak256(
             abi.encode(
-                keccak256("SINJOH_V2_ROUTER_SWAP_APPROVAL"),
+                keccak256("SINJOH_V2_SWAP_INTEGRATION_APPROVAL"),
                 block.chainid,
+                address(adapter),
                 address(adapter).codehash,
-                address(priceGuard).codehash,
-                inputAsset,
-                outputAsset,
-                keccak256(ROUTE_DATA)
+                address(priceGuard),
+                address(priceGuard).codehash
             )
         );
         return keccak256(bytes.concat(inner));

@@ -9,26 +9,31 @@ const treasury = "0x0000000000000000000000000000000000004000";
 const quote = "0x0000000000000000000000000000000000005000";
 const adapter = "0x0000000000000000000000000000000000006000";
 const guard = "0x0000000000000000000000000000000000007000";
-const configTuple = [{
+const configComponents = [
+    { name: "venue", type: "uint8" },
+    { name: "quoteAsset", type: "address" },
+    { name: "poolFee", type: "uint24" },
+    { name: "tickSpacing", type: "int24" },
+    { name: "hooks", type: "address" },
+    { name: "swapAdapter", type: "address" },
+    { name: "priceGuard", type: "address" },
+    { name: "swapRouteData", type: "bytes" },
+    { name: "quoteSwapBps", type: "uint16" },
+    { name: "maxMintSlippageBps", type: "uint16" },
+    { name: "minNotionalPerMint", type: "uint128" },
+    { name: "maxNotionalPerMint", type: "uint128" },
+    { name: "minMintInterval", type: "uint48" },
+    { name: "feeMode", type: "uint8" },
+    { name: "feeRecipient", type: "address" },
+];
+const fundingConfigTuple = [{
         type: "tuple",
         components: [
-            { name: "venue", type: "uint8" },
-            { name: "quoteAsset", type: "address" },
-            { name: "poolFee", type: "uint24" },
-            { name: "tickSpacing", type: "int24" },
-            { name: "hooks", type: "address" },
-            { name: "swapAdapter", type: "address" },
-            { name: "priceGuard", type: "address" },
-            { name: "swapRouteData", type: "bytes" },
-            { name: "quoteSwapBps", type: "uint16" },
-            { name: "maxMintSlippageBps", type: "uint16" },
-            { name: "minNotionalPerMint", type: "uint128" },
-            { name: "maxNotionalPerMint", type: "uint128" },
-            { name: "minMintInterval", type: "uint48" },
-            { name: "feeMode", type: "uint8" },
-            { name: "feeRecipient", type: "address" },
+            { name: "config", type: "tuple", components: configComponents },
+            { name: "integrationApprovalProof", type: "bytes32[]" },
         ],
     }];
+const approvalProof = [`0x${"11".repeat(32)}`];
 test("hydrates exact Liquidity config from product choices and a reviewed profile", () => {
     const config = buildLiquidityAccountConfig({
         profile: {
@@ -42,6 +47,7 @@ test("hydrates exact Liquidity config from product choices and a reviewed profil
             priceGuard: guard,
             swapRouteData: `0x${"00".repeat(32)}`,
             maxMintSlippageBps: 100,
+            integrationApprovalProof: approvalProof,
         },
         choices: {
             quoteSwapBps: 5_000,
@@ -58,7 +64,7 @@ test("hydrates exact Liquidity config from product choices and a reviewed profil
     assert.equal(config.swapAdapter, adapter);
     assert.equal(config.priceGuard, guard);
     assert.equal(config.minMintInterval, 3_600);
-    assert.deepEqual(decodeAbiParameters(configTuple, encodeLiquidityAccountConfig(config))[0], config);
+    assert.deepEqual(decodeAbiParameters(fundingConfigTuple, encodeLiquidityAccountConfig(config, approvalProof))[0], { config, integrationApprovalProof: approvalProof });
     assert.equal(buildLiquidityLaunchAccountConfig({
         profile: {
             id: "base-v3-usdc",
@@ -71,6 +77,7 @@ test("hydrates exact Liquidity config from product choices and a reviewed profil
             priceGuard: guard,
             swapRouteData: `0x${"00".repeat(32)}`,
             maxMintSlippageBps: 100,
+            integrationApprovalProof: approvalProof,
         },
         choices: {
             quoteSwapBps: 5_000,
@@ -95,6 +102,7 @@ test("rejects unsafe creator choices before any wallet transaction", () => {
             priceGuard: guard,
             swapRouteData: "0x01",
             maxMintSlippageBps: 100,
+            integrationApprovalProof: approvalProof,
         },
         creator,
     };

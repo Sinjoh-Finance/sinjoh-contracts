@@ -34,7 +34,7 @@ export interface AirdropPushBatch {
     proofs: readonly AirdropProofArtifact[];
 }
 export interface AirdropKeeperCall {
-    kind: "push" | "retry-credit" | "finalize" | "abort";
+    kind: "push" | "retry-credit" | "claim-credit" | "finalize" | "abort";
     to: Address;
     value: 0n;
     data: Hex;
@@ -78,6 +78,13 @@ export declare function encodeAirdropRetryCreditCall(parameters: {
     recipient: Address;
     asset: Address;
     maxAmount: bigint;
+}): AirdropKeeperCall;
+/** Encodes a creditor-authorized redirect when the original receiver cannot accept payment. */
+export declare function encodeAirdropClaimCreditToCall(parameters: {
+    airdrop: Address;
+    asset: Address;
+    maxAmount: bigint;
+    payoutRecipient: Address;
 }): AirdropKeeperCall;
 /** Encodes finalization after on-chain status confirms every committed leaf is settled. */
 export declare function encodeAirdropFinalizeCall(parameters: {

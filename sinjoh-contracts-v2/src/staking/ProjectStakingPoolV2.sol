@@ -59,6 +59,7 @@ contract ProjectStakingPoolV2 is
     mapping(uint256 tokenId => Position position) private _positions;
     mapping(address owner => uint256 stake) private _ownerStake;
     mapping(address owner => Checkpoints.Trace256 checkpoints) private _ownerCheckpoints;
+    mapping(address account => bool excluded) public custodyExcluded;
     Checkpoints.Trace256 private _totalStakeCheckpoints;
 
     error InvalidRegistry(address candidate);
@@ -116,7 +117,8 @@ contract ProjectStakingPoolV2 is
         address treasury_,
         address controller_,
         address guardian_,
-        uint64 lockDuration_
+        uint64 lockDuration_,
+        address[] memory custodyExclusions_
     ) {
         if (registry_.code.length == 0) {
             revert InvalidRegistry(registry_);
@@ -149,6 +151,14 @@ contract ProjectStakingPoolV2 is
         controller = controller_;
         guardian = guardian_;
         lockDuration = lockDuration_;
+
+        for (uint256 i; i < custodyExclusions_.length; ++i) {
+            address candidate = custodyExclusions_[i];
+            if (candidate == address(0) || candidate == BURN_ADDRESS) {
+                revert InvalidPositionRecipient(candidate);
+            }
+            custodyExcluded[candidate] = true;
+        }
 
         ProjectPoSNFT deployedPoSNFT = new ProjectPoSNFT(address(this), subject_, actualProjectId);
         posNFT = deployedPoSNFT;
@@ -356,7 +366,7 @@ contract ProjectStakingPoolV2 is
     function _validatePositionRecipient(address recipient) private view {
         if (
             recipient == address(0) || recipient == BURN_ADDRESS || recipient == address(this)
-                || recipient == address(posNFT)
+                || recipient == address(posNFT) || custodyExcluded[recipient]
         ) {
             revert InvalidPositionRecipient(recipient);
         }

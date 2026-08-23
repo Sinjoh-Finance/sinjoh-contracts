@@ -7,6 +7,7 @@ interface IFundingBandPositionAdapter {
     function subject() external view returns (address);
     function quoteAsset() external view returns (address);
     function canonicalPool() external view returns (address);
+    function factory() external view returns (address);
     function positionManager() external view returns (address);
 
     function open(
@@ -20,7 +21,7 @@ interface IFundingBandPositionAdapter {
         external
         returns (uint128 liquidityAdded, uint256 subjectResidual);
 
-    function exitAll(uint256 positionId, address recipient)
+    function exitAll(uint256 positionId, address recipient, bool requireConverted)
         external
         returns (address[] memory assets, uint256[] memory amounts);
 

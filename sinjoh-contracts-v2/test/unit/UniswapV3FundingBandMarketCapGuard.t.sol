@@ -69,9 +69,8 @@ contract UniswapV3FundingBandMarketCapGuardTest is Test {
     function testStaleQuoteAndUnreadyPoolFailClosed() public {
         MockFundingBandQuoteUsdOracle oracle = new MockFundingBandQuoteUsdOracle(address(quote));
         oracle.setObservation(1e8, uint48(block.timestamp - 61), bytes32(uint256(1)));
-        UniswapV3FundingBandMarketCapGuard guard = _deploy(address(oracle), 1e8, 60);
-        vm.expectPartialRevert(UniswapV3FundingBandMarketCapGuard.StaleQuoteUsdObservation.selector);
-        guard.observe(LOWER, UPPER, "");
+        vm.expectRevert(UniswapV3FundingBandMarketCapGuard.InvalidQuoteUsdObservation.selector);
+        _deploy(address(oracle), 1e8, 60);
 
         pool.setObservationCardinality(1);
         UniswapV3FundingBandMarketCapGuard fixedGuard = _deploy(address(0), 1e8, 1 hours);
@@ -94,6 +93,14 @@ contract UniswapV3FundingBandMarketCapGuardTest is Test {
         private
         returns (UniswapV3FundingBandMarketCapGuard)
     {
+        if (oracle == address(0)) {
+            MockFundingBandQuoteUsdOracle deployedOracle =
+                new MockFundingBandQuoteUsdOracle(address(quote));
+            deployedOracle.setObservation(
+                referenceQuoteUsdE8, uint48(block.timestamp), keccak256("QUOTE")
+            );
+            oracle = address(deployedOracle);
+        }
         return new UniswapV3FundingBandMarketCapGuard(
             address(0xB4D5),
             address(subject),
@@ -103,7 +110,6 @@ contract UniswapV3FundingBandMarketCapGuardTest is Test {
             REFERENCE_SUPPLY,
             15 minutes,
             oracle,
-            referenceQuoteUsdE8,
             maximumOracleAge
         );
     }

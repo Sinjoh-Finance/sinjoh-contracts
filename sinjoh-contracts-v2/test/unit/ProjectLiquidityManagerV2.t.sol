@@ -64,7 +64,8 @@ contract ProjectLiquidityManagerV2Test is Test {
             address(v4PositionManager),
             address(v4StateView),
             address(permit2),
-            PROTOCOL_RECIPIENT
+            PROTOCOL_RECIPIENT,
+            _swapApprovalLeaf()
         );
 
         quote.mint(address(this), 1_000_000);
@@ -83,11 +84,11 @@ contract ProjectLiquidityManagerV2Test is Test {
         bytes32 canonicalProjectId = subject.projectId();
         vm.expectPartialRevert(ProjectLiquidityManagerV2.InvalidFundingIdentity.selector);
         manager.fund(
-            bytes32(uint256(1)), address(subject), address(quote), 10_000, abi.encode(_v3Config())
+            bytes32(uint256(1)), address(subject), address(quote), 10_000, _fundingData(_v3Config())
         );
         vm.expectPartialRevert(ProjectLiquidityManagerV2.InvalidFundingIdentity.selector);
         manager.fund(
-            canonicalProjectId, address(quote), address(quote), 10_000, abi.encode(_v3Config())
+            canonicalProjectId, address(quote), address(quote), 10_000, _fundingData(_v3Config())
         );
         assertEq(quote.balanceOf(address(manager)), 0);
     }
@@ -102,7 +103,8 @@ contract ProjectLiquidityManagerV2Test is Test {
             address(v4PositionManager),
             address(v4StateView),
             address(permit2),
-            SinjohV2Constants.BURN_ADDRESS
+            SinjohV2Constants.BURN_ADDRESS,
+            _swapApprovalLeaf()
         );
 
         ProjectLiquidityManagerV2.Config memory config = _v3Config();
@@ -111,7 +113,7 @@ contract ProjectLiquidityManagerV2Test is Test {
         bytes32 canonicalProjectId = subject.projectId();
         vm.expectRevert(ProjectLiquidityManagerV2.InvalidConfiguration.selector);
         manager.fund(
-            canonicalProjectId, address(subject), address(quote), 10_000, abi.encode(config)
+            canonicalProjectId, address(subject), address(quote), 10_000, _fundingData(config)
         );
     }
 
@@ -134,12 +136,14 @@ contract ProjectLiquidityManagerV2Test is Test {
         assertEq(status.funder, address(this));
         assertEq(status.subject, address(subject));
         assertEq(status.pendingQuote, 200);
-        assertEq(status.configHash, keccak256(abi.encode(config)));
+        assertEq(status.configHash, keccak256(_fundingData(config)));
 
         config.quoteSwapBps = 4_999;
         bytes32 canonicalProjectId = subject.projectId();
         vm.expectRevert(ProjectLiquidityManagerV2.ConfigurationMismatch.selector);
-        manager.fund(canonicalProjectId, address(subject), address(quote), 100, abi.encode(config));
+        manager.fund(
+            canonicalProjectId, address(subject), address(quote), 100, _fundingData(config)
+        );
         assertEq(manager.accountStatus(id).pendingQuote, 200);
     }
 
@@ -165,7 +169,7 @@ contract ProjectLiquidityManagerV2Test is Test {
         bytes32 canonicalProjectId = subject.projectId();
         vm.expectPartialRevert(ProjectLiquidityManagerV2.UnexpectedBalanceDelta.selector);
         manager.fund(
-            canonicalProjectId, address(subject), address(quote), 10_000, abi.encode(_v3Config())
+            canonicalProjectId, address(subject), address(quote), 10_000, _fundingData(_v3Config())
         );
         bytes32 id = manager.accountId(address(this), address(subject));
         (uint256 pendingQuote,,,, bool configured) = manager.accountFinancials(id);
@@ -182,7 +186,7 @@ contract ProjectLiquidityManagerV2Test is Test {
         bytes32 canonicalProjectId = subject.projectId();
         vm.expectPartialRevert(ProjectLiquidityManagerV2.InvalidConfiguration.selector);
         manager.fund(
-            canonicalProjectId, address(subject), address(quote), 10_000, abi.encode(config)
+            canonicalProjectId, address(subject), address(quote), 10_000, _fundingData(config)
         );
     }
 
@@ -262,7 +266,7 @@ contract ProjectLiquidityManagerV2Test is Test {
         quote.approve(address(manager), type(uint256).max);
         ProjectLiquidityManagerV2.Config memory config = _v3Config();
         manager.fund(
-            subject.projectId(), address(subject), address(quote), 10_000, abi.encode(config)
+            subject.projectId(), address(subject), address(quote), 10_000, _fundingData(config)
         );
         vm.stopPrank();
         bytes32 idB = manager.accountId(FUNDER_B, address(subject));
@@ -350,7 +354,7 @@ contract ProjectLiquidityManagerV2Test is Test {
         vm.startPrank(FUNDER_B);
         quote.approve(address(manager), type(uint256).max);
         manager.fund(
-            subject.projectId(), address(subject), address(quote), 10_000, abi.encode(config)
+            subject.projectId(), address(subject), address(quote), 10_000, _fundingData(config)
         );
         vm.stopPrank();
         (uint256 secondTokenId,) = manager.mint(FUNDER_B, address(subject), 10_000, 5_000, "");
@@ -417,7 +421,7 @@ contract ProjectLiquidityManagerV2Test is Test {
         ProjectLiquidityManagerV2.Config memory config = _v4Config(address(0));
         vm.deal(address(this), 10 ether);
         manager.fund{ value: 10 ether }(
-            subject.projectId(), address(subject), address(0), 10 ether, abi.encode(config)
+            subject.projectId(), address(subject), address(0), 10 ether, _fundingData(config)
         );
         bytes32 id = manager.accountId(address(this), address(subject));
         v4PositionManager.setUseBps(9_000);
@@ -480,8 +484,34 @@ contract ProjectLiquidityManagerV2Test is Test {
 
     function _fund(ProjectLiquidityManagerV2.Config memory config, uint256 amount) internal {
         manager.fund(
-            subject.projectId(), address(subject), config.quoteAsset, amount, abi.encode(config)
+            subject.projectId(), address(subject), config.quoteAsset, amount, _fundingData(config)
         );
+    }
+
+    function _fundingData(ProjectLiquidityManagerV2.Config memory config)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return abi.encode(
+            ProjectLiquidityManagerV2.FundingConfig({
+                config: config, integrationApprovalProof: new bytes32[](0)
+            })
+        );
+    }
+
+    function _swapApprovalLeaf() internal view returns (bytes32) {
+        bytes32 inner = keccak256(
+            abi.encode(
+                keccak256("SINJOH_V2_SWAP_INTEGRATION_APPROVAL"),
+                block.chainid,
+                address(adapter),
+                address(adapter).codehash,
+                address(guard),
+                address(guard).codehash
+            )
+        );
+        return keccak256(bytes.concat(inner));
     }
 
     function _v4Config(address quoteAsset)

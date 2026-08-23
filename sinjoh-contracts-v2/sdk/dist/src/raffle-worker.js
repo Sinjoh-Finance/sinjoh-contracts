@@ -156,6 +156,29 @@ export function encodeRaffleRetryCall(parameters) {
             }),
     };
 }
+/** Encodes the winner's own redirect of a deferred direct or stock prize. */
+export function encodeRaffleClaimOwedToCall(parameters) {
+    assertAddress(parameters.raffle, "Raffle contract");
+    assertAddress(parameters.payoutRecipient, "Payout recipient");
+    if (parameters.stockAsset !== undefined)
+        assertAddress(parameters.stockAsset, "Stock asset");
+    return {
+        kind: parameters.stockAsset === undefined ? "claim-owed" : "claim-stock-owed",
+        to: getAddress(parameters.raffle),
+        value: 0n,
+        data: parameters.stockAsset === undefined
+            ? encodeFunctionData({
+                abi: projectRaffleV2Abi,
+                functionName: "deliverOwedTo",
+                args: [parameters.payoutRecipient],
+            })
+            : encodeFunctionData({
+                abi: projectRaffleV2Abi,
+                functionName: "deliverStockOwedTo",
+                args: [parameters.stockAsset, parameters.payoutRecipient],
+            }),
+    };
+}
 export function encodeRaffleCloseCall(parameters) {
     assertAddress(parameters.raffle, "Raffle contract");
     if (parameters.roundId <= 0n)

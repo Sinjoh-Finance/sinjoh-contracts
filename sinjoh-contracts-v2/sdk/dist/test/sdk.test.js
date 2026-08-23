@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import test from "node:test";
 import { decodeFunctionData, hashTypedData } from "viem";
-import { airdropCommitmentTypedData, buildFundingBandCreationActions, buildAirdropEpoch, buildVerifiedAirdropEpoch, buildLaunchFromPreset, buildProjectLaunchManifest, encodeAirdropAbortCall, encodeGovernanceAction, encodeAirdropFinalizeCall, encodeAirdropPushCalls, encodeAirdropRetryCreditCall, encodeMultisigSubmission, encodeTokenGovernanceProposal, erc4626BasketYieldAdapterFactoryAbi, fundingBandDestination, fundingBandIntegrationApprovalLeaf, marketCapUsdE8, projectLaunchManifestHash, projectAirdropV2Abi, projectFundingBandsV2Abi, projectGovernorV2Abi, projectLauncherV2Abi, projectMultisigAccountV2Abi, projectRegistryV2Abi, projectTreasuryVaultV2Abi, simpleFundingBandConfig, launchErrorMessage, planAirdropPushBatches, reconstructHolderAirdropSnapshot, reconstructStakerAirdropSnapshot, serializeProjectLaunchManifest, } from "../src/index.js";
+import { airdropCommitmentTypedData, buildFundingBandCreationActions, buildAirdropEpoch, buildVerifiedAirdropEpoch, buildLaunchFromPreset, buildProjectLaunchManifest, encodeAirdropAbortCall, encodeGovernanceAction, encodeAirdropFinalizeCall, encodeAirdropPushCalls, encodeAirdropRetryCreditCall, encodeAirdropClaimCreditToCall, encodeMultisigSubmission, encodeTokenGovernanceProposal, erc4626BasketYieldAdapterFactoryAbi, fundingBandDestination, fundingBandFactoryIntegrationApprovalLeaf, fundingBandPairIntegrationApprovalLeaf, swapIntegrationApprovalLeaf, marketCapUsdE8, projectLaunchManifestHash, projectAirdropV2Abi, projectFundingBandsV2Abi, projectGovernorV2Abi, projectLauncherV2Abi, projectMultisigAccountV2Abi, projectRegistryV2Abi, projectTreasuryVaultV2Abi, simpleFundingBandConfig, launchErrorMessage, planAirdropPushBatches, reconstructHolderAirdropSnapshot, reconstructStakerAirdropSnapshot, serializeProjectLaunchManifest, } from "../src/index.js";
 const fixture = JSON.parse(await readFile(resolve(process.cwd(), "fixtures/treasury-send.json"), "utf8"));
 const airdropFixture = JSON.parse(await readFile(resolve(process.cwd(), "fixtures/airdrop-tree.json"), "utf8"));
 test("exports the required project discovery and launch ABI", () => {
@@ -62,15 +62,32 @@ test("rejects invalid funding-band product inputs before wallet submission", () 
     }), /Upper market cap/);
     assert.throws(() => marketCapUsdE8("0"), /greater than zero/);
 });
-test("builds the Solidity-identical Funding Bands release approval leaf", () => {
-    assert.equal(fundingBandIntegrationApprovalLeaf({
+test("builds Solidity-identical release approval leaves", () => {
+    assert.equal(fundingBandFactoryIntegrationApprovalLeaf({
         chainId: 8453n,
-        poolRuntimeHash: `0x${"11".repeat(32)}`,
-        quoteAsset: "0x0000000000000000000000000000000000002000",
-        marketCapGuardRuntimeHash: `0x${"22".repeat(32)}`,
-        positionAdapterRuntimeHash: `0x${"33".repeat(32)}`,
+        integrationFactory: "0x0000000000000000000000000000000000001000",
+        v3Factory: "0x0000000000000000000000000000000000002000",
+        v3FactoryRuntimeHash: `0x${"11".repeat(32)}`,
+        quoteAsset: "0x0000000000000000000000000000000000003000",
+        positionManager: "0x0000000000000000000000000000000000004000",
         positionManagerRuntimeHash: `0x${"44".repeat(32)}`,
-    }), "0xff1246d50acf163f6155677b7789d0bb2dd26e919f72fe5f1b6bc74a95c48594");
+        quoteUsdOracle: "0x0000000000000000000000000000000000005000",
+        quoteUsdOracleRuntimeHash: `0x${"55".repeat(32)}`,
+    }), "0x8b599ff7c8af966443ec43195e4a98f43687a1cd2ae1bffcf160b688b98b70a6");
+    assert.equal(fundingBandPairIntegrationApprovalLeaf({
+        chainId: 8453n,
+        marketCapGuard: "0x0000000000000000000000000000000000006000",
+        marketCapGuardRuntimeHash: `0x${"66".repeat(32)}`,
+        positionAdapter: "0x0000000000000000000000000000000000007000",
+        positionAdapterRuntimeHash: `0x${"77".repeat(32)}`,
+    }), "0x65ddcc69d8940e9984c4599a44a1f18b98329eb956a16ab2efdaf778aeb52ddd");
+    assert.equal(swapIntegrationApprovalLeaf({
+        chainId: 8453n,
+        adapter: "0x0000000000000000000000000000000000008000",
+        adapterRuntimeHash: `0x${"88".repeat(32)}`,
+        priceGuard: "0x0000000000000000000000000000000000009000",
+        priceGuardRuntimeHash: `0x${"99".repeat(32)}`,
+    }), "0x0f8910b46062a14419552a66b4a825d137cb506870a3f548c885256124efdb38");
 });
 test("hydrates a reviewed launch preset from creator-owned fields only", () => {
     const curatedConfig = {
@@ -81,7 +98,6 @@ test("hydrates a reviewed launch preset from creator-owned fields only", () => {
             positionAdapter: "0x0000000000000000000000000000000000000000",
             twapWindow: 900,
             quoteUsdOracle: "0x0000000000000000000000000000000000000000",
-            tickReferenceQuoteUsdE8: 100000000n,
         },
     };
     const config = buildLaunchFromPreset({ id: "base-all-modules", protocolVersion: "2.0.0", config: curatedConfig }, {
@@ -527,6 +543,22 @@ test("fails closed on incomplete event history and plans every unsettled leaf", 
             maxAmount: 4n,
         }).data,
     }).functionName, "retryCredit");
+    assert.deepEqual(decodeFunctionData({
+        abi: projectAirdropV2Abi,
+        data: encodeAirdropClaimCreditToCall({
+            airdrop: airdropFixture.airdrop,
+            asset: "0x0000000000000000000000000000000000009000",
+            maxAmount: 4n,
+            payoutRecipient: "0x0000000000000000000000000000000000008000",
+        }).data,
+    }), {
+        functionName: "claimCreditTo",
+        args: [
+            "0x0000000000000000000000000000000000009000",
+            4n,
+            "0x0000000000000000000000000000000000008000",
+        ],
+    });
     assert.equal(decodeFunctionData({
         abi: projectAirdropV2Abi,
         data: encodeAirdropFinalizeCall({

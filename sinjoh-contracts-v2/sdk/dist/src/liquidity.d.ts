@@ -1,5 +1,5 @@
 import { type Address, type Hex } from "viem";
-import type { LiquidityAccountConfig } from "./types.js";
+import type { LiquidityAccountConfig, LiquidityFundingConfig } from "./types.js";
 export declare const liquidityVenue: {
     readonly uniswapV3: 0;
     readonly uniswapV4: 1;
@@ -23,6 +23,7 @@ export interface LiquidityDeploymentProfile {
     priceGuard: Address;
     swapRouteData: Hex;
     maxMintSlippageBps: number;
+    integrationApprovalProof: readonly Hex[];
 }
 /** Product choices that are safe and understandable in a creator flow. */
 export interface LiquidityProductChoices {
@@ -54,8 +55,10 @@ export declare function buildLiquidityLaunchAccountConfig(parameters: {
     choices: LiquidityProductChoices;
     treasuryEnabled?: boolean;
 }): LiquidityAccountConfig;
-/** Exact Solidity `abi.encode(Config)` payload used by Router funding actions. */
-export declare function encodeLiquidityAccountConfig(config: LiquidityAccountConfig): Hex;
+/** Exact Solidity `abi.encode(FundingConfig)` payload used by Router/direct funding. */
+export declare function encodeLiquidityFundingConfig(funding: LiquidityFundingConfig): Hex;
+/** Builds and encodes the reviewed config plus its release approval proof. */
+export declare function encodeLiquidityAccountConfig(config: LiquidityAccountConfig, integrationApprovalProof: readonly Hex[]): Hex;
 /** Encodes a permissionless mint/increase attempt; the frozen guard remains authoritative. */
 export declare function encodeLiquidityMintCall(parameters: {
     manager: Address;

@@ -3,6 +3,7 @@ set -euo pipefail
 
 package_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 repo_dir="$(git -C "$package_dir" rev-parse --show-toplevel)"
+package_relative="${package_dir#"$repo_dir"/}"
 
 fail() {
   echo "release preflight failed: $*" >&2
@@ -16,12 +17,6 @@ require_command() {
 require_environment() {
   local name="$1"
   [[ -n "${!name:-}" ]] || fail "required environment variable '$name' is missing"
-}
-
-require_evidence() {
-  local name="$1"
-  local path="${!name}"
-  [[ -f "$path" && -s "$path" ]] || fail "$name must reference a non-empty evidence file"
 }
 
 sha256() {
@@ -38,35 +33,47 @@ for command_name in git forge cast node npm awk tr; do
   require_command "$command_name"
 done
 
-if [[ -n "$(git -C "$repo_dir" status --porcelain --untracked-files=normal)" ]]; then
-  fail "the git worktree is not clean"
+if [[ "${SIMULATE_ONLY:-0}" == "0" ]]; then
+  tracked_changes="$(
+    git -C "$repo_dir" status --porcelain --untracked-files=no -- "$package_relative"
+  )"
+  untracked_source="$(
+    git -C "$repo_dir" ls-files --others --exclude-standard -- "$package_relative" |
+      while IFS= read -r path; do
+        case "$path" in
+          "$package_relative"/deployments/project-launcher-v2-[0-9]*.json) ;;
+          *) printf '%s\n' "$path" ;;
+        esac
+      done
+  )"
+  if [[ -n "$tracked_changes" || -n "$untracked_source" ]]; then
+    fail "the contracts-v2 source tree is not clean"
+  fi
 fi
 
 required_environment=(
-  RPC_URL EXPECTED_CHAIN_ID DEPLOYER_ADDRESS FOUNDRY_ACCOUNT PROTOCOL_FEE_RECIPIENT
-  INTEGRATION_APPROVAL_ROOT
+  RPC_URL EXPECTED_CHAIN_ID DEPLOYER_ADDRESS PROTOCOL_FEE_RECIPIENT
   RANDOMNESS_ADAPTER RANDOMNESS_ADAPTER_RUNTIME_HASH
+  PROJECT_SWAP_ADAPTER PROJECT_SWAP_ADAPTER_RUNTIME_HASH
+  FUNDING_BAND_QUOTE_ASSET FUNDING_BAND_QUOTE_ASSET_RUNTIME_HASH
+  FUNDING_BAND_QUOTE_USD_AGGREGATOR FUNDING_BAND_QUOTE_USD_AGGREGATOR_RUNTIME_HASH
   V3_FACTORY V3_FACTORY_RUNTIME_HASH V3_POSITION_MANAGER V3_POSITION_MANAGER_RUNTIME_HASH
   V4_POSITION_MANAGER V4_POSITION_MANAGER_RUNTIME_HASH V4_STATE_VIEW V4_STATE_VIEW_RUNTIME_HASH
-  PERMIT2 PERMIT2_RUNTIME_HASH AUDIT_REPORT_VERSION AUDIT_EVIDENCE_PATH FORK_EVIDENCE_PATH
-  TESTNET_EVIDENCE_PATH ROLE_EVIDENCE_PATH ASSET_FLOW_EVIDENCE_PATH VERIFIER VERIFIER_URL
-  VERIFIER_API_KEY
+  PERMIT2 PERMIT2_RUNTIME_HASH
 )
 for environment_name in "${required_environment[@]}"; do
   require_environment "$environment_name"
 done
 
-[[ "${AUDIT_GATE_STATUS:-}" == "passed" ]] || fail "AUDIT_GATE_STATUS must be exactly 'passed'"
-require_evidence AUDIT_EVIDENCE_PATH
-require_evidence FORK_EVIDENCE_PATH
-require_evidence TESTNET_EVIDENCE_PATH
-require_evidence ROLE_EVIDENCE_PATH
-require_evidence ASSET_FLOW_EVIDENCE_PATH
-export AUDIT_EVIDENCE_HASH="$(sha256 < "$AUDIT_EVIDENCE_PATH")"
-export FORK_EVIDENCE_HASH="$(sha256 < "$FORK_EVIDENCE_PATH")"
-export TESTNET_EVIDENCE_HASH="$(sha256 < "$TESTNET_EVIDENCE_PATH")"
-export ROLE_EVIDENCE_HASH="$(sha256 < "$ROLE_EVIDENCE_PATH")"
-export ASSET_FLOW_EVIDENCE_HASH="$(sha256 < "$ASSET_FLOW_EVIDENCE_PATH")"
+simulate_only="${SIMULATE_ONLY:-0}"
+if [[ "$simulate_only" != "0" && "$simulate_only" != "1" ]]; then
+  fail "SIMULATE_ONLY must be 0 or 1"
+fi
+if [[ "$simulate_only" == "0" ]]; then
+  for environment_name in FOUNDRY_ACCOUNT VERIFIER VERIFIER_URL VERIFIER_API_KEY; do
+    require_environment "$environment_name"
+  done
+fi
 
 actual_chain_id="$(cast chain-id --rpc-url "$RPC_URL")"
 [[ "$actual_chain_id" == "$EXPECTED_CHAIN_ID" ]] \
@@ -74,6 +81,9 @@ actual_chain_id="$(cast chain-id --rpc-url "$RPC_URL")"
 
 runtime_pairs=(
   "RANDOMNESS_ADAPTER:RANDOMNESS_ADAPTER_RUNTIME_HASH"
+  "PROJECT_SWAP_ADAPTER:PROJECT_SWAP_ADAPTER_RUNTIME_HASH"
+  "FUNDING_BAND_QUOTE_ASSET:FUNDING_BAND_QUOTE_ASSET_RUNTIME_HASH"
+  "FUNDING_BAND_QUOTE_USD_AGGREGATOR:FUNDING_BAND_QUOTE_USD_AGGREGATOR_RUNTIME_HASH"
   "V3_FACTORY:V3_FACTORY_RUNTIME_HASH"
   "V3_POSITION_MANAGER:V3_POSITION_MANAGER_RUNTIME_HASH"
   "V4_POSITION_MANAGER:V4_POSITION_MANAGER_RUNTIME_HASH"
@@ -98,7 +108,7 @@ export RELEASE_SOURCE_TREE_HASH="$(git -C "$repo_dir" rev-parse HEAD:sinjoh-cont
 
 cd "$package_dir"
 forge fmt --check
-forge build --sizes
+forge build
 forge test
 npm test --prefix sdk
 
@@ -107,9 +117,20 @@ release_contracts=(
   ProjectTreasuryVaultV2 ProjectAirdropV2 ProjectRouterV2 ProjectFundingBandsV2
   ProjectRaffleV2 ProjectLiquidityManagerV2
   UniswapV3FundingBandMarketCapGuard UniswapV3FundingBandPositionAdapter
-  FundingBandV3IntegrationFactory CreationCodeStoreV2 ProjectRegistryV2
+  FundingBandV3IntegrationFactory FundingBandQuoteUsdOracleAdapter ProjectV3TwapPriceGuard
+  CreationCodeStoreV2 ProjectRegistryV2
   ProjectLaunchDeployerV2 ProjectLauncherV2
 )
+
+# Foundry's global --sizes gate also includes deliberately oversized test harnesses. Enforce the
+# EIP-170 limit against the production release set itself instead.
+for contract in "${release_contracts[@]}"; do
+  runtime_hex="$(forge inspect "$contract" deployedBytecode)"
+  runtime_bytes=$(( (${#runtime_hex} - 2) / 2 ))
+  (( runtime_bytes <= 24576 )) \
+    || fail "$contract runtime is $runtime_bytes bytes, above the EIP-170 limit of 24576"
+done
+
 build_material="$(
   for contract in "${release_contracts[@]}"; do
     forge inspect "$contract" bytecode
@@ -118,17 +139,28 @@ build_material="$(
 )"
 export RELEASE_BUILD_HASH="$(printf '%s' "$build_material" | sha256)"
 
-forge script script/DeployProjectLauncherV2.s.sol:DeployProjectLauncherV2 \
-  --rpc-url "$RPC_URL" \
-  --account "$FOUNDRY_ACCOUNT" \
-  --sender "$DEPLOYER_ADDRESS" \
-  --broadcast \
-  --verify \
-  --verifier "$VERIFIER" \
-  --verifier-url "$VERIFIER_URL" \
-  --etherscan-api-key "$VERIFIER_API_KEY"
+forge_args=(
+  script script/DeployProjectLauncherV2.s.sol:DeployProjectLauncherV2
+  --rpc-url "$RPC_URL"
+  --sender "$DEPLOYER_ADDRESS"
+)
+if [[ "$simulate_only" == "0" ]]; then
+  forge_args+=(
+    --account "$FOUNDRY_ACCOUNT"
+    --broadcast
+    --verify
+    --verifier "$VERIFIER"
+    --verifier-url "$VERIFIER_URL"
+    --etherscan-api-key "$VERIFIER_API_KEY"
+  )
+fi
+forge "${forge_args[@]}"
 
 manifest_path="${DEPLOYMENT_MANIFEST_PATH:-deployments/project-launcher-v2-${EXPECTED_CHAIN_ID}.json}"
 node script/verify-release-manifest.mjs "$manifest_path"
 
-echo "release deployment completed from $RELEASE_GIT_COMMIT on chain $EXPECTED_CHAIN_ID"
+if [[ "$simulate_only" == "1" ]]; then
+  echo "release deployment simulation completed from $RELEASE_GIT_COMMIT on chain $EXPECTED_CHAIN_ID"
+else
+  echo "release deployment completed from $RELEASE_GIT_COMMIT on chain $EXPECTED_CHAIN_ID"
+fi

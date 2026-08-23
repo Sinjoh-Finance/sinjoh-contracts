@@ -164,7 +164,8 @@ contract ProjectStakingPoolV2InvariantTest is InvariantTestBase {
             address(0x7EA5),
             address(0x600D),
             address(0),
-            LOCK_DURATION
+            LOCK_DURATION,
+            new address[](0)
         );
         posNFT = pool.posNFT();
         handler = new ProjectStakingPoolV2Handler(token, pool);

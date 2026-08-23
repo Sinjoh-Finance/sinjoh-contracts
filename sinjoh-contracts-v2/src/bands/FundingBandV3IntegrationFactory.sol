@@ -16,7 +16,6 @@ struct FundingBandV3IntegrationConfig {
     uint256 referenceSupply;
     uint32 twapWindow;
     address quoteUsdOracle;
-    uint256 tickReferenceQuoteUsdE8;
     uint48 maximumOracleAge;
 }
 
@@ -61,7 +60,6 @@ contract FundingBandV3IntegrationFactory {
                     config.referenceSupply,
                     config.twapWindow,
                     config.quoteUsdOracle,
-                    config.tickReferenceQuoteUsdE8,
                     config.maximumOracleAge
                 )
             );
@@ -102,7 +100,6 @@ contract FundingBandV3IntegrationFactory {
                     config.referenceSupply,
                     config.twapWindow,
                     config.quoteUsdOracle,
-                    config.tickReferenceQuoteUsdE8,
                     config.maximumOracleAge
                 )
             )
@@ -148,7 +145,6 @@ contract FundingBandV3IntegrationFactory {
                 || candidate.referenceSupply() != config.referenceSupply
                 || candidate.minimumTwapWindow() != config.twapWindow
                 || candidate.quoteUsdOracle() != config.quoteUsdOracle
-                || candidate.tickReferenceQuoteUsdE8() != config.tickReferenceQuoteUsdE8
                 || candidate.maximumOracleAge() != config.maximumOracleAge
         ) revert DeploymentMismatch(guard, address(0));
     }

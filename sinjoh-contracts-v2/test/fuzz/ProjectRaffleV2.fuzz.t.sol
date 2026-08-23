@@ -126,7 +126,7 @@ contract ProjectRaffleV2FuzzTest is Test {
 
     function _deploy(RaffleTypes.Config memory config) private returns (ProjectRaffleV2 deployed) {
         deployed = ProjectRaffleV2(payable(Clones.clone(address(implementation))));
-        deployed.initialize(address(registry), address(subject), config);
+        deployed.initialize(address(registry), address(subject), bytes32(uint256(1)), config);
     }
 
     function _config() private view returns (RaffleTypes.Config memory config) {

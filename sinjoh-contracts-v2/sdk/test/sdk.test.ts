@@ -15,11 +15,14 @@ import {
   encodeAirdropFinalizeCall,
   encodeAirdropPushCalls,
   encodeAirdropRetryCreditCall,
+  encodeAirdropClaimCreditToCall,
   encodeMultisigSubmission,
   encodeTokenGovernanceProposal,
   erc4626BasketYieldAdapterFactoryAbi,
   fundingBandDestination,
-  fundingBandIntegrationApprovalLeaf,
+  fundingBandFactoryIntegrationApprovalLeaf,
+  fundingBandPairIntegrationApprovalLeaf,
+  swapIntegrationApprovalLeaf,
   marketCapUsdE8,
   projectLaunchManifestHash,
   projectAirdropV2Abi,
@@ -154,17 +157,40 @@ test("rejects invalid funding-band product inputs before wallet submission", () 
   assert.throws(() => marketCapUsdE8("0"), /greater than zero/);
 });
 
-test("builds the Solidity-identical Funding Bands release approval leaf", () => {
+test("builds Solidity-identical release approval leaves", () => {
   assert.equal(
-    fundingBandIntegrationApprovalLeaf({
+    fundingBandFactoryIntegrationApprovalLeaf({
       chainId: 8_453n,
-      poolRuntimeHash: `0x${"11".repeat(32)}`,
-      quoteAsset: "0x0000000000000000000000000000000000002000",
-      marketCapGuardRuntimeHash: `0x${"22".repeat(32)}`,
-      positionAdapterRuntimeHash: `0x${"33".repeat(32)}`,
+      integrationFactory: "0x0000000000000000000000000000000000001000",
+      v3Factory: "0x0000000000000000000000000000000000002000",
+      v3FactoryRuntimeHash: `0x${"11".repeat(32)}`,
+      quoteAsset: "0x0000000000000000000000000000000000003000",
+      positionManager: "0x0000000000000000000000000000000000004000",
       positionManagerRuntimeHash: `0x${"44".repeat(32)}`,
+      quoteUsdOracle: "0x0000000000000000000000000000000000005000",
+      quoteUsdOracleRuntimeHash: `0x${"55".repeat(32)}`,
     }),
-    "0xff1246d50acf163f6155677b7789d0bb2dd26e919f72fe5f1b6bc74a95c48594",
+    "0x8b599ff7c8af966443ec43195e4a98f43687a1cd2ae1bffcf160b688b98b70a6",
+  );
+  assert.equal(
+    fundingBandPairIntegrationApprovalLeaf({
+      chainId: 8_453n,
+      marketCapGuard: "0x0000000000000000000000000000000000006000",
+      marketCapGuardRuntimeHash: `0x${"66".repeat(32)}`,
+      positionAdapter: "0x0000000000000000000000000000000000007000",
+      positionAdapterRuntimeHash: `0x${"77".repeat(32)}`,
+    }),
+    "0x65ddcc69d8940e9984c4599a44a1f18b98329eb956a16ab2efdaf778aeb52ddd",
+  );
+  assert.equal(
+    swapIntegrationApprovalLeaf({
+      chainId: 8_453n,
+      adapter: "0x0000000000000000000000000000000000008000",
+      adapterRuntimeHash: `0x${"88".repeat(32)}`,
+      priceGuard: "0x0000000000000000000000000000000000009000",
+      priceGuardRuntimeHash: `0x${"99".repeat(32)}`,
+    }),
+    "0x0f8910b46062a14419552a66b4a825d137cb506870a3f548c885256124efdb38",
   );
 });
 
@@ -177,7 +203,6 @@ test("hydrates a reviewed launch preset from creator-owned fields only", () => {
       positionAdapter: "0x0000000000000000000000000000000000000000",
       twapWindow: 900,
       quoteUsdOracle: "0x0000000000000000000000000000000000000000",
-      tickReferenceQuoteUsdE8: 100_000_000n,
     },
   } as unknown as ProjectLaunchConfig;
   const config = buildLaunchFromPreset(
@@ -688,6 +713,25 @@ test("fails closed on incomplete event history and plans every unsettled leaf", 
       }).data,
     }).functionName,
     "retryCredit",
+  );
+  assert.deepEqual(
+    decodeFunctionData({
+      abi: projectAirdropV2Abi,
+      data: encodeAirdropClaimCreditToCall({
+        airdrop: airdropFixture.airdrop,
+        asset: "0x0000000000000000000000000000000000009000",
+        maxAmount: 4n,
+        payoutRecipient: "0x0000000000000000000000000000000000008000",
+      }).data,
+    }),
+    {
+      functionName: "claimCreditTo",
+      args: [
+        "0x0000000000000000000000000000000000009000",
+        4n,
+        "0x0000000000000000000000000000000000008000",
+      ],
+    },
   );
   assert.equal(
     decodeFunctionData({

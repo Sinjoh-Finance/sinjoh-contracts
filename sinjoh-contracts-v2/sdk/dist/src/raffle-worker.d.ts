@@ -2,7 +2,7 @@ import { type Address, type Hex } from "viem";
 import type { HolderTransferEvent } from "./airdrop-worker.js";
 import { type BuiltRaffleRound, type RaffleSnapshotArtifact } from "./raffle.js";
 export interface RaffleKeeperCall {
-    kind: "commit" | "claim" | "retry" | "retry-stock" | "expire" | "abandon";
+    kind: "commit" | "claim" | "retry" | "retry-stock" | "claim-owed" | "claim-stock-owed" | "expire" | "abandon";
     to: Address;
     value: 0n;
     data: Hex;
@@ -30,6 +30,12 @@ export declare function encodeRaffleClaimCalls(parameters: {
 export declare function encodeRaffleRetryCall(parameters: {
     raffle: Address;
     holder: Address;
+    stockAsset?: Address;
+}): RaffleKeeperCall;
+/** Encodes the winner's own redirect of a deferred direct or stock prize. */
+export declare function encodeRaffleClaimOwedToCall(parameters: {
+    raffle: Address;
+    payoutRecipient: Address;
     stockAsset?: Address;
 }): RaffleKeeperCall;
 export declare function encodeRaffleCloseCall(parameters: {

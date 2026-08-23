@@ -40,9 +40,7 @@ Create these environments in repository settings before enabling workflows.
 
 #### `robinhood-testnet`
 
-- Require a reviewer and prevent self-review.
-- Disable administrator bypass.
-- Restrict deployment branches/tags to the reviewed release policy.
+- Restrict deployment branches/tags to the release policy.
 - Secrets:
   - `ROBINHOOD_TESTNET_RPC_URL`
   - `ROBINHOOD_TESTNET_ARCHIVE_RPC_URL`
@@ -60,8 +58,6 @@ Rotate them if workflow or runner exposure is suspected.
 
 #### `robinhood-mainnet-preflight`
 
-- Require a reviewer and prevent self-review.
-- Disable administrator bypass.
 - Store only read-only RPC credentials:
   - `ROBINHOOD_MAINNET_ARCHIVE_RPC_URL`
   - `ROBINHOOD_MAINNET_SECONDARY_RPC_URL`

@@ -136,7 +136,7 @@ contract ProjectRaffleV2InvariantTest is Test {
         arbSys = MockRaffleArbSys(address(0x64));
         ProjectRaffleV2 implementation = new ProjectRaffleV2();
         raffle = ProjectRaffleV2(payable(Clones.clone(address(implementation))));
-        raffle.initialize(address(registry), address(subject), _config());
+        raffle.initialize(address(registry), address(subject), bytes32(uint256(1)), _config());
         handler = new ProjectRaffleV2Handler(
             raffle, subject, asset, randomness, arbSys, address(this), HOLDER
         );

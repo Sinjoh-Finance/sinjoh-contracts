@@ -36,13 +36,30 @@ export declare const fundingBandDestination: {
  * The leaf approves reviewed code and market infrastructure; each deployed guard separately binds
  * and validates its project's exact reference supply.
  */
-export declare function fundingBandIntegrationApprovalLeaf(parameters: {
+export declare function swapIntegrationApprovalLeaf(parameters: {
     chainId: bigint;
-    poolRuntimeHash: Hex;
+    adapter: Address;
+    adapterRuntimeHash: Hex;
+    priceGuard: Address;
+    priceGuardRuntimeHash: Hex;
+}): Hex;
+export declare function fundingBandFactoryIntegrationApprovalLeaf(parameters: {
+    chainId: bigint;
+    integrationFactory: Address;
+    v3Factory: Address;
+    v3FactoryRuntimeHash: Hex;
     quoteAsset: Address;
-    marketCapGuardRuntimeHash: Hex;
-    positionAdapterRuntimeHash: Hex;
+    positionManager: Address;
     positionManagerRuntimeHash: Hex;
+    quoteUsdOracle: Address;
+    quoteUsdOracleRuntimeHash: Hex;
+}): Hex;
+export declare function fundingBandPairIntegrationApprovalLeaf(parameters: {
+    chainId: bigint;
+    marketCapGuard: Address;
+    marketCapGuardRuntimeHash: Hex;
+    positionAdapter: Address;
+    positionAdapterRuntimeHash: Hex;
 }): Hex;
 export type SimpleFundingBandDestination = typeof fundingBandDestination.creator | typeof fundingBandDestination.treasury | typeof fundingBandDestination.router | typeof fundingBandDestination.basketViaTreasury;
 /** Converts a human-readable USD market cap into the protocol's fixed 8-decimal representation. */

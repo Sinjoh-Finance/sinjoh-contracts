@@ -52,7 +52,7 @@ export interface AirdropPushBatch {
 }
 
 export interface AirdropKeeperCall {
-  kind: "push" | "retry-credit" | "finalize" | "abort";
+  kind: "push" | "retry-credit" | "claim-credit" | "finalize" | "abort";
   to: Address;
   value: 0n;
   data: Hex;
@@ -211,6 +211,29 @@ export function encodeAirdropRetryCreditCall(parameters: {
       abi: projectAirdropV2Abi,
       functionName: "retryCredit",
       args: [parameters.recipient, parameters.asset, parameters.maxAmount],
+    }),
+  };
+}
+
+/** Encodes a creditor-authorized redirect when the original receiver cannot accept payment. */
+export function encodeAirdropClaimCreditToCall(parameters: {
+  airdrop: Address;
+  asset: Address;
+  maxAmount: bigint;
+  payoutRecipient: Address;
+}): AirdropKeeperCall {
+  assertAddress(parameters.airdrop, "Airdrop contract");
+  assertAddress(parameters.asset, "Credit asset");
+  assertAddress(parameters.payoutRecipient, "Payout recipient");
+  if (parameters.maxAmount <= 0n) throw new RangeError("Claim amount must be greater than zero");
+  return {
+    kind: "claim-credit",
+    to: getAddress(parameters.airdrop),
+    value: 0n,
+    data: encodeFunctionData({
+      abi: projectAirdropV2Abi,
+      functionName: "claimCreditTo",
+      args: [parameters.asset, parameters.maxAmount, parameters.payoutRecipient],
     }),
   };
 }

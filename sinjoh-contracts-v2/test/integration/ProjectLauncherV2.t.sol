@@ -86,7 +86,10 @@ import {
     MockFundingBandPool,
     MockFundingBandPositionAdapter
 } from "../mocks/MockFundingBandIntegrations.sol";
-import { MockV3BandPool } from "../mocks/MockUniswapV3BandPosition.sol";
+import {
+    MockFundingBandQuoteUsdOracle,
+    MockV3BandPool
+} from "../mocks/MockUniswapV3BandPosition.sol";
 
 contract ProjectLauncherV2Test is Test {
     address internal constant CREATOR = address(0xA11CE);
@@ -229,13 +232,15 @@ contract ProjectLauncherV2Test is Test {
     function testFundingBandsPreflightPredictsPlatformManagedIntegrations() public {
         MockBasketAsset quote = new MockBasketAsset("Quote", "QUOTE");
         MockFundingBandPool pool = new MockFundingBandPool();
+        MockFundingBandQuoteUsdOracle oracle = new MockFundingBandQuoteUsdOracle(address(quote));
+        oracle.setObservation(1e8, uint48(block.timestamp), keccak256("QUOTE"));
         ProjectLaunchConfig memory config = _baseMultisigConfig();
         config.modules.treasury = true;
         config.modules.fundingBands = true;
         config.launchProfile.canonicalPool = address(pool);
         config.bands.quoteAsset = address(quote);
         config.bands.twapWindow = 15 minutes;
-        config.bands.tickReferenceQuoteUsdE8 = 1e8;
+        config.bands.quoteUsdOracle = address(oracle);
         config.bands.confirmationPeriod = 15 minutes;
         config.bands.maximumObservationAge = 5 minutes;
 
@@ -257,9 +262,11 @@ contract ProjectLauncherV2Test is Test {
         uint64 nonce = vm.getNonce(address(this));
         address predictedQuote = vm.computeCreateAddress(address(this), nonce);
         address predictedPool = vm.computeCreateAddress(address(this), nonce + 1);
-        address predictedV3Factory = vm.computeCreateAddress(address(this), nonce + 5);
-        address predictedV3PositionManager = vm.computeCreateAddress(address(this), nonce + 6);
-        address predictedEngine = vm.computeCreateAddress(address(this), nonce + 22);
+        address predictedOracle = vm.computeCreateAddress(address(this), nonce + 2);
+        address predictedV3Factory = vm.computeCreateAddress(address(this), nonce + 6);
+        address predictedV3PositionManager = vm.computeCreateAddress(address(this), nonce + 7);
+        address predictedIntegrationFactory = vm.computeCreateAddress(address(this), nonce + 8);
+        address predictedEngine = vm.computeCreateAddress(address(this), nonce + 23);
         bytes32 salt = keccak256("AUTO_FUNDING_BANDS");
         address predictedSubject = _predictFromEngine(predictedEngine, salt, keccak256("TOKEN"));
 
@@ -267,15 +274,18 @@ contract ProjectLauncherV2Test is Test {
         address token0 = predictedSubject < address(quote) ? predictedSubject : address(quote);
         address token1 = predictedSubject < address(quote) ? address(quote) : predictedSubject;
         MockV3BandPool pool = new MockV3BandPool(predictedV3Factory, token0, token1, 3_000, 60);
+        MockFundingBandQuoteUsdOracle oracle = new MockFundingBandQuoteUsdOracle(address(quote));
+        oracle.setObservation(1e8, uint48(block.timestamp), keccak256("QUOTE"));
         assertEq(address(quote), predictedQuote);
         assertEq(address(pool), predictedPool);
+        assertEq(address(oracle), predictedOracle);
 
-        bytes32 approvalLeaf = _bandIntegrationLeafHashes(
-            address(pool),
+        bytes32 approvalLeaf = _bandFactoryIntegrationLeaf(
+            predictedIntegrationFactory,
+            predictedV3Factory,
             address(quote),
-            keccak256(type(UniswapV3FundingBandMarketCapGuard).runtimeCode),
-            keccak256(type(UniswapV3FundingBandPositionAdapter).runtimeCode),
-            keccak256(type(MockV3PositionManager).runtimeCode)
+            predictedV3PositionManager,
+            address(oracle)
         );
         _installLauncher(approvalLeaf, true);
         ProjectLaunchDeployerV2 deployer = ProjectLaunchDeployerV2(address(launcher.deployer()));
@@ -291,7 +301,7 @@ contract ProjectLauncherV2Test is Test {
         config.launchProfile.canonicalPool = address(pool);
         config.bands.quoteAsset = address(quote);
         config.bands.twapWindow = 15 minutes;
-        config.bands.tickReferenceQuoteUsdE8 = 1e8;
+        config.bands.quoteUsdOracle = address(oracle);
         config.bands.confirmationPeriod = 15 minutes;
         config.bands.maximumObservationAge = 5 minutes;
 
@@ -498,6 +508,7 @@ contract ProjectLauncherV2Test is Test {
         MockERC20 quote = new MockERC20("Quote", "QUOTE");
         MockSwapAdapter swapAdapter = new MockSwapAdapter();
         MockPriceGuard priceGuard = new MockPriceGuard();
+        _installLauncher(_swapIntegrationLeaf(address(swapAdapter), address(priceGuard)), true);
         ProjectLaunchConfig memory config = _baseMultisigConfig();
         config.salt = keccak256("ROUTER_LIQUIDITY");
         config.modules.router = true;
@@ -528,7 +539,11 @@ contract ProjectLauncherV2Test is Test {
             recipient: address(0),
             adapter: address(0),
             priceGuard: address(0),
-            actionConfig: abi.encode(liquidityConfig)
+            actionConfig: abi.encode(
+                ProjectLiquidityManagerV2.FundingConfig({
+                    config: liquidityConfig, integrationApprovalProof: new bytes32[](0)
+                })
+            )
         });
 
         vm.prank(CREATOR);
@@ -536,9 +551,9 @@ contract ProjectLauncherV2Test is Test {
         ProjectRouterV2 router = ProjectRouterV2(payable(launched.addresses.router));
         RouterAction memory action = router.routeAction(address(quote), 1, 0);
         assertEq(action.recipient, launched.addresses.liquidityManager);
-        ProjectLiquidityManagerV2.Config memory materializedLiquidity =
-            abi.decode(action.actionConfig, (ProjectLiquidityManagerV2.Config));
-        assertEq(materializedLiquidity.feeRecipient, CREATOR);
+        ProjectLiquidityManagerV2.FundingConfig memory materializedLiquidity =
+            abi.decode(action.actionConfig, (ProjectLiquidityManagerV2.FundingConfig));
+        assertEq(materializedLiquidity.config.feeRecipient, CREATOR);
 
         quote.mint(address(this), 10_000);
         quote.approve(address(router), 10_000);
@@ -848,8 +863,9 @@ contract ProjectLauncherV2Test is Test {
 
         quote = new MockBasketAsset("Quote", "QUOTE");
         MockFundingBandPool pool = new MockFundingBandPool();
-        MockFundingBandGuard guard =
-            new MockFundingBandGuard(predicted.subject, predicted.pool, 1_000_000e18);
+        MockFundingBandGuard guard = new MockFundingBandGuard(
+            predicted.subject, predicted.quote, predicted.pool, 1_000_000e18
+        );
         MockFundingBandPositionAdapter bandAdapter =
             new MockFundingBandPositionAdapter(predicted.subject, predicted.quote, predicted.pool);
         MockERC4626 erc4626 = new MockERC4626(IERC20(predicted.quote));
@@ -864,9 +880,7 @@ contract ProjectLauncherV2Test is Test {
         bytes32 yieldLeaf = _basketYieldLeafHash(
             keccak256(type(ERC4626BasketYieldAdapter).runtimeCode), address(quote), address(erc4626)
         );
-        bytes32 bandLeaf = _bandIntegrationLeaf(
-            address(pool), address(quote), address(guard), address(bandAdapter)
-        );
+        bytes32 bandLeaf = _bandIntegrationLeaf(address(guard), address(bandAdapter));
         _installLauncher(_hashPair(yieldLeaf, bandLeaf), true);
         assertEq(address(registry), predicted.registry);
         assertEq(address(launcher.deployer()), predicted.engine);
@@ -1027,34 +1041,52 @@ contract ProjectLauncherV2Test is Test {
         );
     }
 
-    function _bandIntegrationLeaf(address pool, address quote, address guard, address adapter)
-        private
-        view
-        returns (bytes32)
-    {
-        return _bandIntegrationLeafHashes(
-            pool, quote, guard.codehash, adapter.codehash, adapter.codehash
-        );
-    }
-
-    function _bandIntegrationLeafHashes(
-        address pool,
-        address quote,
-        bytes32 guardRuntimeHash,
-        bytes32 adapterRuntimeHash,
-        bytes32 positionManagerRuntimeHash
-    ) private view returns (bytes32) {
+    function _bandIntegrationLeaf(address guard, address adapter) private view returns (bytes32) {
         return keccak256(
             bytes.concat(
                 keccak256(
                     abi.encode(
-                        keccak256("SINJOH_V2_FUNDING_BAND_INTEGRATION"),
+                        keccak256("SINJOH_V2_FUNDING_BAND_PAIR_INTEGRATION"),
                         block.chainid,
-                        pool.codehash,
+                        guard,
+                        guard.codehash,
+                        adapter,
+                        adapter.codehash
+                    )
+                )
+            )
+        );
+    }
+
+    function _bandFactoryIntegrationLeaf(
+        address integrationFactory,
+        address v3Factory,
+        address quote,
+        address positionManager,
+        address quoteUsdOracle
+    ) private view returns (bytes32) {
+        bytes32 v3FactoryHash = v3Factory.codehash;
+        if (v3FactoryHash == bytes32(0)) {
+            v3FactoryHash = keccak256(type(MockV3Factory).runtimeCode);
+        }
+        bytes32 positionManagerHash = positionManager.codehash;
+        if (positionManagerHash == bytes32(0)) {
+            positionManagerHash = keccak256(type(MockV3PositionManager).runtimeCode);
+        }
+        return keccak256(
+            bytes.concat(
+                keccak256(
+                    abi.encode(
+                        keccak256("SINJOH_V2_FUNDING_BAND_FACTORY_INTEGRATION"),
+                        block.chainid,
+                        integrationFactory,
+                        v3Factory,
+                        v3FactoryHash,
                         quote,
-                        guardRuntimeHash,
-                        adapterRuntimeHash,
-                        positionManagerRuntimeHash
+                        positionManager,
+                        positionManagerHash,
+                        quoteUsdOracle,
+                        quoteUsdOracle.codehash
                     )
                 )
             )
@@ -1063,6 +1095,20 @@ contract ProjectLauncherV2Test is Test {
 
     function _hashPair(bytes32 a, bytes32 b) private pure returns (bytes32) {
         return a < b ? keccak256(bytes.concat(a, b)) : keccak256(bytes.concat(b, a));
+    }
+
+    function _swapIntegrationLeaf(address adapter, address guard) private view returns (bytes32) {
+        bytes32 inner = keccak256(
+            abi.encode(
+                keccak256("SINJOH_V2_SWAP_INTEGRATION_APPROVAL"),
+                block.chainid,
+                adapter,
+                adapter.codehash,
+                guard,
+                guard.codehash
+            )
+        );
+        return keccak256(bytes.concat(inner));
     }
 
     function _proof(bytes32 sibling) private pure returns (bytes32[] memory result) {

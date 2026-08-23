@@ -6,7 +6,8 @@ enum FundingBandState {
     ACTIVE,
     ARMED,
     SETTLED_PENDING_DELIVERY,
-    DELIVERED
+    DELIVERED,
+    CANCELLED
 }
 
 enum FundingBandDestination {
@@ -43,7 +44,6 @@ struct FundingBandsMarketConfig {
     address v3IntegrationFactory;
     uint32 twapWindow;
     address quoteUsdOracle;
-    uint256 tickReferenceQuoteUsdE8;
     uint48 confirmationPeriod;
     uint48 maximumObservationAge;
     bytes32[] integrationApprovalProof;
@@ -74,7 +74,6 @@ struct FundingBandObservation {
 struct FundingBandSwapConfig {
     address swapAdapter;
     address priceGuard;
-    uint16 maxSlippageBps;
     bytes routeData;
     bytes guardData;
     bytes32[] approvalProof;

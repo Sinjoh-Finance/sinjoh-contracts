@@ -17,8 +17,11 @@ import {
   infrastructure fields.
 - Funding Bands presets use the platform-managed V3 integration factory: preflight predicts the
   guard and position adapter and launch deploys both atomically. Release tooling can use
-  `fundingBandIntegrationApprovalLeaf` to build the exact Solidity approval leaf from manifest
-  runtime hashes; this is platform plumbing, not a creator-form field.
+  `fundingBandFactoryIntegrationApprovalLeaf` to build the automatic factory approval leaf,
+  `fundingBandPairIntegrationApprovalLeaf` for a reviewed predeployed pair, and
+  `swapIntegrationApprovalLeaf` for reusable swap adapter/guard pairs. These helpers encode exact
+  addresses and runtime hashes from the release manifest; this is platform plumbing, not a
+  creator-form field.
 - `predictLaunch` returns stable deterministic addresses without requiring a complete launch.
 - `validateLaunchConfig` performs the same full preflight used by `launch` before a wallet prompt.
 - `encodeGovernanceAction` creates one `{ target, value, data }` action usable by either governance
@@ -41,7 +44,8 @@ import {
   log ordering and cross-check reconstructed aggregate and eligible historical supply.
 - `planAirdropPushBatches` skips already-settled holders, respects the on-chain batch cap, and keeps
   zero-entitlement leaves in the work queue because they still count toward epoch finalization.
-- `encodeAirdropPushCalls`, `encodeAirdropRetryCreditCall`, and `encodeAirdropFinalizeCall` return
+- `encodeAirdropPushCalls`, `encodeAirdropRetryCreditCall`, `encodeAirdropClaimCreditToCall`, and
+  `encodeAirdropFinalizeCall` return
   typed permissionless keeper transactions; `pendingWork.airdropCredit` exposes exact retry work.
 - `reconstructRaffleSnapshot` replays complete ERC-20 history in canonical log order and computes
   either snapshot or window-minimum holder weights. Zero and the canonical burn address are always
@@ -50,13 +54,15 @@ import {
   exact padded Merkle-sum tree used by the Raffle. Its roots, proofs, and winner indices are tested
   against the normative Solidity-generated fixtures.
 - `encodeRaffleCommitCall`, `encodeRaffleClaimCalls`, `encodeRaffleRetryCall`, and
-  `encodeRaffleCloseCall` cover the complete worker lifecycle. Winners never need to register,
+  `encodeRaffleClaimOwedToCall` and `encodeRaffleCloseCall` cover the complete lifecycle. Winners never need to register,
   build a proof, or submit a transaction. `pendingWork.raffleRound`, `raffleCredit`, and
   `raffleStockCredit` expose all round and retry state needed by apps and keepers.
 - `buildLiquidityLaunchAccountConfig` combines a versioned platform pool profile with only the
   creator's liquidity split, contribution limits, cadence, and fee destination. Adapter, guard,
   route, hook, fee tier, tick spacing, and slippage infrastructure never enter creator forms;
   creator/Treasury recipient addresses are materialized atomically by the Router.
+- `encodeLiquidityAccountConfig` encodes the exact `FundingConfig` wrapper, including the release
+  approval proof, used by Router and direct funding paths.
 - `encodeLiquidityMintCall`, `encodeLiquidityCollectCall`, and the two fee-delivery helpers cover
   all permissionless Liquidity work. The guard supplies the authoritative output floor by default,
   while an operator may only strengthen it. `pendingWork.liquidityAccount`, `liquidityFeeCredit`,

@@ -12,7 +12,7 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const BURN_ADDRESS = "0x000000000000000000000000000000000000dead";
 
 export interface RaffleKeeperCall {
-  kind: "commit" | "claim" | "retry" | "retry-stock" | "expire" | "abandon";
+  kind: "commit" | "claim" | "retry" | "retry-stock" | "claim-owed" | "claim-stock-owed" | "expire" | "abandon";
   to: Address;
   value: 0n;
   data: Hex;
@@ -179,6 +179,33 @@ export function encodeRaffleRetryCall(parameters: {
         abi: projectRaffleV2Abi,
         functionName: "deliverStockOwed",
         args: [parameters.holder, parameters.stockAsset],
+      }),
+  };
+}
+
+/** Encodes the winner's own redirect of a deferred direct or stock prize. */
+export function encodeRaffleClaimOwedToCall(parameters: {
+  raffle: Address;
+  payoutRecipient: Address;
+  stockAsset?: Address;
+}): RaffleKeeperCall {
+  assertAddress(parameters.raffle, "Raffle contract");
+  assertAddress(parameters.payoutRecipient, "Payout recipient");
+  if (parameters.stockAsset !== undefined) assertAddress(parameters.stockAsset, "Stock asset");
+  return {
+    kind: parameters.stockAsset === undefined ? "claim-owed" : "claim-stock-owed",
+    to: getAddress(parameters.raffle),
+    value: 0n,
+    data: parameters.stockAsset === undefined
+      ? encodeFunctionData({
+        abi: projectRaffleV2Abi,
+        functionName: "deliverOwedTo",
+        args: [parameters.payoutRecipient],
+      })
+      : encodeFunctionData({
+        abi: projectRaffleV2Abi,
+        functionName: "deliverStockOwedTo",
+        args: [parameters.stockAsset, parameters.payoutRecipient],
       }),
   };
 }

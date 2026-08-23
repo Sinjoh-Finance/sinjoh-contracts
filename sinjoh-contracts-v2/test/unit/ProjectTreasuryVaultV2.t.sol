@@ -3,7 +3,11 @@ pragma solidity 0.8.28;
 
 import { ProjectTreasuryVaultV2 } from "../../src/treasury/ProjectTreasuryVaultV2.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import { MockProjectController, MockRejectNative } from "../mocks/MockTreasuryIntegrations.sol";
+import {
+    MockProjectController,
+    MockProjectPriceGuard,
+    MockRejectNative
+} from "../mocks/MockTreasuryIntegrations.sol";
 import { TreasuryTestBase } from "../TreasuryTestBase.sol";
 
 contract ProjectTreasuryVaultV2Test is TreasuryTestBase {
@@ -194,33 +198,12 @@ contract ProjectTreasuryVaultV2Test is TreasuryTestBase {
 
     function testApprovalReadAPIAndCanonicalLeafMatch() public view {
         bytes32[] memory proof = new bytes32[](0);
-        bytes32 routeHash = keccak256(ROUTE_DATA);
         assertEq(
-            vault.swapApprovalLeaf(
-                address(adapter), address(priceGuard), address(assetA), address(assetB), routeHash
-            ),
-            _approvalLeaf(address(assetA), address(assetB), routeHash)
+            vault.swapApprovalLeaf(address(adapter), address(priceGuard)),
+            _approvalLeaf(address(assetA), address(assetB), keccak256(ROUTE_DATA))
         );
-        assertTrue(
-            vault.isSwapApproved(
-                address(adapter),
-                address(priceGuard),
-                address(assetA),
-                address(assetB),
-                routeHash,
-                proof
-            )
-        );
-        assertFalse(
-            vault.isSwapApproved(
-                address(adapter),
-                address(priceGuard),
-                address(assetB),
-                address(assetA),
-                routeHash,
-                proof
-            )
-        );
+        assertTrue(vault.isSwapApproved(address(adapter), address(priceGuard), proof));
+        assertFalse(vault.isSwapApproved(address(token), address(priceGuard), proof));
     }
 
     function testApprovedSwapEnforcesGuardAndExactAccounting() public {
@@ -251,8 +234,9 @@ contract ProjectTreasuryVaultV2Test is TreasuryTestBase {
         assertEq(assetA.allowance(address(vault), address(adapter)), 0);
     }
 
-    function testSwapRejectsUnapprovedRouteBeforeMovingFunds() public {
+    function testSwapRejectsUnapprovedIntegrationBeforeMovingFunds() public {
         _deposit(address(assetA), 100e18, false);
+        MockProjectPriceGuard unapprovedGuard = new MockProjectPriceGuard();
         bytes32[] memory proof = new bytes32[](0);
         vm.expectPartialRevert(ProjectTreasuryVaultV2.SwapNotApproved.selector);
         _controllerCall(
@@ -260,12 +244,12 @@ contract ProjectTreasuryVaultV2Test is TreasuryTestBase {
                 vault.swap,
                 (
                     address(adapter),
-                    address(priceGuard),
+                    address(unapprovedGuard),
                     address(assetA),
                     address(assetB),
                     100e18,
                     1,
-                    hex"99",
+                    ROUTE_DATA,
                     bytes(""),
                     proof
                 )

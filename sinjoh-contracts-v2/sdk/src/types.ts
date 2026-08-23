@@ -38,3 +38,8 @@ export type LiquidityAccountConfig = ContractFunctionReturnType<
   "view",
   "accountConfig"
 >;
+
+export interface LiquidityFundingConfig {
+  config: LiquidityAccountConfig;
+  integrationApprovalProof: readonly `0x${string}`[];
+}

@@ -7,7 +7,7 @@ import {
   type Hex,
 } from "viem";
 import { projectLiquidityManagerV2Abi } from "./abis.generated.js";
-import type { LiquidityAccountConfig } from "./types.js";
+import type { LiquidityAccountConfig, LiquidityFundingConfig } from "./types.js";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const BURN_ADDRESS = "0x000000000000000000000000000000000000dead";
@@ -15,24 +15,28 @@ const MAX_UINT128 = 2n ** 128n - 1n;
 const MAX_UINT48 = 2n ** 48n - 1n;
 const MAX_UINT256 = 2n ** 256n - 1n;
 
-const liquidityConfigParameters = [{
+const liquidityConfigComponents = [
+  { name: "venue", type: "uint8" },
+  { name: "quoteAsset", type: "address" },
+  { name: "poolFee", type: "uint24" },
+  { name: "tickSpacing", type: "int24" },
+  { name: "hooks", type: "address" },
+  { name: "swapAdapter", type: "address" },
+  { name: "priceGuard", type: "address" },
+  { name: "swapRouteData", type: "bytes" },
+  { name: "quoteSwapBps", type: "uint16" },
+  { name: "maxMintSlippageBps", type: "uint16" },
+  { name: "minNotionalPerMint", type: "uint128" },
+  { name: "maxNotionalPerMint", type: "uint128" },
+  { name: "minMintInterval", type: "uint48" },
+  { name: "feeMode", type: "uint8" },
+  { name: "feeRecipient", type: "address" },
+] as const;
+const liquidityFundingConfigParameters = [{
   type: "tuple",
   components: [
-    { name: "venue", type: "uint8" },
-    { name: "quoteAsset", type: "address" },
-    { name: "poolFee", type: "uint24" },
-    { name: "tickSpacing", type: "int24" },
-    { name: "hooks", type: "address" },
-    { name: "swapAdapter", type: "address" },
-    { name: "priceGuard", type: "address" },
-    { name: "swapRouteData", type: "bytes" },
-    { name: "quoteSwapBps", type: "uint16" },
-    { name: "maxMintSlippageBps", type: "uint16" },
-    { name: "minNotionalPerMint", type: "uint128" },
-    { name: "maxNotionalPerMint", type: "uint128" },
-    { name: "minMintInterval", type: "uint48" },
-    { name: "feeMode", type: "uint8" },
-    { name: "feeRecipient", type: "address" },
+    { name: "config", type: "tuple", components: liquidityConfigComponents },
+    { name: "integrationApprovalProof", type: "bytes32[]" },
   ],
 }] as const;
 
@@ -63,6 +67,7 @@ export interface LiquidityDeploymentProfile {
   priceGuard: Address;
   swapRouteData: Hex;
   maxMintSlippageBps: number;
+  integrationApprovalProof: readonly Hex[];
 }
 
 /** Product choices that are safe and understandable in a creator flow. */
@@ -118,6 +123,11 @@ export function buildLiquidityAccountConfig(parameters: {
       || profile.maxMintSlippageBps < 0
       || profile.maxMintSlippageBps > 500
   ) throw new RangeError("Liquidity mint slippage cannot exceed 5%");
+  for (const [index, node] of profile.integrationApprovalProof.entries()) {
+    if (!/^0x[0-9a-fA-F]{64}$/.test(node)) {
+      throw new RangeError(`Liquidity approval proof node ${index + 1} must be bytes32`);
+    }
+  }
   if (!Number.isInteger(choices.quoteSwapBps) || choices.quoteSwapBps < 4_500 || choices.quoteSwapBps > 5_500) {
     throw new RangeError("Liquidity split must swap between 45% and 55% into the project token");
   }
@@ -180,9 +190,17 @@ export function buildLiquidityLaunchAccountConfig(parameters: {
   return { ...resolved, feeRecipient: ZERO_ADDRESS };
 }
 
-/** Exact Solidity `abi.encode(Config)` payload used by Router funding actions. */
-export function encodeLiquidityAccountConfig(config: LiquidityAccountConfig): Hex {
-  return encodeAbiParameters(liquidityConfigParameters, [config]);
+/** Exact Solidity `abi.encode(FundingConfig)` payload used by Router/direct funding. */
+export function encodeLiquidityFundingConfig(funding: LiquidityFundingConfig): Hex {
+  return encodeAbiParameters(liquidityFundingConfigParameters, [funding]);
+}
+
+/** Builds and encodes the reviewed config plus its release approval proof. */
+export function encodeLiquidityAccountConfig(
+  config: LiquidityAccountConfig,
+  integrationApprovalProof: readonly Hex[],
+): Hex {
+  return encodeLiquidityFundingConfig({ config, integrationApprovalProof });
 }
 
 /** Encodes a permissionless mint/increase attempt; the frozen guard remains authoritative. */

@@ -32,7 +32,7 @@ contract ProjectAirdropV2 is IProjectModule, IProjectFundable, ReentrancyGuard {
 
     address public constant NATIVE_ASSET = address(0);
     address public constant BURN_ADDRESS = SinjohV2Constants.BURN_ADDRESS;
-    address public constant PONS_LOCKER = 0xda4bCee76B29EFEc9697Fcf663601c2042043968;
+    address public constant PONS_LOCKER = 0x736D76699C26D0d966744cAe304C000d471f7F35;
     uint16 public constant BPS = 10_000;
     uint16 public constant PROTOCOL_FEE_BPS = 100;
     uint16 public constant MAX_PUSH_BATCH_SIZE = 64;
@@ -559,6 +559,25 @@ contract ProjectAirdropV2 is IProjectModule, IProjectFundable, ReentrancyGuard {
         }
     }
 
+    /// @notice Lets the credited holder redirect its own failed payment to a payable receiver.
+    function claimCreditTo(address asset, uint256 maxAmount, address payoutRecipient)
+        external
+        nonReentrant
+        returns (uint256 amount)
+    {
+        if (maxAmount == 0 || payoutRecipient == address(0) || payoutRecipient == address(this)) {
+            revert InvalidAmount(maxAmount);
+        }
+        uint256 current = retryableCredit[msg.sender][asset];
+        if (current == 0) revert NoRetryableCredit(msg.sender, asset);
+        _assertBacked(asset);
+        amount = Math.min(current, maxAmount);
+        retryableCredit[msg.sender][asset] = current - amount;
+        totalRetryableCredits[asset] -= amount;
+        _sendExact(asset, payoutRecipient, amount);
+        emit CreditDelivered(payoutRecipient, asset, amount);
+    }
+
     function deliverPayment(address asset, address recipient, uint256 amount) external onlySelf {
         _sendExact(asset, recipient, amount);
     }
@@ -850,10 +869,12 @@ contract ProjectAirdropV2 is IProjectModule, IProjectFundable, ReentrancyGuard {
         if (confirmations < account.minimumSnapshotConfirmations) {
             revert SnapshotNotFinal(confirmations, account.minimumSnapshotConfirmations);
         }
-        if (confirmations > 256) revert SnapshotOutsideHashWindow(confirmations);
-        bytes32 actualHash = blockhash(snapshotBlock);
-        if (actualHash == bytes32(0) || actualHash != commitment.snapshotBlockHash) {
-            revert SnapshotHashMismatch(actualHash, commitment.snapshotBlockHash);
+        // The attestor signature binds the block hash. Do not use EVM `blockhash` here: it only
+        // exposes the latest 256 blocks, while Robinhood's finalized head can lag farther than
+        // that. Workers must reconcile the finalized block/hash/time through two providers
+        // before the attestor signs; the contract verifies that exact signed commitment.
+        if (commitment.snapshotBlockHash == bytes32(0)) {
+            revert SnapshotHashMismatch(bytes32(0), commitment.snapshotBlockHash);
         }
         uint48 currentTime = IProjectEligibilitySource(eligibilitySource).clock();
         if (

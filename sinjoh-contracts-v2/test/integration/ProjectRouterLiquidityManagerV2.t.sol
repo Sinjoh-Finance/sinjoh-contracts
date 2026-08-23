@@ -36,6 +36,7 @@ contract ProjectRouterLiquidityManagerV2IntegrationTest is RouterTestBase {
         MockV4StateView stateView = new MockV4StateView();
         liquidityAdapter = new MockSwapAdapter();
         liquidityGuard = new MockPriceGuard();
+        bytes32 approvalRoot = _liquidityApprovalLeaf();
         manager = new ProjectLiquidityManagerV2(
             address(registry),
             address(token),
@@ -44,7 +45,8 @@ contract ProjectRouterLiquidityManagerV2IntegrationTest is RouterTestBase {
             address(v4PositionManager),
             address(stateView),
             address(permit2),
-            FEE_RECIPIENT
+            FEE_RECIPIENT,
+            approvalRoot
         );
         liquiditySink = MockRouterSink(payable(address(manager)));
         vm.prank(HOLDER);
@@ -52,7 +54,11 @@ contract ProjectRouterLiquidityManagerV2IntegrationTest is RouterTestBase {
     }
 
     function testRouterFundsAndKeeperMintsOnePermanentProjectPosition() public {
-        bytes memory config = abi.encode(_config());
+        bytes memory config = abi.encode(
+            ProjectLiquidityManagerV2.FundingConfig({
+                config: _config(), integrationApprovalProof: new bytes32[](0)
+            })
+        );
         RouterAction memory action = RouterAction({
             actionType: RouterActionType.ADD_LIQUIDITY,
             allocationBps: 10_000,
@@ -111,5 +117,19 @@ contract ProjectRouterLiquidityManagerV2IntegrationTest is RouterTestBase {
             feeMode: ProjectLiquidityManagerV2.FeeMode.RECYCLE,
             feeRecipient: address(0)
         });
+    }
+
+    function _liquidityApprovalLeaf() private view returns (bytes32) {
+        bytes32 inner = keccak256(
+            abi.encode(
+                keccak256("SINJOH_V2_SWAP_INTEGRATION_APPROVAL"),
+                block.chainid,
+                address(liquidityAdapter),
+                address(liquidityAdapter).codehash,
+                address(liquidityGuard),
+                address(liquidityGuard).codehash
+            )
+        );
+        return keccak256(bytes.concat(inner));
     }
 }

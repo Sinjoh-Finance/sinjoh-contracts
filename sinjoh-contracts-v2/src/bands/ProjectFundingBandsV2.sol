@@ -35,6 +35,7 @@ import { IProjectSwapAdapter } from "../interfaces/IProjectSwapAdapter.sol";
 import { IProjectTokenIdentity } from "../interfaces/IProjectTokenIdentity.sol";
 import { IProjectTreasuryReceiver } from "../interfaces/IProjectTreasuryReceiver.sol";
 import { ProjectIds } from "../libraries/ProjectIds.sol";
+import { IntegrationApproval } from "../libraries/IntegrationApproval.sol";
 import { SinjohV2Constants } from "../libraries/SinjohV2Constants.sol";
 
 interface IProjectBurnableToken is IERC20 {
@@ -51,18 +52,18 @@ contract ProjectFundingBandsV2 is
     using SafeERC20 for IERC20;
     using SafeCast for uint256;
 
-    address public constant NATIVE_ASSET = address(0);
     address public constant BURN_ADDRESS = SinjohV2Constants.BURN_ADDRESS;
-    uint16 public constant BPS = 10_000;
-    uint16 public constant PROTOCOL_FEE_BPS = 100;
-    uint256 public constant MAX_LIVE_BANDS = 10;
-    uint256 public constant MAX_DESTINATION_CONFIG_BYTES = 4_096;
-    uint32 public constant MIN_TWAP_WINDOW = 5 minutes;
-    uint48 public constant MIN_CONFIRMATION_PERIOD = 5 minutes;
-    uint48 public constant MAX_CONFIRMATION_PERIOD = 24 hours;
-    bytes32 public constant BAND_INTEGRATION_DOMAIN =
-        keccak256("SINJOH_V2_FUNDING_BAND_INTEGRATION");
-    bytes32 public constant BAND_SWAP_DOMAIN = keccak256("SINJOH_V2_FUNDING_BAND_SWAP");
+    uint16 private constant BPS = 10_000;
+    uint16 private constant PROTOCOL_FEE_BPS = 100;
+    uint256 private constant MAX_LIVE_BANDS = 10;
+    uint256 private constant MAX_DESTINATION_CONFIG_BYTES = 4_096;
+    uint32 private constant MIN_TWAP_WINDOW = 5 minutes;
+    uint48 private constant MIN_CONFIRMATION_PERIOD = 5 minutes;
+    uint48 private constant MAX_CONFIRMATION_PERIOD = 24 hours;
+    bytes32 private constant BAND_FACTORY_INTEGRATION_DOMAIN =
+        keccak256("SINJOH_V2_FUNDING_BAND_FACTORY_INTEGRATION");
+    bytes32 private constant BAND_PAIR_INTEGRATION_DOMAIN =
+        keccak256("SINJOH_V2_FUNDING_BAND_PAIR_INTEGRATION");
 
     struct Band {
         uint128 lowerMarketCapUsdE8;
@@ -97,6 +98,7 @@ contract ProjectFundingBandsV2 is
     bytes32 public immutable integrationApprovalRoot;
     IFundingBandMarketCapGuard public immutable marketCapGuard;
     IFundingBandPositionAdapter public immutable positionAdapter;
+    address public immutable integrationFactory;
     address public immutable positionManager;
     uint48 public immutable confirmationPeriod;
     uint48 public immutable maximumObservationAge;
@@ -202,6 +204,7 @@ contract ProjectFundingBandsV2 is
         uint256 netQuote,
         uint256 subjectResidual
     );
+    event BandCancelled(uint256 indexed bandId, uint256 subjectReturned, uint256 quoteReturned);
     event BandDeliveryEscrowed(uint256 indexed bandId, address indexed asset, uint256 amount);
     event BandDeliverySucceeded(uint256 indexed bandId);
     event BandDeliveryFailed(uint256 indexed bandId, bytes32 reasonHash);
@@ -247,6 +250,7 @@ contract ProjectFundingBandsV2 is
         integrationApprovalRoot = market.integrationApprovalRoot;
         marketCapGuard = IFundingBandMarketCapGuard(market.marketCapGuard);
         positionAdapter = IFundingBandPositionAdapter(market.positionAdapter);
+        integrationFactory = market.v3IntegrationFactory;
         positionManager = IFundingBandPositionAdapter(market.positionAdapter).positionManager();
         confirmationPeriod = market.confirmationPeriod;
         maximumObservationAge = market.maximumObservationAge;
@@ -279,14 +283,13 @@ contract ProjectFundingBandsV2 is
         if (supplied) {
             if (
                 market.v3IntegrationFactory != address(0) || market.twapWindow != 0
-                    || market.quoteUsdOracle != address(0) || market.tickReferenceQuoteUsdE8 != 0
+                    || market.quoteUsdOracle != address(0)
             ) revert InvalidIntegration();
             return market;
         }
         if (
             market.v3IntegrationFactory.code.length == 0 || market.twapWindow == 0
-                || market.tickReferenceQuoteUsdE8 == 0
-                || (market.quoteUsdOracle != address(0) && market.quoteUsdOracle.code.length == 0)
+                || market.quoteUsdOracle.code.length == 0
         ) revert InvalidIntegration();
         FundingBandV3IntegrationConfig memory integration = FundingBandV3IntegrationConfig({
             bandsContract: address(this),
@@ -296,7 +299,6 @@ contract ProjectFundingBandsV2 is
             referenceSupply: market.referenceSupply,
             twapWindow: market.twapWindow,
             quoteUsdOracle: market.quoteUsdOracle,
-            tickReferenceQuoteUsdE8: market.tickReferenceQuoteUsdE8,
             maximumOracleAge: market.maximumObservationAge
         });
         (market.marketCapGuard, market.positionAdapter) =
@@ -374,6 +376,8 @@ contract ProjectFundingBandsV2 is
         if (
             IFundingBandMarketCapGuard(market.marketCapGuard).bandsContract() != address(this)
                 || IFundingBandMarketCapGuard(market.marketCapGuard).subject() != project.subject
+                || IFundingBandMarketCapGuard(market.marketCapGuard).quoteAsset()
+                    != market.quoteAsset
                 || IFundingBandMarketCapGuard(market.marketCapGuard).canonicalPool()
                     != market.canonicalPool
                 || IFundingBandMarketCapGuard(market.marketCapGuard).referenceSupply()
@@ -384,7 +388,11 @@ contract ProjectFundingBandsV2 is
                 || IFundingBandPositionAdapter(market.positionAdapter).quoteAsset()
                     != market.quoteAsset
                 || IFundingBandPositionAdapter(market.positionAdapter).canonicalPool()
-                    != market.canonicalPool || positionManager.code.length == 0
+                    != market.canonicalPool
+                || IFundingBandMarketCapGuard(market.marketCapGuard).factory()
+                    != IFundingBandPositionAdapter(market.positionAdapter).factory()
+                || IFundingBandMarketCapGuard(market.marketCapGuard).quoteUsdOracle().code.length
+                    == 0 || positionManager.code.length == 0
         ) revert InvalidIntegration();
         bytes32 leaf = integrationApprovalLeaf();
         if (!MerkleProof.verify(
@@ -501,31 +509,7 @@ contract ProjectFundingBandsV2 is
                 || observation.observationId == band.armedObservationId
         ) revert ObservationNotAdvanced(band.armedObservationAt, observation.observedAt);
 
-        address first = subject < quoteAsset ? subject : quoteAsset;
-        address second = subject < quoteAsset ? quoteAsset : subject;
-        uint256 firstBefore = IERC20(first).balanceOf(address(this));
-        uint256 secondBefore = IERC20(second).balanceOf(address(this));
-        IERC721(positionManager).approve(address(positionAdapter), band.positionId);
-        (address[] memory assets, uint256[] memory amounts) =
-            positionAdapter.exitAll(band.positionId, address(this));
-        if (assets.length != 2 || amounts.length != 2 || assets[0] != first || assets[1] != second)
-        {
-            revert AdapterOutputMismatch();
-        }
-        uint256 firstReceived = IERC20(first).balanceOf(address(this)) - firstBefore;
-        uint256 secondReceived = IERC20(second).balanceOf(address(this)) - secondBefore;
-        if (amounts[0] != firstReceived || amounts[1] != secondReceived) {
-            revert AdapterOutputMismatch();
-        }
-        if (positionAdapter.positionLiquidity(band.positionId) != 0) {
-            revert PositionNotClosed(band.positionId);
-        }
-        (bool ownerCallSucceeded,) =
-            positionManager.staticcall(abi.encodeCall(IERC721.ownerOf, (band.positionId)));
-        if (ownerCallSucceeded) revert PositionNotClosed(band.positionId);
-
-        uint256 subjectReceived = subject == first ? firstReceived : secondReceived;
-        uint256 grossQuote = quoteAsset == first ? firstReceived : secondReceived;
+        (uint256 subjectReceived, uint256 grossQuote) = _exitBandPosition(band, true);
         uint256 subjectProceeds = subjectReceived + band.subjectResidual;
         reservedSubjectResidual -= band.subjectResidual;
         band.subjectResidual = 0;
@@ -543,6 +527,27 @@ contract ProjectFundingBandsV2 is
         _removeLiveBand(bandId);
         emit BandSettled(bandId, grossQuote, fee, netQuote, subjectProceeds);
         _tryDelivery(bandId);
+    }
+
+    /// @notice Governance escape hatch for a band that should no longer remain live.
+    /// @dev No swap occurs and no protocol fee is charged. Every recovered asset and any
+    /// uninvested subject residual is deposited directly into the project Treasury.
+    function cancelBand(uint256 bandId) external onlyController nonReentrant {
+        Band storage band = _bands[bandId];
+        if (band.state != FundingBandState.ACTIVE && band.state != FundingBandState.ARMED) {
+            revert InvalidBandState(bandId, band.state, FundingBandState.ACTIVE);
+        }
+        (uint256 subjectReceived, uint256 quoteReceived) = _exitBandPosition(band, false);
+        subjectReceived += band.subjectResidual;
+        reservedSubjectResidual -= band.subjectResidual;
+        band.subjectResidual = 0;
+        band.liquidity = 0;
+        _clearArm(band);
+        band.state = FundingBandState.CANCELLED;
+        _removeLiveBand(bandId);
+        if (subjectReceived != 0) _depositTreasury(subject, subjectReceived, false);
+        if (quoteReceived != 0) _depositTreasury(quoteAsset, quoteReceived, false);
+        emit BandCancelled(bandId, subjectReceived, quoteReceived);
     }
 
     function retryDelivery(uint256 bandId) external nonReentrant returns (bool delivered) {
@@ -660,15 +665,33 @@ contract ProjectFundingBandsV2 is
     }
 
     function integrationApprovalLeaf() public view returns (bytes32) {
+        address factory = marketCapGuard.factory();
+        address quoteUsdOracle = marketCapGuard.quoteUsdOracle();
+        if (integrationFactory == address(0)) {
+            bytes32 pairInner = keccak256(
+                abi.encode(
+                    BAND_PAIR_INTEGRATION_DOMAIN,
+                    block.chainid,
+                    address(marketCapGuard),
+                    address(marketCapGuard).codehash,
+                    address(positionAdapter),
+                    address(positionAdapter).codehash
+                )
+            );
+            return keccak256(bytes.concat(pairInner));
+        }
         bytes32 inner = keccak256(
             abi.encode(
-                BAND_INTEGRATION_DOMAIN,
+                BAND_FACTORY_INTEGRATION_DOMAIN,
                 block.chainid,
-                canonicalPool.codehash,
+                integrationFactory,
+                factory,
+                factory.codehash,
                 quoteAsset,
-                address(marketCapGuard).codehash,
-                address(positionAdapter).codehash,
-                positionManager.codehash
+                positionManager,
+                positionManager.codehash,
+                quoteUsdOracle,
+                quoteUsdOracle.codehash
             )
         );
         return keccak256(bytes.concat(inner));
@@ -679,19 +702,7 @@ contract ProjectFundingBandsV2 is
         view
         returns (bytes32)
     {
-        bytes32 inner = keccak256(
-            abi.encode(
-                BAND_SWAP_DOMAIN,
-                block.chainid,
-                quoteAsset,
-                subject,
-                swapConfig.swapAdapter.codehash,
-                swapConfig.priceGuard.codehash,
-                swapConfig.maxSlippageBps,
-                keccak256(swapConfig.routeData)
-            )
-        );
-        return keccak256(bytes.concat(inner));
+        return IntegrationApproval.swapLeaf(swapConfig.swapAdapter, swapConfig.priceGuard);
     }
 
     function isSwapApproved(FundingBandSwapConfig memory swapConfig) external view returns (bool) {
@@ -847,6 +858,10 @@ contract ProjectFundingBandsV2 is
             if (treasury == address(0) || destinationConfig.length != 0) {
                 revert InvalidDestination(destination);
             }
+            if (
+                destination == FundingBandDestination.BASKET_VIA_TREASURY
+                    && IProjectTreasuryReceiver(treasury).basketManager().code.length == 0
+            ) revert InvalidDestination(destination);
         } else if (destination == FundingBandDestination.ROUTER) {
             if (router == address(0) || destinationConfig.length != 0) {
                 revert InvalidDestination(destination);
@@ -872,10 +887,9 @@ contract ProjectFundingBandsV2 is
     }
 
     function _validateSwapConfig(FundingBandSwapConfig memory swapConfig) private view {
-        if (
-            swapConfig.swapAdapter.code.length == 0 || swapConfig.priceGuard.code.length == 0
-                || swapConfig.maxSlippageBps == 0 || swapConfig.maxSlippageBps > BPS
-        ) revert InvalidDestinationConfig();
+        if (swapConfig.swapAdapter.code.length == 0 || swapConfig.priceGuard.code.length == 0) {
+            revert InvalidDestinationConfig();
+        }
         bytes32 leaf = swapApprovalLeaf(swapConfig);
         if (!MerkleProof.verify(swapConfig.approvalProof, integrationApprovalRoot, leaf)) {
             revert IntegrationNotApproved(leaf);
@@ -1003,6 +1017,37 @@ contract ProjectFundingBandsV2 is
         if (spent != amountIn) revert InexactAssetSpend(quoteAsset, amountIn, spent);
         amountOut = IERC20(subject).balanceOf(address(this)) - beforeOutput;
         if (amountOut < minimum) revert InsufficientSwapOutput(minimum, amountOut);
+    }
+
+    function _exitBandPosition(Band storage band, bool requireConverted)
+        private
+        returns (uint256 subjectReceived, uint256 quoteReceived)
+    {
+        address first = subject < quoteAsset ? subject : quoteAsset;
+        address second = subject < quoteAsset ? quoteAsset : subject;
+        uint256 firstBefore = IERC20(first).balanceOf(address(this));
+        uint256 secondBefore = IERC20(second).balanceOf(address(this));
+        uint256 positionId = band.positionId;
+        IERC721(positionManager).approve(address(positionAdapter), positionId);
+        (address[] memory assets, uint256[] memory amounts) =
+            positionAdapter.exitAll(positionId, address(this), requireConverted);
+        if (assets.length != 2 || amounts.length != 2 || assets[0] != first || assets[1] != second)
+        {
+            revert AdapterOutputMismatch();
+        }
+        uint256 firstReceived = IERC20(first).balanceOf(address(this)) - firstBefore;
+        uint256 secondReceived = IERC20(second).balanceOf(address(this)) - secondBefore;
+        if (amounts[0] != firstReceived || amounts[1] != secondReceived) {
+            revert AdapterOutputMismatch();
+        }
+        if (positionAdapter.positionLiquidity(positionId) != 0) {
+            revert PositionNotClosed(positionId);
+        }
+        (bool ownerCallSucceeded,) =
+            positionManager.staticcall(abi.encodeCall(IERC721.ownerOf, (positionId)));
+        if (ownerCallSucceeded) revert PositionNotClosed(positionId);
+        subjectReceived = subject == first ? firstReceived : secondReceived;
+        quoteReceived = quoteAsset == first ? firstReceived : secondReceived;
     }
 
     function _depositTreasury(address asset, uint256 amount, bool routeToBasket) private {

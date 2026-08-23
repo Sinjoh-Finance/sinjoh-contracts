@@ -99,7 +99,7 @@ contract UniswapV3FundingBandPositionAdapter is IFundingBandPositionAdapter, Ree
     address public override quoteAsset;
     address public override canonicalPool;
     address public override positionManager;
-    address public factory;
+    address public override factory;
     address public token0;
     address public token1;
     uint24 public poolFee;
@@ -259,15 +259,17 @@ contract UniswapV3FundingBandPositionAdapter is IFundingBandPositionAdapter, Ree
         }
     }
 
-    function exitAll(uint256 positionId, address recipient)
+    function exitAll(uint256 positionId, address recipient, bool requireConverted)
         external
         onlyBands
         nonReentrant
         returns (address[] memory assets, uint256[] memory amounts)
     {
-        if (recipient != bandsContract) revert InvalidRecipient(recipient);
+        if (recipient != bandsContract) {
+            revert InvalidRecipient(recipient);
+        }
         (int24 lower, int24 upper, uint128 liquidity) = _requirePosition(positionId);
-        _validateQuoteSide(lower, upper);
+        if (requireConverted) _validateQuoteSide(lower, upper);
         if (IV3BandPositionManager(positionManager).getApproved(positionId) != address(this)) {
             revert InvalidPosition(positionId);
         }

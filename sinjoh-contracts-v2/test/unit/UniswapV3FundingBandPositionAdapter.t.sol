@@ -72,7 +72,7 @@ contract UniswapV3FundingBandPositionAdapterTest is Test, IERC721Receiver {
         uint256 subjectBefore = subject.balanceOf(address(this));
         uint256 quoteBefore = quote.balanceOf(address(this));
         (address[] memory assets, uint256[] memory amounts) =
-            adapter.exitAll(positionId, address(this));
+            adapter.exitAll(positionId, address(this), true);
 
         assertLt(uint160(assets[0]), uint160(assets[1]));
         assertEq(amounts[0], assets[0] == address(subject) ? settlementSubject : settlementQuote);
@@ -109,7 +109,7 @@ contract UniswapV3FundingBandPositionAdapterTest is Test, IERC721Receiver {
         manager.approve(address(adapter), positionId);
 
         vm.expectPartialRevert(UniswapV3FundingBandPositionAdapter.PositionNotConverted.selector);
-        adapter.exitAll(positionId, address(this));
+        adapter.exitAll(positionId, address(this), true);
     }
 
     function onERC721Received(address, address, uint256, bytes calldata)

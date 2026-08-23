@@ -54,7 +54,8 @@ abstract contract AirdropTestBase is TestBase {
             address(treasury),
             STAKING_CONTROLLER,
             address(0),
-            1 days
+            1 days,
+            new address[](0)
         );
         airdrop = _deployAirdrop(address(stakingPool), AirdropEligibilityMode.STAKERS);
     }

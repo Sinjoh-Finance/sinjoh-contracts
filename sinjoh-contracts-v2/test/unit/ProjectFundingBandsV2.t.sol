@@ -61,7 +61,9 @@ contract ProjectFundingBandsV2Test is Test {
         router = _module(0);
         airdrop = _module(0);
         raffle = _module(0);
-        guard = new MockFundingBandGuard(address(subject), address(pool), referenceSupply);
+        guard = new MockFundingBandGuard(
+            address(subject), address(quote), address(pool), referenceSupply
+        );
         adapter =
             new MockFundingBandPositionAdapter(address(subject), address(quote), address(pool));
         swapAdapter = new MockProjectSwapAdapter();
@@ -99,7 +101,6 @@ contract ProjectFundingBandsV2Test is Test {
                         v3IntegrationFactory: address(0),
                         twapWindow: 0,
                         quoteUsdOracle: address(0),
-                        tickReferenceQuoteUsdE8: 0,
                         confirmationPeriod: 15 minutes,
                         maximumObservationAge: 5 minutes,
                         integrationApprovalProof: integrationProof
@@ -364,6 +365,20 @@ contract ProjectFundingBandsV2Test is Test {
         assertEq(quote.balanceOf(address(bands)), 10e18);
     }
 
+    function testControllerCancellationReturnsAssetsWithoutChargingFee() public {
+        uint256 bandId = _createCreatorBand();
+        adapter.configureSettlement(INVENTORY, 0);
+        controller.execute(address(bands), abi.encodeCall(bands.cancelBand, (bandId)));
+
+        (ProjectFundingBandsV2.Band memory cancelled,) = bands.bandStatus(bandId);
+        assertEq(uint8(cancelled.state), uint8(FundingBandState.CANCELLED));
+        assertEq(bands.liveBandCount(), 0);
+        assertEq(treasury.funded(address(subject)), INVENTORY);
+        assertEq(bands.protocolOwed(address(subject)), 0);
+        vm.expectPartialRevert(ProjectFundingBandsV2.OnlyController.selector);
+        bands.cancelBand(bandId);
+    }
+
     function testTreasuryRaffleAndBasketDestinationsUseTypedProjectFlows() public {
         _createAndSettle(_destinationConfig(FundingBandDestination.TREASURY, bytes("")));
         assertEq(treasury.funded(address(quote)), 990e18);
@@ -450,7 +465,6 @@ contract ProjectFundingBandsV2Test is Test {
         FundingBandSwapConfig memory swapConfig = FundingBandSwapConfig({
             swapAdapter: address(swapAdapter),
             priceGuard: address(priceGuard),
-            maxSlippageBps: 100,
             routeData: hex"babe",
             guardData: bytes(""),
             approvalProof: proof
@@ -489,12 +503,11 @@ contract ProjectFundingBandsV2Test is Test {
     {
         bytes32 inner = keccak256(
             abi.encode(
-                keccak256("SINJOH_V2_FUNDING_BAND_INTEGRATION"),
+                keccak256("SINJOH_V2_FUNDING_BAND_PAIR_INTEGRATION"),
                 block.chainid,
-                address(pool).codehash,
-                address(quote),
+                address(guard),
                 address(guard).codehash,
-                address(adapter).codehash,
+                address(adapter),
                 address(adapter).codehash
             )
         );
@@ -510,14 +523,12 @@ contract ProjectFundingBandsV2Test is Test {
     {
         bytes32 inner = keccak256(
             abi.encode(
-                keccak256("SINJOH_V2_FUNDING_BAND_SWAP"),
+                keccak256("SINJOH_V2_SWAP_INTEGRATION_APPROVAL"),
                 block.chainid,
-                address(quote),
-                address(subject),
+                address(swapAdapter),
                 address(swapAdapter).codehash,
-                address(priceGuard).codehash,
-                uint16(100),
-                keccak256(hex"babe")
+                address(priceGuard),
+                address(priceGuard).codehash
             )
         );
         return keccak256(bytes.concat(inner));

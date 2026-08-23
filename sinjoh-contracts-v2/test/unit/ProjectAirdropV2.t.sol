@@ -320,7 +320,7 @@ contract ProjectAirdropV2Test is AirdropTestBase {
         assertEq(airdrop.totalEligibleWeightAt(snapshotTime), 800e18);
     }
 
-    function testRevertingNativeRecipientDoesNotBlockOthersAndCreditIsRetryable() public {
+    function testRevertingNativeRecipientCanRedirectItsOwnRetryableCredit() public {
         MockAirdropRecipient recipient = new MockAirdropRecipient();
         recipient.setBehavior(true, 32_768);
         vm.prank(ALICE);
@@ -340,14 +340,26 @@ contract ProjectAirdropV2Test is AirdropTestBase {
         assertEq(ALICE.balance - aliceBefore, 8_910);
         assertEq(airdrop.retryableCredit(address(recipient), address(0)), 990);
         airdrop.finalizeEpoch(id, 1);
-        recipient.setBehavior(false, 0);
         vm.prank(address(0xBEEF));
         (uint256 delivered, bool succeeded) =
             airdrop.retryCredit(address(recipient), address(0), type(uint256).max);
-        assertTrue(succeeded);
+        assertFalse(succeeded);
         assertEq(delivered, 990);
-        assertEq(address(recipient).balance, 990);
+        uint256 bobBefore = BOB.balance;
+        vm.prank(address(recipient));
+        assertEq(airdrop.claimCreditTo(address(0), type(uint256).max, BOB), 990);
+        assertEq(BOB.balance - bobBefore, 990);
         assertEq(airdrop.totalRetryableCredits(address(0)), 0);
+    }
+
+    function testFinalizedSnapshotOlderThanBlockhashWindowCanCommit() public {
+        bytes32 id = _fundErc20(FUNDER, 10_000, abi.encode(_defaultConfig()));
+        uint48 snapshotTime = _prepareSnapshot();
+        vm.roll(SNAPSHOT_BLOCK + 300);
+        (AirdropEpochCommitment memory commitment,,) =
+            _singleLeafCommitment(id, ALICE, 1_000e18, 9_900, snapshotTime);
+        _commit(commitment);
+        assertEq(airdrop.epochStatus(id, 1).snapshotBlockHash, SNAPSHOT_HASH);
     }
 
     function testEpochCannotFinalizeUntilEveryLeafIsProcessed() public {

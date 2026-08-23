@@ -46,22 +46,25 @@ contract LiquidityHandler {
         id = manager.accountId(address(this), address(subject));
         quote.approve(address(manager), type(uint256).max);
         _config = abi.encode(
-            ProjectLiquidityManagerV2.Config({
-                venue: ProjectLiquidityManagerV2.Venue.UNISWAP_V3,
-                quoteAsset: address(quote),
-                poolFee: 3_000,
-                tickSpacing: 60,
-                hooks: address(0),
-                swapAdapter: address(adapter),
-                priceGuard: address(guard),
-                swapRouteData: hex"01",
-                quoteSwapBps: 5_000,
-                maxMintSlippageBps: 500,
-                minNotionalPerMint: 100,
-                maxNotionalPerMint: type(uint128).max,
-                minMintInterval: 0,
-                feeMode: ProjectLiquidityManagerV2.FeeMode.RECYCLE,
-                feeRecipient: address(0)
+            ProjectLiquidityManagerV2.FundingConfig({
+                config: ProjectLiquidityManagerV2.Config({
+                    venue: ProjectLiquidityManagerV2.Venue.UNISWAP_V3,
+                    quoteAsset: address(quote),
+                    poolFee: 3_000,
+                    tickSpacing: 60,
+                    hooks: address(0),
+                    swapAdapter: address(adapter),
+                    priceGuard: address(guard),
+                    swapRouteData: hex"01",
+                    quoteSwapBps: 5_000,
+                    maxMintSlippageBps: 500,
+                    minNotionalPerMint: 100,
+                    maxNotionalPerMint: type(uint128).max,
+                    minMintInterval: 0,
+                    feeMode: ProjectLiquidityManagerV2.FeeMode.RECYCLE,
+                    feeRecipient: address(0)
+                }),
+                integrationApprovalProof: new bytes32[](0)
             })
         );
     }
@@ -120,6 +123,7 @@ contract ProjectLiquidityManagerV2InvariantTest is Test {
         MockPermit2 permit2 = new MockPermit2();
         MockV4PositionManager v4PositionManager = new MockV4PositionManager(permit2);
         MockV4StateView stateView = new MockV4StateView();
+        bytes32 approvalRoot = _swapApprovalLeaf(address(adapter), address(guard));
         manager = new ProjectLiquidityManagerV2(
             address(registry),
             address(subject),
@@ -128,12 +132,27 @@ contract ProjectLiquidityManagerV2InvariantTest is Test {
             address(v4PositionManager),
             address(stateView),
             address(permit2),
-            address(0xFEE1)
+            address(0xFEE1),
+            approvalRoot
         );
         handler = new LiquidityHandler(subject, quote, manager, v3PositionManager, adapter, guard);
         subject.mint(address(adapter), type(uint128).max);
         id = handler.id();
         targetContract(address(handler));
+    }
+
+    function _swapApprovalLeaf(address adapter, address guard) private view returns (bytes32) {
+        bytes32 inner = keccak256(
+            abi.encode(
+                keccak256("SINJOH_V2_SWAP_INTEGRATION_APPROVAL"),
+                block.chainid,
+                adapter,
+                adapter.codehash,
+                guard,
+                guard.codehash
+            )
+        );
+        return keccak256(bytes.concat(inner));
     }
 
     function invariantLiquidLiabilitiesNeverExceedBalances() public view {

@@ -14,14 +14,21 @@ contract MockFundingBandPool { }
 contract MockFundingBandGuard is IFundingBandMarketCapGuard {
     address public override bandsContract;
     address public immutable override subject;
+    address public immutable override quoteAsset;
     address public immutable override canonicalPool;
+    address public immutable override factory;
+    address public immutable override quoteUsdOracle;
+    uint256 public constant override tickReferenceQuoteUsdE8 = 1e8;
     uint256 public immutable override referenceSupply;
     uint32 public constant override minimumTwapWindow = 15 minutes;
     FundingBandObservation private _observation;
 
-    constructor(address subject_, address pool_, uint256 supply_) {
+    constructor(address subject_, address quote_, address pool_, uint256 supply_) {
         subject = subject_;
+        quoteAsset = quote_;
         canonicalPool = pool_;
+        factory = pool_;
+        quoteUsdOracle = pool_;
         referenceSupply = supply_;
     }
 
@@ -63,6 +70,7 @@ contract MockFundingBandGuard is IFundingBandMarketCapGuard {
         address public immutable override subject;
         address public immutable override quoteAsset;
         address public immutable override canonicalPool;
+        address public immutable override factory;
         address public immutable override positionManager;
         uint256 public nextPositionId = 1;
         uint256 public openResidual;
@@ -76,6 +84,7 @@ contract MockFundingBandGuard is IFundingBandMarketCapGuard {
             subject = subject_;
             quoteAsset = quote_;
             canonicalPool = pool_;
+            factory = pool_;
             positionManager = address(this);
         }
 
@@ -119,7 +128,7 @@ contract MockFundingBandGuard is IFundingBandMarketCapGuard {
             _liquidity[positionId] += liquidityAdded;
         }
 
-        function exitAll(uint256 positionId, address recipient)
+        function exitAll(uint256 positionId, address recipient, bool)
             external
             returns (address[] memory assets, uint256[] memory amounts)
         {

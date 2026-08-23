@@ -12,6 +12,7 @@ import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
 import { IPositionManager } from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import { LiquidityAmounts } from "@uniswap/v4-periphery/src/libraries/LiquidityAmounts.sol";
 import { IAllowanceTransfer } from "permit2/src/interfaces/IAllowanceTransfer.sol";
+import { MerkleProof } from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 
 import { ISinjohPriceGuard } from "./interfaces/ISinjohPriceGuard.sol";
 import { ISinjohSwapAdapter } from "./interfaces/ISinjohSwapAdapter.sol";
@@ -20,6 +21,7 @@ import { IProjectFundable } from "../interfaces/IProjectFundable.sol";
 import { IProjectModule } from "../interfaces/IProjectModule.sol";
 import { IProjectTokenIdentity } from "../interfaces/IProjectTokenIdentity.sol";
 import { ProjectIds } from "../libraries/ProjectIds.sol";
+import { IntegrationApproval } from "../libraries/IntegrationApproval.sol";
 import { SinjohV2Constants } from "../libraries/SinjohV2Constants.sol";
 
 interface IV4StateView {
@@ -162,6 +164,11 @@ contract ProjectLiquidityManagerV2 is IProjectModule, IProjectFundable {
         bool configured;
     }
 
+    struct FundingConfig {
+        Config config;
+        bytes32[] integrationApprovalProof;
+    }
+
     struct MintContext {
         bytes32 id;
         address quote;
@@ -243,6 +250,7 @@ contract ProjectLiquidityManagerV2 is IProjectModule, IProjectFundable {
     IV4StateView public immutable v4StateView;
     IAllowanceTransfer public immutable permit2;
     address public immutable protocolFeeRecipient;
+    bytes32 public immutable integrationApprovalRoot;
 
     mapping(bytes32 id => Account account) private _accounts;
     mapping(address recipient => mapping(address asset => uint256 amount)) public feeOwed;
@@ -263,9 +271,12 @@ contract ProjectLiquidityManagerV2 is IProjectModule, IProjectFundable {
         address v4PositionManager_,
         address v4StateView_,
         address permit2_,
-        address protocolFeeRecipient_
+        address protocolFeeRecipient_,
+        bytes32 integrationApprovalRoot_
     ) {
-        if (registry_.code.length == 0) revert InvalidRegistry(registry_);
+        if (registry_.code.length == 0) {
+            revert InvalidRegistry(registry_);
+        }
         if (subject_.code.length == 0) revert InvalidSubject(subject_);
         bytes32 expectedProjectId = ProjectIds.derive(block.chainid, registry_, subject_);
         if (
@@ -277,6 +288,7 @@ contract ProjectLiquidityManagerV2 is IProjectModule, IProjectFundable {
                 || v4PositionManager_.code.length == 0 || v4StateView_.code.length == 0
                 || permit2_.code.length == 0 || protocolFeeRecipient_ == address(0)
                 || protocolFeeRecipient_ == BURN_ADDRESS || protocolFeeRecipient_ == address(this)
+                || integrationApprovalRoot_ == bytes32(0)
         ) revert InvalidAddress();
         registry = registry_;
         subject = subject_;
@@ -287,6 +299,7 @@ contract ProjectLiquidityManagerV2 is IProjectModule, IProjectFundable {
         v4StateView = IV4StateView(v4StateView_);
         permit2 = IAllowanceTransfer(permit2_);
         protocolFeeRecipient = protocolFeeRecipient_;
+        integrationApprovalRoot = integrationApprovalRoot_;
         emit LiquidityManagerCreated(expectedProjectId, registry_, subject_, protocolFeeRecipient_);
     }
 
@@ -323,11 +336,20 @@ contract ProjectLiquidityManagerV2 is IProjectModule, IProjectFundable {
         Account storage account = _accounts[id];
         bytes32 suppliedHash = keccak256(configData);
         if (!account.configured) {
-            Config memory config = abi.decode(configData, (Config));
-            if (keccak256(abi.encode(config)) != suppliedHash) {
+            FundingConfig memory supplied = abi.decode(configData, (FundingConfig));
+            if (keccak256(abi.encode(supplied)) != suppliedHash) {
                 revert NonCanonicalConfiguration();
             }
-            _configure(id, account, msg.sender, subject_, asset, suppliedHash, config);
+            _configure(
+                id,
+                account,
+                msg.sender,
+                subject_,
+                asset,
+                suppliedHash,
+                supplied.config,
+                supplied.integrationApprovalProof
+            );
         } else if (suppliedHash != account.configHash || asset != account.config.quoteAsset) {
             revert ConfigurationMismatch();
         }
@@ -443,6 +465,7 @@ contract ProjectLiquidityManagerV2 is IProjectModule, IProjectFundable {
         feeOwed[recipient][asset] -= amount;
         totalLiability[asset] -= amount;
         _sendExact(asset, recipient, amount);
+        _assertSolvent(asset);
         emit FeeSent(recipient, asset, amount);
     }
 
@@ -509,7 +532,8 @@ contract ProjectLiquidityManagerV2 is IProjectModule, IProjectFundable {
         address subject_,
         address asset,
         bytes32 configHash,
-        Config memory config
+        Config memory config,
+        bytes32[] memory integrationApprovalProof
     ) private {
         if (
             asset != config.quoteAsset || subject_ == config.quoteAsset
@@ -523,6 +547,11 @@ contract ProjectLiquidityManagerV2 is IProjectModule, IProjectFundable {
                 || config.swapAdapter == address(this) || config.priceGuard == address(this)
                 || config.swapAdapter.code.length == 0 || config.priceGuard.code.length == 0
         ) revert InvalidConfiguration();
+        bytes32 approvalLeaf =
+            liquidityIntegrationApprovalLeaf(config.swapAdapter, config.priceGuard);
+        if (!MerkleProof.verify(integrationApprovalProof, integrationApprovalRoot, approvalLeaf)) {
+            revert InvalidConfiguration();
+        }
         if (config.venue == Venue.UNISWAP_V3) {
             if (config.hooks != address(0) || config.quoteAsset == address(0)) {
                 revert InvalidConfiguration();
@@ -543,6 +572,14 @@ contract ProjectLiquidityManagerV2 is IProjectModule, IProjectFundable {
         account.configHash = configHash;
         account.configured = true;
         emit AccountConfigured(id, funder, subject_, asset, config.venue, configHash);
+    }
+
+    function liquidityIntegrationApprovalLeaf(address adapter, address priceGuard)
+        public
+        view
+        returns (bytes32)
+    {
+        return IntegrationApproval.swapLeaf(adapter, priceGuard);
     }
 
     function _swap(

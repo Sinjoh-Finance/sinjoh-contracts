@@ -31,6 +31,11 @@ contract MockFundingBandQuoteUsdOracle is IFundingBandQuoteUsdOracle {
 
     contract MockV3BandFactory {
         mapping(bytes32 key => address pool) private _pool;
+        mapping(uint24 fee => int24 spacing) public feeAmountTickSpacing;
+
+        function setFeeAmountTickSpacing(uint24 fee, int24 spacing) external {
+            feeAmountTickSpacing[fee] = spacing;
+        }
 
         function setPool(address tokenA, address tokenB, uint24 fee, address pool) external {
             (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
@@ -54,6 +59,8 @@ contract MockFundingBandQuoteUsdOracle is IFundingBandQuoteUsdOracle {
         uint24 public immutable fee;
         int24 public immutable tickSpacing;
         int24 public currentTick;
+        int24 public twapTick;
+        bool public customTwapTick;
         bool public unlocked = true;
         uint16 public observationCardinality = 2;
         uint16 public observationCardinalityNext = 2;
@@ -74,6 +81,11 @@ contract MockFundingBandQuoteUsdOracle is IFundingBandQuoteUsdOracle {
 
         function setCurrentTick(int24 tick) external {
             currentTick = tick;
+        }
+
+        function setTwapTick(int24 tick) external {
+            twapTick = tick;
+            customTwapTick = true;
         }
 
         function setUnlocked(bool value) external {
@@ -99,7 +111,8 @@ contract MockFundingBandQuoteUsdOracle is IFundingBandQuoteUsdOracle {
             require(observationCardinality >= 2 && secondsAgos.length == 2, "oracle");
             tickCumulatives = new int56[](2);
             secondsPerLiquidityCumulativeX128s = new uint160[](2);
-            tickCumulatives[0] = -int56(currentTick) * int56(uint56(secondsAgos[0]));
+            int24 observedTick = customTwapTick ? twapTick : currentTick;
+            tickCumulatives[0] = -int56(observedTick) * int56(uint56(secondsAgos[0]));
             tickCumulatives[1] = 0;
         }
 

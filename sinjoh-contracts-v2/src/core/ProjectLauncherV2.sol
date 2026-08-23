@@ -34,7 +34,7 @@ import { ProjectRegistryV2 } from "./ProjectRegistryV2.sol";
 contract ProjectLauncherV2 is ReentrancyGuard {
     uint32 public constant PROTOCOL_VERSION = 2;
     address public constant BURN_ADDRESS = SinjohV2Constants.BURN_ADDRESS;
-    address public constant PONS_LOCKER = 0xda4bCee76B29EFEc9697Fcf663601c2042043968;
+    address public constant PONS_LOCKER = 0x736D76699C26D0d966744cAe304C000d471f7F35;
 
     bytes32 public constant TOKEN = keccak256("TOKEN");
     bytes32 public constant MULTISIG = keccak256("MULTISIG");
@@ -301,14 +301,9 @@ contract ProjectLauncherV2 is ReentrancyGuard {
                 if (
                     config.bands.twapWindow < config.bands.confirmationPeriod
                         || config.bands.twapWindow > 1 days
-                        || config.bands.tickReferenceQuoteUsdE8 == 0
-                        || (config.bands.quoteUsdOracle != address(0)
-                            && config.bands.quoteUsdOracle.code.length == 0)
+                        || config.bands.quoteUsdOracle.code.length == 0
                 ) revert InvalidBandsConfiguration();
-            } else if (
-                config.bands.twapWindow != 0 || config.bands.quoteUsdOracle != address(0)
-                    || config.bands.tickReferenceQuoteUsdE8 != 0
-            ) {
+            } else if (config.bands.twapWindow != 0 || config.bands.quoteUsdOracle != address(0)) {
                 revert InvalidBandsConfiguration();
             }
         }
@@ -627,7 +622,6 @@ contract ProjectLauncherV2 is ReentrancyGuard {
         integration.referenceSupply = config.totalSupply;
         integration.twapWindow = config.bands.twapWindow;
         integration.quoteUsdOracle = config.bands.quoteUsdOracle;
-        integration.tickReferenceQuoteUsdE8 = config.bands.tickReferenceQuoteUsdE8;
         integration.maximumOracleAge = config.bands.maximumObservationAge;
     }
 

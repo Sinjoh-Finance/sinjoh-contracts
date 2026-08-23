@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.28;
 
+import { MerkleProof } from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
 import { RaffleTypes } from "./RaffleTypes.sol";
 import { IProjectFundable } from "../interfaces/IProjectFundable.sol";
 import { IProjectModule } from "../interfaces/IProjectModule.sol";
 import { IProjectTokenIdentity } from "../interfaces/IProjectTokenIdentity.sol";
 import { ProjectIds } from "../libraries/ProjectIds.sol";
+import { IntegrationApproval } from "../libraries/IntegrationApproval.sol";
 import { SinjohV2Constants } from "../libraries/SinjohV2Constants.sol";
 
 interface IArbSys {
@@ -204,6 +206,7 @@ contract ProjectRaffleV2 is IProjectModule, IProjectFundable {
     address public override registry;
     address public override subject;
     bytes32 public override projectId;
+    bytes32 public integrationApprovalRoot;
     bool public initialized;
 
     uint64 public latestRoundId;
@@ -259,9 +262,12 @@ contract ProjectRaffleV2 is IProjectModule, IProjectFundable {
     // --------------------------------------------------------------------------------
 
     /// @notice Atomically binds project identity and freezes every Raffle parameter.
-    function initialize(address registry_, address subject_, RaffleTypes.Config calldata config)
-        external
-    {
+    function initialize(
+        address registry_,
+        address subject_,
+        bytes32 integrationApprovalRoot_,
+        RaffleTypes.Config calldata config
+    ) external {
         if (initialized) revert AlreadyInitialized();
         if (registry_.code.length == 0) revert InvalidRegistry(registry_);
         if (subject_.code.length == 0) revert InvalidSubject(subject_);
@@ -270,7 +276,8 @@ contract ProjectRaffleV2 is IProjectModule, IProjectFundable {
             IProjectTokenIdentity(subject_).registry() != registry_
                 || IProjectTokenIdentity(subject_).projectId() != expectedProjectId
         ) revert InvalidSubject(subject_);
-        _validate(config);
+        if (integrationApprovalRoot_ == bytes32(0)) revert InvalidConfiguration();
+        _validate(config, integrationApprovalRoot_);
         if (subject_ == address(this) || subject_ == config.prizeAsset) {
             revert InvalidSubject(subject_);
         }
@@ -283,6 +290,7 @@ contract ProjectRaffleV2 is IProjectModule, IProjectFundable {
         registry = registry_;
         subject = subject_;
         projectId = expectedProjectId;
+        integrationApprovalRoot = integrationApprovalRoot_;
         configHash = keccak256(abi.encode(block.chainid, registry_, subject_, config));
         RaffleTypes.Settings memory frozen = RaffleTypes.Settings({
             creator: config.creator,
@@ -444,10 +452,10 @@ contract ProjectRaffleV2 is IProjectModule, IProjectFundable {
         if (currentL2Block < uint256(snapshotBlock) + settings.minConfirmations) {
             revert InvalidSnapshot();
         }
-        if (currentL2Block > uint256(snapshotBlock) + 255) revert InvalidSnapshot();
-        if (IArbSys(ARBSYS).arbBlockHash(snapshotBlock) != snapshotBlockHash) {
-            revert InvalidSnapshot();
-        }
+        // `onlyAttestor` binds this nonzero hash to the committed ticket root. Avoid the ArbSys
+        // 255-block lookup ceiling so the worker can commit a genuinely finalized snapshot.
+        // The worker must reconcile the finalized block and hash through two providers first.
+        if (snapshotBlockHash == bytes32(0)) revert InvalidSnapshot();
 
         prize = _prizeFor(availablePool);
         if (prize < settings.minPrize) revert PrizeBelowFloor();
@@ -739,6 +747,20 @@ contract ProjectRaffleV2 is IProjectModule, IProjectFundable {
         emit OwedDelivered(holder, amount, msg.sender);
     }
 
+    /// @notice Lets a winner redirect its own deferred prize to a payable receiver.
+    function deliverOwedTo(address payoutRecipient) external nonReentrant returns (uint256 amount) {
+        if (payoutRecipient == address(0) || payoutRecipient == address(this)) {
+            revert InvalidAddress();
+        }
+        amount = owed[msg.sender];
+        if (amount == 0) revert NothingOwed();
+        owed[msg.sender] = 0;
+        totalOwed -= amount;
+        _sendExactAsset(settings.prizeAsset, payoutRecipient, amount);
+        _assertSolvent();
+        emit OwedDelivered(payoutRecipient, amount, msg.sender);
+    }
+
     /// @notice Delivers a stock prize that a previous transfer rejected. Retryable forever.
     function deliverStockOwed(address holder, address asset)
         external
@@ -752,6 +774,24 @@ contract ProjectRaffleV2 is IProjectModule, IProjectFundable {
         _sendExactAsset(asset, holder, amount);
         _assertStockSolvent(asset);
         emit StockOwedDelivered(holder, asset, amount, msg.sender);
+    }
+
+    /// @notice Lets a winner redirect its own deferred stock prize.
+    function deliverStockOwedTo(address asset, address payoutRecipient)
+        external
+        nonReentrant
+        returns (uint256 amount)
+    {
+        if (payoutRecipient == address(0) || payoutRecipient == address(this)) {
+            revert InvalidAddress();
+        }
+        amount = stockOwed[msg.sender][asset];
+        if (amount == 0) revert NothingOwed();
+        stockOwed[msg.sender][asset] = 0;
+        totalStockOwed[asset] -= amount;
+        _sendExactAsset(asset, payoutRecipient, amount);
+        _assertStockSolvent(asset);
+        emit StockOwedDelivered(payoutRecipient, asset, amount, msg.sender);
     }
 
     /// @notice Returns an unclaimed reserve to the pool once the claim window closes.
@@ -905,7 +945,10 @@ contract ProjectRaffleV2 is IProjectModule, IProjectFundable {
     // Internal
     // --------------------------------------------------------------------------------
 
-    function _validate(RaffleTypes.Config calldata config) private view {
+    function _validate(RaffleTypes.Config calldata config, bytes32 integrationApprovalRoot_)
+        private
+        view
+    {
         if (
             config.creator == address(0) || config.attestor == address(0)
                 || config.randomness == address(0) || config.protocolFeeRecipient == address(0)
@@ -982,8 +1025,21 @@ contract ProjectRaffleV2 is IProjectModule, IProjectFundable {
                 reward.routeData.length > MAX_ROUTE_DATA_LENGTH
                     || reward.guardData.length > MAX_ROUTE_DATA_LENGTH
             ) revert InvalidConfiguration();
+            if (!MerkleProof.verify(
+                    reward.approvalProof,
+                    integrationApprovalRoot_,
+                    IntegrationApproval.swapLeaf(reward.swapAdapter, reward.priceGuard)
+                )) revert InvalidConfiguration();
             previous = reward.asset;
         }
+    }
+
+    function stockIntegrationApprovalLeaf(address adapter, address priceGuard)
+        public
+        view
+        returns (bytes32)
+    {
+        return IntegrationApproval.swapLeaf(adapter, priceGuard);
     }
 
     function _credit(uint256 gross) private returns (uint256 fee, uint256 net) {

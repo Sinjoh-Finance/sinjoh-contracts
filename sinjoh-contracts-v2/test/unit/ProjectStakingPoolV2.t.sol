@@ -64,7 +64,13 @@ contract ProjectStakingPoolV2Test is TestBase, IERC721Receiver {
         MockRegistry otherRegistry = new MockRegistry();
         vm.expectPartialRevert(ProjectStakingPoolV2.ProjectIdentityMismatch.selector);
         new ProjectStakingPoolV2(
-            address(otherRegistry), address(token), TREASURY, GOVERNANCE, GUARDIAN, LOCK_DURATION
+            address(otherRegistry),
+            address(token),
+            TREASURY,
+            GOVERNANCE,
+            GUARDIAN,
+            LOCK_DURATION,
+            new address[](0)
         );
     }
 
@@ -156,6 +162,31 @@ contract ProjectStakingPoolV2Test is TestBase, IERC721Receiver {
         posNFT.transferFrom(ALICE, burnAddress, tokenId);
         assertEq(pool.getVotes(burnAddress), 0);
         assertEq(posNFT.ownerOf(tokenId), ALICE);
+    }
+
+    function testCustodyExclusionRejectsBothStakeAndPositionTransfer() public {
+        address[] memory exclusions = new address[](1);
+        exclusions[0] = BOB;
+        ProjectStakingPoolV2 restricted = new ProjectStakingPoolV2(
+            address(registry),
+            address(token),
+            TREASURY,
+            GOVERNANCE,
+            GUARDIAN,
+            LOCK_DURATION,
+            exclusions
+        );
+        vm.startPrank(ALICE);
+        token.approve(address(restricted), type(uint256).max);
+        vm.expectPartialRevert(ProjectStakingPoolV2.InvalidPositionRecipient.selector);
+        restricted.stake(1e18, BOB);
+        uint256 tokenId = restricted.stake(1e18, ALICE);
+        ProjectPoSNFT restrictedNft = restricted.posNFT();
+        vm.expectPartialRevert(ProjectStakingPoolV2.InvalidPositionRecipient.selector);
+        restrictedNft.transferFrom(ALICE, BOB, tokenId);
+        vm.stopPrank();
+        assertEq(restrictedNft.ownerOf(tokenId), ALICE);
+        assertEq(restricted.balanceOfStake(BOB), 0);
     }
 
     function testUnstakeBeforeUnlockReverts() public {
@@ -314,7 +345,7 @@ contract ProjectStakingPoolV2Test is TestBase, IERC721Receiver {
         returns (ProjectStakingPoolV2 deployed)
     {
         deployed = new ProjectStakingPoolV2(
-            address(registry), subject, TREASURY, GOVERNANCE, GUARDIAN, duration
+            address(registry), subject, TREASURY, GOVERNANCE, GUARDIAN, duration, new address[](0)
         );
     }
 

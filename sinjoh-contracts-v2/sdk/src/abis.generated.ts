@@ -638,11 +638,6 @@ export const projectLauncherV2Abi = [
                 "internalType": "address"
               },
               {
-                "name": "tickReferenceQuoteUsdE8",
-                "type": "uint256",
-                "internalType": "uint256"
-              },
-              {
                 "name": "confirmationPeriod",
                 "type": "uint48",
                 "internalType": "uint48"
@@ -798,6 +793,11 @@ export const projectLauncherV2Abi = [
                     "name": "guardData",
                     "type": "bytes",
                     "internalType": "bytes"
+                  },
+                  {
+                    "name": "approvalProof",
+                    "type": "bytes32[]",
+                    "internalType": "bytes32[]"
                   }
                 ]
               }
@@ -1263,11 +1263,6 @@ export const projectLauncherV2Abi = [
                 "internalType": "address"
               },
               {
-                "name": "tickReferenceQuoteUsdE8",
-                "type": "uint256",
-                "internalType": "uint256"
-              },
-              {
                 "name": "confirmationPeriod",
                 "type": "uint48",
                 "internalType": "uint48"
@@ -1423,6 +1418,11 @@ export const projectLauncherV2Abi = [
                     "name": "guardData",
                     "type": "bytes",
                     "internalType": "bytes"
+                  },
+                  {
+                    "name": "approvalProof",
+                    "type": "bytes32[]",
+                    "internalType": "bytes32[]"
                   }
                 ]
               }
@@ -2012,11 +2012,6 @@ export const projectLauncherV2Abi = [
                 "internalType": "address"
               },
               {
-                "name": "tickReferenceQuoteUsdE8",
-                "type": "uint256",
-                "internalType": "uint256"
-              },
-              {
                 "name": "confirmationPeriod",
                 "type": "uint48",
                 "internalType": "uint48"
@@ -2172,6 +2167,11 @@ export const projectLauncherV2Abi = [
                     "name": "guardData",
                     "type": "bytes",
                     "internalType": "bytes"
+                  },
+                  {
+                    "name": "approvalProof",
+                    "type": "bytes32[]",
+                    "internalType": "bytes32[]"
                   }
                 ]
               }
@@ -2803,11 +2803,6 @@ export const projectLauncherV2Abi = [
                 "internalType": "address"
               },
               {
-                "name": "tickReferenceQuoteUsdE8",
-                "type": "uint256",
-                "internalType": "uint256"
-              },
-              {
                 "name": "confirmationPeriod",
                 "type": "uint48",
                 "internalType": "uint48"
@@ -2963,6 +2958,11 @@ export const projectLauncherV2Abi = [
                     "name": "guardData",
                     "type": "bytes",
                     "internalType": "bytes"
+                  },
+                  {
+                    "name": "approvalProof",
+                    "type": "bytes32[]",
+                    "internalType": "bytes32[]"
                   }
                 ]
               }
@@ -10587,21 +10587,6 @@ export const projectTreasuryVaultV2Abi = [
         "internalType": "address"
       },
       {
-        "name": "assetIn",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "assetOut",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "routeHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
         "name": "approvalProof",
         "type": "bytes32[]",
         "internalType": "bytes32[]"
@@ -10911,21 +10896,6 @@ export const projectTreasuryVaultV2Abi = [
         "name": "priceGuard",
         "type": "address",
         "internalType": "address"
-      },
-      {
-        "name": "assetIn",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "assetOut",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "routeHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
       }
     ],
     "outputs": [
@@ -12808,21 +12778,6 @@ export const projectRouterV2Abi = [
         "internalType": "address"
       },
       {
-        "name": "assetIn",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "assetOut",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "routeHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
         "name": "proof",
         "type": "bytes32[]",
         "internalType": "bytes32[]"
@@ -13358,21 +13313,6 @@ export const projectRouterV2Abi = [
         "name": "priceGuard",
         "type": "address",
         "internalType": "address"
-      },
-      {
-        "name": "assetIn",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "assetOut",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "routeHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
       }
     ],
     "outputs": [
@@ -14628,6 +14568,11 @@ export const projectStakingPoolV2Abi = [
         "name": "lockDuration_",
         "type": "uint64",
         "internalType": "uint64"
+      },
+      {
+        "name": "custodyExclusions_",
+        "type": "address[]",
+        "internalType": "address[]"
       }
     ],
     "stateMutability": "nonpayable"
@@ -14751,6 +14696,25 @@ export const projectStakingPoolV2Abi = [
         "name": "",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "custodyExcluded",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "excluded",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
@@ -16869,6 +16833,35 @@ export const projectAirdropV2Abi = [
       }
     ],
     "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "claimCreditTo",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "maxAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "payoutRecipient",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -23120,45 +23113,6 @@ export const projectFundingBandsV2Abi = [
   },
   {
     "type": "function",
-    "name": "BAND_INTEGRATION_DOMAIN",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "BAND_SWAP_DOMAIN",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "BPS",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint16",
-        "internalType": "uint16"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "BURN_ADDRESS",
     "inputs": [],
     "outputs": [
@@ -23166,97 +23120,6 @@ export const projectFundingBandsV2Abi = [
         "name": "",
         "type": "address",
         "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "MAX_CONFIRMATION_PERIOD",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint48",
-        "internalType": "uint48"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "MAX_DESTINATION_CONFIG_BYTES",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "MAX_LIVE_BANDS",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "MIN_CONFIRMATION_PERIOD",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint48",
-        "internalType": "uint48"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "MIN_TWAP_WINDOW",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint32",
-        "internalType": "uint32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "NATIVE_ASSET",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "PROTOCOL_FEE_BPS",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint16",
-        "internalType": "uint16"
       }
     ],
     "stateMutability": "view"
@@ -23445,6 +23308,19 @@ export const projectFundingBandsV2Abi = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "cancelBand",
+    "inputs": [
+      {
+        "name": "bandId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -23668,6 +23544,19 @@ export const projectFundingBandsV2Abi = [
   },
   {
     "type": "function",
+    "name": "integrationFactory",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "isSwapApproved",
     "inputs": [
       {
@@ -23684,11 +23573,6 @@ export const projectFundingBandsV2Abi = [
             "name": "priceGuard",
             "type": "address",
             "internalType": "address"
-          },
-          {
-            "name": "maxSlippageBps",
-            "type": "uint16",
-            "internalType": "uint16"
           },
           {
             "name": "routeData",
@@ -24131,11 +24015,6 @@ export const projectFundingBandsV2Abi = [
             "internalType": "address"
           },
           {
-            "name": "maxSlippageBps",
-            "type": "uint16",
-            "internalType": "uint16"
-          },
-          {
             "name": "routeData",
             "type": "bytes",
             "internalType": "bytes"
@@ -24228,6 +24107,31 @@ export const projectFundingBandsV2Abi = [
         "type": "uint48",
         "indexed": false,
         "internalType": "uint48"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "BandCancelled",
+    "inputs": [
+      {
+        "name": "bandId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
+      {
+        "name": "subjectReturned",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "quoteReturned",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
     "anonymous": false
@@ -25893,6 +25797,25 @@ export const projectRaffleV2Abi = [
   },
   {
     "type": "function",
+    "name": "deliverOwedTo",
+    "inputs": [
+      {
+        "name": "payoutRecipient",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "deliverStockOwed",
     "inputs": [
       {
@@ -25902,6 +25825,30 @@ export const projectRaffleV2Abi = [
       },
       {
         "name": "asset",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "deliverStockOwedTo",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "payoutRecipient",
         "type": "address",
         "internalType": "address"
       }
@@ -26037,6 +25984,11 @@ export const projectRaffleV2Abi = [
         "name": "subject_",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "integrationApprovalRoot_",
+        "type": "bytes32",
+        "internalType": "bytes32"
       },
       {
         "name": "config",
@@ -26177,6 +26129,11 @@ export const projectRaffleV2Abi = [
                 "name": "guardData",
                 "type": "bytes",
                 "internalType": "bytes"
+              },
+              {
+                "name": "approvalProof",
+                "type": "bytes32[]",
+                "internalType": "bytes32[]"
               }
             ]
           }
@@ -26195,6 +26152,19 @@ export const projectRaffleV2Abi = [
         "name": "",
         "type": "bool",
         "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "integrationApprovalRoot",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "stateMutability": "view"
@@ -26739,6 +26709,30 @@ export const projectRaffleV2Abi = [
   },
   {
     "type": "function",
+    "name": "stockIntegrationApprovalLeaf",
+    "inputs": [
+      {
+        "name": "adapter",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "priceGuard",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "stockOwed",
     "inputs": [
       {
@@ -26801,6 +26795,11 @@ export const projectRaffleV2Abi = [
             "name": "guardData",
             "type": "bytes",
             "internalType": "bytes"
+          },
+          {
+            "name": "approvalProof",
+            "type": "bytes32[]",
+            "internalType": "bytes32[]"
           }
         ]
       }
@@ -28013,6 +28012,11 @@ export const projectLiquidityManagerV2Abi = [
         "name": "protocolFeeRecipient_",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "integrationApprovalRoot_",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "stateMutability": "nonpayable"
@@ -28507,6 +28511,43 @@ export const projectLiquidityManagerV2Abi = [
       }
     ],
     "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "integrationApprovalRoot",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "liquidityIntegrationApprovalLeaf",
+    "inputs": [
+      {
+        "name": "adapter",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "priceGuard",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
