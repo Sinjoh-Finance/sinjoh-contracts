@@ -23,9 +23,10 @@ Required environment variables:
   `ASSET_FLOW_EVIDENCE_PATH`;
 - `VERIFIER`, `VERIFIER_URL`, and `VERIFIER_API_KEY` for source publication.
 
-Each evidence path must point to a non-empty local artifact. The wrapper derives the immutable git
-commit, package tree hash, and deployed-bytecode build hash itself. The manifest schema is
+Each evidence path must point to a non-empty local artifact; the wrapper records its SHA-256 hash.
+Human verification of the evidence and audit provenance remains mandatory. The wrapper derives the
+immutable git commit, package tree hash, and deployed-bytecode build hash itself. The manifest schema is
 [`release-manifest.schema.json`](./release-manifest.schema.json).
 
-This workflow does not manufacture audit or canary evidence. Until independent audit and live
+This workflow does not manufacture or validate the authorship of audit/canary evidence. Until independent audit and live
 rehearsal artifacts exist, deployment correctly remains blocked at preflight.

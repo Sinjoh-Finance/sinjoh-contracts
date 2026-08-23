@@ -17,10 +17,15 @@
     "viaIr",
     "auditReportVersion",
     "auditEvidence",
+    "auditEvidenceHash",
     "forkEvidence",
+    "forkEvidenceHash",
     "testnetEvidence",
+    "testnetEvidenceHash",
     "roleEvidence",
+    "roleEvidenceHash",
     "assetFlowEvidence",
+    "assetFlowEvidenceHash",
     "broadcaster",
     "protocolFeeRecipient",
     "registry",
@@ -68,10 +73,15 @@
     "viaIr": { "const": true },
     "auditReportVersion": { "type": "string", "minLength": 1 },
     "auditEvidence": { "type": "string", "minLength": 1 },
+    "auditEvidenceHash": { "$ref": "#/$defs/sha256" },
     "forkEvidence": { "type": "string", "minLength": 1 },
+    "forkEvidenceHash": { "$ref": "#/$defs/sha256" },
     "testnetEvidence": { "type": "string", "minLength": 1 },
+    "testnetEvidenceHash": { "$ref": "#/$defs/sha256" },
     "roleEvidence": { "type": "string", "minLength": 1 },
+    "roleEvidenceHash": { "$ref": "#/$defs/sha256" },
     "assetFlowEvidence": { "type": "string", "minLength": 1 },
+    "assetFlowEvidenceHash": { "$ref": "#/$defs/sha256" },
     "broadcaster": { "$ref": "#/$defs/address" },
     "protocolFeeRecipient": { "$ref": "#/$defs/address" },
     "registry": { "$ref": "#/$defs/address" },
@@ -109,6 +119,7 @@
   "$defs": {
     "address": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
     "bytes32": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$" },
-    "hash": { "type": "string", "pattern": "^(0x)?[0-9a-fA-F]{40,64}$" }
+    "hash": { "type": "string", "pattern": "^(0x)?[0-9a-fA-F]{40,64}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-fA-F]{64}$" }
   }
 }

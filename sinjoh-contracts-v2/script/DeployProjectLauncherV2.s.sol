@@ -198,10 +198,17 @@ contract DeployProjectLauncherV2 is Script {
         vm.serializeBool(object, "viaIr", true);
         vm.serializeString(object, "auditReportVersion", vm.envString("AUDIT_REPORT_VERSION"));
         vm.serializeString(object, "auditEvidence", vm.envString("AUDIT_EVIDENCE_PATH"));
+        vm.serializeString(object, "auditEvidenceHash", vm.envString("AUDIT_EVIDENCE_HASH"));
         vm.serializeString(object, "forkEvidence", vm.envString("FORK_EVIDENCE_PATH"));
+        vm.serializeString(object, "forkEvidenceHash", vm.envString("FORK_EVIDENCE_HASH"));
         vm.serializeString(object, "testnetEvidence", vm.envString("TESTNET_EVIDENCE_PATH"));
+        vm.serializeString(object, "testnetEvidenceHash", vm.envString("TESTNET_EVIDENCE_HASH"));
         vm.serializeString(object, "roleEvidence", vm.envString("ROLE_EVIDENCE_PATH"));
+        vm.serializeString(object, "roleEvidenceHash", vm.envString("ROLE_EVIDENCE_HASH"));
         vm.serializeString(object, "assetFlowEvidence", vm.envString("ASSET_FLOW_EVIDENCE_PATH"));
+        vm.serializeString(
+            object, "assetFlowEvidenceHash", vm.envString("ASSET_FLOW_EVIDENCE_HASH")
+        );
         vm.serializeAddress(object, "broadcaster", broadcaster);
         vm.serializeAddress(object, "protocolFeeRecipient", deployer.protocolFeeRecipient());
         vm.serializeAddress(object, "registry", address(registry));

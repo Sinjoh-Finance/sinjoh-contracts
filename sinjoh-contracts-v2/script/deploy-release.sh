@@ -34,7 +34,7 @@ sha256() {
   fi
 }
 
-for command_name in git forge cast node npm awk; do
+for command_name in git forge cast node npm awk tr; do
   require_command "$command_name"
 done
 
@@ -60,6 +60,11 @@ require_evidence FORK_EVIDENCE_PATH
 require_evidence TESTNET_EVIDENCE_PATH
 require_evidence ROLE_EVIDENCE_PATH
 require_evidence ASSET_FLOW_EVIDENCE_PATH
+export AUDIT_EVIDENCE_HASH="$(sha256 < "$AUDIT_EVIDENCE_PATH")"
+export FORK_EVIDENCE_HASH="$(sha256 < "$FORK_EVIDENCE_PATH")"
+export TESTNET_EVIDENCE_HASH="$(sha256 < "$TESTNET_EVIDENCE_PATH")"
+export ROLE_EVIDENCE_HASH="$(sha256 < "$ROLE_EVIDENCE_PATH")"
+export ASSET_FLOW_EVIDENCE_HASH="$(sha256 < "$ASSET_FLOW_EVIDENCE_PATH")"
 
 actual_chain_id="$(cast chain-id --rpc-url "$RPC_URL")"
 [[ "$actual_chain_id" == "$EXPECTED_CHAIN_ID" ]] \
@@ -79,7 +84,9 @@ for pair in "${runtime_pairs[@]}"; do
   [[ "$code" != "0x" ]] || fail "$address_name has no code on the target chain"
   actual_hash="$(cast keccak "$code")"
   expected_hash="${!hash_name}"
-  [[ "${actual_hash,,}" == "${expected_hash,,}" ]] \
+  actual_hash_lower="$(printf '%s' "$actual_hash" | tr '[:upper:]' '[:lower:]')"
+  expected_hash_lower="$(printf '%s' "$expected_hash" | tr '[:upper:]' '[:lower:]')"
+  [[ "$actual_hash_lower" == "$expected_hash_lower" ]] \
     || fail "$address_name runtime hash is $actual_hash, expected $expected_hash"
 done
 

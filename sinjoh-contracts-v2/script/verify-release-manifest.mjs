@@ -7,7 +7,9 @@ const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
 const required = [
   "chainId", "protocolVersion", "gitCommit", "sourceTreeHash", "buildHash", "compiler",
   "evmVersion", "optimizerEnabled", "optimizerRuns", "viaIr", "auditReportVersion",
-  "auditEvidence", "forkEvidence", "testnetEvidence", "roleEvidence", "assetFlowEvidence",
+  "auditEvidence", "auditEvidenceHash", "forkEvidence", "forkEvidenceHash", "testnetEvidence",
+  "testnetEvidenceHash", "roleEvidence", "roleEvidenceHash", "assetFlowEvidence",
+  "assetFlowEvidenceHash",
   "broadcaster", "protocolFeeRecipient",
   "registry", "deploymentEngine", "launcher", "raffleImplementation",
   "basketVaultImplementation", "erc4626YieldAdapterFactory", "erc4626YieldAdapterRuntimeHash",
@@ -37,10 +39,15 @@ const expected = {
   viaIr: true,
   auditReportVersion: process.env.AUDIT_REPORT_VERSION,
   auditEvidence: process.env.AUDIT_EVIDENCE_PATH,
+  auditEvidenceHash: process.env.AUDIT_EVIDENCE_HASH,
   forkEvidence: process.env.FORK_EVIDENCE_PATH,
+  forkEvidenceHash: process.env.FORK_EVIDENCE_HASH,
   testnetEvidence: process.env.TESTNET_EVIDENCE_PATH,
+  testnetEvidenceHash: process.env.TESTNET_EVIDENCE_HASH,
   roleEvidence: process.env.ROLE_EVIDENCE_PATH,
+  roleEvidenceHash: process.env.ROLE_EVIDENCE_HASH,
   assetFlowEvidence: process.env.ASSET_FLOW_EVIDENCE_PATH,
+  assetFlowEvidenceHash: process.env.ASSET_FLOW_EVIDENCE_HASH,
 };
 for (const [key, value] of Object.entries(expected)) {
   if (manifest[key] !== value) {
@@ -53,6 +60,9 @@ const bytes32Pattern = /^0x[0-9a-fA-F]{64}$/;
 for (const [key, value] of Object.entries(manifest)) {
   if (key.endsWith("RuntimeHash") || key.endsWith("CodeHash") || key === "integrationApprovalRoot") {
     if (!bytes32Pattern.test(value)) throw new Error(`release manifest '${key}' is not bytes32`);
+  }
+  if (key.endsWith("EvidenceHash") && !/^[0-9a-fA-F]{64}$/.test(value)) {
+    throw new Error(`release manifest '${key}' is not a SHA-256 hash`);
   }
   if (
     key.endsWith("Factory") || key.endsWith("Manager") || key.endsWith("Implementation")
