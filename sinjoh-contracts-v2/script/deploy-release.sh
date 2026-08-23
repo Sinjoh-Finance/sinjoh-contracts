@@ -63,7 +63,7 @@ if [[ "$simulate_only" != "0" && "$simulate_only" != "1" ]]; then
   fail "SIMULATE_ONLY must be 0 or 1"
 fi
 if [[ "$simulate_only" == "0" ]]; then
-  for environment_name in FOUNDRY_ACCOUNT VERIFIER VERIFIER_URL VERIFIER_API_KEY; do
+  for environment_name in FOUNDRY_ACCOUNT; do
     require_environment "$environment_name"
   done
 fi
@@ -141,10 +141,6 @@ if [[ "$simulate_only" == "0" ]]; then
   forge_args+=(
     --account "$FOUNDRY_ACCOUNT"
     --broadcast
-    --verify
-    --verifier "$VERIFIER"
-    --verifier-url "$VERIFIER_URL"
-    --etherscan-api-key "$VERIFIER_API_KEY"
   )
 fi
 forge "${forge_args[@]}"
@@ -155,5 +151,7 @@ node script/verify-release-manifest.mjs "$manifest_path"
 if [[ "$simulate_only" == "1" ]]; then
   echo "release deployment simulation completed from $RELEASE_GIT_COMMIT on chain $EXPECTED_CHAIN_ID"
 else
+  node script/verify-deployed-release.mjs "$manifest_path"
   echo "release deployment completed from $RELEASE_GIT_COMMIT on chain $EXPECTED_CHAIN_ID"
+  echo "source verification is separate: ./script/verify-release-sources.sh '$manifest_path'"
 fi
