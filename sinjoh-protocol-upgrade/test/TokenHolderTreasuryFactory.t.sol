@@ -10,6 +10,22 @@ import { TokenHolderTreasuryFactory } from "../src/governance/TokenHolderTreasur
 import { TestBase } from "./TestBase.sol";
 import { MockDirectVotesToken, MockERC20 } from "./mocks/Mocks.sol";
 
+/// @dev Implements every historical-vote probe the factory previously made except the one
+///      OpenZeppelin Governor actually uses to create proposals and count votes.
+contract MockVotesTokenWithoutPastVotes {
+    function clock() external view returns (uint48) {
+        return uint48(block.number);
+    }
+
+    function getVotes(address) external pure returns (uint256) {
+        return 1;
+    }
+
+    function getPastTotalSupply(uint256) external pure returns (uint256) {
+        return 1;
+    }
+}
+
 contract TokenHolderTreasuryFactoryTest is TestBase {
     address private constant ALICE = address(0xA11CE);
     address private constant BOB = address(0xB0B);
@@ -136,6 +152,16 @@ contract TokenHolderTreasuryFactoryTest is TestBase {
             )
         );
         factory.createTokenHolderTreasury(address(plainToken), "Unsupported", _config());
+    }
+
+    function testRejectsSubjectTokenWithoutPastVotes() public {
+        MockVotesTokenWithoutPastVotes incompleteToken = new MockVotesTokenWithoutPastVotes();
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                TokenHolderTreasuryFactory.InvalidSubjectToken.selector, address(incompleteToken)
+            )
+        );
+        factory.createTokenHolderTreasury(address(incompleteToken), "Unsupported", _config());
     }
 
     function testRejectsUnsafeGovernanceConfiguration() public {

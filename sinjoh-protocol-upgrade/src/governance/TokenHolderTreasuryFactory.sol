@@ -150,17 +150,23 @@ contract TokenHolderTreasuryFactory {
         } catch {
             revert InvalidSubjectToken(subjectToken);
         }
+        if (currentTimepoint == 0) revert InvalidSubjectToken(subjectToken);
+
         try IVotes(subjectToken).getVotes(address(this)) returns (uint256) { }
         catch {
             revert InvalidSubjectToken(subjectToken);
         }
-        if (currentTimepoint != 0) {
-            try IVotes(subjectToken).getPastTotalSupply(uint256(currentTimepoint) - 1) returns (
-                uint256
-            ) { }
-            catch {
-                revert InvalidSubjectToken(subjectToken);
-            }
+
+        uint256 historicalTimepoint = uint256(currentTimepoint) - 1;
+        try IVotes(subjectToken).getPastVotes(address(this), historicalTimepoint) returns (
+            uint256
+        ) { }
+        catch {
+            revert InvalidSubjectToken(subjectToken);
+        }
+        try IVotes(subjectToken).getPastTotalSupply(historicalTimepoint) returns (uint256) { }
+        catch {
+            revert InvalidSubjectToken(subjectToken);
         }
     }
 }
