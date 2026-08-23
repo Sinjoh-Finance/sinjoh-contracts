@@ -703,8 +703,8 @@ contract BasketVaultV2 is ReentrancyGuard {
         uint256 amount = pendingDividend[asset];
         try this.fundPendingDividend(asset) {
             return true;
-        } catch (bytes memory reason) {
-            emit DividendPending(asset, amount, keccak256(reason));
+        } catch {
+            emit DividendPending(asset, amount, bytes32(0));
             return false;
         }
     }

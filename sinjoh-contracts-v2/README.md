@@ -21,7 +21,8 @@ OpenZeppelin Contracts 5.6.1 is imported from the repository's pinned vendored d
 | Airdrop | implemented |
 | Basket | implemented |
 | Funding Bands | implemented |
-| Raffle/Liquidity v2 binding | pending |
+| Raffle | implemented |
+| Liquidity v2 binding | pending |
 | Launcher | pending |
 
 ## Verification
@@ -77,3 +78,11 @@ seven typed destinations. Failed delivery remains fully backed and retryable; go
 can only select another allowed same-project destination. Fixed reference supply prevents token
 mints or burns from moving band boundaries, while proof-approved guards and adapters keep AMM and
 oracle complexity out of the creator flow.
+
+`ProjectRaffleV2` preserves the current audited Raffle's ticket, reservation, randomness, payout,
+tax, expiry, and solvency behavior while replacing its post-deployment binding step with one atomic
+project-verified initialization. Router and Funding Bands use the standard typed funding interface;
+zero, burn, Raffle, subject, and launch-custody addresses are excluded from eligibility. Winners
+never register or claim: keepers submit proofs and failed payouts remain exact backed credits, even
+when a hostile token returns oversized revert data. Frozen settings and concise status views give
+launchers, frontends, and workers a predictable integration surface.

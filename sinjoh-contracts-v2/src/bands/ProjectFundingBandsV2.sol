@@ -889,8 +889,8 @@ contract ProjectFundingBandsV2 is
     function _tryDelivery(uint256 bandId) private returns (bool delivered) {
         try this.deliverBand(bandId) {
             return true;
-        } catch (bytes memory reason) {
-            emit BandDeliveryFailed(bandId, keccak256(reason));
+        } catch {
+            emit BandDeliveryFailed(bandId, bytes32(0));
             return false;
         }
     }
