@@ -12,7 +12,7 @@ OpenZeppelin Contracts 5.6.1 is imported from the repository's pinned vendored d
 | --- | --- |
 | Shared project interfaces and identity | implemented |
 | `ProjectVotesToken` | implemented |
-| Staking + PoS NFT | pending |
+| Staking + PoS NFT | implemented |
 | Multisig Accounts | pending |
 | Token Governance | pending |
 | Registry + Treasury Vaults | pending |
