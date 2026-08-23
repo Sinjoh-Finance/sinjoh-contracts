@@ -27,6 +27,7 @@ import {
     BasketTarget
 } from "../../src/basket/BasketTypes.sol";
 import { ProjectFundingBandsV2 } from "../../src/bands/ProjectFundingBandsV2.sol";
+import { ProjectGovernorV2 } from "../../src/governance/ProjectGovernorV2.sol";
 import { ProjectTimelockV2 } from "../../src/governance/ProjectTimelockV2.sol";
 import { ProjectLiquidityManagerV2 } from "../../src/liquidity/ProjectLiquidityManagerV2.sol";
 import { ProjectMultisigAccountV2 } from "../../src/multisig/ProjectMultisigAccountV2.sol";
@@ -78,9 +79,27 @@ contract ProjectLauncherV2Test is Test {
     address internal constant CREATOR = address(0xA11CE);
     address internal constant FEE_RECIPIENT = address(0xFEE);
     address internal constant GUARDIAN = address(0xBEEF);
+    address internal constant HOLDER = address(0xB0B);
 
     ProjectLauncherV2 internal launcher;
     ProjectRegistryV2 internal registry;
+
+    struct AllModulesPredictions {
+        address quote;
+        address pool;
+        address guard;
+        address bandAdapter;
+        address erc4626;
+        address randomness;
+        address basketImplementation;
+        address registry;
+        address engine;
+        address launcher;
+        address subject;
+        address bands;
+        address basket;
+        address vault;
+    }
 
     function setUp() public {
         _installLauncher(keccak256("TEST_APPROVAL_ROOT"));
@@ -454,51 +473,151 @@ contract ProjectLauncherV2Test is Test {
     }
 
     function testLaunchAllModulesFromOneConfig() public {
-        uint64 nonce = vm.getNonce(address(this));
-        uint256 integrationCount = 6;
-        address predictedQuote = vm.computeCreateAddress(address(this), nonce);
-        address predictedPool = vm.computeCreateAddress(address(this), nonce + 1);
-        address predictedGuard = vm.computeCreateAddress(address(this), nonce + 2);
-        address predictedBandAdapter = vm.computeCreateAddress(address(this), nonce + 3);
-        address predictedERC4626 = vm.computeCreateAddress(address(this), nonce + 4);
-        address predictedRandomness = vm.computeCreateAddress(address(this), nonce + 5);
-        address predictedBasketImplementation =
-            vm.computeCreateAddress(address(this), nonce + integrationCount + 1);
-        address predictedRegistry =
-            vm.computeCreateAddress(address(this), nonce + integrationCount + 18);
-        address predictedEngine =
-            vm.computeCreateAddress(address(this), nonce + integrationCount + 19);
-        address predictedLauncher =
-            vm.computeCreateAddress(address(this), nonce + integrationCount + 20);
+        _launchAllModules(LaunchGovernanceMode.TOKEN_HOLDER, LaunchVoteSource.STAKED);
+    }
 
-        bytes32 userSalt = keccak256("ALL_MODULES");
-        address predictedSubject = _predictFromEngine(predictedEngine, userSalt, keccak256("TOKEN"));
-        address predictedBands = _predictFromEngine(predictedEngine, userSalt, keccak256("BANDS"));
-        address predictedBasket = _predictFromEngine(predictedEngine, userSalt, keccak256("BASKET"));
-        bytes32 predictedProjectId =
-            ProjectIds.derive(block.chainid, predictedRegistry, predictedSubject);
-        address predictedVault = Clones.predictDeterministicAddress(
-            predictedBasketImplementation,
-            keccak256(abi.encode(predictedProjectId, uint256(1))),
-            predictedBasket
+    function testE2EAllModulesMultisigControlsTreasuryAsset() public {
+        (ProjectLaunchPreview memory launched, MockBasketAsset quote) =
+            _launchAllModules(LaunchGovernanceMode.MULTISIG, LaunchVoteSource.LIQUID);
+        ProjectTreasuryVaultV2 treasury =
+            ProjectTreasuryVaultV2(payable(launched.addresses.treasury));
+        _depositQuote(quote, treasury, 100e18);
+
+        address[] memory targets = new address[](1);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        targets[0] = address(treasury);
+        calldatas[0] = abi.encodeCall(treasury.send, (address(quote), 40e18, HOLDER));
+        ProjectMultisigAccountV2 account =
+            ProjectMultisigAccountV2(payable(launched.addresses.multisigAccount));
+        vm.prank(address(0x10));
+        bytes32 transactionId = account.submit(targets, values, calldatas);
+        vm.prank(address(0x20));
+        account.confirm(transactionId);
+        account.execute(transactionId);
+
+        assertEq(quote.balanceOf(HOLDER), 40e18);
+        assertEq(treasury.accountedBalance(address(quote)), 60e18);
+        assertTrue(account.transactionDetails(transactionId).executed);
+    }
+
+    function testE2EAllModulesLiquidGovernanceProposalToTreasuryOutcome() public {
+        (ProjectLaunchPreview memory launched, MockBasketAsset quote) =
+            _launchAllModules(LaunchGovernanceMode.TOKEN_HOLDER, LaunchVoteSource.LIQUID);
+        ProjectTreasuryVaultV2 treasury =
+            ProjectTreasuryVaultV2(payable(launched.addresses.treasury));
+        _depositQuote(quote, treasury, 100e18);
+        ProjectGovernorV2 governor = ProjectGovernorV2(payable(launched.addresses.tokenGovernor));
+        vm.warp(block.timestamp + 1);
+
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) =
+            _treasurySendProposal(treasury, address(quote), 40e18, HOLDER);
+        _executeGovernanceProposal(
+            governor, CREATOR, targets, values, calldatas, "Send project funds"
         );
 
-        MockBasketAsset quote = new MockBasketAsset("Quote", "QUOTE");
+        assertEq(quote.balanceOf(HOLDER), 40e18);
+        assertEq(treasury.accountedBalance(address(quote)), 60e18);
+    }
+
+    function testE2EAllModulesStakedGovernanceTransfersPoSBeforeSnapshotAndExecutes() public {
+        (ProjectLaunchPreview memory launched, MockBasketAsset quote) =
+            _launchAllModules(LaunchGovernanceMode.TOKEN_HOLDER, LaunchVoteSource.STAKED);
+        ProjectVotesToken subject = ProjectVotesToken(launched.addresses.subject);
+        ProjectStakingPoolV2 staking = ProjectStakingPoolV2(payable(launched.addresses.stakingPool));
+        vm.startPrank(CREATOR);
+        subject.approve(address(staking), 600_000e18);
+        uint256 tokenId = staking.stake(600_000e18, CREATOR);
+        staking.posNFT().transferFrom(CREATOR, HOLDER, tokenId);
+        vm.stopPrank();
+        vm.warp(block.timestamp + 1);
+
+        ProjectTreasuryVaultV2 treasury =
+            ProjectTreasuryVaultV2(payable(launched.addresses.treasury));
+        _depositQuote(quote, treasury, 100e18);
+        ProjectGovernorV2 governor = ProjectGovernorV2(payable(launched.addresses.tokenGovernor));
+        (address[] memory targets, uint256[] memory values, bytes[] memory calldatas) =
+            _treasurySendProposal(treasury, address(quote), 40e18, CREATOR);
+        _executeGovernanceProposal(
+            governor, HOLDER, targets, values, calldatas, "Stakers send project funds"
+        );
+
+        assertEq(staking.posNFT().ownerOf(tokenId), HOLDER);
+        assertEq(quote.balanceOf(CREATOR), 40e18);
+        assertEq(treasury.accountedBalance(address(quote)), 60e18);
+    }
+
+    function testE2ETreasuryReceiptAutomaticallyFundsOwnedBasket() public {
+        (ProjectLaunchPreview memory launched, MockBasketAsset quote) =
+            _launchAllModules(LaunchGovernanceMode.MULTISIG, LaunchVoteSource.LIQUID);
+        ProjectTreasuryVaultV2 treasury =
+            ProjectTreasuryVaultV2(payable(launched.addresses.treasury));
+        quote.mint(address(this), 100e18);
+        quote.approve(address(treasury), 100e18);
+        treasury.deposit(address(quote), 100e18, true);
+
+        assertEq(treasury.reservedForBasket(address(quote)), 25e18);
+        treasury.executeBasketRoute(address(quote), type(uint256).max);
+
+        ERC4626BasketYieldAdapter adapter =
+            ERC4626BasketYieldAdapter(launched.addresses.basketYieldAdapters[0]);
+        assertEq(adapter.managedPrincipal(), 25e18);
+        assertEq(adapter.totalAssets(), 25e18);
+        assertEq(treasury.reservedForBasket(address(quote)), 0);
+        assertEq(treasury.accountedBalance(address(quote)), 75e18);
+        assertEq(
+            BasketManagerV2(payable(launched.addresses.basketManager)).basketNFT().ownerOf(1),
+            address(treasury)
+        );
+    }
+
+    function _launchAllModules(LaunchGovernanceMode governanceMode, LaunchVoteSource voteSource)
+        private
+        returns (ProjectLaunchPreview memory launched, MockBasketAsset quote)
+    {
+        uint64 nonce = vm.getNonce(address(this));
+        uint256 integrationCount = 6;
+        AllModulesPredictions memory predicted;
+        predicted.quote = vm.computeCreateAddress(address(this), nonce);
+        predicted.pool = vm.computeCreateAddress(address(this), nonce + 1);
+        predicted.guard = vm.computeCreateAddress(address(this), nonce + 2);
+        predicted.bandAdapter = vm.computeCreateAddress(address(this), nonce + 3);
+        predicted.erc4626 = vm.computeCreateAddress(address(this), nonce + 4);
+        predicted.randomness = vm.computeCreateAddress(address(this), nonce + 5);
+        predicted.basketImplementation =
+            vm.computeCreateAddress(address(this), nonce + integrationCount + 1);
+        predicted.registry = vm.computeCreateAddress(address(this), nonce + integrationCount + 18);
+        predicted.engine = vm.computeCreateAddress(address(this), nonce + integrationCount + 19);
+        predicted.launcher = vm.computeCreateAddress(address(this), nonce + integrationCount + 20);
+
+        bytes32 userSalt = keccak256("ALL_MODULES");
+        predicted.subject = _predictFromEngine(predicted.engine, userSalt, keccak256("TOKEN"));
+        predicted.bands = _predictFromEngine(predicted.engine, userSalt, keccak256("BANDS"));
+        predicted.basket = _predictFromEngine(predicted.engine, userSalt, keccak256("BASKET"));
+        bytes32 predictedProjectId =
+            ProjectIds.derive(block.chainid, predicted.registry, predicted.subject);
+        predicted.vault = Clones.predictDeterministicAddress(
+            predicted.basketImplementation,
+            keccak256(abi.encode(predictedProjectId, uint256(1))),
+            predicted.basket
+        );
+
+        quote = new MockBasketAsset("Quote", "QUOTE");
         MockFundingBandPool pool = new MockFundingBandPool();
         MockFundingBandGuard guard =
-            new MockFundingBandGuard(predictedSubject, predictedPool, 1_000_000e18);
+            new MockFundingBandGuard(predicted.subject, predicted.pool, 1_000_000e18);
         MockFundingBandPositionAdapter bandAdapter =
-            new MockFundingBandPositionAdapter(predictedSubject, predictedQuote, predictedPool);
-        MockERC4626 erc4626 = new MockERC4626(IERC20(predictedQuote));
+            new MockFundingBandPositionAdapter(predicted.subject, predicted.quote, predicted.pool);
+        MockERC4626 erc4626 = new MockERC4626(IERC20(predicted.quote));
         MockRaffleRandomness randomness = new MockRaffleRandomness();
-        assertEq(address(quote), predictedQuote);
-        assertEq(address(pool), predictedPool);
-        assertEq(address(guard), predictedGuard);
-        assertEq(address(bandAdapter), predictedBandAdapter);
-        assertEq(address(erc4626), predictedERC4626);
-        assertEq(address(randomness), predictedRandomness);
-        guard.bind(predictedBands);
-        bandAdapter.bind(predictedBands);
+        assertEq(address(quote), predicted.quote);
+        assertEq(address(pool), predicted.pool);
+        assertEq(address(guard), predicted.guard);
+        assertEq(address(bandAdapter), predicted.bandAdapter);
+        assertEq(address(erc4626), predicted.erc4626);
+        assertEq(address(randomness), predicted.randomness);
+        guard.bind(predicted.bands);
+        bandAdapter.bind(predicted.bands);
 
         bytes32 yieldLeaf = _basketYieldLeafHash(
             keccak256(type(ERC4626BasketYieldAdapter).runtimeCode), address(quote)
@@ -507,13 +626,15 @@ contract ProjectLauncherV2Test is Test {
             address(pool), address(quote), address(guard), address(bandAdapter), 1_000_000e18
         );
         _installLauncher(_hashPair(yieldLeaf, bandLeaf));
-        assertEq(address(registry), predictedRegistry);
-        assertEq(address(launcher.deployer()), predictedEngine);
-        assertEq(address(launcher), predictedLauncher);
+        assertEq(address(registry), predicted.registry);
+        assertEq(address(launcher.deployer()), predicted.engine);
+        assertEq(address(launcher), predicted.launcher);
 
-        ProjectLaunchConfig memory config = _baseTokenGovernanceConfig();
+        ProjectLaunchConfig memory config = governanceMode == LaunchGovernanceMode.MULTISIG
+            ? _baseMultisigConfig()
+            : _baseTokenGovernanceConfig();
         config.salt = userSalt;
-        config.voteSource = LaunchVoteSource.STAKED;
+        config.voteSource = voteSource;
         config.modules.treasury = true;
         config.modules.router = true;
         config.modules.staking = true;
@@ -524,13 +645,18 @@ contract ProjectLauncherV2Test is Test {
         config.modules.liquidity = true;
         config.staking = StakingLaunchConfig({ guardian: GUARDIAN, lockDuration: 7 days });
         config.airdrop.attestor = address(0x4444);
-        config.airdrop.eligibilityMode = AirdropEligibilityMode.STAKERS;
+        bool stakedEligibility = voteSource == LaunchVoteSource.STAKED;
+        config.airdrop.eligibilityMode =
+            stakedEligibility ? AirdropEligibilityMode.STAKERS : AirdropEligibilityMode.HOLDERS;
         config.treasury.basketAllocationBps = 2_500;
         config.treasury.basketRouteAssets = new address[](1);
         config.treasury.basketRouteAssets[0] = address(quote);
         config.launchProfile.canonicalPool = address(pool);
         config.basket = _singleTargetBasketConfig(
-            address(quote), address(0), _proof(bandLeaf), BasketEligibilityMode.STAKERS
+            address(quote),
+            address(0),
+            _proof(bandLeaf),
+            stakedEligibility ? BasketEligibilityMode.STAKERS : BasketEligibilityMode.HOLDERS
         );
         config.basketERC4626Vaults = new address[](1);
         config.basketERC4626Vaults[0] = address(erc4626);
@@ -543,13 +669,13 @@ contract ProjectLauncherV2Test is Test {
         config.raffle = _raffleConfig(address(randomness), address(quote));
 
         ProjectLaunchPreview memory preview = launcher.predictLaunch(config);
-        assertEq(preview.addresses.subject, predictedSubject);
-        assertEq(preview.addresses.fundingBands, predictedBands);
-        assertEq(preview.addresses.primaryBasketVault, predictedVault);
+        assertEq(preview.addresses.subject, predicted.subject);
+        assertEq(preview.addresses.fundingBands, predicted.bands);
+        assertEq(preview.addresses.primaryBasketVault, predicted.vault);
         assertEq(preview.addresses.basketYieldAdapters.length, 1);
         uint256 gasBeforeLaunch = gasleft();
         vm.prank(CREATOR);
-        ProjectLaunchPreview memory launched = launcher.launch(config);
+        launched = launcher.launch(config);
         uint256 launchGas = gasBeforeLaunch - gasleft();
         emit log_named_uint("all-modules launch gas", launchGas);
         assertLt(launchGas, 50_000_000);
@@ -565,12 +691,63 @@ contract ProjectLauncherV2Test is Test {
         assertEq(record.liquidityManager, launched.addresses.liquidityManager);
         assertEq(record.primaryBasketId, 1);
         assertEq(record.canonicalPool, address(pool));
+        assertEq(record.controller, launched.addresses.controller);
+        assertNotEq(record.controller, address(launcher));
+        assertNotEq(record.controller, address(launcher.deployer()));
+        assertEq(ProjectVotesToken(launched.addresses.subject).balanceOf(address(launcher)), 0);
+        assertEq(
+            ProjectVotesToken(launched.addresses.subject).balanceOf(address(launcher.deployer())), 0
+        );
         address adapter = launched.addresses.basketYieldAdapters[0];
-        assertEq(ERC4626BasketYieldAdapter(adapter).basketVault(), predictedVault);
+        assertEq(ERC4626BasketYieldAdapter(adapter).basketVault(), predicted.vault);
         assertEq(address(ERC4626BasketYieldAdapter(adapter).vault()), address(erc4626));
         assertTrue(ProjectVotesToken(launched.addresses.subject).isVotingExcluded(adapter));
         assertTrue(ProjectAirdropV2(payable(launched.addresses.airdrop)).isExcluded(adapter));
         assertTrue(ProjectRaffleV2(payable(launched.addresses.raffle)).isExcluded(adapter));
+    }
+
+    function _depositQuote(MockBasketAsset quote, ProjectTreasuryVaultV2 treasury, uint256 amount)
+        private
+    {
+        quote.mint(address(this), amount);
+        quote.approve(address(treasury), amount);
+        treasury.deposit(address(quote), amount, false);
+    }
+
+    function _treasurySendProposal(
+        ProjectTreasuryVaultV2 treasury,
+        address asset,
+        uint256 amount,
+        address recipient
+    )
+        private
+        pure
+        returns (address[] memory targets, uint256[] memory values, bytes[] memory calldatas)
+    {
+        targets = new address[](1);
+        values = new uint256[](1);
+        calldatas = new bytes[](1);
+        targets[0] = address(treasury);
+        calldatas[0] = abi.encodeCall(treasury.send, (asset, amount, recipient));
+    }
+
+    function _executeGovernanceProposal(
+        ProjectGovernorV2 governor,
+        address voter,
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        string memory description
+    ) private {
+        vm.prank(voter);
+        uint256 proposalId = governor.propose(targets, values, calldatas, description);
+        vm.warp(governor.proposalSnapshot(proposalId) + 1);
+        vm.prank(voter);
+        governor.castVote(proposalId, 1);
+        vm.warp(governor.proposalDeadline(proposalId) + 1);
+        governor.queue(targets, values, calldatas, keccak256(bytes(description)));
+        vm.warp(block.timestamp + ProjectTimelockV2(payable(governor.timelock())).getMinDelay());
+        governor.execute(targets, values, calldatas, keccak256(bytes(description)));
     }
 
     function _predictFromEngine(address engine, bytes32 userSalt, bytes32 moduleKey)
