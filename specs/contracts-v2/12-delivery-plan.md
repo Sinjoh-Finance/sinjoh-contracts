@@ -15,10 +15,10 @@ sinjoh-contracts-v2/
     core/ProjectRegistryV2.sol
     core/ProjectLauncherV2.sol
     token/ProjectVotesToken.sol
-    governance/ProjectJointV2.sol
+    multisig/ProjectMultisigAccountV2.sol
     governance/ProjectGovernorV2.sol
     governance/ProjectTimelockV2.sol
-    treasury/ProjectTreasuryV2.sol
+    treasury/ProjectTreasuryVaultV2.sol
     router/ProjectRouterV2.sol
     staking/ProjectStakingPoolV2.sol
     staking/ProjectPoSNFT.sol
@@ -49,24 +49,23 @@ import implementations from legacy packages at runtime.
 
 ```text
 Phase 1: interfaces + accounting + project identity
-       |
-       +--> Phase 2: token checkpoints + staking/PoS NFT
-       |          |
-       |          +--> Phase 3: multisig + liquid/staked Governor
-       |                         |
-       +-------------------------+--> Phase 4: Registry + Treasury
-       |                                      |
-       |                                      +--> Phase 5A: Router + Airdrop
-       |                                      +--> Phase 5B: Basket
-       |                                      +--> Phase 5C: Funding Bands
-       |                                      +--> Phase 5D: Raffle/Liquidity binding
-       |                                                    |
-       +----------------------------------------------------+--> Phase 6: Launcher
-                                                                  |
-                                                                  +--> Phase 7: full integration/fork/release
+  |
+Phase 2: token checkpoints + staking/PoS NFT
+  |\
+  | +--> Phase 3A: independent Multisig Accounts --\
+  +----> Phase 3B: independent Token Governance -----+--> Phase 4: Registry + Treasury Vault
+                                                        |
+                                                        +--> Phase 5A: Router + Airdrop
+                                                        +--> Phase 5B: Basket
+                                                        +--> Phase 5C: Funding Bands
+                                                        +--> Phase 5D: Raffle/Liquidity binding
+                                                                       |
+                                                                       +--> Phase 6: Launcher
+                                                                              |
+                                                                              +--> Phase 7: full integration/fork/release
 ```
 
-This order establishes historical eligibility and authority before any custody module relies on
+This order establishes historical eligibility and control before any custody module relies on
 them. The Launcher is implemented after every module can self-report/validate its immutable project
 binding.
 
@@ -76,8 +75,9 @@ binding.
 | --- | --- | ---: | --- |
 | 1 | shared interfaces, exact-transfer/accounting/fee libraries, typed adapter boundaries | 4-6 days | unit/fuzz libraries and no arbitrary-call surface |
 | 2 | automatic-vote token, staking pool, PoS NFT, checkpoint invariants | 7-10 days | mint/transfer/burn/stake/NFT transfer/unstake snapshot suite |
-| 3 | 2-of-3 Joint and Governor/Timelock for both vote sources | 5-7 days | full propose/vote/queue/execute suites |
-| 4 | Registry and narrow Treasury including Basket NFT custody | 5-7 days | authority/asset/NFT custody invariants |
+| 3A | independent 2-of-3 Multisig Accounts | 3-4 days | submit/confirm/revoke/expire/execute/signer-replacement suite |
+| 3B | independent Governor/Timelock for both vote sources | 4-5 days | full propose/vote/queue/execute suites |
+| 4 | Registry and narrow Treasury Vault including Basket NFT custody | 5-7 days | controller/asset/NFT custody invariants |
 | 5A | Router and Airdrop plus worker fixtures | 10-14 days | all action types, failure escrow, both eligibility modes |
 | 5B | Basket Manager/NFT/Vault and first production adapter | 12-18 days | loss/high-water mark, dividends, rebalance, resumable burn |
 | 5C | Funding Bands and all proceeds destinations | 10-14 days | current-price retroactive creation and full settlement matrix |

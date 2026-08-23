@@ -6,7 +6,8 @@
 route can send value, swap it, burn project tokens, add permanent liquidity, fund an airdrop, fund
 a raffle, fund the treasury, or fund another validated project sink.
 
-Each project has at most one router. It is bound to the project token, creator, treasury, authority,
+Each project has at most one router. It is bound to the project token, creator, Treasury Vault,
+controller,
 and registry record at deployment.
 
 ## 2. Funding and accounting

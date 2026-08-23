@@ -2,7 +2,7 @@
 
 ## 1. Security objective
 
-Contracts v2 must preserve ownership, authority, eligibility, and accounting across the complete
+Contracts v2 must preserve ownership, control, eligibility, and accounting across the complete
 project—not merely prove each contract in isolation. Unit tests are required, but deployment is
 blocked until all enabled-module combinations and full user journeys pass integration and mainnet-
 fork testing.
@@ -11,7 +11,7 @@ fork testing.
 
 | Boundary | Trusted for | Not trusted for |
 | --- | --- | --- |
-| project governance | explicit configuration and treasury decisions | changing historical votes/eligibility or bypassing typed module limits |
+| project controller | explicit configuration and Treasury Vault decisions | changing historical votes/eligibility or bypassing typed module limits |
 | optional guardian | pausing specified risky paths | transfers, resume, configuration, voting, unstaking |
 | Airdrop/Raffle attestor | faithful off-chain snapshot construction | overspending funding, replacing roots, redirecting valid proofs |
 | randomness adapter | unpredictable seed delivery under its published assumptions | custody or Raffle configuration |
@@ -19,7 +19,7 @@ fork testing.
 | price/oracle guard | minimum output and price validity | custody or arbitrary calls |
 | yield adapter | custody/accounting inside one Basket position | Basket ownership, external recipient selection, principal distribution |
 | keeper | timely permissionless execution | entitlement, destinations, fees, or configuration |
-| Registry/Launcher factories | correct atomic deployment | continuing project governance or custody |
+| Registry/Launcher factories | correct atomic deployment | continuing project control or custody |
 
 Every external adapter/provider must have a documented failure mode, runtime hash, testnet/mainnet-
 fork evidence, and audit status in the release manifest.
@@ -35,7 +35,7 @@ fork evidence, and audit status in the release manifest.
 | commit Airdrop/Raffle root | no | no | no | yes | no | no |
 | push/harvest/retry/settle | no special power | no special power | no | no special power | permissionless | no |
 | withdraw stake after maturity | position owner/approved | no | cannot block | no | no | no |
-| unlock Basket principal | NFT owner through burn | only if authority controls owner Treasury | cannot block final recovery | no | process steps only | no |
+| unlock Basket principal | NFT owner through burn | only if controller operates owner Treasury | cannot block final recovery | no | process steps only | no |
 
 The creator has no implicit admin power unless it is one of the selected multisig signers or owns
 eligible tokens/positions.
@@ -45,9 +45,9 @@ eligible tokens/positions.
 The implementation must encode these as unit/fuzz assertions and stateful invariant tests:
 
 1. **Project binding:** a module never accepts funds/configuration for another project ID or subject.
-2. **No retained factory power:** launcher/factories hold no governance, mint, pause, attestor,
+2. **No retained factory power:** launcher/factories hold no control, mint, pause, attestor,
    adapter, or withdrawal role after launch.
-3. **Authority consistency:** every governed module resolves the same immutable executor.
+3. **Controller consistency:** every controlled module stores the same immutable controller.
 4. **Vote conservation:** liquid/staked owner voting units and eligible voting supply update once per
    mint/transfer/burn/stake/NFT transfer/unstake.
 5. **Burn-address exclusion:** the canonical burn address contributes zero to liquid/staked votes,
@@ -144,7 +144,7 @@ These are floors, not caps. Existing Raffle and Liquidity required tests are add
 7. post-launch Band creation below lower bound -> crossing -> settle through every destination;
 8. Basket begin/process/finalize burn -> token burn price -> tax -> assets to current NFT owner.
 
-Each journey asserts balances, ownership, authority, emitted state, keeper work, and no retained
+Each journey asserts balances, ownership, control, emitted state, keeper work, and no retained
 factory role.
 
 ## 10. Static and manual review
@@ -170,7 +170,7 @@ Every launch/release manifest records:
 - chain ID and canonical external contract addresses/runtime hashes;
 - factory/implementation/adapter/guard/oracle/randomness hashes;
 - project launch config hash and predicted/deployed module addresses;
-- creator, governance mode/executor, vote source, guardian, attestor;
+- creator, controller model/address, vote source, guardian, attestor;
 - protocol fee recipient and every module-local fee/tax;
 - token supply/allocation/voting exclusions;
 - Router routes, Treasury basket policy, Basket targets, Band configs, Raffle and Liquidity configs;
@@ -202,7 +202,8 @@ Release gates:
 2. Stateful invariants run at least 256 sequences per seed configuration and record reproducible
    seeds for failures.
 3. All eight end-to-end journeys pass against testnet and the applicable mainnet fork.
-4. A generated role report proves launcher/factories/deployer have no retained project authority.
+4. A generated role report proves launcher/factories/deployer have no retained project controller
+   power.
 5. A generated asset-flow reconciliation proves no unmatched asset decrease across an all-modules
    run.
 6. Production runtime hashes and configuration exactly match the signed release manifest.

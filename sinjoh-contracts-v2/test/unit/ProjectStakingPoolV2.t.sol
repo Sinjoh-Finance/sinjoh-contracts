@@ -42,7 +42,7 @@ contract ProjectStakingPoolV2Test is TestBase, IERC721Receiver {
         assertEq(address(pool.subject()), address(token));
         assertEq(pool.projectId(), token.projectId());
         assertEq(pool.treasury(), TREASURY);
-        assertEq(pool.governanceExecutor(), GOVERNANCE);
+        assertEq(pool.controller(), GOVERNANCE);
         assertEq(pool.guardian(), GUARDIAN);
         assertEq(pool.lockDuration(), LOCK_DURATION);
         assertEq(posNFT.pool(), address(pool));
@@ -208,11 +208,11 @@ contract ProjectStakingPoolV2Test is TestBase, IERC721Receiver {
         assertEq(token.balanceOf(BOB), 25e18);
     }
 
-    function testOnlyGovernanceCanResumeStaking() public {
+    function testOnlyControllerCanResumeStaking() public {
         vm.prank(GUARDIAN);
         pool.pauseNewStakes();
         vm.prank(GUARDIAN);
-        vm.expectPartialRevert(ProjectStakingPoolV2.OnlyGovernanceExecutor.selector);
+        vm.expectPartialRevert(ProjectStakingPoolV2.OnlyController.selector);
         pool.resumeNewStakes();
         vm.prank(GOVERNANCE);
         pool.resumeNewStakes();

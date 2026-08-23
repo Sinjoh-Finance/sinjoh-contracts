@@ -8,6 +8,7 @@ import { IERC6372 } from "@openzeppelin/contracts/interfaces/IERC6372.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { Checkpoints } from "@openzeppelin/contracts/utils/structs/Checkpoints.sol";
 import { Time } from "@openzeppelin/contracts/utils/types/Time.sol";
+import { IProjectControlled } from "../interfaces/IProjectControlled.sol";
 import { IProjectTokenIdentity } from "../interfaces/IProjectTokenIdentity.sol";
 import { IProjectStakingPositionSource } from "../interfaces/IProjectStakingPositionSource.sol";
 import { IProjectStakingTransferReceiver } from "../interfaces/IProjectStakingTransferReceiver.sol";
@@ -20,6 +21,7 @@ import { ProjectPoSNFT } from "./ProjectPoSNFT.sol";
 /// governance. Voting is automatic and cannot be delegated.
 contract ProjectStakingPoolV2 is
     IERC5805,
+    IProjectControlled,
     IProjectStakingPositionSource,
     IProjectStakingTransferReceiver,
     ReentrancyGuard
@@ -39,9 +41,9 @@ contract ProjectStakingPoolV2 is
 
     address public immutable registry;
     IERC20 public immutable subject;
-    bytes32 public immutable projectId;
+    bytes32 public immutable override projectId;
     address public immutable treasury;
-    address public immutable governanceExecutor;
+    address public immutable override controller;
     address public immutable guardian;
     uint64 public immutable lockDuration;
     ProjectPoSNFT public immutable posNFT;
@@ -60,7 +62,7 @@ contract ProjectStakingPoolV2 is
     error InvalidSubject(address candidate);
     error ProjectIdentityMismatch(bytes32 expected, bytes32 actual);
     error InvalidTreasury(address candidate);
-    error InvalidGovernanceExecutor(address candidate);
+    error InvalidController(address candidate);
     error InvalidGuardian(address candidate);
     error InvalidLockDuration(uint64 supplied);
     error InvalidStakeAmount(uint256 supplied);
@@ -70,7 +72,7 @@ contract ProjectStakingPoolV2 is
     error StakingPaused();
     error StakingNotPaused();
     error UnauthorizedPause(address caller);
-    error OnlyGovernanceExecutor(address caller);
+    error OnlyController(address caller);
     error OnlyPoSNFT(address caller);
     error InvalidPositionTransfer(uint256 tokenId, address from, address to);
     error PositionNotMature(uint256 tokenId, uint64 unlockAt, uint64 currentTime);
@@ -85,7 +87,7 @@ contract ProjectStakingPoolV2 is
         address indexed posNFT,
         uint64 lockDuration,
         address treasury,
-        address governanceExecutor,
+        address controller,
         address guardian
     );
     event PositionCreated(
@@ -109,7 +111,7 @@ contract ProjectStakingPoolV2 is
         address registry_,
         address subject_,
         address treasury_,
-        address governanceExecutor_,
+        address controller_,
         address guardian_,
         uint64 lockDuration_
     ) {
@@ -120,8 +122,8 @@ contract ProjectStakingPoolV2 is
         if (treasury_ == address(0) || treasury_ == BURN_ADDRESS) {
             revert InvalidTreasury(treasury_);
         }
-        if (governanceExecutor_ == address(0) || governanceExecutor_ == BURN_ADDRESS) {
-            revert InvalidGovernanceExecutor(governanceExecutor_);
+        if (controller_ == address(0) || controller_ == BURN_ADDRESS) {
+            revert InvalidController(controller_);
         }
         if (guardian_ == BURN_ADDRESS) revert InvalidGuardian(guardian_);
         if (lockDuration_ < MIN_LOCK_DURATION || lockDuration_ > MAX_LOCK_DURATION) {
@@ -141,7 +143,7 @@ contract ProjectStakingPoolV2 is
         subject = IERC20(subject_);
         projectId = actualProjectId;
         treasury = treasury_;
-        governanceExecutor = governanceExecutor_;
+        controller = controller_;
         guardian = guardian_;
         lockDuration = lockDuration_;
 
@@ -154,7 +156,7 @@ contract ProjectStakingPoolV2 is
             address(deployedPoSNFT),
             lockDuration_,
             treasury_,
-            governanceExecutor_,
+            controller_,
             guardian_
         );
     }
@@ -258,7 +260,7 @@ contract ProjectStakingPoolV2 is
     }
 
     function pauseNewStakes() external {
-        if (msg.sender != governanceExecutor && msg.sender != guardian) {
+        if (msg.sender != controller && msg.sender != guardian) {
             revert UnauthorizedPause(msg.sender);
         }
         if (newStakesPaused) revert StakingPaused();
@@ -267,7 +269,7 @@ contract ProjectStakingPoolV2 is
     }
 
     function resumeNewStakes() external {
-        if (msg.sender != governanceExecutor) revert OnlyGovernanceExecutor(msg.sender);
+        if (msg.sender != controller) revert OnlyController(msg.sender);
         if (!newStakesPaused) revert StakingNotPaused();
         newStakesPaused = false;
         emit NewStakesResumed(msg.sender);

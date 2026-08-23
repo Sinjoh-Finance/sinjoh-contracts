@@ -10,7 +10,7 @@ Legacy migration: out of scope
 
 Contracts v2 is one coherent launch system. A project selects optional modules at launch, and the
 launcher deploys and connects those modules in one transaction. Each deployed module is bound to
-the same project token, creator, governance authority, treasury, and project record.
+the same project token, creator, selected controller, Treasury Vault, and project record.
 
 The system must deliver the following user experience:
 
@@ -30,9 +30,11 @@ the other protocols are specified around the product vision rather than retrofit
 
 | Document | Scope |
 | --- | --- |
-| [00-system-architecture.md](./00-system-architecture.md) | system boundaries, shared interfaces, asset flow, authority, automation |
+| [00-system-architecture.md](./00-system-architecture.md) | system boundaries, shared interfaces, asset flow, control, automation |
 | [01-project-token-registry-and-launch.md](./01-project-token-registry-and-launch.md) | automatic vote-compatible token, registry, deterministic launch orchestration |
-| [02-governance.md](./02-governance.md) | multisig and liquid/staked token-holder governance |
+| [02-project-control.md](./02-project-control.md) | controller selection and governance-independent module integration |
+| [02-multisig-accounts.md](./02-multisig-accounts.md) | independent two-of-three Multisig Accounts |
+| [02-token-governance.md](./02-token-governance.md) | independent liquid/staked Governor and Timelock protocol |
 | [03-router.md](./03-router.md) | routing, swaps, burn, liquidity, airdrop, raffle, treasury, and direct sends |
 | [04-treasury.md](./04-treasury.md) | governed custody, sends, swaps, and optional basket routing |
 | [05-staking-and-pos-nft.md](./05-staking-and-pos-nft.md) | single staking pool, locked positions, PoS NFTs, vote checkpoints |
@@ -47,8 +49,9 @@ the other protocols are specified around the product vision rather than retrofit
 
 ## Product rules locked by this specification
 
-1. A project has exactly one canonical registry record and one governance authority.
-2. Governance mode is either multisig or token holder. Delegation is not supported.
+1. A project has exactly one canonical registry record and one immutable controller.
+2. The selected controller protocol is either a Multisig Account or Token Governance. Delegation
+   is not supported.
 3. Token-holder governance chooses one immutable vote source: liquid wallet balances or staked
    balances.
 4. Tokens created through the v2 launcher always expose automatic historical balance checkpoints.
@@ -70,7 +73,8 @@ the other protocols are specified around the product vision rather than retrofit
 ## Terminology
 
 - **Project token**: the ERC-20 launched for one project.
-- **Governance authority**: either a 2-of-3 multisig or a token-governance timelock.
+- **Controller**: either the Multisig Account or the Token Governance Timelock recorded directly by
+  controlled modules.
 - **PoS NFT**: the ERC-721 token representing one locked staking position.
 - **Holder mode**: weight equals eligible project-token wallet balance at a snapshot.
 - **Staker mode**: weight equals eligible project-token amount locked in PoS NFT positions at a
@@ -88,11 +92,11 @@ the other protocols are specified around the product vision rather than retrofit
 3. A newly launched token can create a proposal and vote using wallet balances without delegation.
 4. A staked-governance launch can create a proposal and vote using aggregate PoS NFT position
    balances without a separate adapter deployment.
-5. All governed state changes authenticate the project authority recorded at launch.
+5. All controlled state changes authenticate the exact controller recorded at launch.
 6. All value-moving operations use measured balance deltas and maintain per-asset solvency.
 7. Unsupported fee-on-transfer or rebasing behavior fails before accounting is committed.
 8. Deployment scripts emit a machine-readable manifest, verify runtime hashes, renounce bootstrap
-   privileges, and leave the launcher/factories with no project authority.
+   privileges, and leave the launcher/factories with no project controller power.
 
 ## Explicitly out of scope
 

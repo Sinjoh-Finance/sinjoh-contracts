@@ -1,22 +1,24 @@
-# Treasury
+# Treasury Vaults
 
 ## 1. Objective
 
-`ProjectTreasuryV2` is the project's governed vault. It receives native assets, ERC-20s, and the
-project's Basket NFTs; sends assets; performs guarded swaps; and, when enabled, routes designated
-receipts into the treasury-owned basket.
+`ProjectTreasuryVaultV2` is the project's controlled vault. It receives native assets, ERC-20s, and
+the project's Basket NFTs; sends assets; performs guarded swaps; and, when enabled, routes
+designated receipts into the Treasury-owned basket.
 
 The Treasury is deliberately narrow. It has no generic arbitrary-call executor.
 
-## 2. Authority and deployment
+## 2. Controller and deployment
 
-One immutable governance executor controls the Treasury:
+One immutable controller controls the Treasury Vault:
 
-- `ProjectJointV2` in multisig mode; or
+- `ProjectMultisigAccountV2` in multisig mode; or
 - `ProjectTimelockV2` in token-holder mode.
 
-The Treasury is deployed with immutable project ID, subject, creator, authority, registry, and
-approved integration root. It has no recovery owner, governor handoff, proxy admin, or factory role.
+The Vault stores that address directly and contains no multisig, proposal, voting, or Timelock
+logic. It is deployed with immutable project ID, subject, creator, controller, registry, and
+approved integration root. It has no recovery owner, controller handoff, proxy admin, or factory
+role.
 
 ## 3. Receiving assets
 
@@ -26,7 +28,7 @@ The Treasury accepts:
 - exact ERC-20 receipts through `deposit(asset, amount, routeToBasket)`;
 - raw ERC-20 transfers, visible as ordinary balance after `syncAsset(asset)`;
 - Basket NFTs only from the project's registered Basket Manager or from an address explicitly
-  transferred by governance.
+  transferred by the controller.
 
 Every receipt emits its sender, asset, amount, and whether it was marked for basket routing.
 Receiving an asset never invokes a swap or external protocol inside the transfer callback.
@@ -74,7 +76,7 @@ arbitrary calldata.
 
 ## 6. Automatic basket routing
 
-Basket routing is optional and governance-controlled.
+Basket routing is optional and controller-controlled.
 
 ```solidity
 struct BasketRoute {
@@ -95,9 +97,9 @@ Rules:
   ordinary treasury balance.
 
 When `deposit(..., routeToBasket=true)` receives an eligible asset, it reserves the configured
-share. A raw transfer can be marked later by governance or by permissionless `syncAndReserve` under
-the active policy. Anyone may call `executeBasketRoute(asset, maxAmount)`, which funds the Basket
-through its standard `fund` function.
+share. A raw transfer can be marked later by the controller or by permissionless
+`syncAndReserve` under the active policy. Anyone may call `executeBasketRoute(asset, maxAmount)`,
+which funds the Basket through its standard `fund` function.
 
 This is operationally automatic through the keeper. Passive ERC-20 transfers cannot run code, so
 the contract exposes pending routeable amounts and the keeper executes them. Failure leaves the
@@ -148,12 +150,12 @@ registered Basket NFTs, and approved swap integrations.
 2. A send cannot spend reserved basket funds.
 3. A failed basket funding call changes neither reservation nor available balance.
 4. Swap output is measured and remains owned by the Treasury.
-5. Only the immutable governance executor can send, swap, configure, transfer, or burn.
+5. Only the immutable controller can send, swap, configure, transfer, or burn.
 6. The Treasury cannot approve or transfer an unregistered NFT through its typed Basket functions.
 
 ## 11. Acceptance criteria
 
-1. Both governance modes can receive, send, and swap Treasury assets through the same ABI.
+1. Both controller protocols can receive, send, and swap Treasury assets through the same ABI.
 2. A Router deposit marked for basket routing becomes visible as pending and is deposited by a
    permissionless keeper.
 3. Disabling a basket policy releases only unexecuted reservations.
@@ -167,4 +169,4 @@ registered Basket NFTs, and approved swap integrations.
 - depositor shares or public withdrawals;
 - generic ERC-721 portfolio management;
 - loans, leverage, or unapproved protocol deposits;
-- governance replacement/recovery.
+- controller replacement/recovery.

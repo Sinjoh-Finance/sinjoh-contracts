@@ -10,11 +10,13 @@ subset. Factories deploy implementations; they never govern projects or custody 
 ProjectLauncherV2
   |
   +-- ProjectVotesToken
-  +-- GovernanceAuthority -----> TreasuryV2
-  |          |                  -> RouterV2
-  |          |                  -> BasketManager/BasketVault
-  |          |                  -> FundingBandsV2
-  |          +------------------> permitted configuration changes
+  +-- MultisigAccount ---------\
+  |                             +-> immutable project controller
+  +-- Governor -> Timelock ----/
+  |                                  |-> TreasuryVaultV2
+  |                                  |-> RouterV2
+  |                                  |-> BasketManager/BasketVault
+  |                                  +-> FundingBandsV2
   +-- StakingPool + PoS NFT ----> votes and/or airdrop eligibility
   +-- AirdropV2 <--------------- Router, Basket harvests, Bands
   +-- Raffle ------------------- Router, Bands
@@ -28,13 +30,14 @@ The implementation must keep four concepts separate:
 
 | Concern | Source of truth |
 | --- | --- |
-| authority | project governance authority/timelock |
+| control | immutable Multisig Account or Token Governance Timelock address |
 | ownership | ERC-20 balances, PoS NFT ownership, Basket NFT ownership |
 | eligibility | historical liquid or staked balance at a snapshot |
 | asset flow | explicit `fund`, `send`, `swap`, `harvest`, `settle`, or `burn` operation |
 
-Owning a Basket NFT does not create votes. Holding a PoS NFT does not grant treasury-call
-authority. Governance may configure a module, but it cannot rewrite historical eligibility.
+Owning a Basket NFT does not create votes. Holding a PoS NFT does not grant Treasury Vault
+controller power. The controller may configure a module, but it cannot rewrite historical
+eligibility.
 
 The canonical burn address `0x000000000000000000000000000000000000dEaD` is never an eligible
 participant. Its balances contribute zero to Airdrop rewards, Raffle tickets, liquid or staked
@@ -79,21 +82,20 @@ Rules:
 6. A raw ERC-20 transfer is never attributed automatically. A module may expose `sync()` only when
    its specification defines an unambiguous owner for the surplus.
 
-## 5. Governance interface
+## 5. Controller interface
 
-Governed modules store one immutable authority address:
+Controlled modules store one immutable controller address directly:
 
 ```solidity
-interface IProjectAuthority {
-    enum Mode { MULTISIG, TOKEN_HOLDER }
+interface IProjectControlled {
     function projectId() external view returns (bytes32);
-    function mode() external view returns (Mode);
-    function executor() external view returns (address);
+    function controller() external view returns (address);
 }
 ```
 
-Module authorization is `msg.sender == authority.executor()`. For multisig mode, the executor is
-the multisig. For token-holder mode, it is the proposal timelock. The authority cannot be replaced.
+Module authorization is `msg.sender == controller`. For Multisig Accounts, the controller is the
+account itself. For Token Governance, it is the Timelock. Modules never import or call either
+controller implementation, and the controller cannot be replaced.
 
 ## 6. Mutability model
 
@@ -106,8 +108,8 @@ allowed by each module:
 - funding-band creation before the market reaches a band's lower bound;
 - pause/resume of risky execution paths.
 
-Token identity, project creator, governance mode, vote source, treasury, fee recipient, Basket NFT
-redemption rules, and protocol implementations are immutable.
+Token identity, project creator, controller model, vote source, Treasury Vault, fee recipient,
+Basket NFT redemption rules, and protocol implementations are immutable.
 
 Configuration changes must be emitted with the previous and new configuration hashes. A caller can
 read the full active configuration and its activation timestamp without reconstructing calldata.
@@ -147,7 +149,7 @@ funding. Receiving assets, governance voting, unstaking after lock expiry, claim
 already-earned value, and Basket NFT redemption into recoverable assets cannot be permanently
 disabled by a guardian.
 
-The project governance authority controls pause/resume. A factory-level guardian is not retained.
+The project controller controls pause/resume. A factory-level guardian is not retained.
 Where a fast guardian is desired, it must be a distinct, project-selected address with pause-only
 power and no transfer/configuration power.
 

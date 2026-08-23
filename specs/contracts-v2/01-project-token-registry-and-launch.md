@@ -56,7 +56,12 @@ struct ProjectRecord {
     bytes32 projectId;
     address subject;
     address creator;
-    address authority;
+    GovernanceMode governanceMode;
+    address controller;
+    address multisigAccount;
+    address tokenGovernor;
+    address tokenTimelock;
+    address voteSource;
     address treasury;
     address router;
     address stakingPool;
@@ -80,11 +85,12 @@ Rules:
 1. only the launcher may create a record;
 2. one subject may have one v2 project record;
 3. module addresses are either a deployed contract or zero when disabled;
-4. all enabled modules must report the same `projectId`, subject, and authority before registration;
-5. creator, token, authority, treasury, canonical pool, reference supply, protocol version, and
-   launch time never change;
+4. all enabled controlled modules must report the same `projectId`, subject, and controller before
+   registration;
+5. creator, token, controller model/addresses, treasury, canonical pool, reference supply, protocol
+   version, and launch time never change;
 6. operational metadata updates are limited to publishing replacement UI metadata URIs; these
-   updates require project governance and do not change contract authority or eligibility;
+   updates require the project controller and do not change contract control or eligibility;
 7. the registry never custodies project assets and has no transfer functions.
 
 ## 4. Launch configuration
@@ -154,7 +160,8 @@ Validation:
 3. compute the full immutable system/voting/airdrop exclusion set;
 4. deploy the subject token with the predicted exclusions;
 5. deploy staking/PoS NFT first when staked votes are selected;
-6. deploy the selected authority, using the token or staking pool as its vote source;
+6. deploy the selected independent Multisig Account or Token Governance protocol, using the token
+   or staking pool only when Token Governance is selected;
 7. deploy the treasury and every selected module with the same project bindings;
 8. mint a configured Basket NFT directly to the treasury when basket is enabled;
 9. create/resolve the canonical pool required by the launch profile;
@@ -163,7 +170,7 @@ Validation:
 12. renounce every bootstrap role and emit `ProjectLaunched` with all addresses.
 
 Any failure reverts the complete launch. There is no half-launched project and no temporary factory
-governance that must be cleaned up later.
+controller power that must be cleaned up later.
 
 ## 6. Module combinations
 
@@ -190,7 +197,7 @@ project. Existing-token support is not required for the first contracts-v2 relea
 
 Required events:
 
-- `ProjectLaunched(projectId, subject, creator, authority, launchConfigHash, enabledModules)`;
+- `ProjectLaunched(projectId, subject, creator, controller, launchConfigHash, enabledModules)`;
 - `ProjectModules(projectId, treasury, router, stakingPool, posNft, airdrop, raffle,
   liquidityManager, fundingBands, basketManager, primaryBasketId)`;
 - `ProjectMetadataUpdated(projectId, metadataHash)`.
@@ -208,7 +215,7 @@ and validate a module's membership without array scans.
    canonical burn address.
 5. No holder must call `delegate` before liquid voting power appears.
 6. The project record cannot be overwritten or assigned to a different subject.
-7. Factories, launcher, and deployer retain no authority after a successful launch.
+7. Factories, launcher, and deployer retain no controller power after a successful launch.
 8. The all-modules integration test funds the router, treasury, raffle, liquidity, basket, and
    bands without manually setting a missing project address.
 9. `getVotes(burnAddress)` and `getPastVotes(burnAddress, timepoint)` return zero, and the address's

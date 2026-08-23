@@ -9,14 +9,14 @@ is a coverage check, not a replacement for the protocol specifications.
 | --- | --- |
 | route, swap, burn, add liquidity, airdrop, send, fund Raffle | typed actions in [Router](./03-router.md), each with fixed recipient/integration and measured accounting |
 | send to creator, Treasury, or another address | `SEND`, `SWAP_AND_SEND`, and `FUND_TREASURY` |
-| governance-updatable when enabled | complete route versions activated by the immutable project authority |
+| governance-updatable when enabled | complete route versions activated by the immutable project controller |
 | stake-only airdrops when enabled | Router funds the registered Airdrop; immutable Airdrop mode applies automatically |
 
 ## Treasuries
 
 | Vision requirement | Spec result |
 | --- | --- |
-| multisig or token-holder governance | same Treasury ABI, executor is Joint or token-governance Timelock |
+| multisig or token-holder governance | same Treasury Vault ABI, controller is the Multisig Account or Token Governance Timelock |
 | receive, swap, send assets | exact receipts, guarded typed swaps, governed sends |
 | automatically route receipts to an index Basket when enabled | eligible receipts become reserved; permissionless keeper funds Treasury-owned primary Basket |
 
@@ -73,12 +73,12 @@ is a coverage check, not a replacement for the protocol specifications.
 | proceeds to Raffle rewards | normalization into immutable prize asset and registered Raffle funding |
 | proceeds to Basket via Treasury | Treasury deposit marked for active primary Basket policy |
 
-## Governance
+## Project control
 
 | Vision requirement | Spec result |
 | --- | --- |
-| govern Treasuries and update Routers/Baskets | one project authority with typed capabilities for all three |
-| multisig or token holders | exactly two launch modes: 2-of-3 Joint or Governor + Timelock |
+| govern Treasuries and update Routers/Baskets | either independent controller protocol uses the same typed module functions |
+| multisig or token holders | exactly two independent protocols: 2-of-3 Multisig Account or Governor + Timelock |
 | token governance may require staking via PoS NFT | immutable liquid/staked vote source; staking pool aggregates PoS position checkpoints directly |
 
 ## UX/DevX requirements derived from the vision
