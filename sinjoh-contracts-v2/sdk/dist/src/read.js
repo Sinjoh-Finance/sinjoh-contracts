@@ -125,6 +125,22 @@ export const pendingWork = {
             args: [roundId],
         });
     },
+    raffleCredit(client, raffle, holder) {
+        return client.readContract({
+            address: raffle,
+            abi: projectRaffleV2Abi,
+            functionName: "owed",
+            args: [holder],
+        });
+    },
+    raffleStockCredit(client, raffle, holder, asset) {
+        return client.readContract({
+            address: raffle,
+            abi: projectRaffleV2Abi,
+            functionName: "stockOwed",
+            args: [holder, asset],
+        });
+    },
     liquidityAccount(client, liquidityManager, accountId) {
         return client.readContract({
             address: liquidityManager,

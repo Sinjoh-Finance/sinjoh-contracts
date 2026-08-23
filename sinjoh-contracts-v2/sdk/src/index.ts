@@ -4,4 +4,6 @@ export * from "./airdrop.js";
 export * from "./airdrop-worker.js";
 export * from "./launch.js";
 export * from "./read.js";
+export * from "./raffle.js";
+export * from "./raffle-worker.js";
 export * from "./types.js";

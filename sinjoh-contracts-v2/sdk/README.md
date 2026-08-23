@@ -39,6 +39,16 @@ import {
   zero-entitlement leaves in the work queue because they still count toward epoch finalization.
 - `encodeAirdropPushCalls`, `encodeAirdropRetryCreditCall`, and `encodeAirdropFinalizeCall` return
   typed permissionless keeper transactions; `pendingWork.airdropCredit` exposes exact retry work.
+- `reconstructRaffleSnapshot` replays complete ERC-20 history in canonical log order and computes
+  either snapshot or window-minimum holder weights. Zero and the canonical burn address are always
+  excluded; platform-provided custody exclusions are applied automatically.
+- `buildVerifiedRaffleRound` requires matching snapshots from two providers before producing the
+  exact padded Merkle-sum tree used by the Raffle. Its roots, proofs, and winner indices are tested
+  against the normative Solidity-generated fixtures.
+- `encodeRaffleCommitCall`, `encodeRaffleClaimCalls`, `encodeRaffleRetryCall`, and
+  `encodeRaffleCloseCall` cover the complete worker lifecycle. Winners never need to register,
+  build a proof, or submit a transaction. `pendingWork.raffleRound`, `raffleCredit`, and
+  `raffleStockCredit` expose all round and retry state needed by apps and keepers.
 
 Run `npm test` to rebuild the ABIs from Foundry artifacts, type-check the package, and verify the
 shared Solidity/TypeScript calldata fixture.

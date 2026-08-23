@@ -158,6 +158,27 @@ export const pendingWork = {
       args: [roundId],
     });
   },
+  raffleCredit(client: PublicClient, raffle: Address, holder: Address) {
+    return client.readContract({
+      address: raffle,
+      abi: projectRaffleV2Abi,
+      functionName: "owed",
+      args: [holder],
+    });
+  },
+  raffleStockCredit(
+    client: PublicClient,
+    raffle: Address,
+    holder: Address,
+    asset: Address,
+  ) {
+    return client.readContract({
+      address: raffle,
+      abi: projectRaffleV2Abi,
+      functionName: "stockOwed",
+      args: [holder, asset],
+    });
+  },
   liquidityAccount(client: PublicClient, liquidityManager: Address, accountId: Hex) {
     return client.readContract({
       address: liquidityManager,

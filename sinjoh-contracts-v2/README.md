@@ -97,6 +97,9 @@ zero, burn, Raffle, subject, and launch-custody addresses are excluded from elig
 never register or claim: keepers submit proofs and failed payouts remain exact backed credits, even
 when a hostile token returns oversized revert data. Frozen settings and concise status views give
 launchers, frontends, and workers a predictable integration surface.
+The SDK supplies the complete worker path: strict event-history replay, two-provider snapshot
+reconciliation, deterministic ticket-tree construction, winner-proof submission, credit retries,
+and timed-out-round closure. These operational details stay out of creator and holder interfaces.
 
 `ProjectLiquidityManagerV2` binds the existing permanent-liquidity design to one canonical Registry
 project and accepts the same attributed funding ABI as Router and Funding Bands. Each funding source

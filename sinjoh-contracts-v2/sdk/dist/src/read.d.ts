@@ -146,6 +146,8 @@ export declare const pendingWork: {
         state: number;
         totalTickets: bigint;
     }>;
+    readonly raffleCredit: (client: PublicClient, raffle: Address, holder: Address) => Promise<bigint>;
+    readonly raffleStockCredit: (client: PublicClient, raffle: Address, holder: Address, asset: Address) => Promise<bigint>;
     readonly liquidityAccount: (client: PublicClient, liquidityManager: Address, accountId: Hex) => Promise<{
         config: {
             feeMode: number;
