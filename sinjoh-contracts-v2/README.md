@@ -108,3 +108,8 @@ The one-time release flow is automated by `script/DeployProjectLauncherV2.s.sol`
 release wiring and every module creation-code binding, then writes a chain-specific JSON manifest
 under `deployments/` (override with `DEPLOYMENT_MANIFEST_PATH`). Project creators interact only with
 the resulting Launcher address.
+
+The framework-neutral TypeScript package in `sdk/` generates typed ABIs directly from the Foundry
+artifacts. It exposes launch prediction/preflight, project discovery, typed governance-action
+encoding, and one-call pending-work helpers for the UI and keeper surfaces. Solidity and TypeScript
+share canonical calldata fixtures so generated integrations cannot silently drift from contracts.

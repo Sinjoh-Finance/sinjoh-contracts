@@ -20,7 +20,10 @@ optimizer_runs = 1_000
 via_ir = true
 bytecode_hash = "none"
 cbor_metadata = false
-fs_permissions = [{ access = "read-write", path = "./deployments" }]
+fs_permissions = [
+    { access = "read-write", path = "./deployments" },
+    { access = "read", path = "./sdk/fixtures" },
+]
 
 [fmt]
 line_length = 100
