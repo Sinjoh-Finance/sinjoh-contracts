@@ -155,9 +155,9 @@ Validation:
 
 `ProjectLauncherV2.launch(config)` performs one atomic transaction:
 
-1. validate the canonical launch config;
+1. validate the canonical launch config and require the configured creator to submit the launch;
 2. predict every module address with the Launcher's CREATE3-style, initcode-independent deployer
-   from `(creator, salt, launchConfigHash, version, moduleKey)`;
+   from `(creator, salt, version, moduleKey)`;
 3. compute the full immutable system/voting/airdrop exclusion set;
 4. deploy the subject token with the predicted exclusions;
 5. deploy staking/PoS NFT first when staked votes are selected;
@@ -180,6 +180,22 @@ token address. Plain CREATE2 over each contract's full initcode cannot resolve t
 Launcher therefore uses a CREATE3-style ephemeral deployer whose CREATE2 address is derived from
 the module key and whose single CREATE deploys the final non-upgradeable contract with its complete
 constructor arguments. The ephemeral deployer has no post-deployment role or custody authority.
+
+The exact final configuration is independently committed as `launchConfigHash` in Registry. A
+creator salt is single-use, so editing a configuration preserves previewed addresses but cannot
+overwrite an earlier launch. Public address prediction remains available to any caller, while the
+creator-only launch rule prevents another account from front-running and consuming that creator's
+salt.
+
+To remain within EIP-170 and EIP-3860 without converting project contracts into upgradeable
+proxies, a release consists of a small Launcher plus one ownerless deployment engine. Exact module
+creation code is held in immutable chunked stores whose hashes are fixed by the audited release.
+Only the Launcher can invoke the engine, and neither component is a project controller.
+
+Router routes and the initial Treasury Basket route are applied through one-time launcher-only
+initializers before Registry registration. Registration permanently closes those permissions;
+the selected Multisig Account or Token Governance Timelock is the only post-launch configuration
+authority.
 
 ## 6. Module combinations
 
@@ -217,7 +233,7 @@ and validate a module's membership without array scans.
 ## 9. Acceptance criteria
 
 1. Predicted and deployed addresses match for every optional module combination.
-2. Reusing a creator/salt/config tuple cannot create a second project.
+2. Reusing a creator/salt cannot create a second project, even with different configuration.
 3. A staked-governance launch without staking reverts before any deployment.
 4. Every new v2 token returns correct past wallet balances and past eligible voting supply across
    mint, transfer, burn, transfers into/out of excluded custody, and transfers into/out of the

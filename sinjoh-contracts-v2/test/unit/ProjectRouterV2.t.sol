@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.28;
 
-import { IProjectFundable } from "../../src/interfaces/IProjectFundable.sol";
 import { ProjectRouterV2 } from "../../src/router/ProjectRouterV2.sol";
 import {
     RouterAction,
     RouterActionType,
-    RouterProjectSinkConfig,
     RouterRouteInput,
     RouterSwapConfig
 } from "../../src/router/RouterTypes.sol";
@@ -382,16 +380,14 @@ contract ProjectRouterV2Test is RouterTestBase {
     }
 
     function testApprovedRegisteredProjectSinkUsesOnlyTypedFundSelector() public {
-        bytes32 root = _sinkLeaf(address(airdropSink));
-        RouterProjectSinkConfig memory config =
-            RouterProjectSinkConfig({ sinkConfig: hex"aabb", approvalProof: new bytes32[](0) });
         RouterAction memory action = _sinkAction(
-            RouterActionType.FUND_PROJECT_SINK, address(airdropSink), 10_000, abi.encode(config)
+            RouterActionType.FUND_PROJECT_SINK, address(airdropSink), 10_000, hex"aabb"
         );
-        ProjectRouterV2 router = _deployRouter(_singleRoute(address(assetA), action), root);
-        assertTrue(router.isSinkApproved(address(airdropSink), new bytes32[](0)));
-        assertFalse(router.isSinkApproved(address(raffleSink), new bytes32[](0)));
+        ProjectRouterV2 router = _deployRouter(_singleRoute(address(assetA), action), bytes32(0));
+        assertFalse(router.isSinkApproved(address(airdropSink)));
         _registerRouterAndAirdrop(router);
+        assertTrue(router.isSinkApproved(address(airdropSink)));
+        assertFalse(router.isSinkApproved(address(raffleSink)));
         _fund(router, address(assetA), 10_000);
         _execute(router, address(assetA), type(uint256).max);
         assertEq(airdropSink.funded(address(assetA)), 9_900);
@@ -477,19 +473,5 @@ contract ProjectRouterV2Test is RouterTestBase {
     {
         routes = new RouterRouteInput[](1);
         routes[0] = RouterRouteInput({ inputAsset: asset, actions: actions });
-    }
-
-    function _sinkLeaf(address sink) private view returns (bytes32) {
-        bytes32 inner = keccak256(
-            abi.encode(
-                keccak256("SINJOH_V2_ROUTER_SINK_APPROVAL"),
-                block.chainid,
-                token.projectId(),
-                sink,
-                sink.codehash,
-                IProjectFundable.fund.selector
-            )
-        );
-        return keccak256(bytes.concat(inner));
     }
 }

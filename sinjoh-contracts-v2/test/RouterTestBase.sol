@@ -158,10 +158,7 @@ abstract contract RouterTestBase is RegistryTestBase {
             abi.encode(
                 keccak256("SINJOH_V2_ROUTER_SWAP_APPROVAL"),
                 block.chainid,
-                token.projectId(),
-                address(adapter),
                 address(adapter).codehash,
-                address(priceGuard),
                 address(priceGuard).codehash,
                 inputAsset,
                 outputAsset,

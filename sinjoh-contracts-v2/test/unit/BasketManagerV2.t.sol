@@ -508,7 +508,12 @@ contract BasketManagerV2Test is Test {
         });
     }
 
-    function _yieldLeaf(address vault_, address adapter_, address depositAsset_)
+    function _yieldLeaf(
+        address,
+        /* vault_ */
+        address adapter_,
+        address depositAsset_
+    )
         private
         view
         returns (bytes32)
@@ -517,9 +522,6 @@ contract BasketManagerV2Test is Test {
             abi.encode(
                 keccak256("SINJOH_V2_BASKET_YIELD_APPROVAL"),
                 block.chainid,
-                subject.projectId(),
-                vault_,
-                adapter_,
                 adapter_.codehash,
                 depositAsset_
             )
@@ -528,7 +530,7 @@ contract BasketManagerV2Test is Test {
     }
 
     function _swapLeaf(
-        address vault_,
+        address, /* vault_ */
         address inputAsset,
         address outputAsset,
         address swapAdapter,
@@ -540,13 +542,9 @@ contract BasketManagerV2Test is Test {
             abi.encode(
                 keccak256("SINJOH_V2_BASKET_SWAP_APPROVAL"),
                 block.chainid,
-                subject.projectId(),
-                vault_,
                 inputAsset,
                 outputAsset,
-                swapAdapter,
                 swapAdapter.codehash,
-                guard,
                 guard.codehash,
                 slippageBps,
                 routeHash

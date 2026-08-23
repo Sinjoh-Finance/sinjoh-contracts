@@ -75,11 +75,11 @@ Rules:
 - one to eight targets;
 - one to eight sorted, unique funding input assets;
 - target weights total exactly 10,000 basis points;
-- deposit assets and adapters are unique and within the project's immutable approval root;
+- deposit assets and adapter runtime hashes are unique and within the release approval root;
 - every input/target pair whose assets differ has exactly one swap leg; extra, duplicate, and
   incomplete legs are rejected;
-- adapter, route, guard, runtime code hashes, maximum slippage, project, chain, and exact Basket
-  Vault are committed by the immutable approval root;
+- adapter/guard runtime hashes, route, maximum slippage, assets, and chain are committed by the
+  immutable release root; exact Basket Vault binding is validated independently on-chain;
 - reward assets are sorted, unique, explicit, and cannot duplicate their target's deposit asset;
 - no more than 32 distinct assets may be tracked across the Basket's configuration history, keeping
   harvest and redemption work bounded;

@@ -167,9 +167,6 @@ contract BasketVaultV2FuzzTest is Test {
             abi.encode(
                 keccak256("SINJOH_V2_BASKET_YIELD_APPROVAL"),
                 block.chainid,
-                PROJECT_ID,
-                address(vault),
-                adapter,
                 adapter.codehash,
                 depositAsset
             )
@@ -182,13 +179,9 @@ contract BasketVaultV2FuzzTest is Test {
             abi.encode(
                 keccak256("SINJOH_V2_BASKET_SWAP_APPROVAL"),
                 block.chainid,
-                PROJECT_ID,
-                address(vault),
                 address(assetA),
                 address(assetB),
-                address(swapAdapter),
                 address(swapAdapter).codehash,
-                address(guard),
                 address(guard).codehash,
                 uint16(100),
                 keccak256(ROUTE)

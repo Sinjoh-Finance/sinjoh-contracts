@@ -14,6 +14,7 @@ import { IProjectBasketManager } from "../interfaces/IProjectBasketManager.sol";
 import { IProjectControlled } from "../interfaces/IProjectControlled.sol";
 import { IProjectModule } from "../interfaces/IProjectModule.sol";
 import { IProjectPriceGuard } from "../interfaces/IProjectPriceGuard.sol";
+import { IProjectRegistryView } from "../interfaces/IProjectRegistryView.sol";
 import { IProjectSwapAdapter } from "../interfaces/IProjectSwapAdapter.sol";
 import { IProjectTokenIdentity } from "../interfaces/IProjectTokenIdentity.sol";
 import { ProjectIds } from "../libraries/ProjectIds.sol";
@@ -50,6 +51,7 @@ contract ProjectTreasuryVaultV2 is
     mapping(address asset => uint256 amount) public accountedBalance;
     mapping(address asset => uint256 amount) public reservedForBasket;
 
+    bool public launchBasketRouteInitialized;
     bool public basketRouteEnabled;
     uint16 public basketAllocationBps;
     uint256 public routedBasketId;
@@ -60,6 +62,9 @@ contract ProjectTreasuryVaultV2 is
     EnumerableSet.UintSet private _ownedBasketIds;
 
     error OnlyController(address caller);
+    error OnlyLauncher(address caller);
+    error LaunchWindowClosed();
+    error LaunchBasketRouteAlreadyInitialized();
     error InvalidRegistry(address candidate);
     error InvalidSubject(address candidate);
     error InvalidCreator(address candidate);
@@ -373,10 +378,7 @@ contract ProjectTreasuryVaultV2 is
             abi.encode(
                 TREASURY_SWAP_APPROVAL_DOMAIN,
                 block.chainid,
-                projectId,
-                adapter,
                 adapter.codehash,
-                priceGuard,
                 priceGuard.codehash,
                 assetIn,
                 assetOut,
@@ -408,6 +410,33 @@ contract ProjectTreasuryVaultV2 is
         external
         onlyController
         nonReentrant
+        returns (bytes32 configHash)
+    {
+        configHash = _configureBasketRoute(basketId, allocationBps, assets);
+    }
+
+    /// @notice Applies the creator-selected initial Basket route inside the atomic launch.
+    /// @dev Registration permanently closes this narrow launcher permission. Governance remains
+    /// the only authority able to update or disable the route after launch.
+    function initializeBasketRouteFromLauncher(
+        uint256 basketId,
+        uint16 allocationBps,
+        address[] calldata assets
+    ) external nonReentrant returns (bytes32 configHash) {
+        if (msg.sender != IProjectRegistryView(registry).launcher()) {
+            revert OnlyLauncher(msg.sender);
+        }
+        if (IProjectRegistryView(registry).projectIdBySubject(subject) != bytes32(0)) {
+            revert LaunchWindowClosed();
+        }
+        if (launchBasketRouteInitialized) revert LaunchBasketRouteAlreadyInitialized();
+
+        launchBasketRouteInitialized = true;
+        configHash = _configureBasketRoute(basketId, allocationBps, assets);
+    }
+
+    function _configureBasketRoute(uint256 basketId, uint16 allocationBps, address[] memory assets)
+        private
         returns (bytes32 configHash)
     {
         if (allocationBps == 0 || allocationBps > BPS_DENOMINATOR) {

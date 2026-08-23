@@ -116,21 +116,22 @@ abstract contract FundingBandsTestBase is Test {
         );
     }
 
-    function _integrationLeaf(address predictedBands) private view returns (bytes32) {
+    function _integrationLeaf(
+        address /* predictedBands */
+    )
+        private
+        view
+        returns (bytes32)
+    {
         bytes32 inner = keccak256(
             abi.encode(
                 keccak256("SINJOH_V2_FUNDING_BAND_INTEGRATION"),
                 block.chainid,
-                subject.projectId(),
-                predictedBands,
-                address(pool),
+                address(pool).codehash,
                 address(quote),
                 referenceSupply,
-                address(guard),
                 address(guard).codehash,
-                address(positionAdapter),
                 address(positionAdapter).codehash,
-                address(positionAdapter),
                 address(positionAdapter).codehash
             )
         );

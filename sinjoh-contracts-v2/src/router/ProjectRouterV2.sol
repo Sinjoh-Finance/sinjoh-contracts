@@ -20,7 +20,6 @@ import { SinjohV2Constants } from "../libraries/SinjohV2Constants.sol";
 import {
     RouterAction,
     RouterActionType,
-    RouterProjectSinkConfig,
     RouterRouteInput,
     RouterSwapConfig
 } from "./RouterTypes.sol";
@@ -44,7 +43,6 @@ contract ProjectRouterV2 is IProjectModule, IProjectControlled, IProjectFundable
     uint256 public constant MAX_ACTION_CONFIG_BYTES = 4_096;
     uint256 public constant MAX_TOTAL_CONFIG_BYTES = 24_576;
     bytes32 public constant SWAP_APPROVAL_DOMAIN = keccak256("SINJOH_V2_ROUTER_SWAP_APPROVAL");
-    bytes32 public constant SINK_APPROVAL_DOMAIN = keccak256("SINJOH_V2_ROUTER_SINK_APPROVAL");
     bytes32 public constant PAUSED_REASON_HASH = keccak256("SINJOH_V2_ROUTER_ACTION_PAUSED");
 
     struct RouteHeader {
@@ -67,6 +65,7 @@ contract ProjectRouterV2 is IProjectModule, IProjectControlled, IProjectFundable
     address public immutable raffle;
     address public immutable liquidityManager;
     bytes32 public immutable integrationApprovalRoot;
+    bool public launchRoutesInitialized;
 
     mapping(address asset => uint256 amount) public pending;
     mapping(address asset => uint256 amount) public totalEscrowed;
@@ -86,6 +85,9 @@ contract ProjectRouterV2 is IProjectModule, IProjectControlled, IProjectFundable
     ) public escrowed;
 
     error OnlyController(address caller);
+    error OnlyLauncher(address caller);
+    error LaunchWindowClosed();
+    error LaunchRoutesAlreadyInitialized();
     error OnlySelf(address caller);
     error InvalidRegistry(address candidate);
     error InvalidSubject(address candidate);
@@ -250,6 +252,38 @@ contract ProjectRouterV2 is IProjectModule, IProjectControlled, IProjectFundable
         _validateDestination(airdrop_, false);
         _validateDestination(raffle_, false);
         _validateDestination(liquidityManager_, false);
+        _configureInitialRoutes(initialRoutes);
+        if (initialRoutes.length != 0) launchRoutesInitialized = true;
+
+        emit RouterCreated(
+            expectedProjectId,
+            subject_,
+            controller_,
+            creator_,
+            protocolFeeRecipient_,
+            integrationApprovalRoot_
+        );
+    }
+
+    /// @notice Applies the complete creator-selected route set inside the atomic launch.
+    /// @dev Registration permanently closes this permission; governance owns all later versions.
+    function initializeRoutesFromLauncher(RouterRouteInput[] calldata initialRoutes)
+        external
+        nonReentrant
+    {
+        if (msg.sender != IProjectRegistryView(registry).launcher()) {
+            revert OnlyLauncher(msg.sender);
+        }
+        if (IProjectRegistryView(registry).projectIdBySubject(subject) != bytes32(0)) {
+            revert LaunchWindowClosed();
+        }
+        if (launchRoutesInitialized) revert LaunchRoutesAlreadyInitialized();
+
+        launchRoutesInitialized = true;
+        _configureInitialRoutes(initialRoutes);
+    }
+
+    function _configureInitialRoutes(RouterRouteInput[] memory initialRoutes) private {
         uint256 initialRouteDataLength = abi.encode(initialRoutes).length;
         if (initialRouteDataLength > MAX_INITIAL_ROUTE_DATA_BYTES) {
             revert InitialRouteDataTooLarge(initialRouteDataLength, MAX_INITIAL_ROUTE_DATA_BYTES);
@@ -262,15 +296,6 @@ contract ProjectRouterV2 is IProjectModule, IProjectControlled, IProjectFundable
             }
             _activateRoute(initialRoutes[i]);
         }
-
-        emit RouterCreated(
-            expectedProjectId,
-            subject_,
-            controller_,
-            creator_,
-            protocolFeeRecipient_,
-            integrationApprovalRoot_
-        );
     }
 
     receive() external payable {
@@ -487,9 +512,6 @@ contract ProjectRouterV2 is IProjectModule, IProjectControlled, IProjectFundable
         }
         bytes memory sinkConfig = action.actionConfig;
         if (actionType == RouterActionType.FUND_PROJECT_SINK) {
-            RouterProjectSinkConfig memory projectSink =
-                abi.decode(action.actionConfig, (RouterProjectSinkConfig));
-            sinkConfig = projectSink.sinkConfig;
             if (!IProjectRegistryView(registry).isProjectModule(projectId, action.recipient)) {
                 revert SinkNotRegistered(action.recipient);
             }
@@ -602,28 +624,11 @@ contract ProjectRouterV2 is IProjectModule, IProjectControlled, IProjectFundable
             abi.encode(
                 SWAP_APPROVAL_DOMAIN,
                 block.chainid,
-                projectId,
-                adapter,
                 adapter.codehash,
-                priceGuard,
                 priceGuard.codehash,
                 assetIn,
                 assetOut,
                 routeHash
-            )
-        );
-        return keccak256(bytes.concat(inner));
-    }
-
-    function sinkApprovalLeaf(address sink) public view returns (bytes32) {
-        bytes32 inner = keccak256(
-            abi.encode(
-                SINK_APPROVAL_DOMAIN,
-                block.chainid,
-                projectId,
-                sink,
-                sink.codehash,
-                IProjectFundable.fund.selector
             )
         );
         return keccak256(bytes.concat(inner));
@@ -648,9 +653,9 @@ contract ProjectRouterV2 is IProjectModule, IProjectControlled, IProjectFundable
         );
     }
 
-    function isSinkApproved(address sink, bytes32[] calldata proof) external view returns (bool) {
-        if (integrationApprovalRoot == bytes32(0) || sink.code.length == 0) return false;
-        return MerkleProof.verifyCalldata(proof, integrationApprovalRoot, sinkApprovalLeaf(sink));
+    function isSinkApproved(address sink) external view returns (bool) {
+        return
+            sink.code.length != 0 && IProjectRegistryView(registry).isProjectModule(projectId, sink);
     }
 
     function _activateRoute(RouterRouteInput memory route) private {
@@ -752,16 +757,6 @@ contract ProjectRouterV2 is IProjectModule, IProjectControlled, IProjectFundable
             return;
         }
         if (actionType == RouterActionType.FUND_PROJECT_SINK) {
-            RouterProjectSinkConfig memory sink =
-                abi.decode(action.actionConfig, (RouterProjectSinkConfig));
-            if (
-                integrationApprovalRoot == bytes32(0)
-                    || !MerkleProof.verify(
-                        sink.approvalProof,
-                        integrationApprovalRoot,
-                        sinkApprovalLeaf(action.recipient)
-                    )
-            ) revert IntegrationNotApproved(index, sinkApprovalLeaf(action.recipient));
             _validateProjectModule(action.recipient);
             return;
         }

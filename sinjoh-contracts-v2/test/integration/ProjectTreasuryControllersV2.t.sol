@@ -193,10 +193,7 @@ contract ProjectTreasuryControllersV2IntegrationTest is TestBase {
             abi.encode(
                 keccak256("SINJOH_V2_TREASURY_SWAP_APPROVAL"),
                 block.chainid,
-                token.projectId(),
-                address(adapter),
                 address(adapter).codehash,
-                address(priceGuard),
                 address(priceGuard).codehash,
                 address(assetA),
                 address(assetB),

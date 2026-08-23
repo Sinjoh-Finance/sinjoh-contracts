@@ -465,39 +465,42 @@ contract ProjectFundingBandsV2Test is Test {
         );
     }
 
-    function _integrationLeaf(address predictedBands) private view returns (bytes32) {
+    function _integrationLeaf(
+        address /* predictedBands */
+    )
+        private
+        view
+        returns (bytes32)
+    {
         bytes32 inner = keccak256(
             abi.encode(
                 keccak256("SINJOH_V2_FUNDING_BAND_INTEGRATION"),
                 block.chainid,
-                subject.projectId(),
-                predictedBands,
-                address(pool),
+                address(pool).codehash,
                 address(quote),
                 referenceSupply,
-                address(guard),
                 address(guard).codehash,
-                address(adapter),
                 address(adapter).codehash,
-                address(adapter),
                 address(adapter).codehash
             )
         );
         return keccak256(bytes.concat(inner));
     }
 
-    function _swapLeaf(address predictedBands) private view returns (bytes32) {
+    function _swapLeaf(
+        address /* predictedBands */
+    )
+        private
+        view
+        returns (bytes32)
+    {
         bytes32 inner = keccak256(
             abi.encode(
                 keccak256("SINJOH_V2_FUNDING_BAND_SWAP"),
                 block.chainid,
-                subject.projectId(),
-                predictedBands,
                 address(quote),
                 address(subject),
-                address(swapAdapter),
                 address(swapAdapter).codehash,
-                address(priceGuard),
                 address(priceGuard).codehash,
                 uint16(100),
                 keccak256(hex"babe")

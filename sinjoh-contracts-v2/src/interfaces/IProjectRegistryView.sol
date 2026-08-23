@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 interface IProjectRegistryView {
+    function launcher() external view returns (address);
     function projectIdBySubject(address subject) external view returns (bytes32);
     function isProjectModule(bytes32 projectId, address candidate) external view returns (bool);
 }

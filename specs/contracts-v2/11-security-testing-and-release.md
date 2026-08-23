@@ -24,6 +24,11 @@ fork testing.
 Every external adapter/provider must have a documented failure mode, runtime hash, testnet/mainnet-
 fork evidence, and audit status in the release manifest.
 
+The release approval root authorizes runtime hashes and bounded operation parameters. It does not
+replace project binding: every selected module/adapter independently proves the expected Registry,
+subject, controller, vault, Bands contract, asset, or pool relationship. This avoids per-project
+proof/address cycles while retaining a deterministic audited allowlist.
+
 ## 3. Role matrix
 
 | Capability | Creator | Multisig/Timelock | Guardian | Attestor | Keeper | Factory |

@@ -162,11 +162,10 @@ Deposits proceeds into the registered Treasury with `routeToBasket=true`. The Tr
 basket policy determines the Basket allocation. Bands do not fund a Basket directly in this mode.
 
 Every conversion uses platform-approved adapters/guards fixed in the destination configuration.
-The deployment approval root commits the exact chain, project, Bands address, canonical pool,
-quote asset, fixed reference supply, adapter/guard addresses, runtime code hashes, slippage ceiling,
-and route-data hash. A caller cannot substitute a route or weaken minimum output. Chain-specific
-position adapters and market-cap guards are separate audited platform integrations; the core Bands
-contract accepts only the exact launcher-approved integration leaf.
+The release approval root commits the exact chain, pool/runtime hashes, quote asset, fixed reference
+supply, adapter/guard runtime hashes, slippage ceiling, and route-data hash. The constructor then
+independently verifies that the selected guard and position adapter are bound to the exact Bands
+address, subject, pool, and assets. A caller cannot substitute a route or weaken minimum output.
 
 ## 8. Failure handling
 

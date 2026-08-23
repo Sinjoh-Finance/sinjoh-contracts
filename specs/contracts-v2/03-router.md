@@ -118,8 +118,9 @@ balance.
 ### FUND_PROJECT_SINK
 
 Calls another contract implementing `IProjectFundable`. The sink must be registered to the same
-project, and its runtime hash must be within the immutable factory approval root. This supports
-future audited modules without permitting arbitrary calls.
+project. Registry membership already limits this path to modules deployed and verified by the
+same immutable release, so no second project-specific proof is accepted. This supports future
+release-reviewed modules without permitting arbitrary calls.
 
 ## 5. Route updates
 
@@ -186,9 +187,10 @@ Events:
 Views return the active route, every historical route by version, pending/escrow balances,
 projected allocations for an amount, and executable/retryable work. `workStatus` returns the active
 version and all asset-level work buckets in one call. `actionStatus` returns the immutable action,
-pause state, cumulative allocation, and retryable escrow in one call. `isSwapApproved` and
-`isSinkApproved` let launchers and frontends validate Merkle approval proofs before submitting a
-route transaction.
+pause state, cumulative allocation, and retryable escrow in one call. `isSwapApproved` lets
+launchers and frontends validate a swap approval proof. `isSinkApproved` directly reports whether a
+sink is a registered module of the same project; project sinks require no redundant proof or wrapper
+configuration.
 
 ## 9. Invariants
 

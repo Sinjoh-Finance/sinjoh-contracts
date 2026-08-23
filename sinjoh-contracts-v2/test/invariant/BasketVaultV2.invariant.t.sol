@@ -155,9 +155,6 @@ contract BasketVaultV2InvariantTest is StdInvariant, Test {
             abi.encode(
                 keccak256("SINJOH_V2_BASKET_YIELD_APPROVAL"),
                 block.chainid,
-                PROJECT_ID,
-                address(vault),
-                address(adapter),
                 address(adapter).codehash,
                 address(asset)
             )

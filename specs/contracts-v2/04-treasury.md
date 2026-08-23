@@ -74,7 +74,8 @@ function swap(
 ) external onlyGovernance returns (uint256 amountOut);
 ```
 
-The adapter, guard, pair, and route hash must be included in the project's immutable approval root.
+The adapter/guard runtime hashes, pair, and route hash must be included in the release's immutable
+approval root.
 The guard provides an unexpired minimum output. The Treasury enforces the stronger of guard and
 caller minima, exact input spend, measured output receipt, exact allowances, and no `msg.value`
 mismatch. Swap output stays in the Treasury.
@@ -84,8 +85,8 @@ arbitrary calldata.
 
 `swapApprovalLeaf(...)` gives tooling the canonical domain-separated approval leaf, while
 `isSwapApproved(..., approvalProof)` lets a frontend validate an exact integration without
-reproducing Merkle verification logic. The leaf binds the chain, project, adapter and guard
-addresses and runtime code hashes, input/output assets, and route hash.
+reproducing Merkle verification logic. The leaf binds the chain, adapter and guard runtime code
+hashes, input/output assets, and route hash. Treasury project identity remains independently bound.
 
 ## 6. Automatic basket routing
 

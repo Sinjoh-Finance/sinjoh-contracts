@@ -31,8 +31,3 @@ struct RouterSwapConfig {
     bytes routeData;
     bytes32[] approvalProof;
 }
-
-struct RouterProjectSinkConfig {
-    bytes sinkConfig;
-    bytes32[] approvalProof;
-}

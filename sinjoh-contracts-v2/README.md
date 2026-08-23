@@ -23,7 +23,7 @@ OpenZeppelin Contracts 5.6.1 is imported from the repository's pinned vendored d
 | Funding Bands | implemented |
 | Raffle | implemented |
 | Liquidity | implemented |
-| Launcher | pending |
+| Launcher | implemented |
 
 ## Verification
 
@@ -94,3 +94,17 @@ position, and principal has no withdrawal, transfer, approval, burn, rescue, gov
 call path. Position fees retain creator, Treasury, recycle, and funder modes with cumulative 1%
 protocol accounting. One-call status views, named launcher choices, automatic manifest-derived
 infrastructure, and permissionless retry/mint/collect flows keep funders out of contract plumbing.
+
+`ProjectLauncherV2` validates, predicts, deploys, initializes, verifies, and registers a complete
+project in one creator transaction. Module addresses remain stable while launch settings are edited;
+Registry separately commits the exact final configuration hash. An ownerless deployment engine and
+immutable chunked creation-code stores keep runtime and initcode under EVM limits without proxies or
+retained project authority. Router destinations, Treasury Basket policy, Basket NFT ownership,
+governance vote source, and custody exclusions are materialized automatically. The all-modules
+integration launch currently uses about 40.7M gas with a 50M regression ceiling; the target-chain
+limit must be confirmed in deployment rehearsal.
+
+The one-time release flow is automated by `script/DeployProjectLauncherV2.s.sol`. It verifies the
+release wiring and every module creation-code binding, then writes a chain-specific JSON manifest
+under `deployments/` (override with `DEPLOYMENT_MANIFEST_PATH`). Project creators interact only with
+the resulting Launcher address.

@@ -120,10 +120,12 @@ DEX executors, price guards, randomness adapters, yield adapters, and launchpad 
 external trust boundaries. Contracts v2 does not add a mutable platform operator that can change a
 live project's integrations.
 
-Each factory deployment pins a set of audited implementation/runtime hashes in its release
-manifest. A project may select only from those implementations at launch. Later project-governed
-changes may select another implementation only if it was included in that project's immutable
-factory approval root. Supporting a new implementation requires a new factory version.
+Each release pins audited implementation/runtime hashes in an immutable approval root. Proof leaves
+authorize exact runtime hashes and operation parameters—not project addresses—so one reviewed root
+works for every project launched by that release. Project-specific safety is enforced separately by
+immutable Registry/subject/controller readbacks and adapter binding checks. Later project-governed
+changes may select another implementation only if its runtime hash and parameters were included in
+the immutable release root. Supporting a new implementation requires a new release.
 
 ## 8. Automation
 

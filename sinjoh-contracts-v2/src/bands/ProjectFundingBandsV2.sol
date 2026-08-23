@@ -611,16 +611,11 @@ contract ProjectFundingBandsV2 is
             abi.encode(
                 BAND_INTEGRATION_DOMAIN,
                 block.chainid,
-                projectId,
-                address(this),
-                canonicalPool,
+                canonicalPool.codehash,
                 quoteAsset,
                 referenceSupply,
-                address(marketCapGuard),
                 address(marketCapGuard).codehash,
-                address(positionAdapter),
                 address(positionAdapter).codehash,
-                positionManager,
                 positionManager.codehash
             )
         );
@@ -636,13 +631,9 @@ contract ProjectFundingBandsV2 is
             abi.encode(
                 BAND_SWAP_DOMAIN,
                 block.chainid,
-                projectId,
-                address(this),
                 quoteAsset,
                 subject,
-                swapConfig.swapAdapter,
                 swapConfig.swapAdapter.codehash,
-                swapConfig.priceGuard,
                 swapConfig.priceGuard.codehash,
                 swapConfig.maxSlippageBps,
                 keccak256(swapConfig.routeData)

@@ -411,15 +411,7 @@ contract BasketVaultV2 is ReentrancyGuard {
         returns (bytes32)
     {
         bytes32 inner = keccak256(
-            abi.encode(
-                YIELD_APPROVAL_DOMAIN,
-                block.chainid,
-                projectId,
-                address(this),
-                adapter,
-                adapter.codehash,
-                depositAsset
-            )
+            abi.encode(YIELD_APPROVAL_DOMAIN, block.chainid, adapter.codehash, depositAsset)
         );
         return keccak256(bytes.concat(inner));
     }
@@ -436,13 +428,9 @@ contract BasketVaultV2 is ReentrancyGuard {
             abi.encode(
                 SWAP_APPROVAL_DOMAIN,
                 block.chainid,
-                projectId,
-                address(this),
                 inputAsset,
                 _targets[targetIndex].depositAsset,
-                adapter,
                 adapter.codehash,
-                priceGuard,
                 priceGuard.codehash,
                 maxSlippageBps,
                 routeHash

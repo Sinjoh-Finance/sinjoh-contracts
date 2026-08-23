@@ -107,8 +107,8 @@ contract ProjectTreasuryFundingBandsV2IntegrationTest is Test {
     }
 
     function _integrationLeaf(
-        address bands,
-        ProjectVotesToken subject,
+        address, /* bands */
+        ProjectVotesToken, /* subject */
         MockBasketAsset quote,
         MockFundingBandPool pool,
         MockFundingBandGuard guard,
@@ -119,16 +119,11 @@ contract ProjectTreasuryFundingBandsV2IntegrationTest is Test {
             abi.encode(
                 keccak256("SINJOH_V2_FUNDING_BAND_INTEGRATION"),
                 block.chainid,
-                subject.projectId(),
-                bands,
-                address(pool),
+                address(pool).codehash,
                 address(quote),
                 referenceSupply,
-                address(guard),
                 address(guard).codehash,
-                address(adapter),
                 address(adapter).codehash,
-                address(adapter),
                 address(adapter).codehash
             )
         );
