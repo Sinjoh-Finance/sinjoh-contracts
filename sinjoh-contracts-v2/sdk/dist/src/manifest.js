@@ -104,8 +104,8 @@ function sortJson(value) {
     return value;
 }
 function assertReleaseReference(release) {
-    if (!/^(0x)?[0-9a-fA-F]{40}$/.test(release.gitCommit)) {
-        throw new RangeError("Release git commit must be a 20-byte commit hash");
+    if (!/^(0x)?(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$/.test(release.gitCommit)) {
+        throw new RangeError("Release git commit must be a 20-byte or 32-byte commit hash");
     }
     if (!/^(0x)?[0-9a-fA-F]{64}$/.test(release.buildHash)) {
         throw new RangeError("Release build hash must be 32 bytes");
