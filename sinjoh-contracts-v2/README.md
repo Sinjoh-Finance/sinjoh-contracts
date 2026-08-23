@@ -22,7 +22,7 @@ OpenZeppelin Contracts 5.6.1 is imported from the repository's pinned vendored d
 | Basket | implemented |
 | Funding Bands | implemented |
 | Raffle | implemented |
-| Liquidity v2 binding | pending |
+| Liquidity | implemented |
 | Launcher | pending |
 
 ## Verification
@@ -86,3 +86,11 @@ zero, burn, Raffle, subject, and launch-custody addresses are excluded from elig
 never register or claim: keepers submit proofs and failed payouts remain exact backed credits, even
 when a hostile token returns oversized revert data. Frozen settings and concise status views give
 launchers, frontends, and workers a predictable integration surface.
+
+`ProjectLiquidityManagerV2` binds the existing permanent-liquidity design to one canonical Registry
+project and accepts the same attributed funding ABI as Router and Funding Bands. Each funding source
+has an isolated immutable account, guarded swaps can only create or increase its one full-range
+position, and principal has no withdrawal, transfer, approval, burn, rescue, governance, or generic
+call path. Position fees retain creator, Treasury, recycle, and funder modes with cumulative 1%
+protocol accounting. One-call status views, named launcher choices, automatic manifest-derived
+infrastructure, and permissionless retry/mint/collect flows keep funders out of contract plumbing.
