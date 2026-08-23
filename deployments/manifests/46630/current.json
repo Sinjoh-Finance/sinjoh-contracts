@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "chainId": 46630,
+  "network": "robinhood-testnet",
+  "status": "not-deployed",
+  "releaseId": null,
+  "sourceCommit": null,
+  "deployedAt": null,
+  "completedSteps": [],
+  "contracts": {},
+  "dependencies": {},
+  "services": {
+    "keeper": "not-configured",
+    "indexer": "not-configured",
+    "ui": "not-configured",
+    "monitoring": "not-configured"
+  },
+  "notes": [
+    "Historical testnet deployments predate the current hardened source and are not release candidates.",
+    "Replace this record atomically after the first complete current-generation testnet release passes post-deployment verification."
+  ]
+}
+

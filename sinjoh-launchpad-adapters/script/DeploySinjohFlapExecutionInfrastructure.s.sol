@@ -11,9 +11,8 @@ import {
 } from "../src/SinjohFlapV2LiquidityManager.sol";
 
 interface VmSinjohFlapExecutionInfrastructure {
-    function envUint(string calldata name) external view returns (uint256);
-    function addr(uint256 privateKey) external pure returns (address);
-    function startBroadcast(uint256 privateKey) external;
+    function envAddress(string calldata name) external view returns (address);
+    function startBroadcast(address signer) external;
     function stopBroadcast() external;
 }
 
@@ -68,12 +67,11 @@ contract DeploySinjohFlapExecutionInfrastructure {
 
     function run() external returns (Deployment memory deployed) {
         if (block.chainid != CHAIN_ID) revert WrongChain(block.chainid);
-        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address deployer = vm.addr(deployerKey);
+        address deployer = vm.envAddress("DEPLOYER_ADDRESS");
         if (deployer != EXPECTED_DEPLOYER) revert WrongDeployer(deployer);
         _assertDependencies();
 
-        vm.startBroadcast(deployerKey);
+        vm.startBroadcast(deployer);
         SinjohFlapBuybackAdapter buybackAdapter =
             new SinjohFlapBuybackAdapter(PORTAL, WETH, PORTAL_CODEHASH, WETH_CODEHASH);
         SinjohFlapBuybackPriceGuard buybackPriceGuard = new SinjohFlapBuybackPriceGuard(

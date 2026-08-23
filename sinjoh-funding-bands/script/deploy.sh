@@ -2,7 +2,7 @@
 set -euo pipefail
 
 : "${ROBINHOOD_RPC_URL:?set ROBINHOOD_RPC_URL}"
-: "${DEPLOYER_PRIVATE_KEY:?set DEPLOYER_PRIVATE_KEY}"
+: "${DEPLOYER_ACCOUNT:?set the Foundry keystore account name}"
 : "${DEPENDENCIES:?set seven comma-separated dependency addresses}"
 : "${DEPENDENCY_HASHES:?set seven comma-separated dependency code hashes}"
 : "${PROFILE_ADDRESSES:?set alternating verifier,guard addresses}"
@@ -19,6 +19,11 @@ for required_tool in cast forge jq; do
     exit 1
   fi
 done
+
+SIGNER_ARGS=(--account "$DEPLOYER_ACCOUNT")
+if [[ -n "${DEPLOYER_PASSWORD_FILE:-}" ]]; then
+  SIGNER_ARGS+=(--password-file "$DEPLOYER_PASSWORD_FILE")
+fi
 
 lowercase() {
   tr '[:upper:]' '[:lower:]' <<< "$1"
@@ -125,11 +130,11 @@ done
 verify_hashes "$DEPENDENCIES" "$DEPENDENCY_HASHES"
 verify_hashes "$PROFILE_ADDRESSES" "$PROFILE_HASHES"
 
-deployer_address="$(cast wallet address --private-key "$DEPLOYER_PRIVATE_KEY")"
+deployer_address="$(cast wallet address "${SIGNER_ARGS[@]}")"
 escrow_json="$(forge create src/SinjohFundingBandsLaunchEscrow.sol:SinjohFundingBandsLaunchEscrow \
   --constructor-args "${profile_addresses[0]}" "$deployer_address" \
   --rpc-url "$ROBINHOOD_RPC_URL" \
-  --private-key "$DEPLOYER_PRIVATE_KEY" \
+  "${SIGNER_ARGS[@]}" \
   --broadcast --json)"
 escrow_address="$(jq -r '.deployedTo' <<< "$escrow_json")"
 if [[ -z "$escrow_address" || "$escrow_address" == "null" ]]; then
@@ -139,7 +144,7 @@ fi
 
 math_json="$(forge create src/FundingBandMath.sol:FundingBandMath \
   --rpc-url "$ROBINHOOD_RPC_URL" \
-  --private-key "$DEPLOYER_PRIVATE_KEY" \
+  "${SIGNER_ARGS[@]}" \
   --broadcast --json)"
 math_address="$(jq -r '.deployedTo' <<< "$math_json")"
 if [[ -z "$math_address" || "$math_address" == "null" ]]; then
@@ -149,7 +154,7 @@ fi
 
 v4_json="$(forge create src/FundingBandV4.sol:FundingBandV4 \
   --rpc-url "$ROBINHOOD_RPC_URL" \
-  --private-key "$DEPLOYER_PRIVATE_KEY" \
+  "${SIGNER_ARGS[@]}" \
   --broadcast --json)"
 v4_library_address="$(jq -r '.deployedTo' <<< "$v4_json")"
 if [[ -z "$v4_library_address" || "$v4_library_address" == "null" ]]; then
@@ -174,7 +179,7 @@ manager_json="$(forge create src/SinjohFundingBands.sol:SinjohFundingBands \
     "$MAX_ORACLE_AGE" \
     "$PROFILES" \
   --rpc-url "$ROBINHOOD_RPC_URL" \
-  --private-key "$DEPLOYER_PRIVATE_KEY" \
+  "${SIGNER_ARGS[@]}" \
   --broadcast --json)"
 manager_address="$(jq -r '.deployedTo' <<< "$manager_json")"
 if [[ -z "$manager_address" || "$manager_address" == "null" ]]; then
@@ -229,7 +234,7 @@ done
 # independently verifiable dependency, immutable, profile, and timing check.
 cast send "$escrow_address" 'bindManager(address)' "$manager_address" \
   --rpc-url "$ROBINHOOD_RPC_URL" \
-  --private-key "$DEPLOYER_PRIVATE_KEY" --json >/dev/null
+  "${SIGNER_ARGS[@]}" --json >/dev/null
 verify_address_getter "$escrow_address" "manager()(address)" "$manager_address"
 
 echo "FundingBandMath: $math_address"

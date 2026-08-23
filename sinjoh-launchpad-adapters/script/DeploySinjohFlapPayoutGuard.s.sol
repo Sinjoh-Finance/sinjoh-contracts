@@ -4,9 +4,8 @@ pragma solidity 0.8.28;
 import { SinjohFlapPayoutPriceGuard } from "../src/SinjohFlapPayoutPriceGuard.sol";
 
 interface VmSinjohFlapPayoutGuard {
-    function envUint(string calldata name) external view returns (uint256);
-    function addr(uint256 privateKey) external pure returns (address);
-    function startBroadcast(uint256 privateKey) external;
+    function envAddress(string calldata name) external view returns (address);
+    function startBroadcast(address signer) external;
     function stopBroadcast() external;
 }
 
@@ -33,13 +32,12 @@ contract DeploySinjohFlapPayoutGuard {
 
     function run() external returns (address deployed) {
         if (block.chainid != CHAIN_ID) revert WrongChain(block.chainid);
-        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address deployer = vm.addr(deployerKey);
+        address deployer = vm.envAddress("DEPLOYER_ADDRESS");
         if (deployer != EXPECTED_DEPLOYER) revert WrongDeployer(deployer);
         _assertCodehash(PORTAL, PORTAL_CODEHASH);
         _assertCodehash(WETH, WETH_CODEHASH);
 
-        vm.startBroadcast(deployerKey);
+        vm.startBroadcast(deployer);
         deployed = address(
             new SinjohFlapPayoutPriceGuard(
                 PORTAL, WETH, PORTAL_CODEHASH, WETH_CODEHASH, QUOTE_SIGNER, 500

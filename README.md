@@ -52,6 +52,9 @@ package.
 
 ## Deployment provenance
 
+The complete local, testnet, mainnet, signing, finality, and cross-repository
+promotion workflow is in [RELEASE_OPERATIONS.md](./RELEASE_OPERATIONS.md).
+
 [`mainnet-deployments.json`](./mainnet-deployments.json) is the address and
 runtime-hash registry. [`DEPLOYMENT_PROVENANCE.md`](./DEPLOYMENT_PROVENANCE.md)
 documents the verification method. Every known mainnet generation has an

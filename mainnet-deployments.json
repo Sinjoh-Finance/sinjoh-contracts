@@ -1,6 +1,6 @@
 {
   "status": "core-infrastructure-deployed",
-  "releaseCandidate": true,
+  "releaseCandidate": false,
   "chainId": 4663,
   "rpcUrl": "https://rpc.mainnet.chain.robinhood.com",
   "explorerUrl": "https://robinhoodchain.blockscout.com",
@@ -121,15 +121,17 @@
         "deploymentBlock": 37220896,
         "runtimeCodeHash": "0x37b39d9a90abd782d8062309d5cf027dd9425cd7537e53e9b2eb262b355e2dd0"
       },
-      "fundingBandMath": {
-        "address": "0x9E421c5B72f3950333420C5749381f61b96436b8",
-        "deploymentTransaction": "0xd53907742f5f8816d37a826ef9e22388d16af7701280f6d02bfdf6f152a65e47",
-        "deploymentBlock": 37220794
-      },
-      "fundingBandV4": {
-        "address": "0x49D3C913844bdAF3960Db4738ED2B101E67986D6",
-        "deploymentTransaction": "0x037547de8a8ac8d3b20aa3e8f4cfffeb6bd70fcca301b0de50b62fb60f1622e5",
-        "deploymentBlock": 37220817
+    "fundingBandMath": {
+      "address": "0x9E421c5B72f3950333420C5749381f61b96436b8",
+      "deploymentTransaction": "0xd53907742f5f8816d37a826ef9e22388d16af7701280f6d02bfdf6f152a65e47",
+      "deploymentBlock": 37220794,
+      "runtimeCodeHash": "0xabeefeed70b46391de5b9f110cf0e9ee857b0225c8224bee324fee623f30096e"
+    },
+    "fundingBandV4": {
+      "address": "0x49D3C913844bdAF3960Db4738ED2B101E67986D6",
+      "deploymentTransaction": "0x037547de8a8ac8d3b20aa3e8f4cfffeb6bd70fcca301b0de50b62fb60f1622e5",
+      "deploymentBlock": 37220817,
+      "runtimeCodeHash": "0xd373f618fc1355ec9344ae55717c563d9a1a795260bc5204ef50fc32e159d5a7"
       },
       "v4Infrastructure": {
         "stateView": "0xF3334192D15450CdD385c8B70e03f9A6bD9E673b",
@@ -331,14 +333,23 @@
       "deploymentTransaction": "0xd5878a1775f92d263c2b8212b40620dc4940b46c5325560f61ea6be1f293d1ca",
       "deploymentBlock": 23492626,
       "runtimeCodeHash": "0x3c8f93001da484e96c32e697572fceb65a88ff6f8cc4f65c0a5f280cd2630840",
-      "purpose": "Deploys per-launch Pons v1 adapters. Pinned to mainnet Pons locker and WETH."
+      "status": "historical-only",
+      "purpose": "Retained for fee collection and indexing of historical Pons v1 launches. Upstream Pons v1 new launches are disabled.",
+      "verified": {
+        "upstreamLaunchFactory": "0xA5aAb3F0c6EeadF30Ef1D3Eb997108E976351feB",
+        "upstreamLaunchesEnabled": false,
+        "ponsLocker": "0x736D76699C26D0d966744cAe304C000d471f7F35",
+        "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+        "deploymentChainId": 4663
+      }
     },
     "ponsAdapterImplementation": {
       "address": "0x488b1068D10FBcd49b96A06F7f76A1D2853001A6",
       "deploymentTransaction": "0xd5878a1775f92d263c2b8212b40620dc4940b46c5325560f61ea6be1f293d1ca",
       "deploymentBlock": 23492626,
       "runtimeCodeHash": "0x1524070efa0fec4165da0d894d849925f4e38de401eff724362462201caecd23",
-      "purpose": "SinjohPonsV1Adapter implementation, self-deployed by the adapter factory constructor."
+      "status": "historical-only",
+      "purpose": "SinjohPonsV1Adapter implementation retained for historical Pons v1 launch fee collection."
     },
     "ponsV2AdapterFactory": {
       "address": "0x6b3862cd05478355e0230eeDBa71a321f0c776bD",
@@ -522,10 +533,11 @@
         "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
       }
     },
-    "poolsTradeSellAdapter": {
-      "address": "0x192f324A9BF64C4c9f46aFF77d1A3C8d06c635a5",
-      "deploymentTransaction": "0x2089b37369dd31f72fd51b1f8f9c08100ecfc8ff75fe128c3417ebc402d2c4de",
-      "deploymentBlock": 28781908,
+  "poolsTradeSellAdapter": {
+    "address": "0x192f324A9BF64C4c9f46aFF77d1A3C8d06c635a5",
+    "deploymentTransaction": "0x2089b37369dd31f72fd51b1f8f9c08100ecfc8ff75fe128c3417ebc402d2c4de",
+    "deploymentBlock": 28781908,
+    "runtimeCodeHash": "0x9e4ea40e94270576db99e5900997d0271f7f3a3c529a9929d787131b104e8d4e",
       "purpose": "Singleton sell route for pools.trade subjects: the normalization direction (subject to WETH) LBP intake requires. Native-quote pools sell and wrap; custom-currency pools hop currency-to-WETH through the pinned SwapRouter02 with the v3 tier in routeData.",
       "verified": {
         "instantStrategy": "0x23f8209572b4a1C2AD88A42749E830791Fb027f1",
@@ -535,10 +547,11 @@
         "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
       }
     },
-    "poolsTradeSubjectPriceGuard": {
-      "address": "0x4c75DB11b1Eb18251E84A98049918D534176b5a2",
-      "deploymentTransaction": "0x1d036f8ecd80c84cf63befbc8181fa807ab48998ca9e0024001fd6258e1aeacb",
-      "deploymentBlock": 28781908,
+  "poolsTradeSubjectPriceGuard": {
+    "address": "0x4c75DB11b1Eb18251E84A98049918D534176b5a2",
+    "deploymentTransaction": "0x1d036f8ecd80c84cf63befbc8181fa807ab48998ca9e0024001fd6258e1aeacb",
+    "deploymentBlock": 28781908,
+    "runtimeCodeHash": "0xb9874e31e2d48efdea35fe17d4729f62aed80d658b80442fe8fd6b5673803cba",
       "purpose": "Normalization guard for pools.trade subjects: v4 slot0 spot under a 5% haircut (v4 keeps no observations and cannot be quoted from view), composed with the shared v3 TWAP guard's quoteAtTwap for custom-currency legs. Normalization guards receive no caller data, so this quote plus the router's per-call cap and mandatory caller floor are the protection. Router configs MUST set a bounded normalization maxAmountInPerCall for the subject: unsold auction tokens can dwarf pool depth and an unbounded sync is refused by the haircut.",
       "verified": {
         "lbpAdapterFactory": "0x6A4D50D9469fed073c4445Dc4050cd29d1BE25D7",

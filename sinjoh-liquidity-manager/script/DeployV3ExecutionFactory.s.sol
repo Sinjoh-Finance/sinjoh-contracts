@@ -6,8 +6,7 @@ import { Create2 } from "@openzeppelin/contracts/utils/Create2.sol";
 import { SinjohV3ExecutionFactory } from "../src/SinjohV3ExecutionFactory.sol";
 
 interface VmV3ExecutionFactory {
-    function envUint(string calldata name) external returns (uint256);
-    function startBroadcast(uint256 privateKey) external;
+    function startBroadcast() external;
     function stopBroadcast() external;
 }
 
@@ -52,8 +51,7 @@ contract DeployV3ExecutionFactory {
         }
 
         if (EXPECTED_FACTORY.code.length == 0) {
-            uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-            vm.startBroadcast(deployerKey);
+            vm.startBroadcast();
             address deployed =
                 ISingletonFactory(SINGLETON_FACTORY).deploy(initCode, DEPLOYMENT_SALT);
             vm.stopBroadcast();

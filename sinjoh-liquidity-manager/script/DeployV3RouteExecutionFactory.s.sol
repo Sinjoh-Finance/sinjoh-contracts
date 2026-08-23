@@ -4,8 +4,7 @@ pragma solidity 0.8.28;
 import { SinjohV3RouteExecutionFactory } from "../src/SinjohV3RouteExecutionFactory.sol";
 
 interface VmV3RouteExecutionFactory {
-    function envUint(string calldata name) external returns (uint256);
-    function startBroadcast(uint256 privateKey) external;
+    function startBroadcast() external;
     function stopBroadcast() external;
 }
 
@@ -73,8 +72,7 @@ contract DeployV3RouteExecutionFactory {
     }
 
     function _deploy(bytes memory initCode, bytes32 salt, address expected) private {
-        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        vm.startBroadcast(deployerKey);
+        vm.startBroadcast();
         address deployed = ISingletonFactoryRoute(SINGLETON_FACTORY).deploy(initCode, salt);
         vm.stopBroadcast();
         if (deployed != expected) revert DeploymentFailed(expected, deployed);

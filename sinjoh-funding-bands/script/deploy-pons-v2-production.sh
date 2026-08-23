@@ -2,7 +2,7 @@
 set -euo pipefail
 
 : "${ROBINHOOD_RPC_URL:?set ROBINHOOD_RPC_URL}"
-: "${DEPLOYER_PRIVATE_KEY:?set DEPLOYER_PRIVATE_KEY}"
+: "${DEPLOYER_ACCOUNT:?set the Foundry keystore account name}"
 : "${GOVERNANCE:?set the two-step governance owner}"
 : "${KEEPER_OPERATOR:?set the dedicated Funding Bands observer address}"
 
@@ -29,6 +29,11 @@ ORACLE_MINIMUM_LIQUIDITY="${ORACLE_MINIMUM_LIQUIDITY:-1000000000000000000}"
 for tool in cast forge jq; do
   command -v "$tool" >/dev/null 2>&1 || { echo "missing $tool" >&2; exit 1; }
 done
+
+SIGNER_ARGS=(--account "$DEPLOYER_ACCOUNT")
+if [[ -n "${DEPLOYER_PASSWORD_FILE:-}" ]]; then
+  SIGNER_ARGS+=(--password-file "$DEPLOYER_PASSWORD_FILE")
+fi
 
 RPC_ARGS=(--rpc-url "$ROBINHOOD_RPC_URL")
 if [[ -n "${ROBINHOOD_RPC_HEADERS:-}" ]]; then
@@ -73,7 +78,7 @@ if [[ "$(cast chain-id "${RPC_ARGS[@]}")" != "4663" ]]; then
   echo "refusing to deploy outside Robinhood mainnet" >&2
   exit 1
 fi
-deployer="$(cast wallet address --private-key "$DEPLOYER_PRIVATE_KEY")"
+deployer="$(cast wallet address "${SIGNER_ARGS[@]}")"
 for address in "$WETH" "$USDG" "$V3_FACTORY" "$V3_POSITION_MANAGER" "$V4_POSITION_MANAGER" \
   "$V4_STATE_VIEW" "$V4_POOL_MANAGER" "$PERMIT2" "$PONS_V2_FACTORY" "$PONS_V2_HOOK" \
   "$FEE_ROUTER_FACTORY" "$FEE_ROUTER_IMPLEMENTATION" "$ORACLE_POOL"; do
@@ -137,7 +142,7 @@ deploy() {
   shift
   local result
   result="$(forge create "$contract" "${RPC_ARGS[@]}" \
-    --private-key "$DEPLOYER_PRIVATE_KEY" --broadcast --json "$@")"
+    "${SIGNER_ARGS[@]}" --broadcast --json "$@")"
   local address transaction_hash
   address="$(jq -r '.deployedTo // empty' <<< "$result")"
   transaction_hash="$(jq -r '.transactionHash // empty' <<< "$result")"
@@ -257,14 +262,14 @@ assert_equal "subject price guard WETH" \
 # Binding is deliberately the final write. Every independently checkable
 # dependency, immutable, profile, and timing invariant has passed above.
 bind_result="$(cast send "$escrow" 'bindManager(address)' "$manager" \
-  "${RPC_ARGS[@]}" --private-key "$DEPLOYER_PRIVATE_KEY" --json)"
+  "${RPC_ARGS[@]}" "${SIGNER_ARGS[@]}" --json)"
 bind_tx="$(jq -r '.transactionHash // empty' <<< "$bind_result")"
 [[ -n "$bind_tx" ]] || { echo "missing escrow binding transaction" >&2; exit 1; }
 [[ "$(lower "$(cast call "$escrow" 'manager()(address)' "${RPC_ARGS[@]}")")" == "$(lower "$manager")" ]]
 
 adapter_bind_result="$(cast send "$adapter_factory" \
   'bindFundingBandsEscrow(address)' "$escrow" \
-  "${RPC_ARGS[@]}" --private-key "$DEPLOYER_PRIVATE_KEY" --json)"
+  "${RPC_ARGS[@]}" "${SIGNER_ARGS[@]}" --json)"
 adapter_bind_tx="$(jq -r '.transactionHash // empty' <<< "$adapter_bind_result")"
 [[ -n "$adapter_bind_tx" ]] || { echo "missing adapter escrow binding transaction" >&2; exit 1; }
 [[ "$(lower "$(cast call "$adapter_factory" 'fundingBandsEscrow()(address)' "${RPC_ARGS[@]}")")" == "$(lower "$escrow")" ]]

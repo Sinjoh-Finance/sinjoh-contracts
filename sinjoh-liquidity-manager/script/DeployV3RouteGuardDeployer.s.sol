@@ -4,8 +4,7 @@ pragma solidity 0.8.28;
 import { SinjohV3RouteGuardDeployer } from "../src/SinjohV3RouteGuardDeployer.sol";
 
 interface VmV3RouteGuardDeployer {
-    function envUint(string calldata name) external returns (uint256);
-    function startBroadcast(uint256 privateKey) external;
+    function startBroadcast() external;
     function stopBroadcast() external;
 }
 
@@ -65,8 +64,7 @@ contract DeployV3RouteGuardDeployer {
 
         address predicted = predict();
         if (predicted.code.length == 0) {
-            uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-            vm.startBroadcast(deployerKey);
+            vm.startBroadcast();
             address deployed = ISingletonFactoryRouteGuard(SINGLETON_FACTORY)
                 .deploy(initCode, GUARD_DEPLOYER_SALT);
             vm.stopBroadcast();

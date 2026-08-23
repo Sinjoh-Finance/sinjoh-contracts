@@ -9,6 +9,7 @@ import { SinjohFeeRouter } from "sinjoh-fee-router/src/SinjohFeeRouter.sol";
 import { SinjohFeeRouterFactory } from "sinjoh-fee-router/src/SinjohFeeRouterFactory.sol";
 
 interface VmSinjohFlapTestnet {
+    function envAddress(string calldata name) external view returns (address);
     function envUint(string calldata name) external view returns (uint256);
     function envOr(string calldata name, uint256 defaultValue) external view returns (uint256);
     function addr(uint256 privateKey) external pure returns (address);
@@ -38,8 +39,6 @@ contract DeploySinjohFlapTestnet {
     );
 
     uint256 private constant CHAIN_ID = 46_630;
-    address private constant EXPECTED_DEPLOYER = 0x1A0925c9651836281FFe3EBD1D99d5D9739967EA;
-
     address private constant PORTAL = 0x26605f322f7fF986f381bB9A6e3f5DAb0bEaEb09;
     address private constant TAX_TOKEN_V3 = 0x7777C8743C88B3aff3cf262135beF2c8b2e83333;
     address private constant FLAP_WRAPPED_NATIVE = 0x7943e237c7F95DA44E0301572D358911207852Fa;
@@ -83,7 +82,7 @@ contract DeploySinjohFlapTestnet {
         if (block.chainid != CHAIN_ID) revert WrongChain(block.chainid);
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address deployer = vm.addr(deployerKey);
-        if (deployer != EXPECTED_DEPLOYER) revert WrongDeployer(deployer);
+        if (deployer != vm.envAddress("TESTNET_DEPLOYER_ADDRESS")) revert WrongDeployer(deployer);
         _assertDependencies();
         if (PREDICTED_TOKEN.code.length != 0) revert UnexpectedExistingCode(PREDICTED_TOKEN);
 

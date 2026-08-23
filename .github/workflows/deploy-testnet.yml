@@ -1,0 +1,160 @@
+name: deploy-testnet
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: Attested testnet release identifier
+        required: true
+        type: string
+      release_run_id:
+        description: Successful release-candidate workflow run ID
+        required: true
+        type: string
+      step:
+        description: Reviewed testnet deployment-plan step
+        required: true
+        type: choice
+        options:
+          - revenue-collector
+          - pons-v2-router
+          - airdrop-distributor
+          - liquidity-manager
+          - pons-v1-adapter-factory
+          - treasury-factory
+          - raffle-price-guards
+          - randomness
+          - raffle-factory
+          - flap-live-integration
+          - pons-v1-prelaunch
+      broadcast:
+        description: Broadcast after simulation and environment approval
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: robinhood-testnet-deployment
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      commit: ${{ steps.commit.outputs.value }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Download immutable release bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: release-${{ inputs.release_id }}-46630
+          path: .release-bundles/downloads/release
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.release_run_id }}
+      - name: Validate immutable release input
+        id: commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ inputs.release_id }}
+        run: |
+          gh attestation verify ".release-bundles/downloads/release/$RELEASE_ID.tar.gz" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release-candidate.yml"
+          mkdir -p .release-bundles
+          tar -xzf ".release-bundles/downloads/release/$RELEASE_ID.tar.gz" -C .release-bundles
+          source_commit="$(node scripts/release/verify-release-bundle.mjs \
+            --bundle ".release-bundles/$RELEASE_ID" --release-id "$RELEASE_ID" --network 46630)"
+          echo "value=$source_commit" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ steps.commit.outputs.value }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09
+        with:
+          version: v1.7.1
+      - run: node scripts/release/validate-config.mjs
+      - run: scripts/contracts-ci.sh ci all
+
+  deploy:
+    needs: prepare
+    runs-on: ubuntu-latest
+    environment: robinhood-testnet
+    timeout-minutes: 45
+    env:
+      GOVERNANCE: ${{ vars.TESTNET_GOVERNANCE }}
+      INITIAL_PROCESSOR: ${{ vars.TESTNET_INITIAL_PROCESSOR }}
+      REVENUE_COLLECTOR: ${{ vars.TESTNET_REVENUE_COLLECTOR }}
+      REVENUE_COLLECTOR_CODEHASH: ${{ vars.TESTNET_REVENUE_COLLECTOR_CODEHASH }}
+      PONS_V1_LOCKER: ${{ vars.TESTNET_PONS_V1_LOCKER }}
+      PONS_V1_LOCKER_CODEHASH: ${{ vars.TESTNET_PONS_V1_LOCKER_CODEHASH }}
+      PONS_V2_FACTORY: ${{ vars.TESTNET_PONS_V2_FACTORY }}
+      PONS_V2_FACTORY_CODEHASH: ${{ vars.TESTNET_PONS_V2_FACTORY_CODEHASH }}
+      PONS_V2_FEE_ESCROW_CODEHASH: ${{ vars.TESTNET_PONS_V2_FEE_ESCROW_CODEHASH }}
+      WETH: ${{ vars.TESTNET_WETH }}
+      WETH_CODEHASH: ${{ vars.TESTNET_WETH_CODEHASH }}
+      V3_FACTORY: ${{ vars.TESTNET_V3_FACTORY }}
+      V3_FACTORY_CODEHASH: ${{ vars.TESTNET_V3_FACTORY_CODEHASH }}
+      V3_POSITION_MANAGER: ${{ vars.TESTNET_V3_POSITION_MANAGER }}
+      V3_POSITION_MANAGER_CODEHASH: ${{ vars.TESTNET_V3_POSITION_MANAGER_CODEHASH }}
+      V4_POSITION_MANAGER: ${{ vars.TESTNET_V4_POSITION_MANAGER }}
+      V4_POSITION_MANAGER_CODEHASH: ${{ vars.TESTNET_V4_POSITION_MANAGER_CODEHASH }}
+      V4_STATE_VIEW: ${{ vars.TESTNET_V4_STATE_VIEW }}
+      V4_STATE_VIEW_CODEHASH: ${{ vars.TESTNET_V4_STATE_VIEW_CODEHASH }}
+      PERMIT2: ${{ vars.TESTNET_PERMIT2 }}
+      PERMIT2_CODEHASH: ${{ vars.TESTNET_PERMIT2_CODEHASH }}
+      ECVRF_PUBLIC_KEY_X: ${{ vars.TESTNET_ECVRF_PUBLIC_KEY_X }}
+      ECVRF_PUBLIC_KEY_Y: ${{ vars.TESTNET_ECVRF_PUBLIC_KEY_Y }}
+      RANDOMNESS_ADAPTER: ${{ vars.TESTNET_RANDOMNESS_ADAPTER }}
+      DEPLOYMENT_STEP: ${{ inputs.step }}
+      BROADCAST: ${{ inputs.broadcast }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09
+        with:
+          version: v1.7.1
+      - name: Simulate or broadcast protocol step
+        if: ${{ inputs.step != 'flap-live-integration' && inputs.step != 'pons-v1-prelaunch' }}
+        env:
+          ROBINHOOD_TESTNET_RPC_URL: ${{ secrets.ROBINHOOD_TESTNET_RPC_URL }}
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.TESTNET_PROTOCOL_DEPLOYER_PRIVATE_KEY }}
+          TESTNET_DEPLOYER_ADDRESS: ${{ vars.TESTNET_PROTOCOL_DEPLOYER_ADDRESS }}
+        run: |
+          args=(--step "$DEPLOYMENT_STEP" --rpc-url "$ROBINHOOD_TESTNET_RPC_URL")
+          if [[ "$BROADCAST" == "true" ]]; then
+            args+=(--broadcast)
+          fi
+          node scripts/release/deploy-testnet.mjs "${args[@]}"
+      - name: Simulate or broadcast launch step
+        if: ${{ inputs.step == 'flap-live-integration' || inputs.step == 'pons-v1-prelaunch' }}
+        env:
+          ROBINHOOD_TESTNET_RPC_URL: ${{ secrets.ROBINHOOD_TESTNET_RPC_URL }}
+          DEPLOYER_PRIVATE_KEY: ${{ secrets.TESTNET_LAUNCH_DEPLOYER_PRIVATE_KEY }}
+          TESTNET_DEPLOYER_ADDRESS: ${{ vars.TESTNET_LAUNCH_DEPLOYER_ADDRESS }}
+        run: |
+          args=(--step "$DEPLOYMENT_STEP" --rpc-url "$ROBINHOOD_TESTNET_RPC_URL")
+          if [[ "$BROADCAST" == "true" ]]; then
+            args+=(--broadcast)
+          fi
+          node scripts/release/deploy-testnet.mjs "${args[@]}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: ${{ inputs.broadcast }}
+        with:
+          name: testnet-broadcast-${{ inputs.step }}-${{ needs.prepare.outputs.commit }}
+          path: "sinjoh-*/broadcast/**"
+          if-no-files-found: error
+          retention-days: 90

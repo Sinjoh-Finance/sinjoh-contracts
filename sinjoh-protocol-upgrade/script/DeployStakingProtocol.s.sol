@@ -10,9 +10,8 @@ import { SinjohStakingEngine } from "../src/SinjohStakingEngine.sol";
 import { StakingEngine } from "../src/StakingEngine.sol";
 
 interface VmDeployStakingProtocol {
-    function addr(uint256 privateKey) external returns (address);
+    function envAddress(string calldata name) external returns (address);
     function envString(string calldata name) external returns (string memory);
-    function envUint(string calldata name) external returns (uint256);
     function getCode(string calldata artifactPath) external returns (bytes memory creationCode);
     function parseJsonAddress(string calldata json, string calldata key)
         external
@@ -32,7 +31,7 @@ interface VmDeployStakingProtocol {
         pure
         returns (uint256);
     function readFile(string calldata path) external view returns (string memory);
-    function startBroadcast(uint256 privateKey) external;
+    function startBroadcast(address signer) external;
     function stopBroadcast() external;
 }
 
@@ -99,16 +98,15 @@ contract DeployStakingProtocol {
 
     /// @notice Reads the reviewed manifest and broadcasts using the configured signer.
     /// @dev Required environment variables: STAKING_DEPLOYMENT_MANIFEST and
-    /// DEPLOYER_PRIVATE_KEY. The private key is never logged or stored.
+    /// DEPLOYER_ADDRESS. Foundry supplies the selected encrypted or hardware-backed account.
     function run() external returns (Deployment memory deployment) {
         string memory manifestPath = vm.envString("STAKING_DEPLOYMENT_MANIFEST");
         string memory json = vm.readFile(manifestPath);
         Parameters memory parameters = _parseManifest(json);
-        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address deployer = vm.addr(deployerKey);
+        address deployer = vm.envAddress("DEPLOYER_ADDRESS");
 
         _validate(parameters, deployer);
-        vm.startBroadcast(deployerKey);
+        vm.startBroadcast(deployer);
         deployment = _deploy(parameters, keccak256(bytes(json)));
         vm.stopBroadcast();
         _verify(parameters, deployment);

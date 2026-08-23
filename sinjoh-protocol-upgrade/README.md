@@ -209,14 +209,14 @@ reviewed manifest, replace every zero placeholder, and run a simulation before a
 
 ```sh
 STAKING_DEPLOYMENT_MANIFEST=/absolute/path/to/reviewed-staking-parameters.json \
-DEPLOYER_PRIVATE_KEY=... \
-forge script script/DeployStakingProtocol.s.sol:DeployStakingProtocol \
+DEPLOYER_ADDRESS=0x... \
+forge script script/DeployStakingProtocol.s.sol:DeployStakingProtocol --account sinjoh-mainnet-deployer \
   --rpc-url "$ROBINHOOD_RPC_URL"
 ```
 
 The script accepts only Robinhood Chain mainnet (`4663`) or testnet (`46630`), checks the
 signer's address, requires a separate emergency guardian, and pins the staking token by runtime
-code hash. It does not create schedules, freeze governance, or print the private key. Those are
+code hash. It does not create schedules, freeze governance, or access a raw private key. Those are
 separate reviewed actions after the canary.
 
 The governance/yield deployment is separately gated by
@@ -233,9 +233,10 @@ deployment reverts unless the created basket exactly matches it.
 
 ```sh
 YIELD_DEPLOYMENT_MANIFEST=/absolute/path/to/reviewed-yield-parameters.json \
-DEPLOYER_PRIVATE_KEY=... \
+DEPLOYER_ADDRESS=0x... \
 forge script script/DeployGovernanceYieldBasket.s.sol:DeployGovernanceYieldBasket \
-  --rpc-url "$ROBINHOOD_RPC_URL"
+  --rpc-url "$ROBINHOOD_RPC_URL" \
+  --account sinjoh-mainnet-deployer
 ```
 
 After selecting an audited ERC-4626 vault, run the opt-in fork canary with a deliberately small

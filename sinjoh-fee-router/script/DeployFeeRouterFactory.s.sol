@@ -6,10 +6,8 @@ import { SinjohFeeRouterFactory } from "../src/SinjohFeeRouterFactory.sol";
 import { RouterTypes } from "../src/RouterTypes.sol";
 
 interface VmFeeRouterFactory {
-    function addr(uint256 privateKey) external returns (address);
     function envAddress(string calldata name) external returns (address);
-    function envUint(string calldata name) external returns (uint256);
-    function startBroadcast(uint256 privateKey) external;
+    function startBroadcast(address signer) external;
     function stopBroadcast() external;
 }
 
@@ -28,8 +26,7 @@ contract DeployFeeRouterFactory {
     /// address emitted by DeployFeeRouter.
     function run() external returns (SinjohFeeRouterFactory factory) {
         if (block.chainid != ROBINHOOD_MAINNET_CHAIN_ID) revert WrongChain(block.chainid);
-        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address deployer = vm.addr(deployerKey);
+        address deployer = vm.envAddress("DEPLOYER_ADDRESS");
         if (deployer != EXPECTED_DEPLOYER) revert WrongDeployer(deployer);
 
         address implementationAddress = vm.envAddress("ROUTER_IMPLEMENTATION");
@@ -45,7 +42,7 @@ contract DeployFeeRouterFactory {
             revert InvalidImplementation(implementationAddress);
         }
 
-        vm.startBroadcast(deployerKey);
+        vm.startBroadcast(deployer);
         factory = new SinjohFeeRouterFactory(implementationAddress);
         vm.stopBroadcast();
 

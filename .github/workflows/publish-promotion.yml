@@ -1,0 +1,149 @@
+name: publish-promotion
+
+on:
+  workflow_dispatch:
+    inputs:
+      network:
+        description: Finalized deployment network
+        required: true
+        type: choice
+        options: ["46630", "4663"]
+      release_id:
+        description: Existing immutable release identifier
+        required: true
+        type: string
+      release_run_id:
+        description: Successful release-candidate workflow run ID
+        required: true
+        type: string
+      channel:
+        description: Candidate for downstream rehearsal; active for consumer cutover
+        required: true
+        type: choice
+        options: ["candidate", "active"]
+      candidate_run_id:
+        description: Candidate promotion workflow run ID (required for active)
+        required: false
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: publish-promotion-${{ inputs.network }}-${{ inputs.channel }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.network != '4663' && 'robinhood-testnet' || (inputs.channel == 'active' && 'robinhood-mainnet-activation' || 'robinhood-mainnet-preflight') }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Require reviewed main
+        run: |
+          git fetch origin main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Download immutable release bundle
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: release-${{ inputs.release_id }}-${{ inputs.network }}
+          path: .release-bundles/downloads/release
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.release_run_id }}
+      - name: Verify release provenance and contents
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          RELEASE_NETWORK: ${{ inputs.network }}
+        run: |
+          gh attestation verify ".release-bundles/downloads/release/$RELEASE_ID.tar.gz" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release-candidate.yml"
+          mkdir -p .release-bundles
+          tar -xzf ".release-bundles/downloads/release/$RELEASE_ID.tar.gz" -C .release-bundles
+          node scripts/release/verify-release-bundle.mjs \
+            --bundle ".release-bundles/$RELEASE_ID" \
+            --release-id "$RELEASE_ID" --network "$RELEASE_NETWORK"
+      - name: Download and verify candidate promotion
+        if: ${{ inputs.channel == 'active' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: promotion-${{ inputs.release_id }}-${{ inputs.network }}-candidate
+          path: .release-bundles/downloads/candidate
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.candidate_run_id }}
+      - name: Extract and verify candidate provenance
+        if: ${{ inputs.channel == 'active' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ inputs.release_id }}
+        run: |
+          test -n "${{ inputs.candidate_run_id }}"
+          mkdir -p .release-bundles/candidate-promotion
+          tar -xzf ".release-bundles/downloads/candidate/promotion-candidate.tar.gz" \
+            -C .release-bundles/candidate-promotion
+          gh attestation verify .release-bundles/candidate-promotion/promotion.json \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/publish-promotion.yml"
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09
+        with:
+          version: v1.7.1
+      - run: node scripts/release/validate-config.mjs
+      - name: Verify finalized deployment through independent providers
+        env:
+          RELEASE_NETWORK: ${{ inputs.network }}
+          MAINNET_PRIMARY: ${{ secrets.ROBINHOOD_MAINNET_ARCHIVE_RPC_URL }}
+          MAINNET_SECONDARY: ${{ secrets.ROBINHOOD_MAINNET_SECONDARY_RPC_URL }}
+          TESTNET_PRIMARY: ${{ secrets.ROBINHOOD_TESTNET_RPC_URL }}
+          TESTNET_SECONDARY: ${{ secrets.ROBINHOOD_TESTNET_SECONDARY_RPC_URL }}
+        run: |
+          if [[ "$RELEASE_NETWORK" == "4663" ]]; then
+            primary="$MAINNET_PRIMARY"
+            secondary="$MAINNET_SECONDARY"
+          else
+            primary="$TESTNET_PRIMARY"
+            secondary="$TESTNET_SECONDARY"
+          fi
+          node scripts/release/verify-deployment.mjs \
+            --network "$RELEASE_NETWORK" --rpc-url "$primary" \
+            --secondary-rpc-url "$secondary" --require-secondary --require-finalized
+      - name: Build consumer promotion artifact
+        env:
+          RELEASE_NETWORK: ${{ inputs.network }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          RELEASE_CHANNEL: ${{ inputs.channel }}
+        run: |
+          args=(
+            --network "$RELEASE_NETWORK"
+            --release-id "$RELEASE_ID"
+            --channel "$RELEASE_CHANNEL"
+            --release-bundle ".release-bundles/$RELEASE_ID"
+            --require-clean
+          )
+          if [[ "$RELEASE_CHANNEL" == "active" ]]; then
+            args+=(--candidate-promotion .release-bundles/candidate-promotion/promotion.json)
+          fi
+          node scripts/release/build-promotion.mjs "${args[@]}"
+          tar -C ".release-bundles/$RELEASE_ID/promotions/$RELEASE_CHANNEL" \
+            -czf ".release-bundles/$RELEASE_ID/promotion-$RELEASE_CHANNEL.tar.gz" \
+            promotion.json promotion.sha256
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: promotion-${{ inputs.release_id }}-${{ inputs.network }}-${{ inputs.channel }}
+          path: .release-bundles/${{ inputs.release_id }}/promotion-${{ inputs.channel }}.tar.gz
+          if-no-files-found: error
+          retention-days: 90
+      - name: Attest promotion provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
+        with:
+          subject-path: .release-bundles/${{ inputs.release_id }}/promotions/${{ inputs.channel }}/promotion.json

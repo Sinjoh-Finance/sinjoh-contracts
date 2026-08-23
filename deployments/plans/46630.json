@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "chainId": 46630,
+  "network": "robinhood-testnet",
+  "policy": "release-candidate-only",
+  "steps": [
+    {
+      "id": "revenue-collector",
+      "phase": "core",
+      "package": "sinjoh-revenue-collector",
+      "script": "script/DeployRevenueCollectorTestnet.s.sol:DeployRevenueCollectorTestnet",
+      "signerRole": "protocol-deployer",
+      "status": "ready",
+      "dependsOn": []
+    },
+    {
+      "id": "pons-v2-router",
+      "phase": "infrastructure",
+      "package": "sinjoh-fee-router",
+      "script": "script/DeployRouterOwnedPonsV2Testnet.s.sol:DeployRouterOwnedPonsV2Testnet",
+      "signerRole": "protocol-deployer",
+      "status": "ready",
+      "dependsOn": []
+    },
+    {
+      "id": "airdrop-distributor",
+      "phase": "core",
+      "package": "sinjoh-airdrop-distributor",
+      "script": "script/DeployAirdropDistributorTestnet.s.sol:DeployAirdropDistributorTestnet",
+      "signerRole": "protocol-deployer",
+      "status": "ready",
+      "dependsOn": ["revenue-collector"]
+    },
+    {
+      "id": "liquidity-manager",
+      "phase": "core",
+      "package": "sinjoh-liquidity-manager",
+      "script": "script/DeployLiquidityManagerTestnet.s.sol:DeployLiquidityManagerTestnet",
+      "signerRole": "protocol-deployer",
+      "status": "ready",
+      "dependsOn": ["revenue-collector"]
+    },
+    {
+      "id": "pons-v1-adapter-factory",
+      "phase": "core",
+      "package": "sinjoh-pons-v1-adapter",
+      "script": "script/DeployPonsV1AdapterFactoryTestnet.s.sol:DeployPonsV1AdapterFactoryTestnet",
+      "signerRole": "protocol-deployer",
+      "status": "ready",
+      "dependsOn": []
+    },
+    {
+      "id": "treasury-factory",
+      "phase": "core",
+      "package": "sinjoh-treasury-vault",
+      "script": "script/DeployStandardTreasuryTestnet.s.sol:DeployStandardTreasuryTestnet",
+      "signerRole": "protocol-deployer",
+      "status": "ready",
+      "dependsOn": []
+    },
+    {
+      "id": "raffle-price-guards",
+      "phase": "infrastructure",
+      "package": "sinjoh-liquidity-manager",
+      "script": "script/DeployRafflePriceGuardsTestnet.s.sol:DeployRafflePriceGuardsTestnet",
+      "signerRole": "protocol-deployer",
+      "status": "ready",
+      "dependsOn": []
+    },
+    {
+      "id": "randomness",
+      "phase": "infrastructure",
+      "package": "sinjoh-randomness",
+      "script": "script/DeployEcvrfRandomnessTestnet.s.sol:DeployEcvrfRandomnessTestnet",
+      "signerRole": "protocol-deployer",
+      "status": "ready",
+      "dependsOn": []
+    },
+    {
+      "id": "raffle-factory",
+      "phase": "infrastructure",
+      "package": "sinjoh-raffle-rewards",
+      "script": "script/DeployRaffleRewardsFactoryTestnet.s.sol:DeployRaffleRewardsFactoryTestnet",
+      "signerRole": "protocol-deployer",
+      "status": "ready",
+      "dependsOn": ["randomness", "raffle-price-guards"]
+    },
+    {
+      "id": "flap-live-integration",
+      "phase": "integration",
+      "package": "sinjoh-launchpad-adapters",
+      "script": "script/DeploySinjohFlapTestnet.s.sol:DeploySinjohFlapTestnet",
+      "signerRole": "launch-deployer",
+      "status": "ready",
+      "dependsOn": []
+    },
+    {
+      "id": "pons-v1-prelaunch",
+      "phase": "integration",
+      "package": "sinjoh-launchpad-adapters",
+      "script": "script/DeployPonsV1TestnetPrelaunch.s.sol:DeployPonsV1TestnetPrelaunch",
+      "signerRole": "launch-deployer",
+      "status": "ready",
+      "dependsOn": []
+    }
+  ],
+  "requiredPostDeploymentGates": [
+    "source-verified",
+    "runtime-codehash-verified",
+    "finalized",
+    "full-stack-smoke",
+    "keeper-recovery",
+    "indexer-caught-up",
+    "operational-soak"
+  ]
+}
+

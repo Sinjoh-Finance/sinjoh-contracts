@@ -18,7 +18,6 @@ interface IArbSysTestnet {
 /// @notice Deploys the raffle factory only on Robinhood Chain testnet.
 contract DeployRaffleRewardsFactoryTestnet {
     uint256 internal constant ROBINHOOD_TESTNET_CHAIN_ID = 46_630;
-    address internal constant EXPECTED_DEPLOYER = 0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49;
     address internal constant ARBSYS = address(0x64);
 
     VmRaffleRewardsFactoryTestnet internal constant vm =
@@ -39,7 +38,7 @@ contract DeployRaffleRewardsFactoryTestnet {
 
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address deployer = vm.addr(deployerKey);
-        if (deployer != EXPECTED_DEPLOYER) revert WrongDeployer(deployer);
+        if (deployer != vm.envAddress("TESTNET_DEPLOYER_ADDRESS")) revert WrongDeployer(deployer);
 
         vm.startBroadcast(deployerKey);
         factory = new SinjohRaffleRewardsFactory(block.chainid);

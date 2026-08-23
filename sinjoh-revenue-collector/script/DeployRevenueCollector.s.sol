@@ -4,9 +4,8 @@ pragma solidity 0.8.28;
 import { SinjohRevenueCollector } from "../src/SinjohRevenueCollector.sol";
 
 interface Vm {
-    function addr(uint256 privateKey) external returns (address);
-    function envUint(string calldata name) external returns (uint256);
-    function startBroadcast(uint256 privateKey) external;
+    function envAddress(string calldata name) external returns (address);
+    function startBroadcast(address signer) external;
     function stopBroadcast() external;
 }
 
@@ -32,11 +31,10 @@ contract DeployRevenueCollector {
         }
         if (ARBSYS.codehash != ARBSYS_MARKER_HASH) revert InvalidArbSys();
 
-        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address deployer = vm.addr(deployerKey);
+        address deployer = vm.envAddress("DEPLOYER_ADDRESS");
         if (deployer != EXPECTED_DEPLOYER) revert WrongDeployer(deployer);
 
-        vm.startBroadcast(deployerKey);
+        vm.startBroadcast(deployer);
         collector = new SinjohRevenueCollector(GOVERNANCE, INITIAL_PROCESSOR);
         vm.stopBroadcast();
 

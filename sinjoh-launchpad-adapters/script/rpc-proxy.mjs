@@ -5,8 +5,8 @@
 // endpoint has no such limit but rejects any request without an `Origin` header
 // on its allowlist, and forge cannot attach custom headers to --fork-url.
 //
-// This relay sits in between: forge talks to localhost, the relay adds the
-// Origin header and forwards upstream.
+// This relay sits in between: forge talks to localhost, the relay adds stable
+// Origin and User-Agent headers and forwards upstream.
 //
 //   node script/rpc-proxy.mjs &
 //   forge test --match-path 'test/PonsV2Mainnet.fork.t.sol' \
@@ -54,8 +54,13 @@ createServer((request, response) => {
     try {
       const upstreamResponse = await fetch(target, {
         method: "POST",
-        headers: { "content-type": "application/json", origin: ORIGIN },
+        headers: {
+          "content-type": "application/json",
+          origin: ORIGIN,
+          "user-agent": "Sinjoh-Fork-Certifier/1.0",
+        },
         body: Buffer.concat(chunks),
+        signal: AbortSignal.timeout(30_000),
       });
       const body = await upstreamResponse.text();
       response.writeHead(upstreamResponse.status, {
