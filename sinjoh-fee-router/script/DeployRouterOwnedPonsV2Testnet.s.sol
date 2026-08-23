@@ -18,8 +18,6 @@ interface VmPonsV2Testnet {
 /// hash-pinned Robinhood testnet contracts. It does not launch a token.
 contract DeployRouterOwnedPonsV2Testnet {
     uint256 internal constant ROBINHOOD_TESTNET_CHAIN_ID = 46_630;
-    address internal constant EXPECTED_DEPLOYER = 0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49;
-
     VmPonsV2Testnet internal constant vm =
         VmPonsV2Testnet(address(uint160(uint256(keccak256("hevm cheat code")))));
 
@@ -47,7 +45,7 @@ contract DeployRouterOwnedPonsV2Testnet {
 
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address deployer = vm.addr(deployerKey);
-        if (deployer != EXPECTED_DEPLOYER) revert WrongDeployer(deployer);
+        if (deployer != vm.envAddress("TESTNET_DEPLOYER_ADDRESS")) revert WrongDeployer(deployer);
 
         vm.startBroadcast(deployerKey);
         implementation = new SinjohFeeRouter();

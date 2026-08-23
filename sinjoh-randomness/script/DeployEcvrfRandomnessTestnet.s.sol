@@ -5,6 +5,7 @@ import { SinjohEcvrfRandomness } from "../src/SinjohEcvrfRandomness.sol";
 
 interface VmEcvrfRandomnessTestnet {
     function addr(uint256 privateKey) external returns (address);
+    function envAddress(string calldata name) external returns (address);
     function envUint(string calldata name) external returns (uint256);
     function startBroadcast(uint256 privateKey) external;
     function stopBroadcast() external;
@@ -17,7 +18,6 @@ interface IArbSysTestnet {
 /// @notice Deploys the ECVRF adapter only on Robinhood Chain testnet.
 contract DeployEcvrfRandomnessTestnet {
     uint256 internal constant ROBINHOOD_TESTNET_CHAIN_ID = 46_630;
-    address internal constant EXPECTED_DEPLOYER = 0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49;
     address internal constant ARBSYS = address(0x64);
 
     VmEcvrfRandomnessTestnet internal constant vm =
@@ -36,7 +36,7 @@ contract DeployEcvrfRandomnessTestnet {
         uint256 publicKeyY = vm.envUint("ECVRF_PUBLIC_KEY_Y");
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address deployer = vm.addr(deployerKey);
-        if (deployer != EXPECTED_DEPLOYER) revert WrongDeployer(deployer);
+        if (deployer != vm.envAddress("TESTNET_DEPLOYER_ADDRESS")) revert WrongDeployer(deployer);
 
         vm.startBroadcast(deployerKey);
         adapter = new SinjohEcvrfRandomness(publicKeyX, publicKeyY, block.chainid);

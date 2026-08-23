@@ -19,3 +19,4 @@
 **/supabase/.temp/
 .mcp.json
 .deployer.env
+.release-bundles/

@@ -4,9 +4,8 @@ pragma solidity 0.8.28;
 import { SinjohPonsV1AdapterFactory } from "../src/SinjohPonsV1AdapterFactory.sol";
 
 interface Vm {
-    function addr(uint256 privateKey) external returns (address);
-    function envUint(string calldata name) external returns (uint256);
-    function startBroadcast(uint256 privateKey) external;
+    function envAddress(string calldata name) external returns (address);
+    function startBroadcast(address signer) external;
     function stopBroadcast() external;
 }
 
@@ -35,11 +34,10 @@ contract DeployPonsV1AdapterFactory {
         _assertHash(PONS_V1_LOCKER, PONS_V1_LOCKER_HASH);
         _assertHash(WETH, WETH_HASH);
 
-        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address deployer = vm.addr(deployerKey);
+        address deployer = vm.envAddress("DEPLOYER_ADDRESS");
         if (deployer != EXPECTED_DEPLOYER) revert WrongDeployer(deployer);
 
-        vm.startBroadcast(deployerKey);
+        vm.startBroadcast(deployer);
         factory = new SinjohPonsV1AdapterFactory(PONS_V1_LOCKER, WETH, block.chainid);
         vm.stopBroadcast();
 

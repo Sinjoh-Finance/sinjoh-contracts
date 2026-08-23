@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sinjoh.com/schemas/network.schema.json",
+  "title": "Sinjoh network profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "chainId",
+    "slug",
+    "name",
+    "production",
+    "nativeCurrency",
+    "rpc",
+    "explorer",
+    "finality",
+    "deployment"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "chainId": { "type": "integer", "minimum": 1 },
+    "slug": { "type": "string", "minLength": 1 },
+    "name": { "type": "string", "minLength": 1 },
+    "production": { "type": "boolean" },
+    "nativeCurrency": {
+      "type": "object",
+      "required": ["symbol", "decimals"],
+      "properties": {
+        "symbol": { "type": "string" },
+        "decimals": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "rpc": { "type": "object" },
+    "explorer": { "type": "object" },
+    "finality": { "type": "object" },
+    "deployment": { "type": "object" }
+  }
+}
+

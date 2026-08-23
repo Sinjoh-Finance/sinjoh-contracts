@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "chainId": 4663,
+  "slug": "robinhood-mainnet",
+  "name": "Robinhood Chain",
+  "production": true,
+  "nativeCurrency": {
+    "symbol": "ETH",
+    "decimals": 18
+  },
+  "rpc": {
+    "publicHttp": "https://rpc.mainnet.chain.robinhood.com",
+    "primaryEnvironmentVariable": "ROBINHOOD_MAINNET_RPC_URL",
+    "secondaryEnvironmentVariable": "ROBINHOOD_MAINNET_SECONDARY_RPC_URL",
+    "archiveEnvironmentVariable": "ROBINHOOD_MAINNET_ARCHIVE_RPC_URL",
+    "publicEndpointPolicy": "smoke-and-verification-only"
+  },
+  "explorer": {
+    "browserUrl": "https://robinhoodchain.blockscout.com",
+    "apiUrl": "https://robinhoodchain.blockscout.com/api/",
+    "verifier": "blockscout"
+  },
+  "finality": {
+    "routineConfirmations": 2,
+    "releaseActivationBlockTag": "finalized"
+  },
+  "deployment": {
+    "currentManifest": "mainnet-deployments.json",
+    "broadcastPolicy": "hardware-or-multisig-only",
+    "githubActionsMayBroadcast": false
+  }
+}
+

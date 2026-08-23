@@ -1,0 +1,83 @@
+name: contracts-ci
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "sinjoh-*/src/**"
+      - "sinjoh-*/test/**"
+      - "sinjoh-*/script/**"
+      - "sinjoh-*/foundry.toml"
+      - "scripts/**"
+      - "deployments/**"
+      - ".github/workflows/contracts-ci.yml"
+  pull_request:
+    paths:
+      - "sinjoh-*/src/**"
+      - "sinjoh-*/test/**"
+      - "sinjoh-*/script/**"
+      - "sinjoh-*/foundry.toml"
+      - "scripts/**"
+      - "deployments/**"
+      - ".github/workflows/contracts-ci.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: contracts-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - run: node scripts/release/validate-config.mjs
+
+  foundry:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - sinjoh-fee-router
+          - sinjoh-revenue-collector
+          - sinjoh-airdrop-distributor
+          - sinjoh-liquidity-manager
+          - sinjoh-funding-bands
+          - sinjoh-raffle-rewards
+          - sinjoh-randomness
+          - sinjoh-treasury-vault
+          - sinjoh-pons-v1-adapter
+          - sinjoh-launchpad-adapters
+          - sinjoh-protocol-upgrade
+          - sinjoh-integration
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09
+        with:
+          version: v1.7.1
+      - run: scripts/contracts-ci.sh ci "${{ matrix.package }}"
+
+  mainnet-key-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Reject raw mainnet deployment keys
+        run: |
+          if rg -l 'DEPLOYER_PRIVATE_KEY' sinjoh-*/script --glob '*.s.sol' \
+            | xargs -r rg -l '4_663|ROBINHOOD_MAINNET'; then
+            echo "mainnet scripts must use an external Foundry signer" >&2
+            exit 1
+          fi
+          if rg -n 'DEPLOYER_PRIVATE_KEY' sinjoh-funding-bands/script/*production*.sh \
+            sinjoh-funding-bands/script/deploy.sh; then
+            echo "mainnet shell scripts must use a named Foundry account" >&2
+            exit 1
+          fi
+

@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "chainId": 46630,
+  "slug": "robinhood-testnet",
+  "name": "Robinhood Chain Testnet",
+  "production": false,
+  "nativeCurrency": {
+    "symbol": "ETH",
+    "decimals": 18
+  },
+  "rpc": {
+    "publicHttp": "https://rpc.testnet.chain.robinhood.com",
+    "primaryEnvironmentVariable": "ROBINHOOD_TESTNET_RPC_URL",
+    "secondaryEnvironmentVariable": "ROBINHOOD_TESTNET_SECONDARY_RPC_URL",
+    "archiveEnvironmentVariable": "ROBINHOOD_TESTNET_ARCHIVE_RPC_URL",
+    "publicEndpointPolicy": "smoke-and-verification-only"
+  },
+  "explorer": {
+    "browserUrl": "https://explorer.testnet.chain.robinhood.com",
+    "apiUrl": "https://explorer.testnet.chain.robinhood.com/api/",
+    "verifier": "blockscout"
+  },
+  "finality": {
+    "routineConfirmations": 5,
+    "releaseActivationBlockTag": "finalized"
+  },
+  "deployment": {
+    "currentManifest": "deployments/manifests/46630/current.json",
+    "broadcastPolicy": "dedicated-low-value-testnet-signer",
+    "githubActionsMayBroadcast": true
+  }
+}
+

@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sinjoh.com/schemas/promotion.schema.json",
+  "title": "Sinjoh cross-service promotion manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "releaseId", "channel", "chainId", "network", "source", "generatedAt", "contracts", "consumers"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "releaseId": { "type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]{2,79}$" },
+    "channel": { "enum": ["candidate", "active"] },
+    "chainId": { "enum": [4663, 46630] },
+    "network": { "enum": ["robinhood-mainnet", "robinhood-testnet"] },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "commit", "releaseManifestSha256", "deploymentManifest", "deploymentManifestSha256"],
+      "properties": {
+        "repository": { "const": "Sinjoh-Finance/sinjoh-contracts" },
+        "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "releaseManifestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "deploymentManifest": { "type": "string", "minLength": 1 },
+        "deploymentManifestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "contracts": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/contract" }
+    },
+    "consumers": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/consumer" }
+    }
+  },
+  "$defs": {
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["address", "runtimeCodeHash"],
+      "properties": {
+        "address": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+        "runtimeCodeHash": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$" },
+        "deploymentBlock": { "type": "integer", "minimum": 0 },
+        "deploymentTransaction": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$" },
+        "implementation": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+        "implementationRuntimeCodeHash": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$" }
+      }
+    },
+    "consumer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "contracts": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/contract" }
+        },
+        "environment": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[A-Z][A-Z0-9_]*$" },
+          "additionalProperties": {
+            "type": ["string", "number", "boolean"]
+          }
+        }
+      },
+      "anyOf": [
+        { "required": ["contracts"] },
+        { "required": ["environment"] }
+      ]
+    }
+  }
+}

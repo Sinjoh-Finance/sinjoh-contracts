@@ -1,0 +1,51 @@
+name: postdeploy-verify
+
+on:
+  workflow_dispatch:
+    inputs:
+      network:
+        required: true
+        type: choice
+        options: ["46630", "4663"]
+      manifest:
+        description: Repository-relative deployment manifest
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.network == '4663' && 'robinhood-mainnet-preflight' || 'robinhood-testnet' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09
+        with:
+          version: v1.7.1
+      - name: Verify finalized deployment through independent providers
+        env:
+          INPUT_NETWORK: ${{ inputs.network }}
+          INPUT_MANIFEST: ${{ inputs.manifest }}
+          MAINNET_PRIMARY: ${{ secrets.ROBINHOOD_MAINNET_ARCHIVE_RPC_URL }}
+          MAINNET_SECONDARY: ${{ secrets.ROBINHOOD_MAINNET_SECONDARY_RPC_URL }}
+          TESTNET_PRIMARY: ${{ secrets.ROBINHOOD_TESTNET_RPC_URL }}
+          TESTNET_SECONDARY: ${{ secrets.ROBINHOOD_TESTNET_SECONDARY_RPC_URL }}
+        run: |
+          if [[ "$INPUT_NETWORK" == "4663" ]]; then
+            primary="$MAINNET_PRIMARY"
+            secondary="$MAINNET_SECONDARY"
+          else
+            primary="$TESTNET_PRIMARY"
+            secondary="$TESTNET_SECONDARY"
+          fi
+          node scripts/release/verify-deployment.mjs \
+            --network "$INPUT_NETWORK" --manifest "$INPUT_MANIFEST" \
+            --rpc-url "$primary" --secondary-rpc-url "$secondary" \
+            --require-secondary --require-finalized
+

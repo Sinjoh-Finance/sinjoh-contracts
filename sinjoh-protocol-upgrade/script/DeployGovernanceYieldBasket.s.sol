@@ -10,12 +10,11 @@ import { YieldDeploymentTypes } from "./YieldDeploymentTypes.sol";
 import { YieldDeploymentValidator } from "./YieldDeploymentValidator.sol";
 
 interface VmDeployGovernanceYieldBasket {
-    function addr(uint256 privateKey) external returns (address);
+    function envAddress(string calldata name) external returns (address);
     function envString(string calldata name) external returns (string memory);
-    function envUint(string calldata name) external returns (uint256);
     function getCode(string calldata artifactPath) external returns (bytes memory creationCode);
     function readFile(string calldata path) external view returns (string memory);
-    function startBroadcast(uint256 privateKey) external;
+    function startBroadcast(address signer) external;
     function stopBroadcast() external;
 }
 
@@ -53,11 +52,10 @@ contract DeployGovernanceYieldBasket {
         string memory manifestPath = vm.envString("YIELD_DEPLOYMENT_MANIFEST");
         string memory json = vm.readFile(manifestPath);
         YieldDeploymentTypes.Parameters memory parameters = YieldDeploymentManifest.parse(json);
-        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address deployer = vm.addr(deployerKey);
+        address deployer = vm.envAddress("DEPLOYER_ADDRESS");
         YieldDeploymentValidator.validate(parameters, deployer);
 
-        vm.startBroadcast(deployerKey);
+        vm.startBroadcast(deployer);
         deployment = _deploy(parameters, keccak256(bytes(json)));
         vm.stopBroadcast();
         _verify(parameters, deployment);

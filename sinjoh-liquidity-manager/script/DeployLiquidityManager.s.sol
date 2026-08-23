@@ -4,10 +4,8 @@ pragma solidity 0.8.28;
 import { SinjohLiquidityManager } from "../src/SinjohLiquidityManager.sol";
 
 interface Vm {
-    function addr(uint256 privateKey) external returns (address);
     function envAddress(string calldata name) external returns (address);
-    function envUint(string calldata name) external returns (uint256);
-    function startBroadcast(uint256 privateKey) external;
+    function startBroadcast(address signer) external;
     function stopBroadcast() external;
 }
 
@@ -50,15 +48,14 @@ contract DeployLiquidityManager {
         _assertHash(V4_STATE_VIEW, V4_STATE_VIEW_HASH);
         _assertHash(PERMIT2, PERMIT2_HASH);
 
-        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        address deployer = vm.envAddress("DEPLOYER_ADDRESS");
         address revenueCollector = vm.envAddress("REVENUE_COLLECTOR");
-        address deployer = vm.addr(deployerKey);
         if (deployer != EXPECTED_DEPLOYER) revert WrongDeployer(deployer);
         if (revenueCollector.code.length == 0) {
             revert InvalidRevenueCollector(revenueCollector);
         }
 
-        vm.startBroadcast(deployerKey);
+        vm.startBroadcast(deployer);
         manager = new SinjohLiquidityManager(
             V3_FACTORY,
             V3_POSITION_MANAGER,

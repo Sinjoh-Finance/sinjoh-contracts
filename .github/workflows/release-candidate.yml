@@ -1,0 +1,67 @@
+name: release-candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      network:
+        description: Target Robinhood network
+        required: true
+        type: choice
+        options: ["46630", "4663"]
+        default: "46630"
+      release_id:
+        description: Immutable release identifier
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: release-candidate-${{ inputs.network }}
+  cancel-in-progress: false
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - name: Require reviewed main
+        run: |
+          git fetch origin main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09
+        with:
+          version: v1.7.1
+      - run: node scripts/release/validate-config.mjs
+      - run: scripts/contracts-ci.sh ci all
+      - name: Build immutable release bundle
+        env:
+          RELEASE_NETWORK: ${{ inputs.network }}
+          RELEASE_ID: ${{ inputs.release_id }}
+        run: |
+          node scripts/release/build-release.mjs \
+            --network "$RELEASE_NETWORK" \
+            --release-id "$RELEASE_ID" \
+            --require-clean
+          tar -C .release-bundles -czf ".release-bundles/$RELEASE_ID.tar.gz" \
+            "$RELEASE_ID"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: release-${{ inputs.release_id }}-${{ inputs.network }}
+          path: .release-bundles/${{ inputs.release_id }}.tar.gz
+          if-no-files-found: error
+          retention-days: 90
+      - name: Attest release bundle provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
+        with:
+          subject-path: .release-bundles/${{ inputs.release_id }}.tar.gz

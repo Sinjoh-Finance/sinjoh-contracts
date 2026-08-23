@@ -5,6 +5,7 @@ import { SinjohSharedV3TwapPriceGuard } from "../src/SinjohSharedV3TwapPriceGuar
 
 interface VmRafflePriceGuardsTestnet {
     function addr(uint256 privateKey) external returns (address);
+    function envAddress(string calldata name) external returns (address);
     function envUint(string calldata name) external returns (uint256);
     function startBroadcast(uint256 privateKey) external;
     function stopBroadcast() external;
@@ -16,8 +17,6 @@ interface VmRafflePriceGuardsTestnet {
 /// cannot be used for a mainnet broadcast.
 contract DeployRafflePriceGuardsTestnet {
     uint256 internal constant ROBINHOOD_TESTNET_CHAIN_ID = 46_630;
-    address internal constant EXPECTED_DEPLOYER = 0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49;
-
     address internal constant PONS_V3_FACTORY = 0xFECCB63CD759d768538458Ea56F47eA8004323c1;
     bytes32 internal constant PONS_V3_FACTORY_HASH =
         0x2b8f65119f8e463cf1391bb1e6484aa0abb829214c5d3d2ff9d2736381824ab6;
@@ -58,7 +57,7 @@ contract DeployRafflePriceGuardsTestnet {
 
         uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address deployer = vm.addr(deployerKey);
-        if (deployer != EXPECTED_DEPLOYER) revert WrongDeployer(deployer);
+        if (deployer != vm.envAddress("TESTNET_DEPLOYER_ADDRESS")) revert WrongDeployer(deployer);
 
         vm.startBroadcast(deployerKey);
         lowFeeGuard = _deploy(LOW_FEE);

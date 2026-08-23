@@ -1,0 +1,34 @@
+name: dependency-drift
+
+on:
+  schedule:
+    - cron: "41 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mainnet:
+    runs-on: ubuntu-latest
+    environment: robinhood-mainnet-preflight
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09
+        with:
+          version: v1.7.1
+      - run: node scripts/release/validate-config.mjs
+      - name: Detect runtime or provider drift
+        env:
+          PRIMARY_RPC: ${{ secrets.ROBINHOOD_MAINNET_ARCHIVE_RPC_URL }}
+          SECONDARY_RPC: ${{ secrets.ROBINHOOD_MAINNET_SECONDARY_RPC_URL }}
+        run: |
+          node scripts/release/verify-deployment.mjs --network 4663 \
+            --rpc-url "$PRIMARY_RPC" --secondary-rpc-url "$SECONDARY_RPC" \
+            --require-secondary --require-finalized
+

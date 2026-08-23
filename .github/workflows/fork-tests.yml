@@ -1,0 +1,53 @@
+name: fork-tests
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+    inputs:
+      network:
+        description: Network fork to certify
+        required: true
+        type: choice
+        options: ["4663", "46630"]
+        default: "4663"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-tests-${{ inputs.network || '4663' }}
+  cancel-in-progress: false
+
+jobs:
+  fork:
+    runs-on: ubuntu-latest
+    environment: ${{ (inputs.network || '4663') == '4663' && 'robinhood-mainnet-preflight' || 'robinhood-testnet' }}
+    timeout-minutes: 90
+    env:
+      CHAIN_ID: ${{ inputs.network || '4663' }}
+      MAINNET_RPC: ${{ secrets.ROBINHOOD_MAINNET_ARCHIVE_RPC_URL }}
+      TESTNET_RPC: ${{ secrets.ROBINHOOD_TESTNET_ARCHIVE_RPC_URL }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09
+        with:
+          version: v1.7.1
+      - name: Select protected archive RPC
+        id: rpc
+        shell: bash
+        run: |
+          if [[ "$CHAIN_ID" == "4663" ]]; then
+            selected="$MAINNET_RPC"
+          else
+            selected="$TESTNET_RPC"
+          fi
+          if [[ -z "$selected" ]]; then
+            echo "archive RPC secret is not configured for chain $CHAIN_ID" >&2
+            exit 1
+          fi
+          echo "url=$selected" >> "$GITHUB_OUTPUT"
+      - name: Run registered fork certification suite
+        run: scripts/fork-tests.sh "$CHAIN_ID" "${{ steps.rpc.outputs.url }}"
+

@@ -10,11 +10,9 @@ import { SinjohFeeRouter } from "sinjoh-fee-router/src/SinjohFeeRouter.sol";
 import { SinjohFeeRouterFactory } from "sinjoh-fee-router/src/SinjohFeeRouterFactory.sol";
 
 interface VmSinjohFlapMainnetCanary {
-    function envUint(string calldata name) external view returns (uint256);
     function envAddress(string calldata name) external view returns (address);
     function envBytes32(string calldata name) external view returns (bytes32);
-    function addr(uint256 privateKey) external pure returns (address);
-    function startBroadcast(uint256 privateKey) external;
+    function startBroadcast(address signer) external;
     function stopBroadcast() external;
 }
 
@@ -80,8 +78,7 @@ contract LaunchSinjohFlapMainnetCanary {
 
     function run() external returns (Deployment memory deployed) {
         if (block.chainid != CHAIN_ID) revert WrongChain(block.chainid);
-        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address deployer = vm.addr(deployerKey);
+        address deployer = vm.envAddress("DEPLOYER_ADDRESS");
         if (deployer != EXPECTED_DEPLOYER) revert WrongDeployer(deployer);
 
         SinjohFeeRouterFactory routerFactory =
@@ -111,7 +108,7 @@ contract LaunchSinjohFlapMainnetCanary {
         deployed.router = routerFactory.predictLaunchpadAddress(deployer, deployed.userSalt);
         RouterTypes.Config memory config = _routerConfig(deployer, deployed.adapter);
 
-        vm.startBroadcast(deployerKey);
+        vm.startBroadcast(deployer);
         address actualRouter = routerFactory.deployForLaunchpad(deployer, deployed.userSalt, config);
         if (actualRouter != deployed.router) revert AddressMismatch(deployed.router, actualRouter);
         address actualAdapter = adapterFactory.deploy(deployer, deployed.router, deployed.userSalt);

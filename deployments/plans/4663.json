@@ -1,0 +1,236 @@
+{
+  "schemaVersion": 1,
+  "chainId": 4663,
+  "network": "robinhood-mainnet",
+  "policy": "offline-external-signer-only",
+  "steps": [
+    {
+      "id": "revenue-collector",
+      "phase": "core",
+      "package": "sinjoh-revenue-collector",
+      "script": "script/DeployRevenueCollector.s.sol:DeployRevenueCollector",
+      "signerRole": "protocol-deployer",
+      "status": "blocked",
+      "dependsOn": []
+    },
+    {
+      "id": "treasury-factory",
+      "phase": "core",
+      "package": "sinjoh-treasury-vault",
+      "script": "script/DeployStandardTreasury.s.sol:DeployStandardTreasury",
+      "signerRole": "protocol-deployer",
+      "status": "blocked",
+      "dependsOn": []
+    },
+    {
+      "id": "fee-router-factory",
+      "phase": "core",
+      "package": "sinjoh-fee-router",
+      "script": "script/DeployFeeRouterFactory.s.sol:DeployFeeRouterFactory",
+      "signerRole": "protocol-deployer",
+      "status": "blocked",
+      "dependsOn": []
+    },
+    {
+      "id": "simple-swap-adapter",
+      "phase": "infrastructure",
+      "package": "sinjoh-fee-router",
+      "script": "script/DeploySimpleSwapAdapter.s.sol:DeploySimpleSwapAdapter",
+      "signerRole": "protocol-deployer",
+      "status": "blocked",
+      "dependsOn": []
+    },
+    {
+      "id": "airdrop-distributor",
+      "phase": "core",
+      "package": "sinjoh-airdrop-distributor",
+      "script": "script/DeployAirdropDistributor.s.sol:DeployAirdropDistributor",
+      "signerRole": "protocol-deployer",
+      "status": "blocked",
+      "dependsOn": ["revenue-collector"]
+    },
+    {
+      "id": "liquidity-manager",
+      "phase": "core",
+      "package": "sinjoh-liquidity-manager",
+      "script": "script/DeployLiquidityManager.s.sol:DeployLiquidityManager",
+      "signerRole": "protocol-deployer",
+      "status": "blocked",
+      "dependsOn": ["revenue-collector"]
+    },
+    {
+      "id": "shared-price-guard",
+      "phase": "infrastructure",
+      "package": "sinjoh-liquidity-manager",
+      "script": "script/DeploySharedPriceGuard.s.sol:DeploySharedPriceGuard",
+      "signerRole": "protocol-deployer",
+      "status": "blocked",
+      "dependsOn": []
+    },
+    {
+      "id": "raffle-price-guards",
+      "phase": "infrastructure",
+      "package": "sinjoh-liquidity-manager",
+      "script": "script/DeployRafflePriceGuardsMainnet.s.sol:DeployRafflePriceGuardsMainnet",
+      "signerRole": "protocol-deployer",
+      "status": "blocked",
+      "dependsOn": ["simple-swap-adapter"]
+    },
+    {
+      "id": "randomness",
+      "phase": "infrastructure",
+      "package": "sinjoh-randomness",
+      "script": "script/DeployEcvrfRandomness.s.sol:DeployEcvrfRandomness",
+      "signerRole": "protocol-deployer",
+      "status": "blocked",
+      "dependsOn": []
+    },
+    {
+      "id": "raffle-factory",
+      "phase": "core",
+      "package": "sinjoh-raffle-rewards",
+      "script": "script/DeployRaffleRewardsFactory.s.sol:DeployRaffleRewardsFactory",
+      "signerRole": "protocol-deployer",
+      "status": "blocked",
+      "dependsOn": ["randomness", "raffle-price-guards"]
+    },
+    {
+      "id": "pons-v1-adapter-factory",
+      "phase": "integration",
+      "package": "sinjoh-pons-v1-adapter",
+      "script": "script/DeployPonsV1AdapterFactory.s.sol:DeployPonsV1AdapterFactory",
+      "signerRole": "protocol-deployer",
+      "status": "deprecated",
+      "dependsOn": ["fee-router-factory"]
+    },
+    {
+      "id": "pons-v1-launch-adapter-factory",
+      "phase": "integration",
+      "package": "sinjoh-launchpad-adapters",
+      "script": "script/DeployPonsV1LaunchAdapterFactory.s.sol:DeployPonsV1LaunchAdapterFactory",
+      "signerRole": "protocol-deployer",
+      "status": "deprecated",
+      "dependsOn": ["fee-router-factory"]
+    },
+    {
+      "id": "pons-v2-adapter-factory",
+      "phase": "integration",
+      "package": "sinjoh-launchpad-adapters",
+      "script": "script/DeployPonsV2AdapterFactory.s.sol:DeployPonsV2AdapterFactory",
+      "signerRole": "protocol-deployer",
+      "status": "blocked",
+      "dependsOn": ["fee-router-factory"]
+    },
+    {
+      "id": "funding-bands",
+      "phase": "integration",
+      "package": "sinjoh-funding-bands",
+      "script": "script/deploy-pons-v2-production.sh",
+      "signerRole": "protocol-deployer",
+      "status": "blocked",
+      "dependsOn": ["pons-v2-adapter-factory"]
+    },
+    {
+      "id": "pons-v2-buyback",
+      "phase": "integration",
+      "package": "sinjoh-launchpad-adapters",
+      "script": "script/DeployPonsV2BuybackInfrastructure.s.sol:DeployPonsV2BuybackInfrastructure",
+      "signerRole": "protocol-deployer",
+      "status": "blocked",
+      "dependsOn": ["funding-bands"]
+    },
+    {
+      "id": "pons-v2-pair-buyback",
+      "phase": "integration",
+      "package": "sinjoh-launchpad-adapters",
+      "script": "script/DeployPonsV2PairBuybackInfrastructure.s.sol:DeployPonsV2PairBuybackInfrastructure",
+      "signerRole": "protocol-deployer",
+      "status": "blocked",
+      "dependsOn": ["pons-v2-adapter-factory"]
+    },
+    {
+      "id": "flap-mainnet-infrastructure",
+      "phase": "integration",
+      "package": "sinjoh-launchpad-adapters",
+      "script": "script/DeploySinjohFlapMainnetInfrastructure.s.sol:DeploySinjohFlapMainnetInfrastructure",
+      "signerRole": "protocol-deployer",
+      "status": "blocked",
+      "dependsOn": ["fee-router-factory"]
+    },
+    {
+      "id": "flap-execution-infrastructure",
+      "phase": "integration",
+      "package": "sinjoh-launchpad-adapters",
+      "script": "script/DeploySinjohFlapExecutionInfrastructure.s.sol:DeploySinjohFlapExecutionInfrastructure",
+      "signerRole": "protocol-deployer",
+      "status": "blocked",
+      "dependsOn": ["flap-mainnet-infrastructure"]
+    },
+    {
+      "id": "flap-payout-guard",
+      "phase": "integration",
+      "package": "sinjoh-launchpad-adapters",
+      "script": "script/DeploySinjohFlapPayoutGuard.s.sol:DeploySinjohFlapPayoutGuard",
+      "signerRole": "protocol-deployer",
+      "status": "blocked",
+      "dependsOn": ["flap-mainnet-infrastructure"]
+    },
+    {
+      "id": "pools-trade-adapter-factories",
+      "phase": "integration",
+      "package": "sinjoh-launchpad-adapters",
+      "script": "script/DeployPoolsTradeAdapterFactories.s.sol:DeployPoolsTradeAdapterFactories",
+      "signerRole": "protocol-deployer",
+      "status": "blocked",
+      "dependsOn": ["fee-router-factory"]
+    },
+    {
+      "id": "pools-trade-buyback",
+      "phase": "integration",
+      "package": "sinjoh-launchpad-adapters",
+      "script": "script/DeployPoolsTradeBuybackInfrastructure.s.sol:DeployPoolsTradeBuybackInfrastructure",
+      "signerRole": "protocol-deployer",
+      "status": "blocked",
+      "dependsOn": ["pools-trade-adapter-factories"]
+    },
+    {
+      "id": "pools-trade-normalization",
+      "phase": "integration",
+      "package": "sinjoh-launchpad-adapters",
+      "script": "script/DeployPoolsTradeNormalizationInfrastructure.s.sol:DeployPoolsTradeNormalizationInfrastructure",
+      "signerRole": "protocol-deployer",
+      "status": "blocked",
+      "dependsOn": ["pools-trade-adapter-factories"]
+    },
+    {
+      "id": "pools-trade-merkle-claim",
+      "phase": "integration",
+      "package": "sinjoh-launchpad-adapters",
+      "script": "script/DeployPoolsTradeMerkleClaimFactory.s.sol:DeployPoolsTradeMerkleClaimFactory",
+      "signerRole": "protocol-deployer",
+      "status": "blocked",
+      "dependsOn": ["pools-trade-adapter-factories"]
+    },
+    {
+      "id": "letscash-infrastructure",
+      "phase": "integration",
+      "package": "sinjoh-launchpad-adapters",
+      "script": "script/DeployLetsCashInfrastructure.s.sol:DeployLetsCashInfrastructure",
+      "signerRole": "protocol-deployer",
+      "status": "blocked",
+      "dependsOn": ["fee-router-factory"]
+    }
+  ],
+  "requiredPostDeploymentGates": [
+    "source-verified",
+    "runtime-codehash-verified",
+    "two-provider-agreement",
+    "finalized",
+    "full-stack-smoke",
+    "keeper-recovery",
+    "indexer-caught-up",
+    "canary-observed",
+    "governance-transferred",
+    "consumer-manifests-activated"
+  ]
+}

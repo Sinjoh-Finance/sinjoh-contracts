@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sinjoh.com/schemas/deployment-plan.schema.json",
+  "title": "Sinjoh ordered deployment plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "chainId",
+    "network",
+    "policy",
+    "steps",
+    "requiredPostDeploymentGates"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "chainId": { "enum": [4663, 46630] },
+    "network": { "enum": ["robinhood-mainnet", "robinhood-testnet"] },
+    "policy": { "type": "string", "minLength": 1 },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/step" }
+    },
+    "requiredPostDeploymentGates": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "phase", "package", "script", "signerRole", "status", "dependsOn"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "phase": { "enum": ["infrastructure", "core", "integration", "activation"] },
+        "package": { "type": "string", "pattern": "^sinjoh-[a-z0-9-]+$" },
+        "script": {
+          "type": "string",
+          "pattern": "^script/(.+\\.s\\.sol:[A-Za-z_][A-Za-z0-9_]*|.+\\.sh)$"
+        },
+        "signerRole": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["blocked", "ready", "complete", "deprecated"] },
+        "dependsOn": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}
+

@@ -4,10 +4,8 @@ pragma solidity 0.8.28;
 import { SinjohAirdropDistributor } from "../src/SinjohAirdropDistributor.sol";
 
 interface Vm {
-    function addr(uint256 privateKey) external returns (address);
     function envAddress(string calldata name) external returns (address);
-    function envUint(string calldata name) external returns (uint256);
-    function startBroadcast(uint256 privateKey) external;
+    function startBroadcast(address signer) external;
     function stopBroadcast() external;
 }
 
@@ -33,15 +31,14 @@ contract DeployAirdropDistributor {
         // Orbit exposes ArbSys through a 0xfe marker that Foundry cannot execute locally.
         if (ARBSYS.codehash != ARBSYS_MARKER_HASH) revert InvalidArbSys();
 
-        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        address deployer = vm.envAddress("DEPLOYER_ADDRESS");
         address revenueCollector = vm.envAddress("REVENUE_COLLECTOR");
-        address deployer = vm.addr(deployerKey);
         if (deployer != EXPECTED_DEPLOYER) revert WrongDeployer(deployer);
         if (revenueCollector.code.length == 0) {
             revert InvalidRevenueCollector(revenueCollector);
         }
 
-        vm.startBroadcast(deployerKey);
+        vm.startBroadcast(deployer);
         distributor = new SinjohAirdropDistributor(deployer, revenueCollector);
         vm.stopBroadcast();
 

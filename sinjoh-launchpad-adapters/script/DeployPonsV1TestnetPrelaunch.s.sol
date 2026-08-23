@@ -9,6 +9,7 @@ import { SinjohFeeRouter } from "sinjoh-fee-router/src/SinjohFeeRouter.sol";
 import { SinjohFeeRouterFactory } from "sinjoh-fee-router/src/SinjohFeeRouterFactory.sol";
 
 interface VmPonsV1TestnetPrelaunch {
+    function envAddress(string calldata name) external view returns (address);
     function envUint(string calldata name) external view returns (uint256);
     function addr(uint256 privateKey) external pure returns (address);
     function startBroadcast(uint256 privateKey) external;
@@ -74,8 +75,6 @@ contract DeployPonsV1TestnetPrelaunch {
     );
 
     uint256 private constant CHAIN_ID = 46_630;
-    address private constant EXPECTED_DEPLOYER = 0x1A0925c9651836281FFe3EBD1D99d5D9739967EA;
-
     address private constant PONS_FACTORY = 0x1160351B42ac027b9dFd3BFC497ee8985912c9dc;
     address private constant PONS_LOCKER = 0x9E18AFba6eADDC1A00Edd35FB7AB6C5CD1E1dEE0;
     address private constant WETH = 0x37E402B8081eFcE1D82A09a066512278006e4691;
@@ -139,7 +138,7 @@ contract DeployPonsV1TestnetPrelaunch {
         if (block.chainid != CHAIN_ID) revert WrongChain(block.chainid);
         uint256 privateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address deployer = vm.addr(privateKey);
-        if (deployer != EXPECTED_DEPLOYER) revert WrongDeployer(deployer);
+        if (deployer != vm.envAddress("TESTNET_DEPLOYER_ADDRESS")) revert WrongDeployer(deployer);
         _assertDependencies();
 
         IPonsV1LaunchFactory.LaunchParams memory params;

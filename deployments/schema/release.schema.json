@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sinjoh.com/schemas/release.schema.json",
+  "title": "Sinjoh immutable release bundle manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "releaseId",
+    "chainId",
+    "network",
+    "sourceCommit",
+    "sourceTreeClean",
+    "createdAt",
+    "toolchain",
+    "inputs",
+    "artifacts"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "releaseId": { "type": "string", "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]{2,79}$" },
+    "chainId": { "enum": [4663, 46630] },
+    "network": { "type": "string" },
+    "sourceCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "sourceTreeClean": { "type": "boolean" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "toolchain": { "type": "object" },
+    "inputs": { "type": "array" },
+    "artifacts": { "type": "array" }
+  }
+}
+

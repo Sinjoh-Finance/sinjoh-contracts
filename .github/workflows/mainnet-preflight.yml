@@ -1,0 +1,56 @@
+name: mainnet-preflight
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: Reviewed release identifier
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: robinhood-mainnet-preflight
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: robinhood-mainnet-preflight
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09
+        with:
+          version: v1.7.1
+      - run: node scripts/release/validate-config.mjs
+      - run: scripts/contracts-ci.sh ci all
+      - name: Certify current mainnet dependencies through two providers
+        env:
+          PRIMARY_RPC: ${{ secrets.ROBINHOOD_MAINNET_ARCHIVE_RPC_URL }}
+          SECONDARY_RPC: ${{ secrets.ROBINHOOD_MAINNET_SECONDARY_RPC_URL }}
+        run: |
+          node scripts/release/verify-deployment.mjs --network 4663 \
+            --rpc-url "$PRIMARY_RPC" --secondary-rpc-url "$SECONDARY_RPC" \
+            --require-secondary --require-finalized
+      - name: Build unsigned mainnet release bundle
+        env:
+          RELEASE_ID: ${{ inputs.release_id }}
+        run: |
+          node scripts/release/build-release.mjs --network 4663 \
+            --release-id "$RELEASE_ID" --require-clean
+          tar -C .release-bundles -czf ".release-bundles/$RELEASE_ID.tar.gz" \
+            "$RELEASE_ID"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: unsigned-mainnet-${{ inputs.release_id }}
+          path: .release-bundles/${{ inputs.release_id }}.tar.gz
+          if-no-files-found: error
+          retention-days: 90
+

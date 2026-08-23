@@ -5,9 +5,8 @@ import { SinjohPonsV1LaunchAdapter } from "../src/SinjohPonsV1LaunchAdapter.sol"
 import { SinjohPonsV1LaunchAdapterFactory } from "../src/SinjohPonsV1LaunchAdapterFactory.sol";
 
 interface VmPonsV1AdapterFactory {
-    function addr(uint256 privateKey) external returns (address);
-    function envUint(string calldata name) external returns (uint256);
-    function startBroadcast(uint256 privateKey) external;
+    function envAddress(string calldata name) external returns (address);
+    function startBroadcast(address signer) external;
     function stopBroadcast() external;
 }
 
@@ -39,11 +38,10 @@ contract DeployPonsV1LaunchAdapterFactory {
         _assertHash(PONS_V1_LOCKER, PONS_V1_LOCKER_HASH);
         _assertHash(WETH, WETH_HASH);
 
-        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address deployer = vm.addr(deployerKey);
+        address deployer = vm.envAddress("DEPLOYER_ADDRESS");
         if (deployer != EXPECTED_DEPLOYER) revert WrongDeployer(deployer);
 
-        vm.startBroadcast(deployerKey);
+        vm.startBroadcast(deployer);
         factory = new SinjohPonsV1LaunchAdapterFactory(
             PONS_V1_FACTORY, PONS_V1_LOCKER, WETH, ROBINHOOD_MAINNET_CHAIN_ID
         );

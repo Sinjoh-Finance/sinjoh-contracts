@@ -7,9 +7,8 @@ import { SinjohFeeRouter } from "sinjoh-fee-router/src/SinjohFeeRouter.sol";
 import { SinjohFeeRouterFactory } from "sinjoh-fee-router/src/SinjohFeeRouterFactory.sol";
 
 interface VmSinjohFlapMainnetInfrastructure {
-    function envUint(string calldata name) external view returns (uint256);
-    function addr(uint256 privateKey) external pure returns (address);
-    function startBroadcast(uint256 privateKey) external;
+    function envAddress(string calldata name) external view returns (address);
+    function startBroadcast(address signer) external;
     function stopBroadcast() external;
 }
 
@@ -67,12 +66,11 @@ contract DeploySinjohFlapMainnetInfrastructure {
 
     function run() external returns (Deployment memory deployed) {
         if (block.chainid != CHAIN_ID) revert WrongChain(block.chainid);
-        uint256 deployerKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        address deployer = vm.addr(deployerKey);
+        address deployer = vm.envAddress("DEPLOYER_ADDRESS");
         if (deployer != EXPECTED_DEPLOYER) revert WrongDeployer(deployer);
         _assertDependencies();
 
-        vm.startBroadcast(deployerKey);
+        vm.startBroadcast(deployer);
         SinjohFeeRouter routerImplementation = new SinjohFeeRouter();
         SinjohFeeRouterFactory routerFactory =
             new SinjohFeeRouterFactory(address(routerImplementation));
