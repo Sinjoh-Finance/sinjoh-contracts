@@ -5,6 +5,7 @@ import { AirdropEligibilityMode } from "../airdrop/AirdropTypes.sol";
 import { ERC4626BasketYieldAdapterFactory } from "../adapters/ERC4626BasketYieldAdapterFactory.sol";
 import { BasketConfig } from "../basket/BasketTypes.sol";
 import { FundingBandsDeploymentConfig } from "../bands/FundingBandTypes.sol";
+import { FundingBandV3IntegrationFactory } from "../bands/FundingBandV3IntegrationFactory.sol";
 import { ProjectTimelockV2 } from "../governance/ProjectTimelockV2.sol";
 import { Create3V2 } from "../libraries/Create3V2.sol";
 import { SinjohV2Constants } from "../libraries/SinjohV2Constants.sol";
@@ -28,22 +29,22 @@ import {
 /// @dev It cannot call launch initializers, register projects, govern modules, or serve any caller
 /// other than the Launcher baked into its constructor.
 contract ProjectLaunchDeployerV2 {
-    uint32 public constant PROTOCOL_VERSION = 2;
-    address public constant BURN_ADDRESS = SinjohV2Constants.BURN_ADDRESS;
-    address public constant PONS_LOCKER = 0xda4bCee76B29EFEc9697Fcf663601c2042043968;
-    uint256 public constant REQUIRED_CODE_STORES = 10;
+    uint32 private constant PROTOCOL_VERSION = 2;
+    address private constant BURN_ADDRESS = SinjohV2Constants.BURN_ADDRESS;
+    address private constant PONS_LOCKER = 0xda4bCee76B29EFEc9697Fcf663601c2042043968;
+    uint256 private constant REQUIRED_CODE_STORES = 10;
 
-    bytes32 public constant TOKEN = keccak256("TOKEN");
-    bytes32 public constant MULTISIG = keccak256("MULTISIG");
-    bytes32 public constant TIMELOCK = keccak256("TIMELOCK");
-    bytes32 public constant STAKING = keccak256("STAKING");
-    bytes32 public constant TREASURY = keccak256("TREASURY");
-    bytes32 public constant AIRDROP = keccak256("AIRDROP");
-    bytes32 public constant ROUTER = keccak256("ROUTER");
-    bytes32 public constant BASKET = keccak256("BASKET");
-    bytes32 public constant BANDS = keccak256("BANDS");
-    bytes32 public constant LIQUIDITY = keccak256("LIQUIDITY");
-    bytes32 public constant RAFFLE = keccak256("RAFFLE");
+    bytes32 private constant TOKEN = keccak256("TOKEN");
+    bytes32 private constant MULTISIG = keccak256("MULTISIG");
+    bytes32 private constant TIMELOCK = keccak256("TIMELOCK");
+    bytes32 private constant STAKING = keccak256("STAKING");
+    bytes32 private constant TREASURY = keccak256("TREASURY");
+    bytes32 private constant AIRDROP = keccak256("AIRDROP");
+    bytes32 private constant ROUTER = keccak256("ROUTER");
+    bytes32 private constant BASKET = keccak256("BASKET");
+    bytes32 private constant BANDS = keccak256("BANDS");
+    bytes32 private constant LIQUIDITY = keccak256("LIQUIDITY");
+    bytes32 private constant RAFFLE = keccak256("RAFFLE");
 
     address public immutable launcher;
     address public immutable registry;
@@ -52,6 +53,7 @@ contract ProjectLaunchDeployerV2 {
     address public immutable raffleImplementation;
     address public immutable basketVaultImplementation;
     ERC4626BasketYieldAdapterFactory public immutable erc4626YieldAdapterFactory;
+    FundingBandV3IntegrationFactory public immutable fundingBandV3IntegrationFactory;
     address public immutable v3Factory;
     address public immutable v3PositionManager;
     address public immutable v4PositionManager;
@@ -86,6 +88,7 @@ contract ProjectLaunchDeployerV2 {
         _requireAddress(release.raffleImplementation, true);
         _requireAddress(release.basketVaultImplementation, true);
         _requireAddress(release.erc4626YieldAdapterFactory, true);
+        _requireAddress(release.fundingBandV3IntegrationFactory, true);
         if (
             release.erc4626YieldAdapterFactory.codehash
                 != keccak256(type(ERC4626BasketYieldAdapterFactory).runtimeCode)
@@ -95,6 +98,12 @@ contract ProjectLaunchDeployerV2 {
         _requireAddress(release.v4PositionManager, true);
         _requireAddress(release.v4StateView, true);
         _requireAddress(release.permit2, true);
+        FundingBandV3IntegrationFactory bandFactory =
+            FundingBandV3IntegrationFactory(release.fundingBandV3IntegrationFactory);
+        if (
+            bandFactory.v3Factory() != release.v3Factory
+                || bandFactory.v3PositionManager() != release.v3PositionManager
+        ) revert InvalidReleaseAddress(release.fundingBandV3IntegrationFactory);
         if (bindings.length != REQUIRED_CODE_STORES) {
             revert InvalidCodeStoreCount(bindings.length);
         }
@@ -107,6 +116,8 @@ contract ProjectLaunchDeployerV2 {
         basketVaultImplementation = release.basketVaultImplementation;
         erc4626YieldAdapterFactory =
             ERC4626BasketYieldAdapterFactory(release.erc4626YieldAdapterFactory);
+        fundingBandV3IntegrationFactory =
+            FundingBandV3IntegrationFactory(release.fundingBandV3IntegrationFactory);
         v3Factory = release.v3Factory;
         v3PositionManager = release.v3PositionManager;
         v4PositionManager = release.v4PositionManager;
@@ -170,7 +181,6 @@ contract ProjectLaunchDeployerV2 {
         address deployed = _deploy(
             TOKEN,
             config,
-            preview.launchConfigHash,
             abi.encode(
                 config.name,
                 config.symbol,
@@ -190,10 +200,7 @@ contract ProjectLaunchDeployerV2 {
         ProjectLaunchAddresses memory a = preview.addresses;
         if (config.governanceMode == LaunchGovernanceMode.MULTISIG) {
             address deployed = _deploy(
-                MULTISIG,
-                config,
-                preview.launchConfigHash,
-                abi.encode(registry, a.subject, config.governance.multisigSigners)
+                MULTISIG, config, abi.encode(registry, a.subject, config.governance.multisigSigners)
             );
             _requireExpected(MULTISIG, a.multisigAccount, deployed);
         }
@@ -206,7 +213,6 @@ contract ProjectLaunchDeployerV2 {
             address deployed = _deploy(
                 TIMELOCK,
                 config,
-                preview.launchConfigHash,
                 abi.encode(registry, a.subject, a.voteSource, config.governance.tokenGovernance)
             );
             _requireExpected(TIMELOCK, a.tokenTimelock, deployed);
@@ -228,7 +234,6 @@ contract ProjectLaunchDeployerV2 {
         address deployed = _deploy(
             STAKING,
             config,
-            preview.launchConfigHash,
             abi.encode(
                 registry,
                 a.subject,
@@ -253,7 +258,6 @@ contract ProjectLaunchDeployerV2 {
         address deployed = _deploy(
             TREASURY,
             config,
-            preview.launchConfigHash,
             abi.encode(
                 registry,
                 a.subject,
@@ -278,7 +282,6 @@ contract ProjectLaunchDeployerV2 {
             address deployed = _deploy(
                 AIRDROP,
                 config,
-                preview.launchConfigHash,
                 abi.encode(
                     registry,
                     a.subject,
@@ -305,7 +308,6 @@ contract ProjectLaunchDeployerV2 {
             address deployed = _deploy(
                 LIQUIDITY,
                 config,
-                preview.launchConfigHash,
                 abi.encode(
                     registry,
                     a.subject,
@@ -331,7 +333,6 @@ contract ProjectLaunchDeployerV2 {
             address deployed = _deploy(
                 ROUTER,
                 config,
-                preview.launchConfigHash,
                 abi.encode(
                     registry,
                     a.subject,
@@ -354,7 +355,6 @@ contract ProjectLaunchDeployerV2 {
             address deployed = _deploy(
                 BASKET,
                 config,
-                preview.launchConfigHash,
                 abi.encode(
                     registry,
                     a.subject,
@@ -372,12 +372,8 @@ contract ProjectLaunchDeployerV2 {
             _requireExpected(BASKET, a.basketManager, deployed);
         }
         if (config.modules.fundingBands) {
-            address deployed = _deploy(
-                BANDS,
-                config,
-                preview.launchConfigHash,
-                abi.encode(abi.encode(_bandsDeploymentConfig(config, a)))
-            );
+            address deployed =
+                _deploy(BANDS, config, abi.encode(abi.encode(_bandsDeploymentConfig(config, a))));
             _requireExpected(BANDS, a.fundingBands, deployed);
         }
     }
@@ -399,8 +395,17 @@ contract ProjectLaunchDeployerV2 {
         deployment.market.quoteAsset = config.bands.quoteAsset;
         deployment.market.referenceSupply = config.totalSupply;
         deployment.market.integrationApprovalRoot = integrationApprovalRoot;
-        deployment.market.marketCapGuard = config.bands.marketCapGuard;
-        deployment.market.positionAdapter = config.bands.positionAdapter;
+        deployment.market.marketCapGuard = a.fundingBandMarketCapGuard;
+        deployment.market.positionAdapter = a.fundingBandPositionAdapter;
+        if (config.bands.marketCapGuard == address(0) && config.bands.positionAdapter == address(0))
+        {
+            deployment.market.v3IntegrationFactory = address(fundingBandV3IntegrationFactory);
+            deployment.market.twapWindow = config.bands.twapWindow;
+            deployment.market.quoteUsdOracle = config.bands.quoteUsdOracle;
+            deployment.market.tickReferenceQuoteUsdE8 = config.bands.tickReferenceQuoteUsdE8;
+            deployment.market.marketCapGuard = address(0);
+            deployment.market.positionAdapter = address(0);
+        }
         deployment.market.confirmationPeriod = config.bands.confirmationPeriod;
         deployment.market.maximumObservationAge = config.bands.maximumObservationAge;
         deployment.market.integrationApprovalProof = config.bands.integrationApprovalProof;
@@ -471,8 +476,8 @@ contract ProjectLaunchDeployerV2 {
         candidates[9] = a.primaryBasketVault;
         candidates[10] = config.launchProfile.canonicalPool;
         candidates[11] = PONS_LOCKER;
-        candidates[12] = config.bands.marketCapGuard;
-        candidates[13] = config.bands.positionAdapter;
+        candidates[12] = a.fundingBandMarketCapGuard;
+        candidates[13] = a.fundingBandPositionAdapter;
         for (uint256 i; i < adapterCount; ++i) {
             candidates[14 + i] = _basketAdapter(config, a, i);
         }
@@ -506,8 +511,8 @@ contract ProjectLaunchDeployerV2 {
         candidates[5] = a.basketManager;
         candidates[6] = a.primaryBasketVault;
         candidates[7] = config.launchProfile.canonicalPool;
-        candidates[8] = config.bands.marketCapGuard;
-        candidates[9] = config.bands.positionAdapter;
+        candidates[8] = a.fundingBandMarketCapGuard;
+        candidates[9] = a.fundingBandPositionAdapter;
         uint256 offset = 10;
         for (uint256 i; i < adapterCount; ++i) {
             candidates[offset++] = _basketAdapter(config, a, i);
@@ -609,7 +614,6 @@ contract ProjectLaunchDeployerV2 {
     function _deploy(
         bytes32 moduleKey,
         ProjectLaunchConfig calldata config,
-        bytes32,
         bytes memory constructorArguments
     ) private returns (address) {
         bytes memory base = creationCodeStore[moduleKey].creationCode();

@@ -13,6 +13,8 @@ const required = [
   "broadcaster", "protocolFeeRecipient",
   "registry", "deploymentEngine", "launcher", "raffleImplementation",
   "basketVaultImplementation", "erc4626YieldAdapterFactory", "erc4626YieldAdapterRuntimeHash",
+  "fundingBandV3IntegrationFactory", "fundingBandV3IntegrationFactoryRuntimeHash",
+  "fundingBandMarketCapGuardRuntimeHash", "fundingBandPositionAdapterRuntimeHash",
   "v3Factory", "v3FactoryRuntimeHash", "v3PositionManager", "v3PositionManagerRuntimeHash",
   "v4PositionManager", "v4PositionManagerRuntimeHash", "v4StateView",
   "v4StateViewRuntimeHash", "permit2", "permit2RuntimeHash", "integrationApprovalRoot",

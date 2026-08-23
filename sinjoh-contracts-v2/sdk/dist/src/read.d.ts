@@ -6,6 +6,8 @@ export declare function predictLaunch(client: PublicClient, launcher: Address, c
         basketManager: `0x${string}`;
         basketYieldAdapters: readonly `0x${string}`[];
         controller: `0x${string}`;
+        fundingBandMarketCapGuard: `0x${string}`;
+        fundingBandPositionAdapter: `0x${string}`;
         fundingBands: `0x${string}`;
         liquidityManager: `0x${string}`;
         multisigAccount: `0x${string}`;
@@ -31,6 +33,8 @@ export declare function validateLaunchConfig(client: PublicClient, launcher: Add
         basketManager: `0x${string}`;
         basketYieldAdapters: readonly `0x${string}`[];
         controller: `0x${string}`;
+        fundingBandMarketCapGuard: `0x${string}`;
+        fundingBandPositionAdapter: `0x${string}`;
         fundingBands: `0x${string}`;
         liquidityManager: `0x${string}`;
         multisigAccount: `0x${string}`;

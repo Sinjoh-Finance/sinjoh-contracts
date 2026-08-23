@@ -1,4 +1,4 @@
-import { encodeFunctionData, parseUnits, } from "viem";
+import { encodeAbiParameters, encodeFunctionData, isAddress, isHex, keccak256, stringToHex, parseUnits, } from "viem";
 import { projectFundingBandsV2Abi, projectGovernorV2Abi, projectMultisigAccountV2Abi, projectTreasuryVaultV2Abi, } from "./abis.generated.js";
 export function governanceBatch(actions) {
     if (actions.length === 0)
@@ -44,6 +44,41 @@ export const fundingBandDestination = {
     raffle: 5,
     basketViaTreasury: 6,
 };
+const FUNDING_BAND_INTEGRATION_DOMAIN = keccak256(stringToHex("SINJOH_V2_FUNDING_BAND_INTEGRATION"));
+/**
+ * Builds the exact release-approval leaf for one production Funding Bands integration profile.
+ * The leaf approves reviewed code and market infrastructure; each deployed guard separately binds
+ * and validates its project's exact reference supply.
+ */
+export function fundingBandIntegrationApprovalLeaf(parameters) {
+    if (parameters.chainId <= 0n)
+        throw new RangeError("Chain ID must be greater than zero");
+    if (!isAddress(parameters.quoteAsset) || /^0x0{40}$/i.test(parameters.quoteAsset)) {
+        throw new RangeError("Quote asset must be a valid nonzero address");
+    }
+    assertBytes32(parameters.poolRuntimeHash, "Pool runtime hash");
+    assertBytes32(parameters.marketCapGuardRuntimeHash, "Market-cap guard runtime hash");
+    assertBytes32(parameters.positionAdapterRuntimeHash, "Position adapter runtime hash");
+    assertBytes32(parameters.positionManagerRuntimeHash, "Position manager runtime hash");
+    const inner = keccak256(encodeAbiParameters([
+        { type: "bytes32" },
+        { type: "uint256" },
+        { type: "bytes32" },
+        { type: "address" },
+        { type: "bytes32" },
+        { type: "bytes32" },
+        { type: "bytes32" },
+    ], [
+        FUNDING_BAND_INTEGRATION_DOMAIN,
+        parameters.chainId,
+        parameters.poolRuntimeHash,
+        parameters.quoteAsset,
+        parameters.marketCapGuardRuntimeHash,
+        parameters.positionAdapterRuntimeHash,
+        parameters.positionManagerRuntimeHash,
+    ]));
+    return keccak256(inner);
+}
 /** Converts a human-readable USD market cap into the protocol's fixed 8-decimal representation. */
 export function marketCapUsdE8(value) {
     const result = parseUnits(value, 8);
@@ -86,5 +121,9 @@ export function buildFundingBandCreationActions(parameters) {
             args: [config, observationData],
         }),
     ];
+}
+function assertBytes32(value, label) {
+    if (!isHex(value) || value.length !== 66)
+        throw new RangeError(`${label} must be exactly 32 bytes`);
 }
 //# sourceMappingURL=actions.js.map

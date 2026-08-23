@@ -40,6 +40,10 @@ struct FundingBandsMarketConfig {
     bytes32 integrationApprovalRoot;
     address marketCapGuard;
     address positionAdapter;
+    address v3IntegrationFactory;
+    uint32 twapWindow;
+    address quoteUsdOracle;
+    uint256 tickReferenceQuoteUsdE8;
     uint48 confirmationPeriod;
     uint48 maximumObservationAge;
     bytes32[] integrationApprovalProof;

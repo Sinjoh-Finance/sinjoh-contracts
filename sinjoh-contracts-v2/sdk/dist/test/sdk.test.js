@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import test from "node:test";
 import { decodeFunctionData, hashTypedData } from "viem";
-import { airdropCommitmentTypedData, buildFundingBandCreationActions, buildAirdropEpoch, buildVerifiedAirdropEpoch, buildLaunchFromPreset, encodeGovernanceAction, encodeAirdropFinalizeCall, encodeAirdropPushCalls, encodeAirdropRetryCreditCall, encodeMultisigSubmission, encodeTokenGovernanceProposal, erc4626BasketYieldAdapterFactoryAbi, fundingBandDestination, marketCapUsdE8, projectAirdropV2Abi, projectFundingBandsV2Abi, projectGovernorV2Abi, projectLauncherV2Abi, projectMultisigAccountV2Abi, projectRegistryV2Abi, projectTreasuryVaultV2Abi, simpleFundingBandConfig, launchErrorMessage, planAirdropPushBatches, reconstructHolderAirdropSnapshot, reconstructStakerAirdropSnapshot, } from "../src/index.js";
+import { airdropCommitmentTypedData, buildFundingBandCreationActions, buildAirdropEpoch, buildVerifiedAirdropEpoch, buildLaunchFromPreset, encodeGovernanceAction, encodeAirdropFinalizeCall, encodeAirdropPushCalls, encodeAirdropRetryCreditCall, encodeMultisigSubmission, encodeTokenGovernanceProposal, erc4626BasketYieldAdapterFactoryAbi, fundingBandDestination, fundingBandIntegrationApprovalLeaf, marketCapUsdE8, projectAirdropV2Abi, projectFundingBandsV2Abi, projectGovernorV2Abi, projectLauncherV2Abi, projectMultisigAccountV2Abi, projectRegistryV2Abi, projectTreasuryVaultV2Abi, simpleFundingBandConfig, launchErrorMessage, planAirdropPushBatches, reconstructHolderAirdropSnapshot, reconstructStakerAirdropSnapshot, } from "../src/index.js";
 const fixture = JSON.parse(await readFile(resolve(process.cwd(), "fixtures/treasury-send.json"), "utf8"));
 const airdropFixture = JSON.parse(await readFile(resolve(process.cwd(), "fixtures/airdrop-tree.json"), "utf8"));
 test("exports the required project discovery and launch ABI", () => {
@@ -62,10 +62,27 @@ test("rejects invalid funding-band product inputs before wallet submission", () 
     }), /Upper market cap/);
     assert.throws(() => marketCapUsdE8("0"), /greater than zero/);
 });
+test("builds the Solidity-identical Funding Bands release approval leaf", () => {
+    assert.equal(fundingBandIntegrationApprovalLeaf({
+        chainId: 8453n,
+        poolRuntimeHash: `0x${"11".repeat(32)}`,
+        quoteAsset: "0x0000000000000000000000000000000000002000",
+        marketCapGuardRuntimeHash: `0x${"22".repeat(32)}`,
+        positionAdapterRuntimeHash: `0x${"33".repeat(32)}`,
+        positionManagerRuntimeHash: `0x${"44".repeat(32)}`,
+    }), "0xff1246d50acf163f6155677b7789d0bb2dd26e919f72fe5f1b6bc74a95c48594");
+});
 test("hydrates a reviewed launch preset from creator-owned fields only", () => {
     const curatedConfig = {
         governanceMode: 1,
         launchProfile: { canonicalPool: "0x0000000000000000000000000000000000009000" },
+        bands: {
+            marketCapGuard: "0x0000000000000000000000000000000000000000",
+            positionAdapter: "0x0000000000000000000000000000000000000000",
+            twapWindow: 900,
+            quoteUsdOracle: "0x0000000000000000000000000000000000000000",
+            tickReferenceQuoteUsdE8: 100000000n,
+        },
     };
     const config = buildLaunchFromPreset({ id: "base-all-modules", protocolVersion: "2.0.0", config: curatedConfig }, {
         creator: "0x0000000000000000000000000000000000001000",
@@ -82,6 +99,7 @@ test("hydrates a reviewed launch preset from creator-owned fields only", () => {
     assert.equal(config.symbol, "PRJ");
     assert.equal(config.governanceMode, 1);
     assert.deepEqual(config.launchProfile, curatedConfig.launchProfile);
+    assert.deepEqual(config.bands, curatedConfig.bands);
 });
 test("rejects creator mistakes locally and returns corrective launch copy", () => {
     const preset = {

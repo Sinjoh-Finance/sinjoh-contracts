@@ -46,6 +46,7 @@ contract MockV3Factory {
 }
 
 contract MockV3PositionManager {
+    address public factory;
     uint256 public nextTokenId = 1;
     uint16 public useBps = 10_000;
     bool public useSafeMintCallback = true;
@@ -57,6 +58,10 @@ contract MockV3PositionManager {
     mapping(uint256 => uint128) public liquidity;
     mapping(uint256 => uint256) public fee0;
     mapping(uint256 => uint256) public fee1;
+
+    function setFactory(address value) external {
+        factory = value;
+    }
 
     function setUseBps(uint16 value) external {
         useBps = value;

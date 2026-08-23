@@ -11,6 +11,13 @@ import {
 import { BasketManagerV2 } from "../src/basket/BasketManagerV2.sol";
 import { BasketVaultV2 } from "../src/basket/BasketVaultV2.sol";
 import { ProjectFundingBandsV2 } from "../src/bands/ProjectFundingBandsV2.sol";
+import { FundingBandV3IntegrationFactory } from "../src/bands/FundingBandV3IntegrationFactory.sol";
+import {
+    UniswapV3FundingBandMarketCapGuard
+} from "../src/bands/UniswapV3FundingBandMarketCapGuard.sol";
+import {
+    UniswapV3FundingBandPositionAdapter
+} from "../src/bands/UniswapV3FundingBandPositionAdapter.sol";
 import { ProjectTimelockV2 } from "../src/governance/ProjectTimelockV2.sol";
 import { ProjectLiquidityManagerV2 } from "../src/liquidity/ProjectLiquidityManagerV2.sol";
 import { ProjectMultisigAccountV2 } from "../src/multisig/ProjectMultisigAccountV2.sol";
@@ -47,6 +54,10 @@ contract DeployProjectLauncherV2 is Script {
         BasketVaultV2 basketVaultImplementation = new BasketVaultV2();
         ERC4626BasketYieldAdapterFactory erc4626YieldAdapterFactory =
             new ERC4626BasketYieldAdapterFactory();
+        address v3Factory = vm.envAddress("V3_FACTORY");
+        address v3PositionManager = vm.envAddress("V3_POSITION_MANAGER");
+        FundingBandV3IntegrationFactory fundingBandV3IntegrationFactory =
+            new FundingBandV3IntegrationFactory(v3Factory, v3PositionManager);
         CreationCodeBinding[] memory bindings = _deployCreationCodeStores();
 
         LauncherReleaseConfig memory release = LauncherReleaseConfig({
@@ -55,8 +66,9 @@ contract DeployProjectLauncherV2 is Script {
             raffleImplementation: address(raffleImplementation),
             basketVaultImplementation: address(basketVaultImplementation),
             erc4626YieldAdapterFactory: address(erc4626YieldAdapterFactory),
-            v3Factory: vm.envAddress("V3_FACTORY"),
-            v3PositionManager: vm.envAddress("V3_POSITION_MANAGER"),
+            fundingBandV3IntegrationFactory: address(fundingBandV3IntegrationFactory),
+            v3Factory: v3Factory,
+            v3PositionManager: v3PositionManager,
             v4PositionManager: vm.envAddress("V4_POSITION_MANAGER"),
             v4StateView: vm.envAddress("V4_STATE_VIEW"),
             permit2: vm.envAddress("PERMIT2")
@@ -136,6 +148,16 @@ contract DeployProjectLauncherV2 is Script {
             deployer.erc4626YieldAdapterFactory().ADAPTER_RUNTIME_HASH()
                 == keccak256(type(ERC4626BasketYieldAdapter).runtimeCode),
             "ERC4626_ADAPTER_HASH_MISMATCH"
+        );
+        require(
+            address(deployer.fundingBandV3IntegrationFactory()).code.length != 0,
+            "FUNDING_BAND_V3_FACTORY_MISSING"
+        );
+        require(
+            deployer.fundingBandV3IntegrationFactory().v3Factory() == deployer.v3Factory()
+                && deployer.fundingBandV3IntegrationFactory().v3PositionManager()
+                    == deployer.v3PositionManager(),
+            "FUNDING_BAND_V3_FACTORY_BINDING_MISMATCH"
         );
         _verifyExternalRuntime(deployer.v3Factory(), "V3_FACTORY_RUNTIME_HASH");
         _verifyExternalRuntime(deployer.v3PositionManager(), "V3_POSITION_MANAGER_RUNTIME_HASH");
@@ -225,6 +247,26 @@ contract DeployProjectLauncherV2 is Script {
             object,
             "erc4626YieldAdapterRuntimeHash",
             deployer.erc4626YieldAdapterFactory().ADAPTER_RUNTIME_HASH()
+        );
+        vm.serializeAddress(
+            object,
+            "fundingBandV3IntegrationFactory",
+            address(deployer.fundingBandV3IntegrationFactory())
+        );
+        vm.serializeBytes32(
+            object,
+            "fundingBandV3IntegrationFactoryRuntimeHash",
+            address(deployer.fundingBandV3IntegrationFactory()).codehash
+        );
+        vm.serializeBytes32(
+            object,
+            "fundingBandMarketCapGuardRuntimeHash",
+            keccak256(type(UniswapV3FundingBandMarketCapGuard).runtimeCode)
+        );
+        vm.serializeBytes32(
+            object,
+            "fundingBandPositionAdapterRuntimeHash",
+            keccak256(type(UniswapV3FundingBandPositionAdapter).runtimeCode)
         );
         vm.serializeAddress(object, "v3Factory", deployer.v3Factory());
         vm.serializeBytes32(object, "v3FactoryRuntimeHash", deployer.v3Factory().codehash);

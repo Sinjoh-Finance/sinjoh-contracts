@@ -84,8 +84,11 @@ It holds the canonical position NFT, requires an advancing sustained-price obser
 permissionless settlement, charges the cumulative 1% quote fee exactly once, and delivers through
 seven typed destinations. Failed delivery remains fully backed and retryable; governance recovery
 can only select another allowed same-project destination. Fixed reference supply prevents token
-mints or burns from moving band boundaries, while proof-approved guards and adapters keep AMM and
-oracle complexity out of the creator flow.
+mints or burns from moving band boundaries. The standard launch path derives time-weighted market
+cap from the canonical Uniswap V3 pool and atomically deploys its project-bound guard and position
+adapter from one ownerless deterministic factory; the release preset supplies the reviewed TWAP,
+quote-price, and approval settings, so creators never deploy or bind integrations or enter contract
+plumbing. Preflight returns every predicted address before the wallet prompt.
 
 `ProjectRaffleV2` preserves the current audited Raffle's ticket, reservation, randomness, payout,
 tax, expiry, and solvency behavior while replacing its post-deployment binding step with one atomic

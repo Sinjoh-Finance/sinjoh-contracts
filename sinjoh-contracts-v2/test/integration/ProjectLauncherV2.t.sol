@@ -30,6 +30,15 @@ import {
     BasketTarget
 } from "../../src/basket/BasketTypes.sol";
 import { ProjectFundingBandsV2 } from "../../src/bands/ProjectFundingBandsV2.sol";
+import {
+    FundingBandV3IntegrationFactory
+} from "../../src/bands/FundingBandV3IntegrationFactory.sol";
+import {
+    UniswapV3FundingBandMarketCapGuard
+} from "../../src/bands/UniswapV3FundingBandMarketCapGuard.sol";
+import {
+    UniswapV3FundingBandPositionAdapter
+} from "../../src/bands/UniswapV3FundingBandPositionAdapter.sol";
 import { ProjectGovernorV2 } from "../../src/governance/ProjectGovernorV2.sol";
 import { ProjectTimelockV2 } from "../../src/governance/ProjectTimelockV2.sol";
 import { ProjectLiquidityManagerV2 } from "../../src/liquidity/ProjectLiquidityManagerV2.sol";
@@ -77,6 +86,7 @@ import {
     MockFundingBandPool,
     MockFundingBandPositionAdapter
 } from "../mocks/MockFundingBandIntegrations.sol";
+import { MockV3BandPool } from "../mocks/MockUniswapV3BandPosition.sol";
 
 contract ProjectLauncherV2Test is Test {
     address internal constant CREATOR = address(0xA11CE);
@@ -116,6 +126,9 @@ contract ProjectLauncherV2Test is Test {
             new ERC4626BasketYieldAdapterFactory();
         MockV3Factory v3Factory = new MockV3Factory();
         MockV3PositionManager v3PositionManager = new MockV3PositionManager();
+        v3PositionManager.setFactory(address(v3Factory));
+        FundingBandV3IntegrationFactory fundingBandV3IntegrationFactory =
+            new FundingBandV3IntegrationFactory(address(v3Factory), address(v3PositionManager));
         MockPermit2 permit2 = new MockPermit2();
         MockV4PositionManager v4PositionManager = new MockV4PositionManager(permit2);
         MockV4StateView v4StateView = new MockV4StateView();
@@ -127,6 +140,7 @@ contract ProjectLauncherV2Test is Test {
             raffleImplementation: address(raffleImplementation),
             basketVaultImplementation: address(basketVaultImplementation),
             erc4626YieldAdapterFactory: address(erc4626YieldAdapterFactory),
+            fundingBandV3IntegrationFactory: address(fundingBandV3IntegrationFactory),
             v3Factory: address(v3Factory),
             v3PositionManager: address(v3PositionManager),
             v4PositionManager: address(v4PositionManager),
@@ -178,6 +192,100 @@ contract ProjectLauncherV2Test is Test {
         assertEq(token.getVotes(token.BURN_ADDRESS()), 0);
         assertTrue(token.isVotingExcluded(launched.addresses.controller));
         assertTrue(token.isVotingExcluded(launched.addresses.treasury));
+    }
+
+    function testFundingBandsPreflightPredictsPlatformManagedIntegrations() public {
+        MockBasketAsset quote = new MockBasketAsset("Quote", "QUOTE");
+        MockFundingBandPool pool = new MockFundingBandPool();
+        ProjectLaunchConfig memory config = _baseMultisigConfig();
+        config.modules.treasury = true;
+        config.modules.fundingBands = true;
+        config.launchProfile.canonicalPool = address(pool);
+        config.bands.quoteAsset = address(quote);
+        config.bands.twapWindow = 15 minutes;
+        config.bands.tickReferenceQuoteUsdE8 = 1e8;
+        config.bands.confirmationPeriod = 15 minutes;
+        config.bands.maximumObservationAge = 5 minutes;
+
+        ProjectLaunchPreview memory preview = launcher.validateLaunchConfig(config);
+        assertNotEq(preview.addresses.fundingBands, address(0));
+        assertNotEq(preview.addresses.fundingBandMarketCapGuard, address(0));
+        assertNotEq(preview.addresses.fundingBandPositionAdapter, address(0));
+        assertNotEq(
+            preview.addresses.fundingBandMarketCapGuard,
+            preview.addresses.fundingBandPositionAdapter
+        );
+        assertEq(
+            launcher.validateLaunchConfig(config).addresses.fundingBandMarketCapGuard,
+            preview.addresses.fundingBandMarketCapGuard
+        );
+    }
+
+    function testLaunchFundingBandsAtomicallyDeploysPlatformManagedIntegrations() public {
+        uint64 nonce = vm.getNonce(address(this));
+        address predictedQuote = vm.computeCreateAddress(address(this), nonce);
+        address predictedPool = vm.computeCreateAddress(address(this), nonce + 1);
+        address predictedV3Factory = vm.computeCreateAddress(address(this), nonce + 5);
+        address predictedV3PositionManager = vm.computeCreateAddress(address(this), nonce + 6);
+        address predictedEngine = vm.computeCreateAddress(address(this), nonce + 22);
+        bytes32 salt = keccak256("AUTO_FUNDING_BANDS");
+        address predictedSubject = _predictFromEngine(predictedEngine, salt, keccak256("TOKEN"));
+
+        MockBasketAsset quote = new MockBasketAsset("Quote", "QUOTE");
+        address token0 = predictedSubject < address(quote) ? predictedSubject : address(quote);
+        address token1 = predictedSubject < address(quote) ? address(quote) : predictedSubject;
+        MockV3BandPool pool = new MockV3BandPool(predictedV3Factory, token0, token1, 3_000, 60);
+        assertEq(address(quote), predictedQuote);
+        assertEq(address(pool), predictedPool);
+
+        bytes32 approvalLeaf = _bandIntegrationLeafHashes(
+            address(pool),
+            address(quote),
+            keccak256(type(UniswapV3FundingBandMarketCapGuard).runtimeCode),
+            keccak256(type(UniswapV3FundingBandPositionAdapter).runtimeCode),
+            keccak256(type(MockV3PositionManager).runtimeCode)
+        );
+        _installLauncher(approvalLeaf);
+        ProjectLaunchDeployerV2 deployer = ProjectLaunchDeployerV2(address(launcher.deployer()));
+        assertEq(address(deployer), predictedEngine);
+        assertEq(deployer.v3Factory(), predictedV3Factory);
+        assertEq(deployer.v3PositionManager(), predictedV3PositionManager);
+        MockV3Factory(predictedV3Factory).setPool(address(pool));
+
+        ProjectLaunchConfig memory config = _baseMultisigConfig();
+        config.salt = salt;
+        config.modules.treasury = true;
+        config.modules.fundingBands = true;
+        config.launchProfile.canonicalPool = address(pool);
+        config.bands.quoteAsset = address(quote);
+        config.bands.twapWindow = 15 minutes;
+        config.bands.tickReferenceQuoteUsdE8 = 1e8;
+        config.bands.confirmationPeriod = 15 minutes;
+        config.bands.maximumObservationAge = 5 minutes;
+
+        ProjectLaunchPreview memory preview = launcher.validateLaunchConfig(config);
+        assertEq(preview.addresses.subject, predictedSubject);
+        assertEq(preview.addresses.fundingBandMarketCapGuard.code.length, 0);
+        assertEq(preview.addresses.fundingBandPositionAdapter.code.length, 0);
+        vm.prank(CREATOR);
+        ProjectLaunchPreview memory launched = launcher.launch(config);
+
+        ProjectFundingBandsV2 bands =
+            ProjectFundingBandsV2(payable(launched.addresses.fundingBands));
+        assertEq(address(bands.marketCapGuard()), preview.addresses.fundingBandMarketCapGuard);
+        assertEq(address(bands.positionAdapter()), preview.addresses.fundingBandPositionAdapter);
+        assertGt(preview.addresses.fundingBandMarketCapGuard.code.length, 0);
+        assertGt(preview.addresses.fundingBandPositionAdapter.code.length, 0);
+        assertEq(
+            UniswapV3FundingBandMarketCapGuard(preview.addresses.fundingBandMarketCapGuard)
+                .bandsContract(),
+            address(bands)
+        );
+        assertEq(
+            UniswapV3FundingBandPositionAdapter(preview.addresses.fundingBandPositionAdapter)
+                .bandsContract(),
+            address(bands)
+        );
     }
 
     function testLaunchStakedTokenGovernanceWiresDirectVoteSource() public {
@@ -666,9 +774,9 @@ contract ProjectLauncherV2Test is Test {
         predicted.randomness = vm.computeCreateAddress(address(this), nonce + 5);
         predicted.basketImplementation =
             vm.computeCreateAddress(address(this), nonce + integrationCount + 1);
-        predicted.registry = vm.computeCreateAddress(address(this), nonce + integrationCount + 18);
-        predicted.engine = vm.computeCreateAddress(address(this), nonce + integrationCount + 19);
-        predicted.launcher = vm.computeCreateAddress(address(this), nonce + integrationCount + 20);
+        predicted.registry = vm.computeCreateAddress(address(this), nonce + integrationCount + 19);
+        predicted.engine = vm.computeCreateAddress(address(this), nonce + integrationCount + 20);
+        predicted.launcher = vm.computeCreateAddress(address(this), nonce + integrationCount + 21);
 
         bytes32 userSalt = keccak256("ALL_MODULES");
         predicted.subject = _predictFromEngine(predicted.engine, userSalt, keccak256("TOKEN"));
@@ -703,7 +811,7 @@ contract ProjectLauncherV2Test is Test {
             keccak256(type(ERC4626BasketYieldAdapter).runtimeCode), address(quote)
         );
         bytes32 bandLeaf = _bandIntegrationLeaf(
-            address(pool), address(quote), address(guard), address(bandAdapter), 1_000_000e18
+            address(pool), address(quote), address(guard), address(bandAdapter)
         );
         _installLauncher(_hashPair(yieldLeaf, bandLeaf));
         assertEq(address(registry), predicted.registry);
@@ -862,12 +970,22 @@ contract ProjectLauncherV2Test is Test {
         );
     }
 
-    function _bandIntegrationLeaf(
+    function _bandIntegrationLeaf(address pool, address quote, address guard, address adapter)
+        private
+        view
+        returns (bytes32)
+    {
+        return _bandIntegrationLeafHashes(
+            pool, quote, guard.codehash, adapter.codehash, adapter.codehash
+        );
+    }
+
+    function _bandIntegrationLeafHashes(
         address pool,
         address quote,
-        address guard,
-        address adapter,
-        uint256 supply
+        bytes32 guardRuntimeHash,
+        bytes32 adapterRuntimeHash,
+        bytes32 positionManagerRuntimeHash
     ) private view returns (bytes32) {
         return keccak256(
             bytes.concat(
@@ -877,10 +995,9 @@ contract ProjectLauncherV2Test is Test {
                         block.chainid,
                         pool.codehash,
                         quote,
-                        supply,
-                        guard.codehash,
-                        adapter.codehash,
-                        adapter.codehash
+                        guardRuntimeHash,
+                        adapterRuntimeHash,
+                        positionManagerRuntimeHash
                     )
                 )
             )

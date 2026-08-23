@@ -627,6 +627,21 @@ export const projectLauncherV2Abi = [
                                 "internalType": "address"
                             },
                             {
+                                "name": "twapWindow",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "quoteUsdOracle",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "tickReferenceQuoteUsdE8",
+                                "type": "uint256",
+                                "internalType": "uint256"
+                            },
+                            {
                                 "name": "confirmationPeriod",
                                 "type": "uint48",
                                 "internalType": "uint48"
@@ -1237,6 +1252,21 @@ export const projectLauncherV2Abi = [
                                 "internalType": "address"
                             },
                             {
+                                "name": "twapWindow",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "quoteUsdOracle",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "tickReferenceQuoteUsdE8",
+                                "type": "uint256",
+                                "internalType": "uint256"
+                            },
+                            {
                                 "name": "confirmationPeriod",
                                 "type": "uint48",
                                 "internalType": "uint48"
@@ -1515,6 +1545,16 @@ export const projectLauncherV2Abi = [
                             },
                             {
                                 "name": "fundingBands",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "fundingBandMarketCapGuard",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "fundingBandPositionAdapter",
                                 "type": "address",
                                 "internalType": "address"
                             },
@@ -1961,6 +2001,21 @@ export const projectLauncherV2Abi = [
                                 "internalType": "address"
                             },
                             {
+                                "name": "twapWindow",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "quoteUsdOracle",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "tickReferenceQuoteUsdE8",
+                                "type": "uint256",
+                                "internalType": "uint256"
+                            },
+                            {
                                 "name": "confirmationPeriod",
                                 "type": "uint48",
                                 "internalType": "uint48"
@@ -2239,6 +2294,16 @@ export const projectLauncherV2Abi = [
                             },
                             {
                                 "name": "fundingBands",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "fundingBandMarketCapGuard",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "fundingBandPositionAdapter",
                                 "type": "address",
                                 "internalType": "address"
                             },
@@ -2727,6 +2792,21 @@ export const projectLauncherV2Abi = [
                                 "internalType": "address"
                             },
                             {
+                                "name": "twapWindow",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "quoteUsdOracle",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "tickReferenceQuoteUsdE8",
+                                "type": "uint256",
+                                "internalType": "uint256"
+                            },
+                            {
                                 "name": "confirmationPeriod",
                                 "type": "uint48",
                                 "internalType": "uint48"
@@ -3005,6 +3085,16 @@ export const projectLauncherV2Abi = [
                             },
                             {
                                 "name": "fundingBands",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "fundingBandMarketCapGuard",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "fundingBandPositionAdapter",
                                 "type": "address",
                                 "internalType": "address"
                             },
@@ -22983,6 +23073,64 @@ export const projectFundingBandsV2Abi = [
         ],
         "outputs": [],
         "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
+        "name": "bandPositionStatus",
+        "inputs": [
+            {
+                "name": "bandId",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "state",
+                "type": "uint8",
+                "internalType": "enum FundingBandState"
+            },
+            {
+                "name": "positionId",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "committedSubject",
+                "type": "uint128",
+                "internalType": "uint128"
+            },
+            {
+                "name": "liquidity",
+                "type": "uint128",
+                "internalType": "uint128"
+            },
+            {
+                "name": "subjectResidual",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "bandState",
+        "inputs": [
+            {
+                "name": "bandId",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint8",
+                "internalType": "enum FundingBandState"
+            }
+        ],
+        "stateMutability": "view"
     },
     {
         "type": "function",

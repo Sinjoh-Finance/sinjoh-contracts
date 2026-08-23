@@ -485,6 +485,18 @@ export declare const projectLauncherV2Abi: readonly [{
                 readonly type: "address";
                 readonly internalType: "address";
             }, {
+                readonly name: "twapWindow";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "quoteUsdOracle";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "tickReferenceQuoteUsdE8";
+                readonly type: "uint256";
+                readonly internalType: "uint256";
+            }, {
                 readonly name: "confirmationPeriod";
                 readonly type: "uint48";
                 readonly internalType: "uint48";
@@ -961,6 +973,18 @@ export declare const projectLauncherV2Abi: readonly [{
                 readonly type: "address";
                 readonly internalType: "address";
             }, {
+                readonly name: "twapWindow";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "quoteUsdOracle";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "tickReferenceQuoteUsdE8";
+                readonly type: "uint256";
+                readonly internalType: "uint256";
+            }, {
                 readonly name: "confirmationPeriod";
                 readonly type: "uint48";
                 readonly internalType: "uint48";
@@ -1180,6 +1204,14 @@ export declare const projectLauncherV2Abi: readonly [{
                 readonly internalType: "address";
             }, {
                 readonly name: "fundingBands";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "fundingBandMarketCapGuard";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "fundingBandPositionAdapter";
                 readonly type: "address";
                 readonly internalType: "address";
             }, {
@@ -1527,6 +1559,18 @@ export declare const projectLauncherV2Abi: readonly [{
                 readonly type: "address";
                 readonly internalType: "address";
             }, {
+                readonly name: "twapWindow";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "quoteUsdOracle";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "tickReferenceQuoteUsdE8";
+                readonly type: "uint256";
+                readonly internalType: "uint256";
+            }, {
                 readonly name: "confirmationPeriod";
                 readonly type: "uint48";
                 readonly internalType: "uint48";
@@ -1746,6 +1790,14 @@ export declare const projectLauncherV2Abi: readonly [{
                 readonly internalType: "address";
             }, {
                 readonly name: "fundingBands";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "fundingBandMarketCapGuard";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "fundingBandPositionAdapter";
                 readonly type: "address";
                 readonly internalType: "address";
             }, {
@@ -2125,6 +2177,18 @@ export declare const projectLauncherV2Abi: readonly [{
                 readonly type: "address";
                 readonly internalType: "address";
             }, {
+                readonly name: "twapWindow";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "quoteUsdOracle";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "tickReferenceQuoteUsdE8";
+                readonly type: "uint256";
+                readonly internalType: "uint256";
+            }, {
                 readonly name: "confirmationPeriod";
                 readonly type: "uint48";
                 readonly internalType: "uint48";
@@ -2344,6 +2408,14 @@ export declare const projectLauncherV2Abi: readonly [{
                 readonly internalType: "address";
             }, {
                 readonly name: "fundingBands";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "fundingBandMarketCapGuard";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "fundingBandPositionAdapter";
                 readonly type: "address";
                 readonly internalType: "address";
             }, {
@@ -17647,6 +17719,50 @@ export declare const projectFundingBandsV2Abi: readonly [{
     }];
     readonly outputs: readonly [];
     readonly stateMutability: "nonpayable";
+}, {
+    readonly type: "function";
+    readonly name: "bandPositionStatus";
+    readonly inputs: readonly [{
+        readonly name: "bandId";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "state";
+        readonly type: "uint8";
+        readonly internalType: "enum FundingBandState";
+    }, {
+        readonly name: "positionId";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "committedSubject";
+        readonly type: "uint128";
+        readonly internalType: "uint128";
+    }, {
+        readonly name: "liquidity";
+        readonly type: "uint128";
+        readonly internalType: "uint128";
+    }, {
+        readonly name: "subjectResidual";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "bandState";
+    readonly inputs: readonly [{
+        readonly name: "bandId";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "uint8";
+        readonly internalType: "enum FundingBandState";
+    }];
+    readonly stateMutability: "view";
 }, {
     readonly type: "function";
     readonly name: "bandStatus";

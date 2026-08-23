@@ -58,9 +58,8 @@ contract ProjectTreasuryFundingBandsV2IntegrationTest is Test {
         address predictedBands = vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
         guard.bind(predictedBands);
         adapter.bind(predictedBands);
-        bytes32 approvalRoot = _integrationLeaf(
-            predictedBands, subject, quote, pool, guard, adapter, subject.totalSupply()
-        );
+        bytes32 approvalRoot =
+            _integrationLeaf(predictedBands, subject, quote, pool, guard, adapter);
         ProjectFundingBandsV2 bands = new ProjectFundingBandsV2(
             abi.encode(
                 FundingBandsDeploymentConfig({
@@ -82,6 +81,10 @@ contract ProjectTreasuryFundingBandsV2IntegrationTest is Test {
                         integrationApprovalRoot: approvalRoot,
                         marketCapGuard: address(guard),
                         positionAdapter: address(adapter),
+                        v3IntegrationFactory: address(0),
+                        twapWindow: 0,
+                        quoteUsdOracle: address(0),
+                        tickReferenceQuoteUsdE8: 0,
                         confirmationPeriod: 15 minutes,
                         maximumObservationAge: 5 minutes,
                         integrationApprovalProof: new bytes32[](0)
@@ -123,8 +126,7 @@ contract ProjectTreasuryFundingBandsV2IntegrationTest is Test {
         MockBasketAsset quote,
         MockFundingBandPool pool,
         MockFundingBandGuard guard,
-        MockFundingBandPositionAdapter adapter,
-        uint256 referenceSupply
+        MockFundingBandPositionAdapter adapter
     ) private view returns (bytes32) {
         bytes32 inner = keccak256(
             abi.encode(
@@ -132,7 +134,6 @@ contract ProjectTreasuryFundingBandsV2IntegrationTest is Test {
                 block.chainid,
                 address(pool).codehash,
                 address(quote),
-                referenceSupply,
                 address(guard).codehash,
                 address(adapter).codehash,
                 address(adapter).codehash

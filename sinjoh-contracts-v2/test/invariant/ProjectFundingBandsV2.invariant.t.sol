@@ -16,6 +16,8 @@ import { FundingBandsTestBase } from "../FundingBandsTestBase.sol";
 
 contract ProjectFundingBandsV2Handler {
     Vm private constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+    uint256 private constant LOWER = 1_000_000e8;
+    uint256 private constant UPPER = 2_000_000e8;
 
     ProjectFundingBandsV2 public immutable bands;
     MockProjectToken public immutable subject;
@@ -45,12 +47,11 @@ contract ProjectFundingBandsV2Handler {
     }
 
     function increase(uint96 rawAmount) external {
-        (ProjectFundingBandsV2.Band memory band,) = bands.bandStatus(1);
-        if (band.state != FundingBandState.ACTIVE) return;
+        if (bands.bandState(1) != FundingBandState.ACTIVE) return;
         uint128 amount = uint128(uint256(rawAmount % 1_000e18) + 1);
         subject.mint(address(this), amount);
         require(subject.transfer(address(bands), amount), "transfer");
-        _observe(band.lowerMarketCapUsdE8 - 1);
+        _observe(LOWER - 1);
         try projectController.execute(
             address(bands), abi.encodeCall(bands.increaseBand, (1, amount, bytes("")))
         ) { }
@@ -58,25 +59,22 @@ contract ProjectFundingBandsV2Handler {
     }
 
     function arm() external {
-        (ProjectFundingBandsV2.Band memory band,) = bands.bandStatus(1);
-        if (band.state != FundingBandState.ACTIVE) return;
-        _observe(band.upperMarketCapUsdE8);
+        if (bands.bandState(1) != FundingBandState.ACTIVE) return;
+        _observe(UPPER);
         try bands.armSettlement(1, "") { } catch { }
     }
 
     function disarm() external {
-        (ProjectFundingBandsV2.Band memory band,) = bands.bandStatus(1);
-        if (band.state != FundingBandState.ARMED) return;
-        _observe(band.upperMarketCapUsdE8 - 1);
+        if (bands.bandState(1) != FundingBandState.ARMED) return;
+        _observe(UPPER - 1);
         try bands.disarmSettlement(1, "") { } catch { }
     }
 
     function settle(uint96 rawQuote, bool failDelivery) external {
-        (ProjectFundingBandsV2.Band memory band,) = bands.bandStatus(1);
-        if (band.state != FundingBandState.ARMED) return;
+        if (bands.bandState(1) != FundingBandState.ARMED) return;
         uint256 quoteAmount = uint256(rawQuote % 1_000_000e18) + 1;
         vm.warp(block.timestamp + bands.confirmationPeriod());
-        _observe(band.upperMarketCapUsdE8);
+        _observe(UPPER);
         router.setFailFunding(failDelivery);
         positionAdapter.configureSettlement(0, quoteAmount);
         quote.mint(address(positionAdapter), quoteAmount);
@@ -84,8 +82,7 @@ contract ProjectFundingBandsV2Handler {
     }
 
     function retry(bool failDelivery) external {
-        (ProjectFundingBandsV2.Band memory band,) = bands.bandStatus(1);
-        if (band.state != FundingBandState.SETTLED_PENDING_DELIVERY) return;
+        if (bands.bandState(1) != FundingBandState.SETTLED_PENDING_DELIVERY) return;
         router.setFailFunding(failDelivery);
         try bands.retryDelivery(1) { } catch { }
     }
@@ -114,11 +111,17 @@ contract ProjectFundingBandsV2InvariantTest is FundingBandsTestBase {
     }
 
     function invariantPositionCustodyAndLiquidityMatchWhileLive() public view {
-        (ProjectFundingBandsV2.Band memory band,) = bands.bandStatus(1);
-        if (band.state == FundingBandState.ACTIVE || band.state == FundingBandState.ARMED) {
-            assertEq(IERC721(bands.positionManager()).ownerOf(band.positionId), address(bands));
-            assertEq(positionAdapter.positionLiquidity(band.positionId), band.liquidity);
-            assertEq(band.committedSubject, band.liquidity + band.subjectResidual);
+        (
+            FundingBandState state,
+            uint256 positionId,
+            uint128 committedSubject,
+            uint128 liquidity,
+            uint256 subjectResidual
+        ) = bands.bandPositionStatus(1);
+        if (state == FundingBandState.ACTIVE || state == FundingBandState.ARMED) {
+            assertEq(IERC721(bands.positionManager()).ownerOf(positionId), address(bands));
+            assertEq(positionAdapter.positionLiquidity(positionId), liquidity);
+            assertEq(committedSubject, liquidity + subjectResidual);
         }
     }
 
@@ -132,21 +135,22 @@ contract ProjectFundingBandsV2InvariantTest is FundingBandsTestBase {
     }
 
     function invariantLiveIndexMatchesLifecycle() public view {
-        (ProjectFundingBandsV2.Band memory band,) = bands.bandStatus(1);
-        bool live = band.state == FundingBandState.ACTIVE || band.state == FundingBandState.ARMED;
+        FundingBandState state = bands.bandState(1);
+        bool live = state == FundingBandState.ACTIVE || state == FundingBandState.ARMED;
         assertEq(bands.liveBandCount(), live ? 1 : 0);
         uint256[] memory ids = bands.liveBandIds();
         if (live) assertEq(ids[0], 1);
     }
 
     function invariantSettledPositionCannotBeReplayed() public view {
-        (ProjectFundingBandsV2.Band memory band,) = bands.bandStatus(1);
+        (FundingBandState state, uint256 positionId,, uint128 liquidity,) =
+            bands.bandPositionStatus(1);
         if (
-            band.state == FundingBandState.SETTLED_PENDING_DELIVERY
-                || band.state == FundingBandState.DELIVERED
+            state == FundingBandState.SETTLED_PENDING_DELIVERY
+                || state == FundingBandState.DELIVERED
         ) {
-            assertEq(band.liquidity, 0);
-            assertEq(positionAdapter.positionLiquidity(band.positionId), 0);
+            assertEq(liquidity, 0);
+            assertEq(positionAdapter.positionLiquidity(positionId), 0);
         }
     }
 

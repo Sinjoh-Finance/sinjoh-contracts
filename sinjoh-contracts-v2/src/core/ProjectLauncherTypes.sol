@@ -58,6 +58,9 @@ struct BandsLaunchConfig {
     address quoteAsset;
     address marketCapGuard;
     address positionAdapter;
+    uint32 twapWindow;
+    address quoteUsdOracle;
+    uint256 tickReferenceQuoteUsdE8;
     uint48 confirmationPeriod;
     uint48 maximumObservationAge;
     bytes32[] integrationApprovalProof;
@@ -106,6 +109,8 @@ struct ProjectLaunchAddresses {
     address raffle;
     address liquidityManager;
     address fundingBands;
+    address fundingBandMarketCapGuard;
+    address fundingBandPositionAdapter;
     address basketManager;
     address primaryBasketVault;
     address[] basketYieldAdapters;
@@ -125,6 +130,7 @@ struct LauncherReleaseConfig {
     address raffleImplementation;
     address basketVaultImplementation;
     address erc4626YieldAdapterFactory;
+    address fundingBandV3IntegrationFactory;
     address v3Factory;
     address v3PositionManager;
     address v4PositionManager;

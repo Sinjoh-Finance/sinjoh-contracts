@@ -7,6 +7,8 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
 import { ERC4626BasketYieldAdapterFactory } from "../adapters/ERC4626BasketYieldAdapterFactory.sol";
 import { AirdropEligibilityMode } from "../airdrop/AirdropTypes.sol";
 import { BasketManagerV2 } from "../basket/BasketManagerV2.sol";
+import { FundingBandV3IntegrationConfig } from "../bands/FundingBandV3IntegrationFactory.sol";
+import { ProjectFundingBandsV2 } from "../bands/ProjectFundingBandsV2.sol";
 import { IProjectModule } from "../interfaces/IProjectModule.sol";
 import { IBasketYieldAdapter } from "../interfaces/IBasketYieldAdapter.sol";
 import { ProjectIds } from "../libraries/ProjectIds.sol";
@@ -155,6 +157,9 @@ contract ProjectLauncherV2 is ReentrancyGuard {
     {
         _validateCore(config);
         preview = _preview(config);
+        if (config.modules.fundingBands && config.bands.quoteAsset == preview.addresses.subject) {
+            revert InvalidBandsConfiguration();
+        }
         _validateAllocationsAgainstCustody(config, preview.addresses);
     }
 
@@ -274,13 +279,34 @@ contract ProjectLauncherV2 is ReentrancyGuard {
             revert InvalidBasketConfiguration();
         }
         if (config.modules.fundingBands) {
+            bool automatic = config.bands.marketCapGuard == address(0)
+                && config.bands.positionAdapter == address(0);
+            bool externalIntegrations = config.bands.marketCapGuard.code.length != 0
+                && config.bands.positionAdapter.code.length != 0;
             if (
                 deployer.integrationApprovalRoot() == bytes32(0)
                     || config.launchProfile.canonicalPool.code.length == 0
                     || config.bands.quoteAsset.code.length == 0
-                    || config.bands.marketCapGuard.code.length == 0
-                    || config.bands.positionAdapter.code.length == 0
+                    || config.bands.confirmationPeriod < 5 minutes
+                    || config.bands.confirmationPeriod > 1 days
+                    || config.bands.maximumObservationAge == 0
+                    || config.bands.maximumObservationAge > config.bands.confirmationPeriod
+                    || (!automatic && !externalIntegrations)
             ) revert InvalidBandsConfiguration();
+            if (automatic) {
+                if (
+                    config.bands.twapWindow < config.bands.confirmationPeriod
+                        || config.bands.twapWindow > 1 days
+                        || config.bands.tickReferenceQuoteUsdE8 == 0
+                        || (config.bands.quoteUsdOracle != address(0)
+                            && config.bands.quoteUsdOracle.code.length == 0)
+                ) revert InvalidBandsConfiguration();
+            } else if (
+                config.bands.twapWindow != 0 || config.bands.quoteUsdOracle != address(0)
+                    || config.bands.tickReferenceQuoteUsdE8 != 0
+            ) {
+                revert InvalidBandsConfiguration();
+            }
         }
         if (
             config.modules.raffle
@@ -381,7 +407,19 @@ contract ProjectLauncherV2 is ReentrancyGuard {
                 }
             }
         }
-        if (config.modules.fundingBands) a.fundingBands = _predict(config, configHash, BANDS);
+        if (config.modules.fundingBands) {
+            a.fundingBands = _predict(config, configHash, BANDS);
+            if (
+                config.bands.marketCapGuard == address(0)
+                    && config.bands.positionAdapter == address(0)
+            ) {
+                (a.fundingBandMarketCapGuard, a.fundingBandPositionAdapter) = deployer.fundingBandV3IntegrationFactory()
+                    .predict(_bandIntegrationConfig(config, a));
+            } else {
+                a.fundingBandMarketCapGuard = config.bands.marketCapGuard;
+                a.fundingBandPositionAdapter = config.bands.positionAdapter;
+            }
+        }
         preview = ProjectLaunchPreview({
             launchConfigHash: configHash,
             projectId: ProjectIds.derive(block.chainid, address(registry), a.subject),
@@ -468,6 +506,13 @@ contract ProjectLauncherV2 is ReentrancyGuard {
                         != config.basket.allocation.targets[i].depositAsset
             ) revert ModuleDeploymentMismatch(keccak256(abi.encode(BASKET, i)), adapter);
         }
+        if (a.fundingBands != address(0)) {
+            ProjectFundingBandsV2 bands = ProjectFundingBandsV2(payable(a.fundingBands));
+            if (
+                address(bands.marketCapGuard()) != a.fundingBandMarketCapGuard
+                    || address(bands.positionAdapter()) != a.fundingBandPositionAdapter
+            ) revert ModuleDeploymentMismatch(BANDS, a.fundingBands);
+        }
     }
 
     function _register(ProjectLaunchConfig calldata config, ProjectLaunchPreview memory preview)
@@ -518,8 +563,8 @@ contract ProjectLauncherV2 is ReentrancyGuard {
                     || recipient == a.fundingBands || recipient == a.basketManager
                     || recipient == a.primaryBasketVault
                     || recipient == config.launchProfile.canonicalPool
-                    || recipient == config.bands.marketCapGuard
-                    || recipient == config.bands.positionAdapter || recipient == PONS_LOCKER
+                    || recipient == a.fundingBandMarketCapGuard
+                    || recipient == a.fundingBandPositionAdapter || recipient == PONS_LOCKER
                     || _contains(config.launchProfile.additionalCustodyExclusions, recipient)
             ) revert AllocationToCustody(recipient);
             for (uint256 j; j < config.basket.allocation.targets.length; ++j) {
@@ -564,6 +609,21 @@ contract ProjectLauncherV2 is ReentrancyGuard {
         if (config.modules.fundingBands) modules |= ProjectModuleBits.FUNDING_BANDS;
         if (config.modules.raffle) modules |= ProjectModuleBits.RAFFLE;
         if (config.modules.liquidity) modules |= ProjectModuleBits.LIQUIDITY;
+    }
+
+    function _bandIntegrationConfig(
+        ProjectLaunchConfig calldata config,
+        ProjectLaunchAddresses memory a
+    ) private pure returns (FundingBandV3IntegrationConfig memory integration) {
+        integration.bandsContract = a.fundingBands;
+        integration.subject = a.subject;
+        integration.quoteAsset = config.bands.quoteAsset;
+        integration.canonicalPool = config.launchProfile.canonicalPool;
+        integration.referenceSupply = config.totalSupply;
+        integration.twapWindow = config.bands.twapWindow;
+        integration.quoteUsdOracle = config.bands.quoteUsdOracle;
+        integration.tickReferenceQuoteUsdE8 = config.bands.tickReferenceQuoteUsdE8;
+        integration.maximumOracleAge = config.bands.maximumObservationAge;
     }
 
     function _contains(address[] calldata values, address candidate) private pure returns (bool) {

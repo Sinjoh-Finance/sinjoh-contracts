@@ -21,6 +21,10 @@ import {
     FundingBandsMarketConfig,
     FundingBandsProjectConfig
 } from "./FundingBandTypes.sol";
+import {
+    FundingBandV3IntegrationConfig,
+    FundingBandV3IntegrationFactory
+} from "./FundingBandV3IntegrationFactory.sol";
 import { IFundingBandMarketCapGuard } from "../interfaces/IFundingBandMarketCapGuard.sol";
 import { IFundingBandPositionAdapter } from "../interfaces/IFundingBandPositionAdapter.sol";
 import { IProjectControlled } from "../interfaces/IProjectControlled.sol";
@@ -224,7 +228,7 @@ contract ProjectFundingBandsV2 is
         FundingBandsDeploymentConfig memory config =
             abi.decode(encodedConfig, (FundingBandsDeploymentConfig));
         FundingBandsProjectConfig memory project = config.project;
-        FundingBandsMarketConfig memory market = config.market;
+        FundingBandsMarketConfig memory market = _materializeIntegrations(project, config.market);
         bytes32 expectedProjectId = _validateDeployment(project, market);
 
         registry = project.registry;
@@ -263,6 +267,41 @@ contract ProjectFundingBandsV2 is
             market.maximumObservationAge,
             market.integrationApprovalRoot
         );
+    }
+
+    function _materializeIntegrations(
+        FundingBandsProjectConfig memory project,
+        FundingBandsMarketConfig memory market
+    ) private returns (FundingBandsMarketConfig memory) {
+        bool supplied = market.marketCapGuard != address(0) && market.positionAdapter != address(0);
+        bool automatic = market.marketCapGuard == address(0) && market.positionAdapter == address(0);
+        if (!supplied && !automatic) revert InvalidIntegration();
+        if (supplied) {
+            if (
+                market.v3IntegrationFactory != address(0) || market.twapWindow != 0
+                    || market.quoteUsdOracle != address(0) || market.tickReferenceQuoteUsdE8 != 0
+            ) revert InvalidIntegration();
+            return market;
+        }
+        if (
+            market.v3IntegrationFactory.code.length == 0 || market.twapWindow == 0
+                || market.tickReferenceQuoteUsdE8 == 0
+                || (market.quoteUsdOracle != address(0) && market.quoteUsdOracle.code.length == 0)
+        ) revert InvalidIntegration();
+        FundingBandV3IntegrationConfig memory integration = FundingBandV3IntegrationConfig({
+            bandsContract: address(this),
+            subject: project.subject,
+            quoteAsset: market.quoteAsset,
+            canonicalPool: market.canonicalPool,
+            referenceSupply: market.referenceSupply,
+            twapWindow: market.twapWindow,
+            quoteUsdOracle: market.quoteUsdOracle,
+            tickReferenceQuoteUsdE8: market.tickReferenceQuoteUsdE8,
+            maximumOracleAge: market.maximumObservationAge
+        });
+        (market.marketCapGuard, market.positionAdapter) =
+            FundingBandV3IntegrationFactory(market.v3IntegrationFactory).deploy(integration);
+        return market;
     }
 
     function _validateDeployment(
@@ -627,7 +666,6 @@ contract ProjectFundingBandsV2 is
                 block.chainid,
                 canonicalPool.codehash,
                 quoteAsset,
-                referenceSupply,
                 address(marketCapGuard).codehash,
                 address(positionAdapter).codehash,
                 positionManager.codehash
@@ -678,6 +716,29 @@ contract ProjectFundingBandsV2 is
 
     function liveBandCount() external view returns (uint256) {
         return _liveBandIds.length;
+    }
+
+    /// @notice Returns the lifecycle state without decoding the full band record.
+    function bandState(uint256 bandId) external view returns (FundingBandState) {
+        return _bands[bandId].state;
+    }
+
+    /// @notice Returns the position and subject accounting fields used to monitor a band.
+    function bandPositionStatus(uint256 bandId)
+        external
+        view
+        returns (
+            FundingBandState state,
+            uint256 positionId,
+            uint128 committedSubject,
+            uint128 liquidity,
+            uint256 subjectResidual
+        )
+    {
+        Band storage band = _bands[bandId];
+        return (
+            band.state, band.positionId, band.committedSubject, band.liquidity, band.subjectResidual
+        );
     }
 
     function uncommittedSubjectBalance() public view returns (uint256) {

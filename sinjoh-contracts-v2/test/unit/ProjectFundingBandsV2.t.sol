@@ -96,6 +96,10 @@ contract ProjectFundingBandsV2Test is Test {
                         integrationApprovalRoot: root,
                         marketCapGuard: address(guard),
                         positionAdapter: address(adapter),
+                        v3IntegrationFactory: address(0),
+                        twapWindow: 0,
+                        quoteUsdOracle: address(0),
+                        tickReferenceQuoteUsdE8: 0,
                         confirmationPeriod: 15 minutes,
                         maximumObservationAge: 5 minutes,
                         integrationApprovalProof: integrationProof
@@ -489,7 +493,6 @@ contract ProjectFundingBandsV2Test is Test {
                 block.chainid,
                 address(pool).codehash,
                 address(quote),
-                referenceSupply,
                 address(guard).codehash,
                 address(adapter).codehash,
                 address(adapter).codehash

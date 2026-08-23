@@ -15,6 +15,10 @@ import {
 - `buildLaunchFromPreset` accepts only creator-owned choices and hydrates a complete reviewed
   platform preset. Creator forms never collect adapter, oracle, pool, proof, route, or protocol
   infrastructure fields.
+- Funding Bands presets use the platform-managed V3 integration factory: preflight predicts the
+  guard and position adapter and launch deploys both atomically. Release tooling can use
+  `fundingBandIntegrationApprovalLeaf` to build the exact Solidity approval leaf from manifest
+  runtime hashes; this is platform plumbing, not a creator-form field.
 - `predictLaunch` returns stable deterministic addresses without requiring a complete launch.
 - `validateLaunchConfig` performs the same full preflight used by `launch` before a wallet prompt.
 - `encodeGovernanceAction` creates one `{ target, value, data }` action usable by either governance

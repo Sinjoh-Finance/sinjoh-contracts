@@ -75,35 +75,44 @@ abstract contract FundingBandsTestBase is Test {
         bytes32 root = _hashPair(integrationLeaf, swapLeaf);
         bytes32[] memory integrationProof = new bytes32[](1);
         integrationProof[0] = swapLeaf;
-        bands = new ProjectFundingBandsV2(
-            abi.encode(
-                FundingBandsDeploymentConfig({
-                    project: FundingBandsProjectConfig({
-                        registry: address(registry),
-                        subject: address(subject),
-                        creator: CREATOR,
-                        controller: address(projectController),
-                        treasury: address(treasury),
-                        router: address(router),
-                        airdrop: address(airdrop),
-                        raffle: address(raffle),
-                        protocolFeeRecipient: FEE_RECIPIENT
-                    }),
-                    market: FundingBandsMarketConfig({
-                        canonicalPool: address(pool),
-                        quoteAsset: address(quote),
-                        referenceSupply: referenceSupply,
-                        integrationApprovalRoot: root,
-                        marketCapGuard: address(guard),
-                        positionAdapter: address(positionAdapter),
-                        confirmationPeriod: 15 minutes,
-                        maximumObservationAge: 5 minutes,
-                        integrationApprovalProof: integrationProof
-                    })
-                })
-            )
-        );
+        FundingBandsDeploymentConfig memory config = FundingBandsDeploymentConfig({
+            project: _projectDeploymentConfig(),
+            market: _marketDeploymentConfig(root, integrationProof)
+        });
+        bands = new ProjectFundingBandsV2(abi.encode(config));
         assertEq(address(bands), predictedBands);
+    }
+
+    function _projectDeploymentConfig()
+        private
+        view
+        returns (FundingBandsProjectConfig memory config)
+    {
+        config.registry = address(registry);
+        config.subject = address(subject);
+        config.creator = CREATOR;
+        config.controller = address(projectController);
+        config.treasury = address(treasury);
+        config.router = address(router);
+        config.airdrop = address(airdrop);
+        config.raffle = address(raffle);
+        config.protocolFeeRecipient = FEE_RECIPIENT;
+    }
+
+    function _marketDeploymentConfig(bytes32 root, bytes32[] memory integrationProof)
+        private
+        view
+        returns (FundingBandsMarketConfig memory config)
+    {
+        config.canonicalPool = address(pool);
+        config.quoteAsset = address(quote);
+        config.referenceSupply = referenceSupply;
+        config.integrationApprovalRoot = root;
+        config.marketCapGuard = address(guard);
+        config.positionAdapter = address(positionAdapter);
+        config.confirmationPeriod = 15 minutes;
+        config.maximumObservationAge = 5 minutes;
+        config.integrationApprovalProof = integrationProof;
     }
 
     function _config(uint128 amount, FundingBandDestination destination)
@@ -215,7 +224,6 @@ abstract contract FundingBandsTestBase is Test {
                 block.chainid,
                 address(pool).codehash,
                 address(quote),
-                referenceSupply,
                 address(guard).codehash,
                 address(positionAdapter).codehash,
                 address(positionAdapter).codehash

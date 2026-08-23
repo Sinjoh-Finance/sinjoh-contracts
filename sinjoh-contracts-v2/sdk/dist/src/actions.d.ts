@@ -31,6 +31,19 @@ export declare const fundingBandDestination: {
     readonly raffle: 5;
     readonly basketViaTreasury: 6;
 };
+/**
+ * Builds the exact release-approval leaf for one production Funding Bands integration profile.
+ * The leaf approves reviewed code and market infrastructure; each deployed guard separately binds
+ * and validates its project's exact reference supply.
+ */
+export declare function fundingBandIntegrationApprovalLeaf(parameters: {
+    chainId: bigint;
+    poolRuntimeHash: Hex;
+    quoteAsset: Address;
+    marketCapGuardRuntimeHash: Hex;
+    positionAdapterRuntimeHash: Hex;
+    positionManagerRuntimeHash: Hex;
+}): Hex;
 export type SimpleFundingBandDestination = typeof fundingBandDestination.creator | typeof fundingBandDestination.treasury | typeof fundingBandDestination.router | typeof fundingBandDestination.basketViaTreasury;
 /** Converts a human-readable USD market cap into the protocol's fixed 8-decimal representation. */
 export declare function marketCapUsdE8(value: string): bigint;
