@@ -239,6 +239,9 @@ contract DeployProjectLauncherV2 is Script {
         vm.serializeAddress(object, "deploymentEngine", address(deployer));
         vm.serializeAddress(object, "launcher", address(launcher));
         vm.serializeAddress(object, "raffleImplementation", deployer.raffleImplementation());
+        vm.serializeBytes32(
+            object, "raffleImplementationRuntimeHash", deployer.raffleImplementation().codehash
+        );
         vm.serializeAddress(object, "randomnessAdapter", deployer.randomnessAdapter());
         vm.serializeBytes32(
             object, "randomnessAdapterRuntimeHash", deployer.randomnessAdapter().codehash
@@ -246,8 +249,18 @@ contract DeployProjectLauncherV2 is Script {
         vm.serializeAddress(
             object, "basketVaultImplementation", deployer.basketVaultImplementation()
         );
+        vm.serializeBytes32(
+            object,
+            "basketVaultImplementationRuntimeHash",
+            deployer.basketVaultImplementation().codehash
+        );
         vm.serializeAddress(
             object, "erc4626YieldAdapterFactory", address(deployer.erc4626YieldAdapterFactory())
+        );
+        vm.serializeBytes32(
+            object,
+            "erc4626YieldAdapterFactoryRuntimeHash",
+            address(deployer.erc4626YieldAdapterFactory()).codehash
         );
         vm.serializeBytes32(
             object,

@@ -101,8 +101,18 @@ forge build --sizes
 forge test
 npm test --prefix sdk
 
+release_contracts=(
+  ProjectVotesToken ProjectMultisigAccountV2 ProjectTimelockV2 ProjectStakingPoolV2
+  ProjectTreasuryVaultV2 ProjectAirdropV2 ProjectRouterV2 BasketManagerV2
+  ProjectFundingBandsV2 ProjectRaffleV2 ProjectLiquidityManagerV2 BasketVaultV2
+  ERC4626BasketYieldAdapter ERC4626BasketYieldAdapterFactory
+  UniswapV3FundingBandMarketCapGuard UniswapV3FundingBandPositionAdapter
+  FundingBandV3IntegrationFactory CreationCodeStoreV2 ProjectRegistryV2
+  ProjectLaunchDeployerV2 ProjectLauncherV2
+)
 build_material="$(
-  for contract in ProjectLauncherV2 ProjectLaunchDeployerV2 ProjectRegistryV2; do
+  for contract in "${release_contracts[@]}"; do
+    forge inspect "$contract" bytecode
     forge inspect "$contract" deployedBytecode
   done
 )"

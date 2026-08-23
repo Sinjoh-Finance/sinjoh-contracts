@@ -26,8 +26,11 @@ Required environment variables:
 
 Each evidence path must point to a non-empty local artifact; the wrapper records its SHA-256 hash.
 Human verification of the evidence and audit provenance remains mandatory. The wrapper derives the
-immutable git commit, package tree hash, and deployed-bytecode build hash itself. The manifest schema is
+immutable git commit, package tree hash, and a bytecode build hash covering every production
+contract embedded in or deployed by the release. The manifest schema is
 [`release-manifest.schema.json`](./release-manifest.schema.json).
+Implementation and factory addresses are paired with runtime hashes, including the Raffle,
+randomness, Basket Vault, ERC-4626 adapter factory, and Funding Bands V3 integration factory.
 
 This workflow does not manufacture or validate the authorship of audit/canary evidence. Until independent audit and live
 rehearsal artifacts exist, deployment correctly remains blocked at preflight.

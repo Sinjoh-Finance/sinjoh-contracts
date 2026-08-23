@@ -12,8 +12,11 @@ const required = [
   "assetFlowEvidenceHash",
   "broadcaster", "protocolFeeRecipient",
   "registry", "deploymentEngine", "launcher", "raffleImplementation",
+  "raffleImplementationRuntimeHash",
   "randomnessAdapter", "randomnessAdapterRuntimeHash",
-  "basketVaultImplementation", "erc4626YieldAdapterFactory", "erc4626YieldAdapterRuntimeHash",
+  "basketVaultImplementation", "basketVaultImplementationRuntimeHash",
+  "erc4626YieldAdapterFactory", "erc4626YieldAdapterFactoryRuntimeHash",
+  "erc4626YieldAdapterRuntimeHash",
   "fundingBandV3IntegrationFactory", "fundingBandV3IntegrationFactoryRuntimeHash",
   "fundingBandMarketCapGuardRuntimeHash", "fundingBandPositionAdapterRuntimeHash",
   "v3Factory", "v3FactoryRuntimeHash", "v3PositionManager", "v3PositionManagerRuntimeHash",
@@ -58,10 +61,24 @@ for (const [key, value] of Object.entries(expected)) {
   }
 }
 
-for (const key of ["randomnessAdapter", "randomnessAdapterRuntimeHash"]) {
-  if (manifest[key].toLowerCase() !== process.env[key === "randomnessAdapter"
-    ? "RANDOMNESS_ADAPTER"
-    : "RANDOMNESS_ADAPTER_RUNTIME_HASH"].toLowerCase()) {
+const approvedReleaseValues = {
+  protocolFeeRecipient: "PROTOCOL_FEE_RECIPIENT",
+  integrationApprovalRoot: "INTEGRATION_APPROVAL_ROOT",
+  randomnessAdapter: "RANDOMNESS_ADAPTER",
+  randomnessAdapterRuntimeHash: "RANDOMNESS_ADAPTER_RUNTIME_HASH",
+  v3Factory: "V3_FACTORY",
+  v3FactoryRuntimeHash: "V3_FACTORY_RUNTIME_HASH",
+  v3PositionManager: "V3_POSITION_MANAGER",
+  v3PositionManagerRuntimeHash: "V3_POSITION_MANAGER_RUNTIME_HASH",
+  v4PositionManager: "V4_POSITION_MANAGER",
+  v4PositionManagerRuntimeHash: "V4_POSITION_MANAGER_RUNTIME_HASH",
+  v4StateView: "V4_STATE_VIEW",
+  v4StateViewRuntimeHash: "V4_STATE_VIEW_RUNTIME_HASH",
+  permit2: "PERMIT2",
+  permit2RuntimeHash: "PERMIT2_RUNTIME_HASH",
+};
+for (const [key, environmentKey] of Object.entries(approvedReleaseValues)) {
+  if (manifest[key].toLowerCase() !== process.env[environmentKey].toLowerCase()) {
     throw new Error(`release manifest '${key}' does not match the approved release value`);
   }
 }
