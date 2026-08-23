@@ -143,6 +143,20 @@ export function encodeAirdropFinalizeCall(parameters) {
         }),
     };
 }
+/** Encodes the funder or project Treasury's delayed escape from an unprocessable committed epoch. */
+export function encodeAirdropAbortCall(parameters) {
+    assertAddress(parameters.airdrop, "Airdrop contract");
+    return {
+        kind: "abort",
+        to: getAddress(parameters.airdrop),
+        value: 0n,
+        data: encodeFunctionData({
+            abi: projectAirdropV2Abi,
+            functionName: "abortEpoch",
+            args: [parameters.accountId, parameters.epochId],
+        }),
+    };
+}
 function snapshotFromBalances(parameters) {
     const reconstructedSupply = [...parameters.balances.values()]
         .reduce((total, balance) => total + balance, 0n);

@@ -278,6 +278,9 @@ contract ProjectLauncherV2 is ReentrancyGuard {
         } else if (config.basketERC4626Vaults.length != 0) {
             revert InvalidBasketConfiguration();
         }
+        if (!config.modules.fundingBands && config.launchProfile.canonicalPool != address(0)) {
+            revert InvalidBandsConfiguration();
+        }
         if (config.modules.fundingBands) {
             bool automatic = config.bands.marketCapGuard == address(0)
                 && config.bands.positionAdapter == address(0);

@@ -34,7 +34,7 @@ export interface AirdropPushBatch {
     proofs: readonly AirdropProofArtifact[];
 }
 export interface AirdropKeeperCall {
-    kind: "push" | "retry-credit" | "finalize";
+    kind: "push" | "retry-credit" | "finalize" | "abort";
     to: Address;
     value: 0n;
     data: Hex;
@@ -81,6 +81,12 @@ export declare function encodeAirdropRetryCreditCall(parameters: {
 }): AirdropKeeperCall;
 /** Encodes finalization after on-chain status confirms every committed leaf is settled. */
 export declare function encodeAirdropFinalizeCall(parameters: {
+    airdrop: Address;
+    accountId: Hex;
+    epochId: bigint;
+}): AirdropKeeperCall;
+/** Encodes the funder or project Treasury's delayed escape from an unprocessable committed epoch. */
+export declare function encodeAirdropAbortCall(parameters: {
     airdrop: Address;
     accountId: Hex;
     epochId: bigint;

@@ -100,7 +100,9 @@ export declare const pendingWork: {
         uncommittedFunding: bigint;
     }, bigint, bigint]>;
     readonly airdropEpoch: (client: PublicClient, airdrop: Address, accountId: Hex, epochId: bigint) => Promise<{
+        aborted: boolean;
         artifactHash: `0x${string}`;
+        committedAt: number;
         epochAmount: bigint;
         finalized: boolean;
         leafCount: number;

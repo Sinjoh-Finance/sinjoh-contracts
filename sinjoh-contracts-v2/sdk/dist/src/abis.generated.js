@@ -14547,6 +14547,27 @@ export const projectRouterV2Abi = [
     },
     {
         "type": "error",
+        "name": "StaleRouteEscrow",
+        "inputs": [
+            {
+                "name": "asset",
+                "type": "address",
+                "internalType": "address"
+            },
+            {
+                "name": "suppliedVersion",
+                "type": "uint64",
+                "internalType": "uint64"
+            },
+            {
+                "name": "activeVersion",
+                "type": "uint64",
+                "internalType": "uint64"
+            }
+        ]
+    },
+    {
+        "type": "error",
         "name": "TotalConfigTooLarge",
         "inputs": [
             {
@@ -16461,6 +16482,19 @@ export const projectAirdropV2Abi = [
     },
     {
         "type": "function",
+        "name": "EPOCH_ABORT_DELAY",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint48",
+                "internalType": "uint48"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
         "name": "LEAF_DOMAIN",
         "inputs": [],
         "outputs": [
@@ -16588,6 +16622,30 @@ export const projectAirdropV2Abi = [
             }
         ],
         "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "abortEpoch",
+        "inputs": [
+            {
+                "name": "accountId_",
+                "type": "bytes32",
+                "internalType": "bytes32"
+            },
+            {
+                "name": "epochId",
+                "type": "uint64",
+                "internalType": "uint64"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "returnedFunding",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "nonpayable"
     },
     {
         "type": "function",
@@ -17103,6 +17161,11 @@ export const projectAirdropV2Abi = [
                         "internalType": "uint32"
                     },
                     {
+                        "name": "committedAt",
+                        "type": "uint48",
+                        "internalType": "uint48"
+                    },
+                    {
                         "name": "snapshotBlockHash",
                         "type": "bytes32",
                         "internalType": "bytes32"
@@ -17139,6 +17202,11 @@ export const projectAirdropV2Abi = [
                     },
                     {
                         "name": "finalized",
+                        "type": "bool",
+                        "internalType": "bool"
+                    },
+                    {
+                        "name": "aborted",
                         "type": "bool",
                         "internalType": "bool"
                     }
@@ -18088,6 +18156,31 @@ export const projectAirdropV2Abi = [
     },
     {
         "type": "event",
+        "name": "EpochAborted",
+        "inputs": [
+            {
+                "name": "accountId",
+                "type": "bytes32",
+                "indexed": true,
+                "internalType": "bytes32"
+            },
+            {
+                "name": "epochId",
+                "type": "uint64",
+                "indexed": true,
+                "internalType": "uint64"
+            },
+            {
+                "name": "returnedFunding",
+                "type": "uint256",
+                "indexed": false,
+                "internalType": "uint256"
+            }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "event",
         "name": "EpochCommitted",
         "inputs": [
             {
@@ -18425,6 +18518,22 @@ export const projectAirdropV2Abi = [
         "type": "error",
         "name": "EmptyPushBatch",
         "inputs": []
+    },
+    {
+        "type": "error",
+        "name": "EpochAbortNotReady",
+        "inputs": [
+            {
+                "name": "earliest",
+                "type": "uint48",
+                "internalType": "uint48"
+            },
+            {
+                "name": "currentTime",
+                "type": "uint48",
+                "internalType": "uint48"
+            }
+        ]
     },
     {
         "type": "error",
@@ -19089,6 +19198,27 @@ export const projectAirdropV2Abi = [
                 "name": "supplied",
                 "type": "uint256",
                 "internalType": "uint256"
+            }
+        ]
+    },
+    {
+        "type": "error",
+        "name": "UnauthorizedEpochAbort",
+        "inputs": [
+            {
+                "name": "caller",
+                "type": "address",
+                "internalType": "address"
+            },
+            {
+                "name": "funder",
+                "type": "address",
+                "internalType": "address"
+            },
+            {
+                "name": "treasury",
+                "type": "address",
+                "internalType": "address"
             }
         ]
     },
@@ -19820,6 +19950,30 @@ export const basketManagerV2Abi = [
     },
     {
         "type": "function",
+        "name": "redirectPendingDividendToTreasury",
+        "inputs": [
+            {
+                "name": "basketId",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "asset",
+                "type": "address",
+                "internalType": "address"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "amount",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
         "name": "registry",
         "inputs": [],
         "outputs": [
@@ -20034,6 +20188,31 @@ export const basketManagerV2Abi = [
                 "type": "bytes32",
                 "indexed": true,
                 "internalType": "bytes32"
+            }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "event",
+        "name": "BasketDividendRedirected",
+        "inputs": [
+            {
+                "name": "basketId",
+                "type": "uint256",
+                "indexed": true,
+                "internalType": "uint256"
+            },
+            {
+                "name": "asset",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+            },
+            {
+                "name": "amount",
+                "type": "uint256",
+                "indexed": false,
+                "internalType": "uint256"
             }
         ],
         "anonymous": false
@@ -21264,6 +21443,25 @@ export const basketVaultV2Abi = [
     },
     {
         "type": "function",
+        "name": "redirectPendingDividendToTreasury",
+        "inputs": [
+            {
+                "name": "asset",
+                "type": "address",
+                "internalType": "address"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "amount",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
         "name": "registry",
         "inputs": [],
         "outputs": [
@@ -21729,6 +21927,25 @@ export const basketVaultV2Abi = [
                 "type": "bytes32",
                 "indexed": false,
                 "internalType": "bytes32"
+            }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "event",
+        "name": "DividendRedirectedToTreasury",
+        "inputs": [
+            {
+                "name": "asset",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+            },
+            {
+                "name": "amount",
+                "type": "uint256",
+                "indexed": false,
+                "internalType": "uint256"
             }
         ],
         "anonymous": false
@@ -29279,6 +29496,19 @@ export const erc4626BasketYieldAdapterAbi = [
                 "name": "",
                 "type": "address",
                 "internalType": "contract IERC4626"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "yieldSource",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "address",
+                "internalType": "address"
             }
         ],
         "stateMutability": "view"

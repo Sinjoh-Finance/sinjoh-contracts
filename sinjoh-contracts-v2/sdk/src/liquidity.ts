@@ -51,7 +51,7 @@ export const liquidityFeeDestination = {
 export type LiquidityFeeDestination =
   typeof liquidityFeeDestination[keyof typeof liquidityFeeDestination];
 
-/** Platform-owned integration data selected by a reviewed, versioned pool profile. */
+/** Off-chain-reviewed integration data frozen by the first funder for one isolated account. */
 export interface LiquidityDeploymentProfile {
   id: string;
   venue: 0 | 1;

@@ -216,7 +216,8 @@ contract BasketVaultV2FuzzTest is Test {
                 keccak256("SINJOH_V2_BASKET_YIELD_APPROVAL"),
                 block.chainid,
                 adapter.codehash,
-                depositAsset
+                depositAsset,
+                adapter
             )
         );
         return keccak256(bytes.concat(inner));
@@ -230,7 +231,7 @@ contract BasketVaultV2FuzzTest is Test {
                 address(assetA),
                 address(assetB),
                 address(swapAdapter).codehash,
-                address(guard).codehash,
+                address(guard),
                 uint16(100),
                 keccak256(ROUTE)
             )

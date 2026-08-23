@@ -120,6 +120,7 @@ contract BasketManagerV2 is
     );
     event BasketHarvested(uint256 indexed basketId, uint48 nextHarvestAt);
     event BasketDividendRetried(uint256 indexed basketId, address indexed asset, bool funded);
+    event BasketDividendRedirected(uint256 indexed basketId, address indexed asset, uint256 amount);
     event BasketConfigurationUpdated(
         uint256 indexed basketId,
         bytes32 indexed previousConfigurationHash,
@@ -323,6 +324,18 @@ contract BasketManagerV2 is
         _requireActive();
         funded = primaryVault.retryPendingDividend(asset);
         emit BasketDividendRetried(basketId, asset, funded);
+    }
+
+    function redirectPendingDividendToTreasury(uint256 basketId, address asset)
+        external
+        nonReentrant
+        returns (uint256 amount)
+    {
+        _requireBasket(basketId);
+        _requireActive();
+        if (msg.sender != controller) revert InvalidController(msg.sender);
+        amount = primaryVault.redirectPendingDividendToTreasury(asset);
+        emit BasketDividendRedirected(basketId, asset, amount);
     }
 
     function beginBurn(uint256 basketId) external override nonReentrant {

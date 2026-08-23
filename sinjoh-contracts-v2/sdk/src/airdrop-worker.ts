@@ -52,7 +52,7 @@ export interface AirdropPushBatch {
 }
 
 export interface AirdropKeeperCall {
-  kind: "push" | "retry-credit" | "finalize";
+  kind: "push" | "retry-credit" | "finalize" | "abort";
   to: Address;
   value: 0n;
   data: Hex;
@@ -229,6 +229,25 @@ export function encodeAirdropFinalizeCall(parameters: {
     data: encodeFunctionData({
       abi: projectAirdropV2Abi,
       functionName: "finalizeEpoch",
+      args: [parameters.accountId, parameters.epochId],
+    }),
+  };
+}
+
+/** Encodes the funder or project Treasury's delayed escape from an unprocessable committed epoch. */
+export function encodeAirdropAbortCall(parameters: {
+  airdrop: Address;
+  accountId: Hex;
+  epochId: bigint;
+}): AirdropKeeperCall {
+  assertAddress(parameters.airdrop, "Airdrop contract");
+  return {
+    kind: "abort",
+    to: getAddress(parameters.airdrop),
+    value: 0n,
+    data: encodeFunctionData({
+      abi: projectAirdropV2Abi,
+      functionName: "abortEpoch",
       args: [parameters.accountId, parameters.epochId],
     }),
   };

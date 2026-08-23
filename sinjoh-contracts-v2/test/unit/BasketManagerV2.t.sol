@@ -120,6 +120,23 @@ contract BasketManagerV2Test is Test {
         assertEq(asset.balanceOf(address(adapter)), 100e18);
     }
 
+    function testSwapApprovalLeafPinsPriceGuardInstance() public {
+        MockProjectSwapAdapter swapAdapter = new MockProjectSwapAdapter();
+        MockProjectPriceGuard approvedGuard = new MockProjectPriceGuard();
+        MockProjectPriceGuard unapprovedGuard = new MockProjectPriceGuard();
+        bytes32 routeHash = keccak256(hex"1234");
+
+        assertEq(address(approvedGuard).codehash, address(unapprovedGuard).codehash);
+        assertNotEq(
+            vault.swapApprovalLeaf(
+                address(0), 0, address(swapAdapter), address(approvedGuard), 100, routeHash
+            ),
+            vault.swapApprovalLeaf(
+                address(0), 0, address(swapAdapter), address(unapprovedGuard), 100, routeHash
+            )
+        );
+    }
+
     function testNativeFundingSwapsAndDepositsWithoutStrandingValue() public {
         BasketVaultV2 newImplementation = new BasketVaultV2();
         address[] memory outputs = new address[](1);
@@ -340,7 +357,7 @@ contract BasketManagerV2Test is Test {
         assertEq(airdrop.funded(address(asset)), 0);
     }
 
-    function testPendingDividendCannotBeReclassifiedAsBurnRedemption() public {
+    function testControllerCanRedirectRejectedDividendAndUnblockReconfigurationAndBurn() public {
         _fund(100e18);
         asset.mint(address(this), 10e18);
         asset.approve(address(adapter), 10e18);
@@ -353,6 +370,20 @@ contract BasketManagerV2Test is Test {
         treasury.execute(address(manager), abi.encodeCall(manager.beginBurn, (BASKET_ID)));
         assertEq(vault.pendingDividend(address(asset)), 10e18);
         assertFalse(vault.burnBegun());
+
+        controller.execute(
+            address(manager),
+            abi.encodeCall(manager.redirectPendingDividendToTreasury, (BASKET_ID, address(asset)))
+        );
+        assertEq(vault.pendingDividend(address(asset)), 0);
+        assertEq(vault.pendingDividendAssetCount(), 0);
+        assertEq(asset.balanceOf(address(treasury)), 10e18);
+        controller.execute(
+            address(manager),
+            abi.encodeCall(manager.updateConfiguration, (BASKET_ID, abi.encode(allocation)))
+        );
+        treasury.execute(address(manager), abi.encodeCall(manager.beginBurn, (BASKET_ID)));
+        assertTrue(vault.burnBegun());
     }
 
     function testBasketNftCanNeverBeTransferredToCanonicalBurnAddress() public {
@@ -523,7 +554,8 @@ contract BasketManagerV2Test is Test {
                 keccak256("SINJOH_V2_BASKET_YIELD_APPROVAL"),
                 block.chainid,
                 adapter_.codehash,
-                depositAsset_
+                depositAsset_,
+                adapter_
             )
         );
         return keccak256(bytes.concat(inner));
@@ -545,7 +577,7 @@ contract BasketManagerV2Test is Test {
                 inputAsset,
                 outputAsset,
                 swapAdapter.codehash,
-                guard.codehash,
+                guard,
                 slippageBps,
                 routeHash
             )

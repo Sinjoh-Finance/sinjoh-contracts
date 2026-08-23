@@ -196,6 +196,14 @@ contract ProjectLauncherV2Test is Test {
         assertTrue(token.isVotingExcluded(launched.addresses.treasury));
     }
 
+    function testCanonicalPoolCannotBeRecordedWithoutFundingBands() public {
+        ProjectLaunchConfig memory config = _baseMultisigConfig();
+        config.launchProfile.canonicalPool = address(new MockFundingBandPool());
+
+        vm.expectPartialRevert(ProjectLauncherV2.InvalidBandsConfiguration.selector);
+        launcher.validateLaunchConfig(config);
+    }
+
     function testFundingBandsPreflightPredictsPlatformManagedIntegrations() public {
         MockBasketAsset quote = new MockBasketAsset("Quote", "QUOTE");
         MockFundingBandPool pool = new MockFundingBandPool();
@@ -534,7 +542,7 @@ contract ProjectLauncherV2Test is Test {
         MockBasketAsset asset = new MockBasketAsset("Yield Asset", "YLD");
         MockERC4626 erc4626 = new MockERC4626(IERC20(address(asset)));
         bytes32 approvalRoot = _basketYieldLeafHash(
-            keccak256(type(ERC4626BasketYieldAdapter).runtimeCode), address(asset)
+            keccak256(type(ERC4626BasketYieldAdapter).runtimeCode), address(asset), address(erc4626)
         );
         _installLauncher(approvalRoot);
 
@@ -832,7 +840,7 @@ contract ProjectLauncherV2Test is Test {
         bandAdapter.bind(predicted.bands);
 
         bytes32 yieldLeaf = _basketYieldLeafHash(
-            keccak256(type(ERC4626BasketYieldAdapter).runtimeCode), address(quote)
+            keccak256(type(ERC4626BasketYieldAdapter).runtimeCode), address(quote), address(erc4626)
         );
         bytes32 bandLeaf = _bandIntegrationLeaf(
             address(pool), address(quote), address(guard), address(bandAdapter)
@@ -972,10 +980,12 @@ contract ProjectLauncherV2Test is Test {
     }
 
     function _basketYieldLeaf(address adapter, address asset) private view returns (bytes32) {
-        return _basketYieldLeafHash(adapter.codehash, asset);
+        return _basketYieldLeafHash(
+            adapter.codehash, asset, ERC4626BasketYieldAdapter(adapter).yieldSource()
+        );
     }
 
-    function _basketYieldLeafHash(bytes32 runtimeHash, address asset)
+    function _basketYieldLeafHash(bytes32 runtimeHash, address asset, address yieldSource)
         private
         view
         returns (bytes32)
@@ -987,7 +997,8 @@ contract ProjectLauncherV2Test is Test {
                         keccak256("SINJOH_V2_BASKET_YIELD_APPROVAL"),
                         block.chainid,
                         runtimeHash,
-                        asset
+                        asset,
+                        yieldSource
                     )
                 )
             )

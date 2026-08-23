@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import test from "node:test";
 import { decodeFunctionData, hashTypedData } from "viem";
-import { airdropCommitmentTypedData, buildFundingBandCreationActions, buildAirdropEpoch, buildVerifiedAirdropEpoch, buildLaunchFromPreset, buildProjectLaunchManifest, encodeGovernanceAction, encodeAirdropFinalizeCall, encodeAirdropPushCalls, encodeAirdropRetryCreditCall, encodeMultisigSubmission, encodeTokenGovernanceProposal, erc4626BasketYieldAdapterFactoryAbi, fundingBandDestination, fundingBandIntegrationApprovalLeaf, marketCapUsdE8, projectLaunchManifestHash, projectAirdropV2Abi, projectFundingBandsV2Abi, projectGovernorV2Abi, projectLauncherV2Abi, projectMultisigAccountV2Abi, projectRegistryV2Abi, projectTreasuryVaultV2Abi, simpleFundingBandConfig, launchErrorMessage, planAirdropPushBatches, reconstructHolderAirdropSnapshot, reconstructStakerAirdropSnapshot, serializeProjectLaunchManifest, } from "../src/index.js";
+import { airdropCommitmentTypedData, buildFundingBandCreationActions, buildAirdropEpoch, buildVerifiedAirdropEpoch, buildLaunchFromPreset, buildProjectLaunchManifest, encodeAirdropAbortCall, encodeGovernanceAction, encodeAirdropFinalizeCall, encodeAirdropPushCalls, encodeAirdropRetryCreditCall, encodeMultisigSubmission, encodeTokenGovernanceProposal, erc4626BasketYieldAdapterFactoryAbi, fundingBandDestination, fundingBandIntegrationApprovalLeaf, marketCapUsdE8, projectLaunchManifestHash, projectAirdropV2Abi, projectFundingBandsV2Abi, projectGovernorV2Abi, projectLauncherV2Abi, projectMultisigAccountV2Abi, projectRegistryV2Abi, projectTreasuryVaultV2Abi, simpleFundingBandConfig, launchErrorMessage, planAirdropPushBatches, reconstructHolderAirdropSnapshot, reconstructStakerAirdropSnapshot, serializeProjectLaunchManifest, } from "../src/index.js";
 const fixture = JSON.parse(await readFile(resolve(process.cwd(), "fixtures/treasury-send.json"), "utf8"));
 const airdropFixture = JSON.parse(await readFile(resolve(process.cwd(), "fixtures/airdrop-tree.json"), "utf8"));
 test("exports the required project discovery and launch ABI", () => {
@@ -535,5 +535,13 @@ test("fails closed on incomplete event history and plans every unsettled leaf", 
             epochId: BigInt(airdropFixture.epochId),
         }).data,
     }).functionName, "finalizeEpoch");
+    assert.equal(decodeFunctionData({
+        abi: projectAirdropV2Abi,
+        data: encodeAirdropAbortCall({
+            airdrop: airdropFixture.airdrop,
+            accountId: airdropFixture.accountId,
+            epochId: BigInt(airdropFixture.epochId),
+        }).data,
+    }).functionName, "abortEpoch");
 });
 //# sourceMappingURL=sdk.test.js.map

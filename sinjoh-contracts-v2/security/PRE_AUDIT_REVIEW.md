@@ -8,7 +8,7 @@ The package currently passes `forge fmt --check`, `forge lint`, `forge build --s
 Foundry unit/fuzz/invariant/integration suite, and `npm test --prefix sdk`. Foundry invariants use
 256 runs × 64 calls and fuzz tests use 1,000 runs. The suite contains the specified 25 integration
 flows, two cross-module system invariant suites, and all eight required end-to-end journeys (plus a
-separate staker-dividend journey). The current production-mode run completes 442 tests with zero
+separate staker-dividend journey). The current production-mode run completes 448 tests with zero
 failures and one explicitly environment-gated fork skip; the SDK completes 23 tests.
 
 `script/coverage.sh` runs the all-modules Launcher suite under production compiler settings, then
@@ -76,10 +76,10 @@ reported liquidity before settlement continues.
 
 | Integration | Contract-enforced assumptions | Remaining release evidence |
 | --- | --- | --- |
-| ERC-4626 Basket adapter | synchronous standard, exact measured deposits/shares, principal high-water mark, Basket-only recipient | selected vault fork run is still required |
+| ERC-4626 Basket adapter | synchronous standard, exact measured deposits/shares, principal high-water mark, Basket-only recipient, approval leaf pins the concrete ERC-4626 vault | selected vault fork run is still required |
 | Funding Band V3 market-cap guard | exact project/pool/supply binding, minimum TWAP window, fresh advancing observation; ownerless release factory deploys the reviewed implementation | target-chain pool/oracle fork evidence is missing |
 | Funding Band V3 position adapter | exact Bands/subject/quote/pool/manager binding and complete exit; ownerless release factory deploys the reviewed implementation | target-chain PositionManager fork evidence is missing |
-| swap adapters/guards | immutable runtime/route approval leaf, exact deltas, cleared allowance | every selected production route needs fork evidence |
+| swap adapters/guards | immutable runtime/route approval leaf, Basket approvals pin the exact guard instance, exact deltas, cleared allowance | every selected production route and configured guard needs fork evidence |
 | Raffle randomness | exact release-pinned immutable adapter, recorded runtime hash, and timeout/retry accounting | selected adapter liveness/unpredictability evidence is missing |
 | Uniswap v3/v4 + Permit2 | release-pinned addresses/runtime hashes and permanent position custody | target-chain fork and testnet rehearsal are missing |
 

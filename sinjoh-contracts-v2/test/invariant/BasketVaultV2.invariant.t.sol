@@ -156,7 +156,8 @@ contract BasketVaultV2InvariantTest is StdInvariant, Test {
                 keccak256("SINJOH_V2_BASKET_YIELD_APPROVAL"),
                 block.chainid,
                 address(adapter).codehash,
-                address(asset)
+                address(asset),
+                address(adapter)
             )
         );
         return keccak256(bytes.concat(inner));

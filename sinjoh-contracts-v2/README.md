@@ -53,29 +53,35 @@ asset custody, deployment, recovery, or generic execution authority.
 `ProjectRouterV2` accepts exact attributed or synced revenue, carries the cumulative 1% fee
 remainder, and executes constructor-initialized or governance-versioned typed routes. Cumulative
 allocation prevents micro-batch bias; failed and paused shares remain exact versioned escrow for
-permissionless retry or governance re-keying into an active same-asset action. Its work/action and
+permissionless retry while their route is active or governance re-keying from a superseded route
+into an active same-asset action. Its work/action and
 approval views are designed for direct keeper and frontend consumption.
 
 `ProjectAirdropV2` creates immutable per-funder reward accounts and pushes holder- or staker-mode
 payments without recipient claims. EIP-712 epoch commitments are permissionlessly relayed, while
 on-chain checkpoints and direction-aware weight/amount Merkle sums verify every proportional leaf.
 Failed recipients and dust destinations become exact retryable credits; one-call account/epoch
-status and proof/hash helpers support frontends, workers, and independent artifact verification.
+status and proof/hash helpers support frontends, workers, and independent artifact verification. A
+defective commitment can be closed by its original funder or project Treasury after 30 days,
+returning only the unpaid remainder to that account's uncommitted funding.
 
 `BasketManagerV2`, `BasketNFTV2`, and each isolated `BasketVaultV2` implement locked yield baskets.
 Funding follows a complete proof-approved input/target route matrix, realized yield is harvested on
 the selected daily or weekly cadence into the matching Airdrop account, and failed downstream
 delivery remains exactly retryable. Optional governance updates perform an atomic in-vault
-rebalance. Principal can leave only through resumable NFT burn settlement, with an optional exact
+rebalance. If the Airdrop permanently rejects a dividend asset, the project controller can redirect
+that exact pending amount to Treasury before reconfiguration or burn. Principal can leave only
+through resumable NFT burn settlement, with an optional exact
 project-token burn price and in-kind tax. The per-Basket Vault is a deterministic clone of one
 audited implementation so the launch is both address-predictable and EVM-size compliant.
 
 `ERC4626BasketYieldAdapter` is the first production-shaped Basket adapter. Each instance is
 permanently bound to one Basket Vault and one reviewed ERC-4626 vault, exposes a release-stable
-runtime hash, clears exact approvals, harvests only value above recorded principal, and permits a
+runtime hash, exposes the concrete vault as its approval source, clears exact approvals, harvests
+only value above recorded principal, and permits a
 full exit only back to its bound Basket Vault. For the standard creator flow, the Launcher predicts
 and deploys these adapters from an ownerless deterministic factory in the same transaction as the
-project; creators select reviewed ERC-4626 vaults and never deploy, bind, approve, or exclude an
+project; creators select release-root-approved ERC-4626 vaults and never deploy, bind, approve, or exclude an
 adapter manually. Pre-reviewed custom adapters remain available as an advanced launch path.
 
 `ProjectFundingBandsV2` lets the project controller atomically commit Treasury-held project tokens
@@ -103,15 +109,19 @@ the deployment engine inserts the approved adapter automatically.
 The SDK supplies the complete worker path: strict event-history replay, two-provider snapshot
 reconciliation, deterministic ticket-tree construction, winner-proof submission, credit retries,
 and timed-out-round closure. These operational details stay out of creator and holder interfaces.
+The immutable attestor remains trusted to commit an honest, exhaustive ticket root: on-chain proof
+verification binds payouts to that root but cannot prove that the off-chain root omitted no holder.
 
 `ProjectLiquidityManagerV2` binds the existing permanent-liquidity design to one canonical Registry
 project and accepts the same attributed funding ABI as Router and Funding Bands. Each funding source
 has an isolated immutable account, guarded swaps can only create or increase its one full-range
 position, and principal has no withdrawal, transfer, approval, burn, rescue, governance, or generic
 call path. Position fees retain creator, Treasury, recycle, and funder modes with cumulative 1%
-protocol accounting. One-call status views, named launcher choices, automatic manifest-derived
-infrastructure, and permissionless retry/mint/collect flows keep funders out of contract plumbing.
-The SDK hydrates frozen account configuration from reviewed pool profiles and product-level choices;
+protocol accounting. Integration profiles are reviewed off-chain; the first funder supplies and
+permanently freezes the venue, adapter, guard, hook, route, and pool parameters for only its isolated
+account. One-call status views and permissionless retry/mint/collect flows keep later operations out
+of contract plumbing. The SDK hydrates frozen account configuration from reviewed pool profiles and
+product-level choices;
 the Router atomically fills canonical creator/Treasury fee recipients during launch and later route
 updates, so applications never predict or encode those addresses themselves.
 

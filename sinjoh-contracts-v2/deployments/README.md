@@ -37,5 +37,6 @@ the exact validated preflight and Registry readback. It rejects mismatched confi
 identities, governance, supply, modules, or predicted addresses before emitting canonical JSON.
 The artifact shape is [`project-launch-manifest.schema.json`](./project-launch-manifest.schema.json).
 
-This workflow does not manufacture or validate the authorship of audit/canary evidence. Until independent audit and live
+This workflow checks evidence presence and hashes only; it does not manufacture, authenticate, or
+validate the authorship or substance of audit/canary evidence. Until independent audit and live
 rehearsal artifacts exist, deployment correctly remains blocked at preflight.

@@ -48,6 +48,10 @@ contract ERC4626BasketYieldAdapter is IBasketYieldAdapter, ReentrancyGuard {
         _;
     }
 
+    function yieldSource() external view override returns (address) {
+        return address(vault);
+    }
+
     function deposit(uint256 assets)
         external
         onlyBasket

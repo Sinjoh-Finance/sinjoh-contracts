@@ -193,6 +193,27 @@ contract ProjectRouterV2Test is RouterTestBase {
         assertEq(router.allocatedToAction(address(assetA), 1, 1), 50);
     }
 
+    function testThreeActionCumulativeAllocationDoesNotUnderflowAcrossBatches() public {
+        RouterAction[] memory actions = new RouterAction[](3);
+        actions[0] = _sendAction(CREATOR, 3_000);
+        actions[1] = _sendAction(RECIPIENT, 3_300);
+        actions[2] = _sendAction(address(0xCAFE), 3_700);
+        ProjectRouterV2 router = _deployRouter(_route(address(assetA), actions), bytes32(0));
+
+        _fund(router, address(assetA), 13);
+        _execute(router, address(assetA), 13);
+        _fund(router, address(assetA), 1);
+
+        uint256[] memory projected = router.projectedAllocations(address(assetA), 1, 1);
+        assertEq(projected[0], 1);
+        assertEq(projected[1], 0);
+        assertEq(projected[2], 0);
+        _execute(router, address(assetA), 1);
+        assertEq(router.allocatedToAction(address(assetA), 1, 0), 4);
+        assertEq(router.allocatedToAction(address(assetA), 1, 1), 5);
+        assertEq(router.allocatedToAction(address(assetA), 1, 2), 5);
+    }
+
     function testOneRoutePaysCreatorTreasuryAirdropRaffleAndLiquidity() public {
         RouterAction[] memory actions = new RouterAction[](5);
         actions[0] = _sendAction(CREATOR, 2_000);
@@ -320,6 +341,8 @@ contract ProjectRouterV2Test is RouterTestBase {
             _singleRoute(address(assetA), _sendAction(RECIPIENT, 10_000))[0];
         _controllerCall(router, abi.encodeCall(router.activateRoute, (next)));
         assertEq(router.escrowed(address(assetA), 1, 0), 9_900);
+        vm.expectPartialRevert(ProjectRouterV2.StaleRouteEscrow.selector);
+        router.retryEscrow(address(assetA), 1, 0, type(uint256).max, 0, "");
         _controllerCall(
             router, abi.encodeCall(router.recoverEscrow, (address(assetA), 1, 0, 4_000, 0))
         );

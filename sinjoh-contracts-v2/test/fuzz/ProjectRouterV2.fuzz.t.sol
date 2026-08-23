@@ -49,6 +49,39 @@ contract ProjectRouterV2FuzzTest is RouterTestBase {
         assertEq(projected[0] + projected[1] + projected[2], amount);
     }
 
+    function testFuzzThreeActionMultiBatchAllocationsStayLiveAndExact(
+        uint16 rawFirstBps,
+        uint16 rawSecondBps,
+        uint64 rawFirstGross,
+        uint64 rawSecondGross
+    ) public {
+        uint16 firstBps = uint16(bound(uint256(rawFirstBps), 1, 9_998));
+        uint16 secondBps = uint16(bound(uint256(rawSecondBps), 1, 9_999 - firstBps));
+        RouterAction[] memory actions = new RouterAction[](3);
+        actions[0] = _sendAction(CREATOR, firstBps);
+        actions[1] = _sendAction(RECIPIENT, secondBps);
+        actions[2] = _sendAction(address(0xCAFE), 10_000 - firstBps - secondBps);
+        RouterRouteInput[] memory routes = new RouterRouteInput[](1);
+        routes[0] = RouterRouteInput(address(assetA), actions);
+        ProjectRouterV2 router = _deployRouter(routes, bytes32(0));
+
+        _fund(router, address(assetA), bound(uint256(rawFirstGross), 1, 1e18));
+        _execute(router, address(assetA), type(uint256).max);
+        _fund(router, address(assetA), bound(uint256(rawSecondGross), 2, 1e18));
+        uint256 secondBatch = router.pending(address(assetA));
+        uint256[] memory projected = router.projectedAllocations(address(assetA), 1, secondBatch);
+        assertEq(projected[0] + projected[1] + projected[2], secondBatch);
+        _execute(router, address(assetA), type(uint256).max);
+
+        ProjectRouterV2.RouteHeader memory header = router.routeHeader(address(assetA), 1);
+        assertEq(
+            router.allocatedToAction(address(assetA), 1, 0)
+                + router.allocatedToAction(address(assetA), 1, 1)
+                + router.allocatedToAction(address(assetA), 1, 2),
+            header.totalRouted
+        );
+    }
+
     function testFuzzExactSendConservesNetAndFee(uint128 rawGross) public {
         uint256 gross = bound(uint256(rawGross), 1, 1_000_000e18);
         ProjectRouterV2 router = _deployRouter(

@@ -40,6 +40,7 @@ contract ProjectAirdropV2 is IProjectModule, IProjectFundable, ReentrancyGuard {
     uint256 public constant MAX_EXCLUSIONS = 68;
     uint256 public constant MAX_PROOF_DEPTH = 64;
     uint256 public constant PAYMENT_GAS_LIMIT = 200_000;
+    uint48 public constant EPOCH_ABORT_DELAY = 30 days;
     bytes32 public constant ACCOUNT_DOMAIN = keccak256("SINJOH_V2_AIRDROP_ACCOUNT");
     bytes32 public constant ACCOUNT_CONFIG_DOMAIN = keccak256("SINJOH_V2_AIRDROP_ACCOUNT_CONFIG");
     bytes32 public constant LEAF_DOMAIN = keccak256("SINJOH_V2_AIRDROP_LEAF");
@@ -76,6 +77,7 @@ contract ProjectAirdropV2 is IProjectModule, IProjectFundable, ReentrancyGuard {
         uint48 snapshotTime;
         uint32 leafCount;
         uint32 settledLeafCount;
+        uint48 committedAt;
         bytes32 snapshotBlockHash;
         bytes32 rootHash;
         bytes32 artifactHash;
@@ -84,6 +86,7 @@ contract ProjectAirdropV2 is IProjectModule, IProjectFundable, ReentrancyGuard {
         uint256 totalEligibleWeight;
         uint256 settledEntitlement;
         bool finalized;
+        bool aborted;
     }
 
     address public immutable override registry;
@@ -157,6 +160,8 @@ contract ProjectAirdropV2 is IProjectModule, IProjectFundable, ReentrancyGuard {
     error PushBatchTooLarge(uint256 supplied, uint256 maximum);
     error UnknownEpoch(bytes32 accountId, uint64 epochId);
     error EpochAlreadyFinalized(bytes32 accountId, uint64 epochId);
+    error UnauthorizedEpochAbort(address caller, address funder, address treasury);
+    error EpochAbortNotReady(uint48 earliest, uint48 currentTime);
     error HolderAlreadyProcessed(address holder);
     error ExcludedHolder(address holder);
     error InvalidHolderWeight(address holder, uint256 expected, uint256 supplied);
@@ -234,6 +239,7 @@ contract ProjectAirdropV2 is IProjectModule, IProjectFundable, ReentrancyGuard {
     event EpochFinalized(
         bytes32 indexed accountId, uint64 indexed epochId, uint256 divisionDust, address destination
     );
+    event EpochAborted(bytes32 indexed accountId, uint64 indexed epochId, uint256 returnedFunding);
     event ProtocolFeeSent(address indexed asset, uint256 amount);
     event SurplusRecovered(address indexed asset, address indexed recipient, uint256 amount);
 
@@ -427,6 +433,7 @@ contract ProjectAirdropV2 is IProjectModule, IProjectFundable, ReentrancyGuard {
         epoch.snapshotBlock = commitment.snapshotBlock;
         epoch.snapshotTime = commitment.snapshotTime;
         epoch.leafCount = commitment.leafCount;
+        epoch.committedAt = uint48(block.timestamp);
         epoch.snapshotBlockHash = commitment.snapshotBlockHash;
         epoch.rootHash = commitment.rootHash;
         epoch.artifactHash = commitment.artifactHash;
@@ -502,6 +509,32 @@ contract ProjectAirdropV2 is IProjectModule, IProjectFundable, ReentrancyGuard {
             }
         }
         emit EpochFinalized(accountId_, epochId, dust, destination);
+    }
+
+    function abortEpoch(bytes32 accountId_, uint64 epochId)
+        external
+        nonReentrant
+        returns (uint256 returnedFunding)
+    {
+        AccountState storage account = _requireAccount(accountId_);
+        if (msg.sender != account.funder && msg.sender != treasury) {
+            revert UnauthorizedEpochAbort(msg.sender, account.funder, treasury);
+        }
+        _assertBacked(account.asset);
+        EpochState storage epoch = _requireEpoch(accountId_, epochId);
+        if (epoch.finalized) revert EpochAlreadyFinalized(accountId_, epochId);
+        uint48 currentTime = uint48(block.timestamp);
+        uint48 earliest = epoch.committedAt + EPOCH_ABORT_DELAY;
+        if (currentTime < earliest) revert EpochAbortNotReady(earliest, currentTime);
+
+        epoch.finalized = true;
+        epoch.aborted = true;
+        returnedFunding = epoch.epochAmount - epoch.settledEntitlement;
+        account.committedUnpaid -= returnedFunding;
+        account.uncommittedFunding += returnedFunding;
+        totalCommittedUnpaid[account.asset] -= returnedFunding;
+        totalUncommitted[account.asset] += returnedFunding;
+        emit EpochAborted(accountId_, epochId, returnedFunding);
     }
 
     function retryCredit(address recipient, address asset, uint256 maxAmount)

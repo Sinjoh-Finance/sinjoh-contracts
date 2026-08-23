@@ -372,6 +372,60 @@ contract ProjectAirdropV2Test is AirdropTestBase {
         airdrop.finalizeEpoch(id, 1);
     }
 
+    function testFunderOrTreasuryCanAbortDefectiveEpochAfterDelayWithoutTouchingPaidFunds() public {
+        vm.prank(ALICE);
+        assertTrue(token.transfer(BOB, 100e18));
+        bytes32 id = _fundErc20(FUNDER, 10_000, abi.encode(_defaultConfig()));
+        uint48 snapshotTime = _prepareSnapshot();
+        (
+            AirdropEpochCommitment memory commitment,
+            AirdropLeaf[] memory leaves,
+            AirdropProof[] memory proofs
+        ) = _twoLeafCommitment(
+            id,
+            1,
+            AirdropLeaf(ALICE, 900e18, 8_910),
+            AirdropLeaf(ALICE, 100e18, 990),
+            9_900,
+            snapshotTime
+        );
+        _commit(commitment);
+        AirdropLeaf[] memory firstLeaf = new AirdropLeaf[](1);
+        firstLeaf[0] = leaves[0];
+        AirdropProof[] memory firstProof = new AirdropProof[](1);
+        firstProof[0] = proofs[0];
+        airdrop.push(id, 1, firstLeaf, firstProof);
+        AirdropLeaf[] memory defectiveLeaf = new AirdropLeaf[](1);
+        defectiveLeaf[0] = leaves[1];
+        AirdropProof[] memory defectiveProof = new AirdropProof[](1);
+        defectiveProof[0] = proofs[1];
+        vm.expectPartialRevert(ProjectAirdropV2.HolderAlreadyProcessed.selector);
+        airdrop.push(id, 1, defectiveLeaf, defectiveProof);
+        vm.prank(FUNDER);
+        vm.expectPartialRevert(ProjectAirdropV2.EpochAbortNotReady.selector);
+        airdrop.abortEpoch(id, 1);
+
+        vm.warp(block.timestamp + airdrop.EPOCH_ABORT_DELAY());
+        vm.expectPartialRevert(ProjectAirdropV2.UnauthorizedEpochAbort.selector);
+        airdrop.abortEpoch(id, 1);
+        vm.prank(address(treasury));
+        assertEq(airdrop.abortEpoch(id, 1), 990);
+
+        (ProjectAirdropV2.AccountState memory account,,) = airdrop.accountStatus(id);
+        ProjectAirdropV2.EpochState memory epoch = airdrop.epochStatus(id, 1);
+        assertEq(account.uncommittedFunding, 990);
+        assertEq(account.committedUnpaid, 0);
+        assertEq(airdrop.totalUncommitted(address(reward)), 990);
+        assertEq(airdrop.totalCommittedUnpaid(address(reward)), 0);
+        assertEq(reward.balanceOf(ALICE), 8_910);
+        assertTrue(epoch.finalized);
+        assertTrue(epoch.aborted);
+        assertEq(airdrop.totalLiability(address(reward)), 1_090);
+        assertEq(reward.balanceOf(address(airdrop)), 1_090);
+        vm.expectPartialRevert(ProjectAirdropV2.EpochAlreadyFinalized.selector);
+        airdrop.push(id, 1, defectiveLeaf, defectiveProof);
+    }
+
     function testRawRewardSurplusIsPermissionlesslyRecoveredToTreasury() public {
         reward.mint(address(airdrop), 500);
         vm.prank(address(0xBAD));

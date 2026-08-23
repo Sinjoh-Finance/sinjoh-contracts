@@ -137,6 +137,10 @@ contract MockBasketModule is IProjectModule, IProjectFundable, IERC721Receiver {
             basketVault = vault;
         }
 
+        function yieldSource() external view override returns (address) {
+            return address(this);
+        }
+
         function totalAssets() external view returns (uint256) {
             return _totalAssets;
         }

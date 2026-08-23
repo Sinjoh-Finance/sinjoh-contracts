@@ -130,6 +130,7 @@ contract ProjectRouterV2 is IProjectModule, IProjectControlled, IProjectFundable
     error ActionAlreadyPaused(uint256 index);
     error ActionNotPaused(uint256 index);
     error ActionIsPaused(uint256 index);
+    error StaleRouteEscrow(address asset, uint64 suppliedVersion, uint64 activeVersion);
     error NoEscrow(address asset, uint64 version, uint256 index);
     error InvalidRecoveryTarget(address asset, uint64 version, uint256 index);
     error NativeTransferFailed(address recipient, uint256 amount);
@@ -432,6 +433,8 @@ contract ProjectRouterV2 is IProjectModule, IProjectControlled, IProjectFundable
         if (maxAmount == 0) revert InvalidAmount(0);
         _requireAction(asset, version, actionIndex);
         if (actionPaused[asset][version][actionIndex]) revert ActionIsPaused(actionIndex);
+        uint64 activeVersion = activeRouteVersion[asset];
+        if (version != activeVersion) revert StaleRouteEscrow(asset, version, activeVersion);
         uint256 current = escrowed[asset][version][actionIndex];
         if (current == 0) revert NoEscrow(asset, version, actionIndex);
         amount = Math.min(current, maxAmount);
@@ -831,13 +834,21 @@ contract ProjectRouterV2 is IProjectModule, IProjectControlled, IProjectFundable
         shares = new uint256[](count);
         uint256 cumulativeAfter = header.totalRouted + batchAmount;
         uint256 cumulativeBps;
-        uint256 totalTarget;
+        uint256 cumulativeAllocated;
+        uint256 remaining = batchAmount;
         for (uint256 i; i < count; ++i) {
+            if (i + 1 == count) {
+                shares[i] = remaining;
+                break;
+            }
             cumulativeBps += _routeActions[asset][version][i].allocationBps;
-            uint256 target =
-                i + 1 == count ? cumulativeAfter : Math.mulDiv(cumulativeAfter, cumulativeBps, BPS);
-            shares[i] = target - totalTarget - _allocated[asset][version][i];
-            totalTarget = target;
+            cumulativeAllocated += _allocated[asset][version][i];
+            uint256 target = Math.mulDiv(cumulativeAfter, cumulativeBps, BPS);
+            if (target <= cumulativeAllocated) continue;
+            uint256 share = Math.min(target - cumulativeAllocated, remaining);
+            shares[i] = share;
+            cumulativeAllocated += share;
+            remaining -= share;
         }
     }
 

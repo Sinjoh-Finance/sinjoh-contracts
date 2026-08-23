@@ -32,6 +32,22 @@ contract ERC4626BasketYieldAdapterV2IntegrationTest is Test {
     uint256 private constant BASKET_ID = 1;
     address private constant CREATOR = address(0xC0FFEE);
 
+    function testYieldApprovalLeafPinsConcreteERC4626Vault() public {
+        MockBasketAsset asset = new MockBasketAsset("Yield Asset", "YIELD");
+        MockERC4626 approvedVault = new MockERC4626(IERC20(address(asset)));
+        MockERC4626 unapprovedVault = new MockERC4626(IERC20(address(asset)));
+        ERC4626BasketYieldAdapter approvedAdapter =
+            new ERC4626BasketYieldAdapter(address(this), address(approvedVault));
+        ERC4626BasketYieldAdapter unapprovedAdapter =
+            new ERC4626BasketYieldAdapter(address(this), address(unapprovedVault));
+
+        assertEq(address(approvedAdapter).codehash, address(unapprovedAdapter).codehash);
+        assertNotEq(
+            _yieldLeaf(address(approvedAdapter), address(asset)),
+            _yieldLeaf(address(unapprovedAdapter), address(asset))
+        );
+    }
+
     function testE2EBasketYieldHarvestTransferAndPricedTaxedBurn() public {
         MockRegistry registry = new MockRegistry();
         MockProjectToken subject =
@@ -163,7 +179,8 @@ contract ERC4626BasketYieldAdapterV2IntegrationTest is Test {
                         keccak256("SINJOH_V2_BASKET_YIELD_APPROVAL"),
                         block.chainid,
                         adapter.codehash,
-                        asset
+                        asset,
+                        address(ERC4626BasketYieldAdapter(adapter).vault())
                     )
                 )
             )

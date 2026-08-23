@@ -143,6 +143,7 @@ contract BasketVaultV2 is ReentrancyGuard {
     );
     event DividendPending(address indexed asset, uint256 amount, bytes32 reasonHash);
     event DividendFunded(address indexed asset, uint256 amount);
+    event DividendRedirectedToTreasury(address indexed asset, uint256 amount);
     event HarvestCompleted(uint48 indexed harvestedAt, uint48 indexed nextHarvestAt);
     event AllocationConfigurationUpdated(bytes32 indexed configurationHash);
     event BurnStarted(uint256 indexed basketId);
@@ -262,6 +263,21 @@ contract BasketVaultV2 is ReentrancyGuard {
         if (burnBegun || closed) revert BurnInProgress();
         if (pendingDividend[asset] == 0) revert NoPendingDividend(asset);
         return _tryPendingDividend(asset);
+    }
+
+    function redirectPendingDividendToTreasury(address asset)
+        external
+        onlyManager
+        nonReentrant
+        returns (uint256 amount)
+    {
+        if (burnBegun || closed) revert BurnInProgress();
+        amount = pendingDividend[asset];
+        if (amount == 0) revert NoPendingDividend(asset);
+        pendingDividend[asset] = 0;
+        pendingDividendAssetCount -= 1;
+        _sendExact(asset, treasury, amount);
+        emit DividendRedirectedToTreasury(asset, amount);
     }
 
     /// @dev External self-call boundary lets a failed downstream Airdrop become retryable state.
@@ -411,7 +427,13 @@ contract BasketVaultV2 is ReentrancyGuard {
         returns (bytes32)
     {
         bytes32 inner = keccak256(
-            abi.encode(YIELD_APPROVAL_DOMAIN, block.chainid, adapter.codehash, depositAsset)
+            abi.encode(
+                YIELD_APPROVAL_DOMAIN,
+                block.chainid,
+                adapter.codehash,
+                depositAsset,
+                IBasketYieldAdapter(adapter).yieldSource()
+            )
         );
         return keccak256(bytes.concat(inner));
     }
@@ -431,7 +453,7 @@ contract BasketVaultV2 is ReentrancyGuard {
                 inputAsset,
                 _targets[targetIndex].depositAsset,
                 adapter.codehash,
-                priceGuard.codehash,
+                priceGuard,
                 maxSlippageBps,
                 routeHash
             )

@@ -5,6 +5,7 @@ pragma solidity 0.8.28;
 interface IBasketYieldAdapter {
     function basketVault() external view returns (address);
     function depositAsset() external view returns (address);
+    function yieldSource() external view returns (address);
     function deposit(uint256 assets) external returns (uint256 positionUnits);
     function totalAssets() external view returns (uint256 assets);
     function harvest(address recipient)

@@ -10,6 +10,7 @@ import {
   buildVerifiedAirdropEpoch,
   buildLaunchFromPreset,
   buildProjectLaunchManifest,
+  encodeAirdropAbortCall,
   encodeGovernanceAction,
   encodeAirdropFinalizeCall,
   encodeAirdropPushCalls,
@@ -698,5 +699,16 @@ test("fails closed on incomplete event history and plans every unsettled leaf", 
       }).data,
     }).functionName,
     "finalizeEpoch",
+  );
+  assert.equal(
+    decodeFunctionData({
+      abi: projectAirdropV2Abi,
+      data: encodeAirdropAbortCall({
+        airdrop: airdropFixture.airdrop,
+        accountId: airdropFixture.accountId,
+        epochId: BigInt(airdropFixture.epochId),
+      }).data,
+    }).functionName,
+    "abortEpoch",
   );
 });

@@ -11189,6 +11189,22 @@ export declare const projectRouterV2Abi: readonly [{
     }];
 }, {
     readonly type: "error";
+    readonly name: "StaleRouteEscrow";
+    readonly inputs: readonly [{
+        readonly name: "asset";
+        readonly type: "address";
+        readonly internalType: "address";
+    }, {
+        readonly name: "suppliedVersion";
+        readonly type: "uint64";
+        readonly internalType: "uint64";
+    }, {
+        readonly name: "activeVersion";
+        readonly type: "uint64";
+        readonly internalType: "uint64";
+    }];
+}, {
+    readonly type: "error";
     readonly name: "TotalConfigTooLarge";
     readonly inputs: readonly [{
         readonly name: "supplied";
@@ -12653,6 +12669,16 @@ export declare const projectAirdropV2Abi: readonly [{
     readonly stateMutability: "view";
 }, {
     readonly type: "function";
+    readonly name: "EPOCH_ABORT_DELAY";
+    readonly inputs: readonly [];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "uint48";
+        readonly internalType: "uint48";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
     readonly name: "LEAF_DOMAIN";
     readonly inputs: readonly [];
     readonly outputs: readonly [{
@@ -12751,6 +12777,24 @@ export declare const projectAirdropV2Abi: readonly [{
         readonly internalType: "uint16";
     }];
     readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "abortEpoch";
+    readonly inputs: readonly [{
+        readonly name: "accountId_";
+        readonly type: "bytes32";
+        readonly internalType: "bytes32";
+    }, {
+        readonly name: "epochId";
+        readonly type: "uint64";
+        readonly internalType: "uint64";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "returnedFunding";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly stateMutability: "nonpayable";
 }, {
     readonly type: "function";
     readonly name: "accountCommittedUnpaid";
@@ -13148,6 +13192,10 @@ export declare const projectAirdropV2Abi: readonly [{
             readonly type: "uint32";
             readonly internalType: "uint32";
         }, {
+            readonly name: "committedAt";
+            readonly type: "uint48";
+            readonly internalType: "uint48";
+        }, {
             readonly name: "snapshotBlockHash";
             readonly type: "bytes32";
             readonly internalType: "bytes32";
@@ -13177,6 +13225,10 @@ export declare const projectAirdropV2Abi: readonly [{
             readonly internalType: "uint256";
         }, {
             readonly name: "finalized";
+            readonly type: "bool";
+            readonly internalType: "bool";
+        }, {
+            readonly name: "aborted";
             readonly type: "bool";
             readonly internalType: "bool";
         }];
@@ -13906,6 +13958,26 @@ export declare const projectAirdropV2Abi: readonly [{
     readonly anonymous: false;
 }, {
     readonly type: "event";
+    readonly name: "EpochAborted";
+    readonly inputs: readonly [{
+        readonly name: "accountId";
+        readonly type: "bytes32";
+        readonly indexed: true;
+        readonly internalType: "bytes32";
+    }, {
+        readonly name: "epochId";
+        readonly type: "uint64";
+        readonly indexed: true;
+        readonly internalType: "uint64";
+    }, {
+        readonly name: "returnedFunding";
+        readonly type: "uint256";
+        readonly indexed: false;
+        readonly internalType: "uint256";
+    }];
+    readonly anonymous: false;
+}, {
+    readonly type: "event";
     readonly name: "EpochCommitted";
     readonly inputs: readonly [{
         readonly name: "accountId";
@@ -14175,6 +14247,18 @@ export declare const projectAirdropV2Abi: readonly [{
     readonly type: "error";
     readonly name: "EmptyPushBatch";
     readonly inputs: readonly [];
+}, {
+    readonly type: "error";
+    readonly name: "EpochAbortNotReady";
+    readonly inputs: readonly [{
+        readonly name: "earliest";
+        readonly type: "uint48";
+        readonly internalType: "uint48";
+    }, {
+        readonly name: "currentTime";
+        readonly type: "uint48";
+        readonly internalType: "uint48";
+    }];
 }, {
     readonly type: "error";
     readonly name: "EpochAlreadyFinalized";
@@ -14670,6 +14754,22 @@ export declare const projectAirdropV2Abi: readonly [{
         readonly name: "supplied";
         readonly type: "uint256";
         readonly internalType: "uint256";
+    }];
+}, {
+    readonly type: "error";
+    readonly name: "UnauthorizedEpochAbort";
+    readonly inputs: readonly [{
+        readonly name: "caller";
+        readonly type: "address";
+        readonly internalType: "address";
+    }, {
+        readonly name: "funder";
+        readonly type: "address";
+        readonly internalType: "address";
+    }, {
+        readonly name: "treasury";
+        readonly type: "address";
+        readonly internalType: "address";
     }];
 }, {
     readonly type: "error";
@@ -15230,6 +15330,24 @@ export declare const basketManagerV2Abi: readonly [{
     readonly stateMutability: "view";
 }, {
     readonly type: "function";
+    readonly name: "redirectPendingDividendToTreasury";
+    readonly inputs: readonly [{
+        readonly name: "basketId";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "asset";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "amount";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly stateMutability: "nonpayable";
+}, {
+    readonly type: "function";
     readonly name: "registry";
     readonly inputs: readonly [];
     readonly outputs: readonly [{
@@ -15398,6 +15516,26 @@ export declare const basketManagerV2Abi: readonly [{
         readonly type: "bytes32";
         readonly indexed: true;
         readonly internalType: "bytes32";
+    }];
+    readonly anonymous: false;
+}, {
+    readonly type: "event";
+    readonly name: "BasketDividendRedirected";
+    readonly inputs: readonly [{
+        readonly name: "basketId";
+        readonly type: "uint256";
+        readonly indexed: true;
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "asset";
+        readonly type: "address";
+        readonly indexed: true;
+        readonly internalType: "address";
+    }, {
+        readonly name: "amount";
+        readonly type: "uint256";
+        readonly indexed: false;
+        readonly internalType: "uint256";
     }];
     readonly anonymous: false;
 }, {
@@ -16342,6 +16480,20 @@ export declare const basketVaultV2Abi: readonly [{
     readonly stateMutability: "view";
 }, {
     readonly type: "function";
+    readonly name: "redirectPendingDividendToTreasury";
+    readonly inputs: readonly [{
+        readonly name: "asset";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "amount";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly stateMutability: "nonpayable";
+}, {
+    readonly type: "function";
     readonly name: "registry";
     readonly inputs: readonly [];
     readonly outputs: readonly [{
@@ -16702,6 +16854,21 @@ export declare const basketVaultV2Abi: readonly [{
         readonly type: "bytes32";
         readonly indexed: false;
         readonly internalType: "bytes32";
+    }];
+    readonly anonymous: false;
+}, {
+    readonly type: "event";
+    readonly name: "DividendRedirectedToTreasury";
+    readonly inputs: readonly [{
+        readonly name: "asset";
+        readonly type: "address";
+        readonly indexed: true;
+        readonly internalType: "address";
+    }, {
+        readonly name: "amount";
+        readonly type: "uint256";
+        readonly indexed: false;
+        readonly internalType: "uint256";
     }];
     readonly anonymous: false;
 }, {
@@ -22529,6 +22696,16 @@ export declare const erc4626BasketYieldAdapterAbi: readonly [{
         readonly name: "";
         readonly type: "address";
         readonly internalType: "contract IERC4626";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "yieldSource";
+    readonly inputs: readonly [];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "address";
+        readonly internalType: "address";
     }];
     readonly stateMutability: "view";
 }, {
