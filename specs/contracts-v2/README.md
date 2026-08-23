@@ -1,7 +1,9 @@
 # Sinjoh Contracts v2 Specifications
 
-Status: implementation specification  
-Target: new deployments on Robinhood Chain (`4663`; testnet `46630`)  
+Status: implementation specification
+
+Target: new deployments on Robinhood Chain (`4663`; testnet `46630`)
+
 Legacy migration: out of scope
 
 ## Product objective
