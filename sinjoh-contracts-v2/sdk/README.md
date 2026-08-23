@@ -22,6 +22,12 @@ import {
 - `projectRecord` discovers the complete project from the Registry.
 - `pendingWork` provides one-call status helpers for every module with keeper or recovery work.
 - `launchErrorMessage` converts stable Launcher custom-error names into corrective product copy.
+- `buildVerifiedAirdropEpoch` is the attestor-safe path: it requires two independently acquired RPC
+  snapshots to agree on block hash, time, complete holder set, weights, and eligible supply before
+  creating anything signable. `buildAirdropEpoch` is the deterministic lower-level tree primitive;
+  it sorts positive-weight holders, retains zero-entitlement leaves, and builds the exact
+  direction-aware Merkle-sum proofs used by automatic push delivery.
+  `airdropCommitmentTypedData` supplies the attestor signing payload.
 
 Run `npm test` to rebuild the ABIs from Foundry artifacts, type-check the package, and verify the
 shared Solidity/TypeScript calldata fixture.
