@@ -18,6 +18,8 @@ import {
 } from "../mocks/liquidity/MockUniswap.sol";
 
 contract ProjectLiquidityManagerV2FuzzTest is Test {
+    address private constant OTHER_FUNDER = address(0xB0B);
+
     MockProjectToken private subject;
     MockERC20 private quote;
     MockPriceGuard private guard;
@@ -87,6 +89,49 @@ contract ProjectLiquidityManagerV2FuzzTest is Test {
         assertLe(quoteSpent, notional);
         assertEq(quote.balanceOf(address(manager)), manager.totalLiability(address(quote)));
         assertEq(subject.balanceOf(address(manager)), manager.totalLiability(address(subject)));
+    }
+
+    function testFuzzFundingAccountsRemainIsolated(uint96 rawFirst, uint96 rawSecond) public {
+        uint256 first = bound(uint256(rawFirst), 1, 1e24);
+        uint256 second = bound(uint256(rawSecond), 1, 1e24);
+        ProjectLiquidityManagerV2.Config memory config = _config();
+        _fund(first, config);
+
+        quote.mint(OTHER_FUNDER, second);
+        vm.startPrank(OTHER_FUNDER);
+        quote.approve(address(manager), second);
+        manager.fund(
+            subject.projectId(), address(subject), address(quote), second, abi.encode(config)
+        );
+        vm.stopPrank();
+
+        assertEq(manager.accountStatus(manager.projectAccountId(address(this))).pendingQuote, first);
+        assertEq(manager.accountStatus(manager.projectAccountId(OTHER_FUNDER)).pendingQuote, second);
+        assertEq(manager.totalLiability(address(quote)), first + second);
+    }
+
+    function testFuzzFeeOnTransferFundingFailsBeforeCredit(uint96 rawAmount, uint16 rawFeeBps)
+        public
+    {
+        uint256 amount = bound(uint256(rawAmount), 1e6, 1e24);
+        uint16 feeBps = uint16(bound(uint256(rawFeeBps), 1, 9_999));
+        quote.setFeeBps(feeBps);
+        uint256 measured = amount - amount * feeBps / 10_000;
+        ProjectLiquidityManagerV2.Config memory config = _config();
+        bytes32 projectId = subject.projectId();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ProjectLiquidityManagerV2.UnexpectedBalanceDelta.selector,
+                address(quote),
+                amount,
+                measured
+            )
+        );
+        manager.fund(projectId, address(subject), address(quote), amount, abi.encode(config));
+
+        assertFalse(manager.accountStatus(manager.projectAccountId(address(this))).configured);
+        assertEq(manager.totalLiability(address(quote)), 0);
     }
 
     function _fund(uint256 amount, ProjectLiquidityManagerV2.Config memory config) private {

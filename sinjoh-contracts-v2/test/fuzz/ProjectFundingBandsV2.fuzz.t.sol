@@ -88,6 +88,17 @@ contract ProjectFundingBandsV2FuzzTest is FundingBandsTestBase {
         assertLt(bands.feeRemainder(), 10_000);
     }
 
+    function testFuzzTokenBurnCannotMoveReferenceSupplyOrBandBounds(uint128 rawBurn) public {
+        uint256 burnAmount = bound(uint256(rawBurn), 1, subject.balanceOf(address(this)) / 2);
+        subject.burn(burnAmount);
+
+        assertEq(bands.referenceSupply(), referenceSupply);
+        uint256 bandId = _createBand(1e18, FundingBandDestination.CREATOR);
+        (ProjectFundingBandsV2.Band memory active,) = bands.bandStatus(bandId);
+        assertEq(active.lowerMarketCapUsdE8, LOWER);
+        assertEq(active.upperMarketCapUsdE8, UPPER);
+    }
+
     function _settleCreatorBand(uint256 quoteAmount, bytes32 salt) private {
         uint256 bandId = _createBand(1e18, FundingBandDestination.CREATOR);
         _setObservation(UPPER, keccak256(abi.encode("arm", salt)));

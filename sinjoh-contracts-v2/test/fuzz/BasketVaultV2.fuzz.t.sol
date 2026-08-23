@@ -138,6 +138,54 @@ contract BasketVaultV2FuzzTest is Test {
         _assertPositions(expectedA, expectedB);
     }
 
+    function testFuzzRealizedLossIsReportedAndNeverConvertedToYield(
+        uint128 rawAmount,
+        uint128 rawLoss
+    ) public {
+        uint256 amount = bound(uint256(rawAmount), 4, 1e28);
+        _fund(amount);
+        (,,, uint256 principal,,,,,) = vault.targetStatus(0);
+        uint256 loss = bound(uint256(rawLoss), 1, principal);
+        adapterA.realizeLoss(loss);
+
+        (,,,, uint256 positionValue, uint256 gain, uint256 unrealizedLoss,,) = vault.targetStatus(0);
+        assertEq(positionValue, principal - loss);
+        assertEq(gain, 0);
+        assertEq(unrealizedLoss, loss);
+    }
+
+    function testFuzzPriceGuardMinimumCannotBeWeakened(uint128 rawAmount) public {
+        uint256 amount = bound(uint256(rawAmount), 4, 1e28);
+        uint256 desiredB = amount - amount * 3_000 / 10_000;
+        assetB.mint(address(swapAdapter), desiredB);
+        swapAdapter.configure(desiredB - 1, type(uint256).max, false);
+        guard.setQuote(desiredB, uint48(block.timestamp + 1 days));
+        assetA.mint(address(this), amount);
+        assetA.approve(address(vault), amount);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BasketVaultV2.InsufficientSwapOutput.selector, desiredB, desiredB - 1
+            )
+        );
+        vault.allocateFunding(address(assetA), amount);
+        assertEq(vault.totalFunded(address(assetA)), 0);
+    }
+
+    function testFuzzBurnReturnsAllRemainingPrincipalToOwner(uint128 rawAmount) public {
+        uint256 amount = bound(uint256(rawAmount), 4, 1e28);
+        address owner = address(0xA11CE);
+        _fund(amount);
+
+        vault.beginBurn();
+        vault.processBurnTarget(0);
+        vault.processBurnTarget(1);
+        vault.finalizeRedemption(owner);
+
+        assertEq(assetA.balanceOf(owner) + assetB.balanceOf(owner), amount);
+        assertEq(assetA.balanceOf(address(vault)) + assetB.balanceOf(address(vault)), 0);
+    }
+
     function _fund(uint256 amount) private {
         uint256 cumulativeAfter = vault.totalFunded(address(assetA)) + amount;
         uint256 desiredB = cumulativeAfter - cumulativeAfter * 3_000 / 10_000;

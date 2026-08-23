@@ -64,4 +64,24 @@ contract ProjectVotesTokenFuzzTest is TestBase {
         assertEq(token.totalSupply(), SUPPLY - amount);
         assertEq(token.eligibleVotingSupply(), SUPPLY - amount);
     }
+
+    function testFuzzHistoricalVotesAreUnaffectedByLaterTransfers(
+        uint256 rawFirst,
+        uint256 rawSecond
+    ) public {
+        uint256 first = rawFirst % (SUPPLY + 1);
+        vm.prank(HOLDER);
+        assertTrue(token.transfer(RECEIVER, first));
+        uint48 snapshot = token.clock();
+
+        vm.warp(uint256(snapshot) + 1);
+        uint256 remaining = SUPPLY - first;
+        uint256 second = rawSecond % (remaining + 1);
+        vm.prank(HOLDER);
+        assertTrue(token.transfer(RECEIVER, second));
+
+        assertEq(token.getPastVotes(HOLDER, snapshot), SUPPLY - first);
+        assertEq(token.getPastVotes(RECEIVER, snapshot), first);
+        assertEq(token.getPastTotalSupply(snapshot), SUPPLY);
+    }
 }
