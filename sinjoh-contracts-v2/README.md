@@ -113,10 +113,13 @@ The all-modules
 integration launch currently uses about 40.7M gas with a 50M regression ceiling; the target-chain
 limit must be confirmed in deployment rehearsal.
 
-The one-time release flow is automated by `script/DeployProjectLauncherV2.s.sol`. It verifies the
-release wiring and every module creation-code binding, then writes a chain-specific JSON manifest
-under `deployments/` (override with `DEPLOYMENT_MANIFEST_PATH`). Project creators interact only with
-the resulting Launcher address.
+The one-time release flow is invoked through `script/deploy-release.sh`; the raw Foundry broadcast
+script is not the supported entrypoint. Preflight refuses a dirty tree, wrong chain, missing
+audit/fork/testnet evidence, or mismatched external runtime hash, runs every local verification
+gate, and only then broadcasts. The deployment script independently verifies release wiring,
+implementations, adapters, external dependencies, and module creation-code bindings before writing
+a schema-backed chain-specific manifest under `deployments/`. See
+[`deployments/README.md`](deployments/README.md).
 
 The framework-neutral TypeScript package in `sdk/` generates typed ABIs directly from the Foundry
 artifacts. It exposes launch prediction/preflight, project discovery, typed governance-action

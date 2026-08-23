@@ -605,7 +605,7 @@ contract ProjectLauncherV2Test is Test {
         ERC4626BasketYieldAdapter adapter =
             ERC4626BasketYieldAdapter(launched.addresses.basketYieldAdapters[0]);
         quote.mint(address(this), 25e18);
-        quote.transfer(address(adapter.vault()), 25e18);
+        assertTrue(quote.transfer(address(adapter.vault()), 25e18));
         vm.warp(block.timestamp + 1 days);
         BasketManagerV2(payable(launched.addresses.basketManager)).harvest(1);
 

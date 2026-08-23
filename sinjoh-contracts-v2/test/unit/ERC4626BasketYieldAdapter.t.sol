@@ -58,7 +58,7 @@ contract ERC4626BasketYieldAdapterTest is Test {
 
     function testDirectUnderlyingDonationIsHarvestedAsYield() public {
         adapter.deposit(1_000e18);
-        asset.transfer(address(adapter), 25e18);
+        assertTrue(asset.transfer(address(adapter), 25e18));
         (, uint256[] memory amounts) = adapter.harvest(address(this));
         assertEq(amounts[0], 25e18);
         assertGe(adapter.totalAssets(), 1_000e18);

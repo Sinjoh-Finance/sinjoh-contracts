@@ -89,7 +89,7 @@ contract ERC4626BasketYieldAdapterV2IntegrationTest is Test {
             subject.projectId(), address(subject), address(asset), 1_000e18, abi.encode(BASKET_ID)
         );
         assertEq(adapter.managedPrincipal(), 1_000e18);
-        asset.transfer(address(erc4626), 100e18);
+        assertTrue(asset.transfer(address(erc4626), 100e18));
 
         vm.warp(block.timestamp + 1 days);
         manager.harvest(BASKET_ID);

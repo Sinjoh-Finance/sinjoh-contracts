@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import { Script } from "forge-std/Script.sol";
 import { console2 } from "forge-std/console2.sol";
 import { ProjectAirdropV2 } from "../src/airdrop/ProjectAirdropV2.sol";
+import { ERC4626BasketYieldAdapter } from "../src/adapters/ERC4626BasketYieldAdapter.sol";
 import {
     ERC4626BasketYieldAdapterFactory
 } from "../src/adapters/ERC4626BasketYieldAdapterFactory.sol";
@@ -38,6 +39,8 @@ contract DeployProjectLauncherV2 is Script {
     {
         uint256 privateKey = vm.envUint("PRIVATE_KEY");
         address broadcaster = vm.addr(privateKey);
+        uint256 expectedChainId = vm.envUint("EXPECTED_CHAIN_ID");
+        require(block.chainid == expectedChainId, "WRONG_CHAIN");
 
         vm.startBroadcast(privateKey);
         ProjectRaffleV2 raffleImplementation = new ProjectRaffleV2();
@@ -74,7 +77,7 @@ contract DeployProjectLauncherV2 is Script {
         require(address(deployer) == predictedDeployer, "DEPLOYER_ADDRESS_MISMATCH");
         require(address(launcher) == predictedLauncher, "LAUNCHER_ADDRESS_MISMATCH");
         _verifyRelease(launcher, registry, deployer);
-        string memory manifestPath = _writeManifest(launcher, registry, deployer);
+        string memory manifestPath = _writeManifest(launcher, registry, deployer, broadcaster);
         console2.log("ProjectRegistryV2", address(registry));
         console2.log("ProjectLaunchDeployerV2", address(deployer));
         console2.log("ProjectLauncherV2", address(launcher));
@@ -114,6 +117,31 @@ contract DeployProjectLauncherV2 is Script {
         require(registry.launcher() == address(launcher), "REGISTRY_LAUNCHER_MISMATCH");
         require(deployer.launcher() == address(launcher), "ENGINE_LAUNCHER_MISMATCH");
         require(deployer.registry() == address(registry), "ENGINE_REGISTRY_MISMATCH");
+        require(
+            deployer.raffleImplementation().codehash
+                == keccak256(type(ProjectRaffleV2).runtimeCode),
+            "RAFFLE_IMPLEMENTATION_HASH_MISMATCH"
+        );
+        require(
+            deployer.basketVaultImplementation().codehash
+                == keccak256(type(BasketVaultV2).runtimeCode),
+            "BASKET_IMPLEMENTATION_HASH_MISMATCH"
+        );
+        require(
+            address(deployer.erc4626YieldAdapterFactory()).codehash
+                == keccak256(type(ERC4626BasketYieldAdapterFactory).runtimeCode),
+            "ERC4626_FACTORY_HASH_MISMATCH"
+        );
+        require(
+            deployer.erc4626YieldAdapterFactory().ADAPTER_RUNTIME_HASH()
+                == keccak256(type(ERC4626BasketYieldAdapter).runtimeCode),
+            "ERC4626_ADAPTER_HASH_MISMATCH"
+        );
+        _verifyExternalRuntime(deployer.v3Factory(), "V3_FACTORY_RUNTIME_HASH");
+        _verifyExternalRuntime(deployer.v3PositionManager(), "V3_POSITION_MANAGER_RUNTIME_HASH");
+        _verifyExternalRuntime(deployer.v4PositionManager(), "V4_POSITION_MANAGER_RUNTIME_HASH");
+        _verifyExternalRuntime(deployer.v4StateView(), "V4_STATE_VIEW_RUNTIME_HASH");
+        _verifyExternalRuntime(deployer.permit2(), "PERMIT2_RUNTIME_HASH");
 
         _verifyCreationCode(deployer, keccak256("TOKEN"), type(ProjectVotesToken).creationCode);
         _verifyCreationCode(
@@ -133,6 +161,10 @@ contract DeployProjectLauncherV2 is Script {
         );
     }
 
+    function _verifyExternalRuntime(address target, string memory environmentKey) private view {
+        require(target.codehash == vm.envBytes32(environmentKey), "EXTERNAL_RUNTIME_HASH_MISMATCH");
+    }
+
     function _verifyCreationCode(
         ProjectLaunchDeployerV2 deployer,
         bytes32 moduleKey,
@@ -150,11 +182,28 @@ contract DeployProjectLauncherV2 is Script {
     function _writeManifest(
         ProjectLauncherV2 launcher,
         ProjectRegistryV2 registry,
-        ProjectLaunchDeployerV2 deployer
+        ProjectLaunchDeployerV2 deployer,
+        address broadcaster
     ) private returns (string memory path) {
         string memory object = "sinjohV2Release";
         vm.serializeUint(object, "chainId", block.chainid);
         vm.serializeUint(object, "protocolVersion", launcher.PROTOCOL_VERSION());
+        vm.serializeString(object, "gitCommit", vm.envString("RELEASE_GIT_COMMIT"));
+        vm.serializeString(object, "sourceTreeHash", vm.envString("RELEASE_SOURCE_TREE_HASH"));
+        vm.serializeString(object, "buildHash", vm.envString("RELEASE_BUILD_HASH"));
+        vm.serializeString(object, "compiler", "solc-0.8.28");
+        vm.serializeString(object, "evmVersion", "cancun");
+        vm.serializeBool(object, "optimizerEnabled", true);
+        vm.serializeUint(object, "optimizerRuns", 1_000);
+        vm.serializeBool(object, "viaIr", true);
+        vm.serializeString(object, "auditReportVersion", vm.envString("AUDIT_REPORT_VERSION"));
+        vm.serializeString(object, "auditEvidence", vm.envString("AUDIT_EVIDENCE_PATH"));
+        vm.serializeString(object, "forkEvidence", vm.envString("FORK_EVIDENCE_PATH"));
+        vm.serializeString(object, "testnetEvidence", vm.envString("TESTNET_EVIDENCE_PATH"));
+        vm.serializeString(object, "roleEvidence", vm.envString("ROLE_EVIDENCE_PATH"));
+        vm.serializeString(object, "assetFlowEvidence", vm.envString("ASSET_FLOW_EVIDENCE_PATH"));
+        vm.serializeAddress(object, "broadcaster", broadcaster);
+        vm.serializeAddress(object, "protocolFeeRecipient", deployer.protocolFeeRecipient());
         vm.serializeAddress(object, "registry", address(registry));
         vm.serializeAddress(object, "deploymentEngine", address(deployer));
         vm.serializeAddress(object, "launcher", address(launcher));
@@ -169,6 +218,50 @@ contract DeployProjectLauncherV2 is Script {
             object,
             "erc4626YieldAdapterRuntimeHash",
             deployer.erc4626YieldAdapterFactory().ADAPTER_RUNTIME_HASH()
+        );
+        vm.serializeAddress(object, "v3Factory", deployer.v3Factory());
+        vm.serializeBytes32(object, "v3FactoryRuntimeHash", deployer.v3Factory().codehash);
+        vm.serializeAddress(object, "v3PositionManager", deployer.v3PositionManager());
+        vm.serializeBytes32(
+            object, "v3PositionManagerRuntimeHash", deployer.v3PositionManager().codehash
+        );
+        vm.serializeAddress(object, "v4PositionManager", deployer.v4PositionManager());
+        vm.serializeBytes32(
+            object, "v4PositionManagerRuntimeHash", deployer.v4PositionManager().codehash
+        );
+        vm.serializeAddress(object, "v4StateView", deployer.v4StateView());
+        vm.serializeBytes32(object, "v4StateViewRuntimeHash", deployer.v4StateView().codehash);
+        vm.serializeAddress(object, "permit2", deployer.permit2());
+        vm.serializeBytes32(object, "permit2RuntimeHash", deployer.permit2().codehash);
+        vm.serializeBytes32(
+            object, "tokenCreationCodeHash", deployer.creationCodeHash(keccak256("TOKEN"))
+        );
+        vm.serializeBytes32(
+            object, "multisigCreationCodeHash", deployer.creationCodeHash(keccak256("MULTISIG"))
+        );
+        vm.serializeBytes32(
+            object, "timelockCreationCodeHash", deployer.creationCodeHash(keccak256("TIMELOCK"))
+        );
+        vm.serializeBytes32(
+            object, "stakingCreationCodeHash", deployer.creationCodeHash(keccak256("STAKING"))
+        );
+        vm.serializeBytes32(
+            object, "treasuryCreationCodeHash", deployer.creationCodeHash(keccak256("TREASURY"))
+        );
+        vm.serializeBytes32(
+            object, "airdropCreationCodeHash", deployer.creationCodeHash(keccak256("AIRDROP"))
+        );
+        vm.serializeBytes32(
+            object, "routerCreationCodeHash", deployer.creationCodeHash(keccak256("ROUTER"))
+        );
+        vm.serializeBytes32(
+            object, "basketCreationCodeHash", deployer.creationCodeHash(keccak256("BASKET"))
+        );
+        vm.serializeBytes32(
+            object, "bandsCreationCodeHash", deployer.creationCodeHash(keccak256("BANDS"))
+        );
+        vm.serializeBytes32(
+            object, "liquidityCreationCodeHash", deployer.creationCodeHash(keccak256("LIQUIDITY"))
         );
         vm.serializeBytes32(object, "integrationApprovalRoot", deployer.integrationApprovalRoot());
         vm.serializeBytes32(object, "registryRuntimeHash", address(registry).codehash);
