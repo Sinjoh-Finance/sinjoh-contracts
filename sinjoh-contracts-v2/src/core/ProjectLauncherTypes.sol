@@ -128,6 +128,7 @@ struct LauncherReleaseConfig {
     address protocolFeeRecipient;
     bytes32 integrationApprovalRoot;
     address raffleImplementation;
+    address randomnessAdapter;
     address basketVaultImplementation;
     address erc4626YieldAdapterFactory;
     address fundingBandV3IntegrationFactory;

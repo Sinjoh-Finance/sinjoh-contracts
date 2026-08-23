@@ -97,6 +97,7 @@ contract ProjectLauncherV2Test is Test {
 
     ProjectLauncherV2 internal launcher;
     ProjectRegistryV2 internal registry;
+    MockRaffleRandomness internal releaseRandomness;
 
     struct AllModulesPredictions {
         address quote;
@@ -104,7 +105,6 @@ contract ProjectLauncherV2Test is Test {
         address guard;
         address bandAdapter;
         address erc4626;
-        address randomness;
         address basketImplementation;
         address registry;
         address engine;
@@ -116,6 +116,7 @@ contract ProjectLauncherV2Test is Test {
     }
 
     function setUp() public {
+        releaseRandomness = new MockRaffleRandomness();
         _installLauncher(keccak256("TEST_APPROVAL_ROOT"));
     }
 
@@ -138,6 +139,7 @@ contract ProjectLauncherV2Test is Test {
             protocolFeeRecipient: FEE_RECIPIENT,
             integrationApprovalRoot: approvalRoot,
             raffleImplementation: address(raffleImplementation),
+            randomnessAdapter: address(releaseRandomness),
             basketVaultImplementation: address(basketVaultImplementation),
             erc4626YieldAdapterFactory: address(erc4626YieldAdapterFactory),
             fundingBandV3IntegrationFactory: address(fundingBandV3IntegrationFactory),
@@ -380,7 +382,6 @@ contract ProjectLauncherV2Test is Test {
     }
 
     function testLaunchRouterAndRaffleMaterializesRouteAndFundsIt() public {
-        MockRaffleRandomness randomness = new MockRaffleRandomness();
         ProjectLaunchConfig memory config = _baseMultisigConfig();
         config.salt = keccak256("ROUTER_RAFFLE");
         config.modules.router = true;
@@ -388,7 +389,7 @@ contract ProjectLauncherV2Test is Test {
         config.raffle = RaffleTypes.Config({
             creator: address(0),
             attestor: address(0x4444),
-            randomness: address(randomness),
+            randomness: address(0),
             prizeAsset: address(0),
             protocolFeeRecipient: address(0),
             taxRecipient: address(0),
@@ -436,11 +437,31 @@ contract ProjectLauncherV2Test is Test {
         router.execute(address(0), type(uint256).max, minima, guardData);
 
         ProjectRaffleV2 raffle = ProjectRaffleV2(payable(launched.addresses.raffle));
+        assertEq(raffle.configuration().randomness, address(releaseRandomness));
         assertGt(raffle.availablePool(), 0);
         assertTrue(raffle.isExcluded(raffle.BURN_ADDRESS()));
         assertTrue(raffle.isExcluded(launched.addresses.router));
         assertTrue(raffle.isExcluded(launched.addresses.controller));
         assertFalse(raffle.isExcluded(CREATOR));
+    }
+
+    function testRaffleRandomnessIsPlatformMaterialized() public {
+        ProjectLaunchConfig memory config = _baseMultisigConfig();
+        config.modules.raffle = true;
+        config.raffle = _raffleConfig(address(new MockRaffleRandomness()), address(0));
+
+        vm.expectRevert(ProjectLauncherV2.InvalidRaffleConfiguration.selector);
+        launcher.validateLaunchConfig(config);
+
+        config.raffle.randomness = address(0);
+        ProjectLaunchPreview memory preview = launcher.validateLaunchConfig(config);
+        vm.prank(CREATOR);
+        launcher.launch(config);
+
+        assertEq(
+            ProjectRaffleV2(payable(preview.addresses.raffle)).configuration().randomness,
+            address(releaseRandomness)
+        );
     }
 
     function testLaunchRouterAndLiquidityCreatesConfiguredPermanentAccount() public {
@@ -770,14 +791,13 @@ contract ProjectLauncherV2Test is Test {
         returns (ProjectLaunchPreview memory launched, MockBasketAsset quote)
     {
         uint64 nonce = vm.getNonce(address(this));
-        uint256 integrationCount = 6;
+        uint256 integrationCount = 5;
         AllModulesPredictions memory predicted;
         predicted.quote = vm.computeCreateAddress(address(this), nonce);
         predicted.pool = vm.computeCreateAddress(address(this), nonce + 1);
         predicted.guard = vm.computeCreateAddress(address(this), nonce + 2);
         predicted.bandAdapter = vm.computeCreateAddress(address(this), nonce + 3);
         predicted.erc4626 = vm.computeCreateAddress(address(this), nonce + 4);
-        predicted.randomness = vm.computeCreateAddress(address(this), nonce + 5);
         predicted.basketImplementation =
             vm.computeCreateAddress(address(this), nonce + integrationCount + 1);
         predicted.registry = vm.computeCreateAddress(address(this), nonce + integrationCount + 19);
@@ -803,13 +823,11 @@ contract ProjectLauncherV2Test is Test {
         MockFundingBandPositionAdapter bandAdapter =
             new MockFundingBandPositionAdapter(predicted.subject, predicted.quote, predicted.pool);
         MockERC4626 erc4626 = new MockERC4626(IERC20(predicted.quote));
-        MockRaffleRandomness randomness = new MockRaffleRandomness();
         assertEq(address(quote), predicted.quote);
         assertEq(address(pool), predicted.pool);
         assertEq(address(guard), predicted.guard);
         assertEq(address(bandAdapter), predicted.bandAdapter);
         assertEq(address(erc4626), predicted.erc4626);
-        assertEq(address(randomness), predicted.randomness);
         guard.bind(predicted.bands);
         bandAdapter.bind(predicted.bands);
 
@@ -860,7 +878,7 @@ contract ProjectLauncherV2Test is Test {
         config.bands.confirmationPeriod = 5 minutes;
         config.bands.maximumObservationAge = 5 minutes;
         config.bands.integrationApprovalProof = _proof(yieldLeaf);
-        config.raffle = _raffleConfig(address(randomness), address(quote));
+        config.raffle = _raffleConfig(address(0), address(quote));
 
         ProjectLaunchPreview memory preview = launcher.predictLaunch(config);
         assertEq(preview.addresses.subject, predicted.subject);

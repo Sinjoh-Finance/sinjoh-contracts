@@ -311,6 +311,7 @@ contract ProjectLauncherV2 is ReentrancyGuard {
         if (
             config.modules.raffle
                 && (config.raffle.creator != address(0)
+                    || config.raffle.randomness != address(0)
                     || config.raffle.protocolFeeRecipient != address(0))
         ) revert InvalidRaffleConfiguration();
         if (!config.modules.router && config.routerRoutes.length != 0) {

@@ -51,6 +51,7 @@ contract ProjectLaunchDeployerV2 {
     address public immutable protocolFeeRecipient;
     bytes32 public immutable integrationApprovalRoot;
     address public immutable raffleImplementation;
+    address public immutable randomnessAdapter;
     address public immutable basketVaultImplementation;
     ERC4626BasketYieldAdapterFactory public immutable erc4626YieldAdapterFactory;
     FundingBandV3IntegrationFactory public immutable fundingBandV3IntegrationFactory;
@@ -86,6 +87,7 @@ contract ProjectLaunchDeployerV2 {
         _requireAddress(registry_, true);
         _requireAddress(release.protocolFeeRecipient, false);
         _requireAddress(release.raffleImplementation, true);
+        _requireAddress(release.randomnessAdapter, true);
         _requireAddress(release.basketVaultImplementation, true);
         _requireAddress(release.erc4626YieldAdapterFactory, true);
         _requireAddress(release.fundingBandV3IntegrationFactory, true);
@@ -113,6 +115,7 @@ contract ProjectLaunchDeployerV2 {
         protocolFeeRecipient = release.protocolFeeRecipient;
         integrationApprovalRoot = release.integrationApprovalRoot;
         raffleImplementation = release.raffleImplementation;
+        randomnessAdapter = release.randomnessAdapter;
         basketVaultImplementation = release.basketVaultImplementation;
         erc4626YieldAdapterFactory =
             ERC4626BasketYieldAdapterFactory(release.erc4626YieldAdapterFactory);
@@ -544,6 +547,7 @@ contract ProjectLaunchDeployerV2 {
     {
         result = config.raffle;
         result.creator = config.creator;
+        result.randomness = randomnessAdapter;
         result.protocolFeeRecipient = protocolFeeRecipient;
         uint256 adapterCount = config.basket.allocation.targets.length;
         uint256 extras = config.raffle.exclusions.length

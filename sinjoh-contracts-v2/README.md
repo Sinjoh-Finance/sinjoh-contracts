@@ -97,6 +97,9 @@ zero, burn, Raffle, subject, and launch-custody addresses are excluded from elig
 never register or claim: keepers submit proofs and failed payouts remain exact backed credits, even
 when a hostile token returns oversized revert data. Frozen settings and concise status views give
 launchers, frontends, and workers a predictable integration surface.
+The immutable release pins the audited randomness adapter and records its runtime hash. Launch
+presets use a zero placeholder, so creators never select, enter, or verify randomness infrastructure;
+the deployment engine inserts the approved adapter automatically.
 The SDK supplies the complete worker path: strict event-history replay, two-provider snapshot
 reconciliation, deterministic ticket-tree construction, winner-proof submission, credit retries,
 and timed-out-round closure. These operational details stay out of creator and holder interfaces.

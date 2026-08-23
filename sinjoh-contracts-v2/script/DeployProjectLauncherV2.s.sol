@@ -64,6 +64,7 @@ contract DeployProjectLauncherV2 is Script {
             protocolFeeRecipient: vm.envAddress("PROTOCOL_FEE_RECIPIENT"),
             integrationApprovalRoot: vm.envBytes32("INTEGRATION_APPROVAL_ROOT"),
             raffleImplementation: address(raffleImplementation),
+            randomnessAdapter: vm.envAddress("RANDOMNESS_ADAPTER"),
             basketVaultImplementation: address(basketVaultImplementation),
             erc4626YieldAdapterFactory: address(erc4626YieldAdapterFactory),
             fundingBandV3IntegrationFactory: address(fundingBandV3IntegrationFactory),
@@ -134,6 +135,7 @@ contract DeployProjectLauncherV2 is Script {
                 == keccak256(type(ProjectRaffleV2).runtimeCode),
             "RAFFLE_IMPLEMENTATION_HASH_MISMATCH"
         );
+        _verifyExternalRuntime(deployer.randomnessAdapter(), "RANDOMNESS_ADAPTER_RUNTIME_HASH");
         require(
             deployer.basketVaultImplementation().codehash
                 == keccak256(type(BasketVaultV2).runtimeCode),
@@ -237,6 +239,10 @@ contract DeployProjectLauncherV2 is Script {
         vm.serializeAddress(object, "deploymentEngine", address(deployer));
         vm.serializeAddress(object, "launcher", address(launcher));
         vm.serializeAddress(object, "raffleImplementation", deployer.raffleImplementation());
+        vm.serializeAddress(object, "randomnessAdapter", deployer.randomnessAdapter());
+        vm.serializeBytes32(
+            object, "randomnessAdapterRuntimeHash", deployer.randomnessAdapter().codehash
+        );
         vm.serializeAddress(
             object, "basketVaultImplementation", deployer.basketVaultImplementation()
         );

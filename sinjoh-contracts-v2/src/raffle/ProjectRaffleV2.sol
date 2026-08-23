@@ -14,8 +14,8 @@ interface IArbSys {
     function arbBlockHash(uint256 arbBlockNum) external view returns (bytes32);
 }
 
-/// @dev Copied, never imported. Any adapter satisfying `sinjoh-randomness/SPEC.md` may be used.
-/// The name matches the adapter package's declaration so the two read identically.
+/// @dev Copied, never imported. The Launcher release pins one audited adapter satisfying
+/// `sinjoh-randomness/SPEC.md`. The name matches that package's declaration exactly.
 interface ISinjohRandomness {
     function requestRandomness(uint64 roundId) external returns (bytes32 requestId);
 }

@@ -12,6 +12,7 @@ const required = [
   "assetFlowEvidenceHash",
   "broadcaster", "protocolFeeRecipient",
   "registry", "deploymentEngine", "launcher", "raffleImplementation",
+  "randomnessAdapter", "randomnessAdapterRuntimeHash",
   "basketVaultImplementation", "erc4626YieldAdapterFactory", "erc4626YieldAdapterRuntimeHash",
   "fundingBandV3IntegrationFactory", "fundingBandV3IntegrationFactoryRuntimeHash",
   "fundingBandMarketCapGuardRuntimeHash", "fundingBandPositionAdapterRuntimeHash",
@@ -57,6 +58,14 @@ for (const [key, value] of Object.entries(expected)) {
   }
 }
 
+for (const key of ["randomnessAdapter", "randomnessAdapterRuntimeHash"]) {
+  if (manifest[key].toLowerCase() !== process.env[key === "randomnessAdapter"
+    ? "RANDOMNESS_ADAPTER"
+    : "RANDOMNESS_ADAPTER_RUNTIME_HASH"].toLowerCase()) {
+    throw new Error(`release manifest '${key}' does not match the approved release value`);
+  }
+}
+
 const addressPattern = /^0x[0-9a-fA-F]{40}$/;
 const bytes32Pattern = /^0x[0-9a-fA-F]{64}$/;
 for (const [key, value] of Object.entries(manifest)) {
@@ -69,7 +78,7 @@ for (const [key, value] of Object.entries(manifest)) {
   if (
     key.endsWith("Factory") || key.endsWith("Manager") || key.endsWith("Implementation")
       || ["broadcaster", "protocolFeeRecipient", "registry", "deploymentEngine", "launcher",
-        "v3Factory", "v4StateView", "permit2"].includes(key)
+        "randomnessAdapter", "v3Factory", "v4StateView", "permit2"].includes(key)
   ) {
     if (!addressPattern.test(value) || /^0x0{40}$/i.test(value)) {
       throw new Error(`release manifest '${key}' is not a nonzero address`);

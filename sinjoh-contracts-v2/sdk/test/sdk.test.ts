@@ -219,6 +219,36 @@ test("rejects creator mistakes locally and returns corrective launch copy", () =
     /add up to the total supply exactly/,
   );
   assert.match(launchErrorMessage("InvalidModuleDependencies"), /requires another feature/);
+  assert.match(launchErrorMessage("InvalidRaffleConfiguration"), /Refresh and try again/);
+});
+
+test("rejects Raffle presets that expose release-owned randomness infrastructure", () => {
+  const preset = {
+    id: "stale-raffle",
+    protocolVersion: "2.0.0",
+    config: {
+      modules: { raffle: true },
+      raffle: {
+        creator: "0x0000000000000000000000000000000000000000",
+        randomness: "0x0000000000000000000000000000000000001234",
+        protocolFeeRecipient: "0x0000000000000000000000000000000000000000",
+      },
+    } as unknown as ProjectLaunchConfig,
+  };
+
+  assert.throws(
+    () => buildLaunchFromPreset(preset, {
+      creator: "0x0000000000000000000000000000000000001000",
+      name: "Project",
+      symbol: "PRJ",
+      totalSupply: 10n,
+      salt: `0x${"22".repeat(32)}`,
+      tokenAllocations: [
+        { recipient: "0x0000000000000000000000000000000000002000", amount: 10n },
+      ],
+    }),
+    /not compatible with this release/,
+  );
 });
 
 test("builds sorted proportional Airdrop leaves and direction-aware proofs", () => {

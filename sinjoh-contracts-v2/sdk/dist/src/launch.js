@@ -13,6 +13,11 @@ export function buildLaunchFromPreset(preset, choices) {
     if (preset.protocolVersion.trim().length === 0) {
         throw new RangeError("Launch preset protocol version cannot be empty");
     }
+    if (preset.config.modules?.raffle && (preset.config.raffle.creator.toLowerCase() !== ZERO_ADDRESS
+        || preset.config.raffle.randomness.toLowerCase() !== ZERO_ADDRESS
+        || preset.config.raffle.protocolFeeRecipient.toLowerCase() !== ZERO_ADDRESS)) {
+        throw new RangeError("The selected Raffle preset is not compatible with this release. Refresh the launch profile");
+    }
     assertUsableAddress(choices.creator, "Creator");
     if (choices.name.trim().length === 0)
         throw new RangeError("Token name cannot be empty");
@@ -79,7 +84,7 @@ const launchErrorMessages = {
     InvalidTreasuryConfiguration: "Review the Treasury Basket allocation settings.",
     InvalidBasketConfiguration: "The selected Basket preset or asset set is not available.",
     InvalidBandsConfiguration: "The selected Funding Bands profile is not available.",
-    InvalidRaffleConfiguration: "Review the selected Raffle settings.",
+    InvalidRaffleConfiguration: "The selected Raffle profile is unavailable. Refresh and try again.",
     InvalidRouterPlaceholder: "A Router destination requires a module that is not enabled.",
     CreatorExcluded: "The creator wallet cannot be excluded from this project's holder benefits.",
     ModuleDeploymentMismatch: "Address verification failed. Do not submit this launch; refresh the release profile.",
