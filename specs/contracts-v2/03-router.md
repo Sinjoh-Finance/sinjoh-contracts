@@ -7,8 +7,11 @@ route can send value, swap it, burn project tokens, add permanent liquidity, fun
 a raffle, fund the treasury, or fund another validated project sink.
 
 Each project has at most one router. It is bound to the project token, creator, Treasury Vault,
-controller,
-and registry record at deployment.
+controller, and registry record at deployment. The launcher supplies up to sixteen complete initial
+route sets to the constructor, so a launched Router is immediately usable and has no temporary
+bootstrap administrator or post-deployment wiring step. The constructor also caps aggregate initial
+route encoding so the launcher rejects configurations that would exceed the chain's initcode limit
+with a clear protocol error instead of an opaque deployment failure.
 
 ## 2. Funding and accounting
 
@@ -65,7 +68,9 @@ Rules:
 - between one and sixteen actions;
 - allocations total exactly 10,000 basis points;
 - each action allocation is nonzero;
-- actions are processed in array order but each owns a mathematically fixed share of the batch;
+- actions are processed in array order, but allocation uses cumulative per-route accounting rather
+  than per-call rounding, so splitting the same total into tiny execution batches cannot bias which
+  actions receive value;
 - config/route data is length bounded and covered by the route-set hash;
 - a route version is activated as a complete unit; partial edits are impossible;
 - the prior route version remains readable for accounting and failed-route retry, but cannot receive
@@ -118,12 +123,15 @@ future audited modules without permitting arbitrary calls.
 
 ## 5. Route updates
 
-Only project governance may activate a new route set or pause an action. Token-holder updates pass
-through the project timelock; multisig updates pass through its threshold flow.
+Only project governance may activate a new route set or pause or resume a versioned action.
+Token-holder updates pass through the project timelock; multisig updates pass through its threshold
+flow. Pausing explicitly names `(asset, routeVersion, actionIndex)`, allowing governance to stop a
+broken historical action from being retried without freezing unrelated active-route work.
 
 Activation validates the entire route before changing the active version. An invalid adapter,
 recipient, project binding, allocation total, or config hash reverts without affecting the current
-route.
+route. Configuration entrypoints are reentrancy guarded, so a payment recipient or integration
+callback cannot modify route state in the middle of execution.
 
 Pausing an action stops new execution for that action and escrows its allocation. Resume requires
 governance. Unpaused actions remain executable.
@@ -138,6 +146,10 @@ executed in an isolated external self-call:
 - revert records that exact share in escrow keyed by `(asset, routeVersion, actionIndex)`;
 - failure of one action does not revert successful actions;
 - no failed share is recycled through the active route or counted by `sync`.
+
+Failure capture copies only a fixed-size prefix of revert data and commits the original revert-data
+length into the reason hash. A malicious destination therefore cannot defeat batch isolation by
+returning an oversized revert payload.
 
 Anyone may call `retryEscrow` using the original immutable action. Governance may recover an action
 that is permanently incompatible, but only by moving its escrow into a newly activated action for
@@ -171,8 +183,12 @@ Events:
 - `EscrowRetried(...)` and `EscrowRecovered(...)`;
 - `ProtocolFeeSent(asset, amount)`.
 
-Views return the active route, every historical route by version, pending/escrow balances, action
-pause status, projected allocations for an amount, and executable/retryable work.
+Views return the active route, every historical route by version, pending/escrow balances,
+projected allocations for an amount, and executable/retryable work. `workStatus` returns the active
+version and all asset-level work buckets in one call. `actionStatus` returns the immutable action,
+pause state, cumulative allocation, and retryable escrow in one call. `isSwapApproved` and
+`isSinkApproved` let launchers and frontends validate Merkle approval proofs before submitting a
+route transaction.
 
 ## 9. Invariants
 
@@ -182,6 +198,8 @@ pause status, projected allocations for an amount, and executable/retryable work
 4. Replacing a route cannot alter or consume old-version escrow.
 5. A direct-send or swap recipient cannot be changed during execution.
 6. Total Router liabilities never exceed measured per-asset balances.
+7. For a fixed route and cumulative routed amount, cumulative action allocations are independent
+   of execution batch boundaries.
 
 ## 10. Acceptance criteria
 

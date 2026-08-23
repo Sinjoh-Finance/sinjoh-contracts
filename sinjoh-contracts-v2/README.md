@@ -17,7 +17,7 @@ OpenZeppelin Contracts 5.6.1 is imported from the repository's pinned vendored d
 | Token Governance | implemented |
 | Treasury Vaults | implemented |
 | Registry | implemented |
-| Router | pending |
+| Router | implemented |
 | Airdrop | pending |
 | Basket | pending |
 | Funding Bands | pending |
@@ -48,3 +48,9 @@ exact swap approval on-chain.
 governance workflow and modules are enabled, resolves every explicit address without bytecode
 probing, and supports only controller-authored UI metadata revisions. It has no project control,
 asset custody, deployment, recovery, or generic execution authority.
+
+`ProjectRouterV2` accepts exact attributed or synced revenue, carries the cumulative 1% fee
+remainder, and executes constructor-initialized or governance-versioned typed routes. Cumulative
+allocation prevents micro-batch bias; failed and paused shares remain exact versioned escrow for
+permissionless retry or governance re-keying into an active same-asset action. Its work/action and
+approval views are designed for direct keeper and frontend consumption.
