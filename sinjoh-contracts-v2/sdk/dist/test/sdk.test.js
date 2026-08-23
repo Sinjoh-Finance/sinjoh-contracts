@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import test from "node:test";
 import { decodeFunctionData, hashTypedData } from "viem";
-import { airdropCommitmentTypedData, buildFundingBandCreationActions, buildAirdropEpoch, buildVerifiedAirdropEpoch, buildLaunchFromPreset, encodeGovernanceAction, encodeAirdropFinalizeCall, encodeAirdropPushCalls, encodeAirdropRetryCreditCall, encodeMultisigSubmission, encodeTokenGovernanceProposal, erc4626BasketYieldAdapterFactoryAbi, fundingBandDestination, fundingBandIntegrationApprovalLeaf, marketCapUsdE8, projectAirdropV2Abi, projectFundingBandsV2Abi, projectGovernorV2Abi, projectLauncherV2Abi, projectMultisigAccountV2Abi, projectRegistryV2Abi, projectTreasuryVaultV2Abi, simpleFundingBandConfig, launchErrorMessage, planAirdropPushBatches, reconstructHolderAirdropSnapshot, reconstructStakerAirdropSnapshot, } from "../src/index.js";
+import { airdropCommitmentTypedData, buildFundingBandCreationActions, buildAirdropEpoch, buildVerifiedAirdropEpoch, buildLaunchFromPreset, buildProjectLaunchManifest, encodeGovernanceAction, encodeAirdropFinalizeCall, encodeAirdropPushCalls, encodeAirdropRetryCreditCall, encodeMultisigSubmission, encodeTokenGovernanceProposal, erc4626BasketYieldAdapterFactoryAbi, fundingBandDestination, fundingBandIntegrationApprovalLeaf, marketCapUsdE8, projectLaunchManifestHash, projectAirdropV2Abi, projectFundingBandsV2Abi, projectGovernorV2Abi, projectLauncherV2Abi, projectMultisigAccountV2Abi, projectRegistryV2Abi, projectTreasuryVaultV2Abi, simpleFundingBandConfig, launchErrorMessage, planAirdropPushBatches, reconstructHolderAirdropSnapshot, reconstructStakerAirdropSnapshot, serializeProjectLaunchManifest, } from "../src/index.js";
 const fixture = JSON.parse(await readFile(resolve(process.cwd(), "fixtures/treasury-send.json"), "utf8"));
 const airdropFixture = JSON.parse(await readFile(resolve(process.cwd(), "fixtures/airdrop-tree.json"), "utf8"));
 test("exports the required project discovery and launch ABI", () => {
@@ -143,6 +143,107 @@ test("rejects Raffle presets that expose release-owned randomness infrastructure
             { recipient: "0x0000000000000000000000000000000000002000", amount: 10n },
         ],
     }), /not compatible with this release/);
+});
+test("builds canonical project launch provenance only from matching preflight and Registry state", () => {
+    const zero = "0x0000000000000000000000000000000000000000";
+    const creator = "0x0000000000000000000000000000000000001000";
+    const subject = "0x0000000000000000000000000000000000002000";
+    const controller = "0x0000000000000000000000000000000000003000";
+    const treasury = "0x0000000000000000000000000000000000004000";
+    const launchConfigHash = `0x${"aa".repeat(32)}`;
+    const projectId = `0x${"bb".repeat(32)}`;
+    const addresses = {
+        subject,
+        controller,
+        multisigAccount: controller,
+        tokenGovernor: zero,
+        tokenTimelock: zero,
+        voteSource: zero,
+        treasury,
+        router: zero,
+        stakingPool: zero,
+        posNft: zero,
+        airdrop: zero,
+        raffle: zero,
+        liquidityManager: zero,
+        fundingBands: zero,
+        fundingBandMarketCapGuard: zero,
+        fundingBandPositionAdapter: zero,
+        basketManager: zero,
+        primaryBasketVault: zero,
+        basketYieldAdapters: [],
+        primaryBasketId: 0n,
+    };
+    const config = {
+        creator,
+        name: "Project",
+        symbol: "PRJ",
+        totalSupply: 1000n,
+        governanceMode: 0,
+        launchProfile: { canonicalPool: zero, additionalCustodyExclusions: [] },
+        tokenAllocations: [{ recipient: creator, amount: 1000n }],
+    };
+    const preview = {
+        launchConfigHash,
+        projectId,
+        enabledModules: 1n,
+        addresses,
+    };
+    const record = {
+        projectId,
+        subject,
+        creator,
+        governanceMode: 0,
+        controller,
+        multisigAccount: controller,
+        tokenGovernor: zero,
+        tokenTimelock: zero,
+        voteSource: zero,
+        treasury,
+        router: zero,
+        stakingPool: zero,
+        posNft: zero,
+        airdrop: zero,
+        raffle: zero,
+        liquidityManager: zero,
+        fundingBands: zero,
+        basketManager: zero,
+        primaryBasketId: 0n,
+        canonicalPool: zero,
+        referenceSupply: 1000n,
+        launchedAt: 123n,
+        protocolVersion: 2,
+        enabledModules: 1n,
+    };
+    const manifest = buildProjectLaunchManifest({
+        chainId: 8453n,
+        transactionHash: `0x${"cc".repeat(32)}`,
+        blockNumber: 123n,
+        release: {
+            gitCommit: "11".repeat(20),
+            buildHash: "22".repeat(32),
+            launcher: "0x0000000000000000000000000000000000005000",
+            registry: "0x0000000000000000000000000000000000006000",
+        },
+        config,
+        preview,
+        record,
+        registeredLaunchConfigHash: launchConfigHash,
+    });
+    const serialized = serializeProjectLaunchManifest(manifest);
+    assert.equal(JSON.parse(serialized).configuration.totalSupply, "1000");
+    assert.match(projectLaunchManifestHash(manifest), /^0x[0-9a-f]{64}$/);
+    assert.equal(serialized, serializeProjectLaunchManifest(manifest));
+    assert.throws(() => buildProjectLaunchManifest({
+        chainId: 8453n,
+        transactionHash: `0x${"cc".repeat(32)}`,
+        blockNumber: 123n,
+        release: manifest.release,
+        config,
+        preview,
+        record: { ...record, treasury: zero },
+        registeredLaunchConfigHash: launchConfigHash,
+    }), /Treasury does not match/);
 });
 test("builds sorted proportional Airdrop leaves and direction-aware proofs", () => {
     const epoch = buildAirdropEpoch({

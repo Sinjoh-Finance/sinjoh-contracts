@@ -9,6 +9,7 @@ import {
   buildAirdropEpoch,
   buildVerifiedAirdropEpoch,
   buildLaunchFromPreset,
+  buildProjectLaunchManifest,
   encodeGovernanceAction,
   encodeAirdropFinalizeCall,
   encodeAirdropPushCalls,
@@ -19,6 +20,7 @@ import {
   fundingBandDestination,
   fundingBandIntegrationApprovalLeaf,
   marketCapUsdE8,
+  projectLaunchManifestHash,
   projectAirdropV2Abi,
   projectFundingBandsV2Abi,
   projectGovernorV2Abi,
@@ -31,8 +33,9 @@ import {
   planAirdropPushBatches,
   reconstructHolderAirdropSnapshot,
   reconstructStakerAirdropSnapshot,
+  serializeProjectLaunchManifest,
 } from "../src/index.js";
-import type { ProjectLaunchConfig } from "../src/types.js";
+import type { ProjectLaunchConfig, ProjectLaunchPreview, ProjectRecord } from "../src/types.js";
 
 const fixture = JSON.parse(
   await readFile(resolve(process.cwd(), "fixtures/treasury-send.json"), "utf8"),
@@ -248,6 +251,113 @@ test("rejects Raffle presets that expose release-owned randomness infrastructure
       ],
     }),
     /not compatible with this release/,
+  );
+});
+
+test("builds canonical project launch provenance only from matching preflight and Registry state", () => {
+  const zero = "0x0000000000000000000000000000000000000000" as Address;
+  const creator = "0x0000000000000000000000000000000000001000" as Address;
+  const subject = "0x0000000000000000000000000000000000002000" as Address;
+  const controller = "0x0000000000000000000000000000000000003000" as Address;
+  const treasury = "0x0000000000000000000000000000000000004000" as Address;
+  const launchConfigHash = `0x${"aa".repeat(32)}` as Hex;
+  const projectId = `0x${"bb".repeat(32)}` as Hex;
+  const addresses = {
+    subject,
+    controller,
+    multisigAccount: controller,
+    tokenGovernor: zero,
+    tokenTimelock: zero,
+    voteSource: zero,
+    treasury,
+    router: zero,
+    stakingPool: zero,
+    posNft: zero,
+    airdrop: zero,
+    raffle: zero,
+    liquidityManager: zero,
+    fundingBands: zero,
+    fundingBandMarketCapGuard: zero,
+    fundingBandPositionAdapter: zero,
+    basketManager: zero,
+    primaryBasketVault: zero,
+    basketYieldAdapters: [],
+    primaryBasketId: 0n,
+  };
+  const config = {
+    creator,
+    name: "Project",
+    symbol: "PRJ",
+    totalSupply: 1_000n,
+    governanceMode: 0,
+    launchProfile: { canonicalPool: zero, additionalCustodyExclusions: [] },
+    tokenAllocations: [{ recipient: creator, amount: 1_000n }],
+  } as unknown as ProjectLaunchConfig;
+  const preview = {
+    launchConfigHash,
+    projectId,
+    enabledModules: 1n,
+    addresses,
+  } as ProjectLaunchPreview;
+  const record = {
+    projectId,
+    subject,
+    creator,
+    governanceMode: 0,
+    controller,
+    multisigAccount: controller,
+    tokenGovernor: zero,
+    tokenTimelock: zero,
+    voteSource: zero,
+    treasury,
+    router: zero,
+    stakingPool: zero,
+    posNft: zero,
+    airdrop: zero,
+    raffle: zero,
+    liquidityManager: zero,
+    fundingBands: zero,
+    basketManager: zero,
+    primaryBasketId: 0n,
+    canonicalPool: zero,
+    referenceSupply: 1_000n,
+    launchedAt: 123n,
+    protocolVersion: 2,
+    enabledModules: 1n,
+  } as ProjectRecord;
+  const manifest = buildProjectLaunchManifest({
+    chainId: 8_453n,
+    transactionHash: `0x${"cc".repeat(32)}`,
+    blockNumber: 123n,
+    release: {
+      gitCommit: "11".repeat(20),
+      buildHash: "22".repeat(32),
+      launcher: "0x0000000000000000000000000000000000005000",
+      registry: "0x0000000000000000000000000000000000006000",
+    },
+    config,
+    preview,
+    record,
+    registeredLaunchConfigHash: launchConfigHash,
+  });
+
+  const serialized = serializeProjectLaunchManifest(manifest);
+  assert.equal(JSON.parse(serialized).configuration.totalSupply, "1000");
+  assert.match(projectLaunchManifestHash(manifest), /^0x[0-9a-f]{64}$/);
+  assert.equal(serialized, serializeProjectLaunchManifest(manifest));
+
+  assert.throws(
+    () => buildProjectLaunchManifest({
+      chainId: 8_453n,
+      transactionHash: `0x${"cc".repeat(32)}`,
+      blockNumber: 123n,
+      release: manifest.release,
+      config,
+      preview,
+      record: { ...record, treasury: zero },
+      registeredLaunchConfigHash: launchConfigHash,
+    }),
+    /Treasury does not match/,
   );
 });
 

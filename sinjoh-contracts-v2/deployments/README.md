@@ -32,5 +32,10 @@ contract embedded in or deployed by the release. The manifest schema is
 Implementation and factory addresses are paired with runtime hashes, including the Raffle,
 randomness, Basket Vault, ERC-4626 adapter factory, and Funding Bands V3 integration factory.
 
+After an individual project launch, applications use the SDK's `buildProjectLaunchManifest` with
+the exact validated preflight and Registry readback. It rejects mismatched configuration hashes,
+identities, governance, supply, modules, or predicted addresses before emitting canonical JSON.
+The artifact shape is [`project-launch-manifest.schema.json`](./project-launch-manifest.schema.json).
+
 This workflow does not manufacture or validate the authorship of audit/canary evidence. Until independent audit and live
 rehearsal artifacts exist, deployment correctly remains blocked at preflight.

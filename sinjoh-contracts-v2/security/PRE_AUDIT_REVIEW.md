@@ -9,7 +9,7 @@ Foundry unit/fuzz/invariant/integration suite, and `npm test --prefix sdk`. Foun
 256 runs × 64 calls and fuzz tests use 1,000 runs. The suite contains the specified 25 integration
 flows, two cross-module system invariant suites, and all eight required end-to-end journeys (plus a
 separate staker-dividend journey). The current production-mode run completes 442 tests with zero
-failures and one explicitly environment-gated fork skip; the SDK completes 22 tests.
+failures and one explicitly environment-gated fork skip; the SDK completes 23 tests.
 
 `script/coverage.sh` runs the all-modules Launcher suite under production compiler settings, then
 runs source-only LCOV coverage for every other suite under Foundry's minimum-IR instrumentation.

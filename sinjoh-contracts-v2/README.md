@@ -140,3 +140,9 @@ accept human-readable USD bounds, validate simple destination choices, compose t
 Treasury-prefund + band-create batch, and encode that same batch for either Multisig Accounts or
 Token Governance. Solidity and TypeScript share canonical calldata fixtures so generated
 integrations cannot silently drift from contracts.
+After launch, `buildProjectLaunchManifest` cross-checks the exact validated preview against the
+Registry readback and emits canonical JSON-safe provenance for publication or signing. It never
+asks an operator to re-enter deployed project addresses.
+
+The complete specification-to-code and release-gate handoff is
+[`security/IMPLEMENTATION_TRACEABILITY.md`](security/IMPLEMENTATION_TRACEABILITY.md).

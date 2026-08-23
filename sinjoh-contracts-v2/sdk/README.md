@@ -24,6 +24,10 @@ import {
 - `encodeGovernanceAction` creates one `{ target, value, data }` action usable by either governance
   workflow without exposing raw calldata assembly to the UI.
 - `projectRecord` discovers the complete project from the Registry.
+- `buildProjectLaunchManifest` cross-checks the validated preflight against the post-launch
+  Registry record and returns canonical JSON-safe provenance. `serializeProjectLaunchManifest` and
+  `projectLaunchManifestHash` make that artifact deterministic for publication or signing; no
+  project address is entered manually.
 - `pendingWork` provides one-call status helpers for every module with keeper or recovery work.
 - `launchErrorMessage` converts stable Launcher custom-error names into corrective product copy.
 - `buildVerifiedAirdropEpoch` is the attestor-safe path: it requires two independently acquired RPC
