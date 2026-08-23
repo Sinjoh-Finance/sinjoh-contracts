@@ -70,14 +70,13 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - name: Reject raw mainnet deployment keys
         run: |
-          if rg -l 'DEPLOYER_PRIVATE_KEY' sinjoh-*/script --glob '*.s.sol' \
-            | xargs -r rg -l '4_663|ROBINHOOD_MAINNET'; then
+          if find sinjoh-* -path '*/script/*.s.sol' -type f ! -name '*Testnet*' \
+            -exec grep -Il 'DEPLOYER_PRIVATE_KEY' {} + | grep -q .; then
             echo "mainnet scripts must use an external Foundry signer" >&2
             exit 1
           fi
-          if rg -n 'DEPLOYER_PRIVATE_KEY' sinjoh-funding-bands/script/*production*.sh \
-            sinjoh-funding-bands/script/deploy.sh; then
+          if grep -n 'DEPLOYER_PRIVATE_KEY' sinjoh-funding-bands/script/*production*.sh \
+            sinjoh-funding-bands/script/deploy.sh 2>/dev/null; then
             echo "mainnet shell scripts must use a named Foundry account" >&2
             exit 1
           fi
-
