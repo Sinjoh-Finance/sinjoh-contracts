@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import test from "node:test";
-import { decodeFunctionData } from "viem";
-import { buildFundingBandCreationActions, buildAirdropEpoch, buildVerifiedAirdropEpoch, buildLaunchFromPreset, encodeGovernanceAction, encodeMultisigSubmission, encodeTokenGovernanceProposal, erc4626BasketYieldAdapterFactoryAbi, fundingBandDestination, marketCapUsdE8, projectFundingBandsV2Abi, projectGovernorV2Abi, projectLauncherV2Abi, projectMultisigAccountV2Abi, projectRegistryV2Abi, projectTreasuryVaultV2Abi, simpleFundingBandConfig, launchErrorMessage, } from "../src/index.js";
+import { decodeFunctionData, hashTypedData } from "viem";
+import { airdropCommitmentTypedData, buildFundingBandCreationActions, buildAirdropEpoch, buildVerifiedAirdropEpoch, buildLaunchFromPreset, encodeGovernanceAction, encodeMultisigSubmission, encodeTokenGovernanceProposal, erc4626BasketYieldAdapterFactoryAbi, fundingBandDestination, marketCapUsdE8, projectFundingBandsV2Abi, projectGovernorV2Abi, projectLauncherV2Abi, projectMultisigAccountV2Abi, projectRegistryV2Abi, projectTreasuryVaultV2Abi, simpleFundingBandConfig, launchErrorMessage, } from "../src/index.js";
 const fixture = JSON.parse(await readFile(resolve(process.cwd(), "fixtures/treasury-send.json"), "utf8"));
 const airdropFixture = JSON.parse(await readFile(resolve(process.cwd(), "fixtures/airdrop-tree.json"), "utf8"));
 test("exports the required project discovery and launch ABI", () => {
@@ -185,6 +185,7 @@ test("matches the shared Solidity Airdrop tree fixture exactly", () => {
     assert.equal(epoch.commitment.rootSum.toString(), airdropFixture.rootSum);
     assert.equal(epoch.commitment.leafCount, airdropFixture.leafCount);
     assert.equal(epoch.commitment.artifactHash, airdropFixture.artifactHash);
+    assert.equal(hashTypedData(airdropCommitmentTypedData(Number(airdropFixture.chainId), airdropFixture.airdrop, epoch.commitment)), airdropFixture.typedDataDigest);
 });
 test("requires two matching provider snapshots before building a signable Airdrop epoch", () => {
     const weights = airdropFixture.holders.map(({ holder, weight }) => ({

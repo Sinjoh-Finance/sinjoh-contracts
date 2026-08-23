@@ -340,7 +340,7 @@ export function airdropCommitmentTypedData(
         { name: "artifactHash", type: "bytes32" },
       ],
     },
-    message: commitment,
+    message: { ...commitment, snapshotTime: Number(commitment.snapshotTime) },
   } as const;
 }
 

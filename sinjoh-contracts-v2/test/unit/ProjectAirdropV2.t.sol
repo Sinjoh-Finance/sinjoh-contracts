@@ -39,6 +39,30 @@ contract ProjectAirdropV2Test is AirdropTestBase {
         assertNotEq(airdrop.exclusionHash(), bytes32(0));
     }
 
+    function testCommitmentDigestUsesCanonicalEip712Encoding() public view {
+        AirdropEpochCommitment memory commitment =
+            _commitment(bytes32(uint256(1)), 1, 1_000, bytes32(uint256(2)), 9, 10, 100, 3);
+        bytes32 structHash = keccak256(
+            abi.encode(
+                airdrop.COMMITMENT_TYPEHASH(),
+                commitment.accountId,
+                commitment.epochId,
+                commitment.snapshotBlock,
+                commitment.snapshotBlockHash,
+                commitment.snapshotTime,
+                commitment.rootHash,
+                commitment.rootSum,
+                commitment.epochAmount,
+                commitment.totalEligibleWeight,
+                commitment.leafCount,
+                commitment.artifactHash
+            )
+        );
+        bytes32 expected =
+            keccak256(abi.encodePacked("\x19\x01", airdrop.domainSeparator(), structHash));
+        assertEq(airdrop.commitmentDigest(commitment), expected);
+    }
+
     function testFirstFundingConfiguresAccountAndLaterEmptyConfigJustWorks() public {
         AirdropAccountConfig memory config = _defaultConfig();
         bytes32 id = _fundErc20(FUNDER, 10_000, abi.encode(config));

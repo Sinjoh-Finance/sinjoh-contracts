@@ -7,6 +7,12 @@ import { ProjectTreasuryVaultV2 } from "../../src/treasury/ProjectTreasuryVaultV
 contract SDKFixtureV2Test is Test {
     bytes32 private constant AIRDROP_LEAF_DOMAIN = keccak256("SINJOH_V2_AIRDROP_LEAF");
     bytes32 private constant AIRDROP_NODE_DOMAIN = keccak256("SINJOH_V2_AIRDROP_NODE");
+    bytes32 private constant EIP712_DOMAIN_TYPEHASH = keccak256(
+        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+    );
+    bytes32 private constant AIRDROP_COMMITMENT_TYPEHASH = keccak256(
+        "AirdropEpochCommitment(bytes32 accountId,uint64 epochId,uint64 snapshotBlock,bytes32 snapshotBlockHash,uint48 snapshotTime,bytes32 rootHash,uint256 rootSum,uint256 epochAmount,uint256 totalEligibleWeight,uint32 leafCount,bytes32 artifactHash)"
+    );
 
     function testTreasurySendFixtureMatchesCanonicalSolidityEncoding() public view {
         string memory json = vm.readFile("sdk/fixtures/treasury-send.json");
@@ -65,6 +71,36 @@ contract SDKFixtureV2Test is Test {
             1
         );
         assertEq(rootHash, vm.parseJsonBytes32(json, ".rootHash"));
+
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                EIP712_DOMAIN_TYPEHASH,
+                keccak256("Sinjoh Project Airdrop"),
+                keccak256("2"),
+                chainId,
+                airdrop
+            )
+        );
+        bytes32 structHash = keccak256(
+            abi.encode(
+                AIRDROP_COMMITMENT_TYPEHASH,
+                accountId,
+                epochId,
+                snapshotBlock,
+                vm.parseJsonBytes32(json, ".snapshotBlockHash"),
+                snapshotTime,
+                rootHash,
+                vm.parseUint(vm.parseJsonString(json, ".rootSum")),
+                vm.parseUint(vm.parseJsonString(json, ".epochAmount")),
+                vm.parseUint(vm.parseJsonString(json, ".totalEligibleWeight")),
+                uint32(vm.parseJsonUint(json, ".leafCount")),
+                vm.parseJsonBytes32(json, ".artifactHash")
+            )
+        );
+        assertEq(
+            keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash)),
+            vm.parseJsonBytes32(json, ".typedDataDigest")
+        );
     }
 
     function _airdropLeafHash(

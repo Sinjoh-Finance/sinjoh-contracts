@@ -123,6 +123,18 @@ export declare function airdropCommitmentTypedData(chainId: number, airdrop: Add
             readonly type: "bytes32";
         }];
     };
-    readonly message: AirdropEpochCommitmentArtifact;
+    readonly message: {
+        readonly accountId: Hex;
+        readonly epochId: bigint;
+        readonly snapshotBlock: bigint;
+        readonly snapshotBlockHash: Hex;
+        readonly rootHash: Hex;
+        readonly rootSum: bigint;
+        readonly epochAmount: bigint;
+        readonly totalEligibleWeight: bigint;
+        readonly leafCount: number;
+        readonly artifactHash: Hex;
+        readonly snapshotTime: number;
+    };
 };
 //# sourceMappingURL=airdrop.d.ts.map

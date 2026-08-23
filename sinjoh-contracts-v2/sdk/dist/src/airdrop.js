@@ -222,7 +222,7 @@ export function airdropCommitmentTypedData(chainId, airdrop, commitment) {
                 { name: "artifactHash", type: "bytes32" },
             ],
         },
-        message: commitment,
+        message: { ...commitment, snapshotTime: Number(commitment.snapshotTime) },
     };
 }
 function airdropLeafHash(parameters) {

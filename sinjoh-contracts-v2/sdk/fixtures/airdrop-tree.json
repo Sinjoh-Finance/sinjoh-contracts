@@ -32,5 +32,6 @@
   "rootHash": "0x60183964f8f2e1fe75de17dc6f7b52bd80b352970bca3e0da1f4444fec5092bd",
   "rootSum": "9",
   "leafCount": 3,
-  "artifactHash": "0x61752588222fa8e497520a382f9fd36e587a0fb89f31567ef7470af8b2535159"
+  "artifactHash": "0x61752588222fa8e497520a382f9fd36e587a0fb89f31567ef7470af8b2535159",
+  "typedDataDigest": "0xbe025019b5784bd47d9a272ceb15a2f24a84290cfdab2168974667edcebc9c81"
 }

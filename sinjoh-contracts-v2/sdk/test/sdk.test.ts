@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import test from "node:test";
-import { decodeFunctionData, type Address, type Hex } from "viem";
+import { decodeFunctionData, hashTypedData, type Address, type Hex } from "viem";
 import {
+  airdropCommitmentTypedData,
   buildFundingBandCreationActions,
   buildAirdropEpoch,
   buildVerifiedAirdropEpoch,
@@ -53,6 +54,7 @@ const airdropFixture = JSON.parse(
   rootSum: string;
   leafCount: number;
   artifactHash: Hex;
+  typedDataDigest: Hex;
 };
 
 test("exports the required project discovery and launch ABI", () => {
@@ -289,6 +291,14 @@ test("matches the shared Solidity Airdrop tree fixture exactly", () => {
   assert.equal(epoch.commitment.rootSum.toString(), airdropFixture.rootSum);
   assert.equal(epoch.commitment.leafCount, airdropFixture.leafCount);
   assert.equal(epoch.commitment.artifactHash, airdropFixture.artifactHash);
+  assert.equal(
+    hashTypedData(airdropCommitmentTypedData(
+      Number(airdropFixture.chainId),
+      airdropFixture.airdrop,
+      epoch.commitment,
+    )),
+    airdropFixture.typedDataDigest,
+  );
 });
 
 test("requires two matching provider snapshots before building a signable Airdrop epoch", () => {
