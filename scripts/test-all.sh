@@ -14,6 +14,7 @@ packages=(
   sinjoh-launchpad-adapters
   sinjoh-protocol-upgrade
   sinjoh-integration
+  sinjoh-contracts-v2
 )
 
 for package in "${packages[@]}"; do

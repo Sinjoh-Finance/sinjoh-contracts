@@ -28,6 +28,7 @@ independent Foundry package with pinned compiler settings and its own tests.
 | [`sinjoh-launchpad-adapters`](./sinjoh-launchpad-adapters) | Pons v1/v2, Flap, pools.trade, and letscash.fun integrations. |
 | [`sinjoh-protocol-upgrade`](./sinjoh-protocol-upgrade) | Source-only governed fee routing, optional staking-driven claim distributions, yield baskets, and dynamic funding bands. |
 | [`sinjoh-integration`](./sinjoh-integration) | Cross-package and production-behavior integration tests. |
+| [`sinjoh-contracts-v2`](./sinjoh-contracts-v2) | Greenfield integrated v2 contracts; not deployed and does not modify legacy packages. |
 
 The packages compose through copied interfaces and ordinary calls or asset
 transfers; they do not import one another's implementations.
