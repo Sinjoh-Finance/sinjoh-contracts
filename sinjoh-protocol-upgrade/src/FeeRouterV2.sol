@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { Governed } from "./governance/Governed.sol";
 import { IGovernanceController } from "./interfaces/IGovernanceController.sol";
 import { ISinjohFundable } from "./interfaces/ISinjohFundable.sol";
@@ -112,6 +113,10 @@ contract FeeRouterV2 is Governed, ReentrancyGuard {
     mapping(address token => uint16 remainder) public protocolFeeRemainder;
     mapping(address token => uint256 amount) public cumulativeGrossIntake;
     mapping(address token => uint256 amount) public cumulativeProtocolFee;
+    mapping(uint256 configId => mapping(address token => uint256 amount)) public
+        cumulativeNetRouted;
+    mapping(uint256 configId => mapping(uint256 routeIndex => uint256 amount)) public
+        cumulativeRouteAllocation;
     mapping(uint256 configId => mapping(uint256 routeIndex => uint256 amount)) public routeEscrow;
     mapping(address token => uint256 amount) public totalEscrowed;
 
@@ -211,7 +216,11 @@ contract FeeRouterV2 is Governed, ReentrancyGuard {
 
         uint256 net = gross - fee;
         Route[] storage routes = _routes[configId];
+        uint256 cumulativeAfter = cumulativeNetRouted[configId][token] + net;
+        cumulativeNetRouted[configId][token] = cumulativeAfter;
         uint256 remaining = net;
+        uint256 cumulativeBps;
+        uint256 cumulativeAllocated;
         uint256 finalMatchingIndex = type(uint256).max;
         for (uint256 i; i < routes.length; ++i) {
             if (routes[i].inputToken == token) finalMatchingIndex = i;
@@ -221,8 +230,20 @@ contract FeeRouterV2 is Governed, ReentrancyGuard {
         for (uint256 i; i < routes.length; ++i) {
             Route storage route = routes[i];
             if (route.inputToken != token) continue;
-            uint256 amount = i == finalMatchingIndex ? remaining : net * route.shareBps / BPS;
+            uint256 amount;
+            if (i == finalMatchingIndex) {
+                amount = remaining;
+            } else {
+                cumulativeBps += route.shareBps;
+                cumulativeAllocated += cumulativeRouteAllocation[configId][i];
+                uint256 target = Math.mulDiv(cumulativeAfter, cumulativeBps, BPS);
+                if (target > cumulativeAllocated) {
+                    amount = Math.min(target - cumulativeAllocated, remaining);
+                    cumulativeAllocated += amount;
+                }
+            }
             remaining -= amount;
+            cumulativeRouteAllocation[configId][i] += amount;
             if (isRoutePaused[configId][i]) {
                 _escrow(configId, i, token, amount, RoutePaused.selector);
                 continue;
