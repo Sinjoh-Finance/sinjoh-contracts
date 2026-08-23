@@ -108,6 +108,9 @@ position, and principal has no withdrawal, transfer, approval, burn, rescue, gov
 call path. Position fees retain creator, Treasury, recycle, and funder modes with cumulative 1%
 protocol accounting. One-call status views, named launcher choices, automatic manifest-derived
 infrastructure, and permissionless retry/mint/collect flows keep funders out of contract plumbing.
+The SDK hydrates frozen account configuration from reviewed pool profiles and product-level choices;
+the Router atomically fills canonical creator/Treasury fee recipients during launch and later route
+updates, so applications never predict or encode those addresses themselves.
 
 `ProjectLauncherV2` validates, predicts, deploys, initializes, verifies, and registers a complete
 project in one creator transaction. Module addresses remain stable while launch settings are edited;

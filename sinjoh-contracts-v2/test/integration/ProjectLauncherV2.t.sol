@@ -466,7 +466,7 @@ contract ProjectLauncherV2Test is Test {
             maxNotionalPerMint: type(uint128).max,
             minMintInterval: 0,
             feeMode: ProjectLiquidityManagerV2.FeeMode.CREATOR,
-            feeRecipient: CREATOR
+            feeRecipient: address(0)
         });
         config.routerRoutes = new RouterRouteInput[](1);
         config.routerRoutes[0].inputAsset = address(quote);
@@ -485,6 +485,9 @@ contract ProjectLauncherV2Test is Test {
         ProjectRouterV2 router = ProjectRouterV2(payable(launched.addresses.router));
         RouterAction memory action = router.routeAction(address(quote), 1, 0);
         assertEq(action.recipient, launched.addresses.liquidityManager);
+        ProjectLiquidityManagerV2.Config memory materializedLiquidity =
+            abi.decode(action.actionConfig, (ProjectLiquidityManagerV2.Config));
+        assertEq(materializedLiquidity.feeRecipient, CREATOR);
 
         quote.mint(address(this), 10_000);
         quote.approve(address(router), 10_000);
@@ -495,6 +498,9 @@ contract ProjectLauncherV2Test is Test {
 
         ProjectLiquidityManagerV2 manager =
             ProjectLiquidityManagerV2(payable(launched.addresses.liquidityManager));
+        assertEq(
+            manager.accountConfig(manager.projectAccountId(address(router))).feeRecipient, CREATOR
+        );
         ProjectLiquidityManagerV2.Account memory account =
             manager.accountStatus(manager.projectAccountId(address(router)));
         assertTrue(account.configured);

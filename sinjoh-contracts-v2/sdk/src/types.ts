@@ -5,6 +5,7 @@ import type {
 import {
   projectFundingBandsV2Abi,
   projectLauncherV2Abi,
+  projectLiquidityManagerV2Abi,
   projectRegistryV2Abi,
 } from "./abis.generated.js";
 
@@ -31,3 +32,9 @@ export type FundingBandConfig = ContractFunctionArgs<
   "nonpayable",
   "createBand"
 >[0];
+
+export type LiquidityAccountConfig = ContractFunctionReturnType<
+  typeof projectLiquidityManagerV2Abi,
+  "view",
+  "accountConfig"
+>;

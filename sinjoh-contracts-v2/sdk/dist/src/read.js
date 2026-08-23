@@ -149,6 +149,22 @@ export const pendingWork = {
             args: [accountId],
         });
     },
+    liquidityFeeCredit(client, liquidityManager, recipient, asset) {
+        return client.readContract({
+            address: liquidityManager,
+            abi: projectLiquidityManagerV2Abi,
+            functionName: "feeOwed",
+            args: [recipient, asset],
+        });
+    },
+    liquidityProtocolFee(client, liquidityManager, asset) {
+        return client.readContract({
+            address: liquidityManager,
+            abi: projectLiquidityManagerV2Abi,
+            functionName: "protocolOwed",
+            args: [asset],
+        });
+    },
     stakingPosition(client, stakingPool, tokenId) {
         return client.readContract({
             address: stakingPool,

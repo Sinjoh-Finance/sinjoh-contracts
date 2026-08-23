@@ -49,6 +49,14 @@ import {
   `encodeRaffleCloseCall` cover the complete worker lifecycle. Winners never need to register,
   build a proof, or submit a transaction. `pendingWork.raffleRound`, `raffleCredit`, and
   `raffleStockCredit` expose all round and retry state needed by apps and keepers.
+- `buildLiquidityLaunchAccountConfig` combines a versioned platform pool profile with only the
+  creator's liquidity split, contribution limits, cadence, and fee destination. Adapter, guard,
+  route, hook, fee tier, tick spacing, and slippage infrastructure never enter creator forms;
+  creator/Treasury recipient addresses are materialized atomically by the Router.
+- `encodeLiquidityMintCall`, `encodeLiquidityCollectCall`, and the two fee-delivery helpers cover
+  all permissionless Liquidity work. The guard supplies the authoritative output floor by default,
+  while an operator may only strengthen it. `pendingWork.liquidityAccount`, `liquidityFeeCredit`,
+  and `liquidityProtocolFee` expose the complete operational state.
 
 Run `npm test` to rebuild the ABIs from Foundry artifacts, type-check the package, and verify the
 shared Solidity/TypeScript calldata fixture.

@@ -17,6 +17,7 @@ import { IProjectTokenIdentity } from "../interfaces/IProjectTokenIdentity.sol";
 import { IProjectTreasuryReceiver } from "../interfaces/IProjectTreasuryReceiver.sol";
 import { ProjectIds } from "../libraries/ProjectIds.sol";
 import { SinjohV2Constants } from "../libraries/SinjohV2Constants.sol";
+import { ProjectLiquidityManagerV2 } from "../liquidity/ProjectLiquidityManagerV2.sol";
 import {
     RouterAction,
     RouterActionType,
@@ -665,7 +666,8 @@ contract ProjectRouterV2 is IProjectModule, IProjectControlled, IProjectFundable
         uint256 allocationTotal;
         uint256 configTotal;
         for (uint256 i; i < count; ++i) {
-            RouterAction memory action = route.actions[i];
+            RouterAction memory action = _materializeLiquidityAction(route.actions[i]);
+            route.actions[i] = action;
             if (action.allocationBps == 0) revert InvalidAllocation(i, action.allocationBps);
             allocationTotal += action.allocationBps;
             uint256 configLength = action.actionConfig.length;
@@ -695,6 +697,23 @@ contract ProjectRouterV2 is IProjectModule, IProjectControlled, IProjectFundable
             _routeActions[route.inputAsset][version].push(route.actions[i]);
         }
         emit RouteActivated(route.inputAsset, version, routeHash);
+    }
+
+    function _materializeLiquidityAction(RouterAction memory action)
+        private
+        view
+        returns (RouterAction memory)
+    {
+        if (action.actionType != RouterActionType.ADD_LIQUIDITY || action.actionConfig.length == 0) return action;
+        ProjectLiquidityManagerV2.Config memory liquidity =
+            abi.decode(action.actionConfig, (ProjectLiquidityManagerV2.Config));
+        if (liquidity.feeMode == ProjectLiquidityManagerV2.FeeMode.CREATOR) {
+            liquidity.feeRecipient = creator;
+        } else if (liquidity.feeMode == ProjectLiquidityManagerV2.FeeMode.TREASURY) {
+            liquidity.feeRecipient = treasury;
+        }
+        action.actionConfig = abi.encode(liquidity);
+        return action;
     }
 
     function _validateAction(address inputAsset, uint256 index, RouterAction memory action)

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.28;
 
+import { ProjectLiquidityManagerV2 } from "../../src/liquidity/ProjectLiquidityManagerV2.sol";
 import { ProjectRouterV2 } from "../../src/router/ProjectRouterV2.sol";
 import {
     RouterAction,
@@ -213,6 +214,46 @@ contract ProjectRouterV2Test is RouterTestBase {
         assertEq(liquiditySink.funded(address(assetA)), 1_980);
         assertEq(router.pending(address(assetA)), 0);
         assertEq(router.totalEscrowed(address(assetA)), 0);
+    }
+
+    function testLiquidityFeeDestinationsMaterializeWithoutRawProjectAddresses() public {
+        ProjectLiquidityManagerV2.Config memory config = ProjectLiquidityManagerV2.Config({
+            venue: ProjectLiquidityManagerV2.Venue.UNISWAP_V3,
+            quoteAsset: address(assetA),
+            poolFee: 3_000,
+            tickSpacing: 60,
+            hooks: address(0),
+            swapAdapter: address(adapter),
+            priceGuard: address(priceGuard),
+            swapRouteData: hex"01",
+            quoteSwapBps: 5_000,
+            maxMintSlippageBps: 100,
+            minNotionalPerMint: 1,
+            maxNotionalPerMint: type(uint128).max,
+            minMintInterval: 0,
+            feeMode: ProjectLiquidityManagerV2.FeeMode.CREATOR,
+            feeRecipient: address(0)
+        });
+        RouterAction memory action = _sinkAction(
+            RouterActionType.ADD_LIQUIDITY, address(liquiditySink), 10_000, abi.encode(config)
+        );
+        ProjectRouterV2 router = _deployRouter(_singleRoute(address(assetA), action), bytes32(0));
+        config = abi.decode(
+            router.routeAction(address(assetA), 1, 0).actionConfig,
+            (ProjectLiquidityManagerV2.Config)
+        );
+        assertEq(config.feeRecipient, CREATOR);
+
+        config.feeMode = ProjectLiquidityManagerV2.FeeMode.TREASURY;
+        config.feeRecipient = address(0);
+        action.actionConfig = abi.encode(config);
+        RouterRouteInput memory next = _singleRoute(address(assetA), action)[0];
+        _controllerCall(router, abi.encodeCall(router.activateRoute, (next)));
+        config = abi.decode(
+            router.routeAction(address(assetA), 2, 0).actionConfig,
+            (ProjectLiquidityManagerV2.Config)
+        );
+        assertEq(config.feeRecipient, address(treasury));
     }
 
     function testRevertingActionEscrowsOnlyItsShareAndOtherActionSettles() public {

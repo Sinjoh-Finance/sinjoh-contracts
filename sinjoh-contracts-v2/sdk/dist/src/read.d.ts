@@ -175,6 +175,8 @@ export declare const pendingWork: {
         positionId: bigint;
         subject: `0x${string}`;
     }>;
+    readonly liquidityFeeCredit: (client: PublicClient, liquidityManager: Address, recipient: Address, asset: Address) => Promise<bigint>;
+    readonly liquidityProtocolFee: (client: PublicClient, liquidityManager: Address, asset: Address) => Promise<bigint>;
     readonly stakingPosition: (client: PublicClient, stakingPool: Address, tokenId: bigint) => Promise<readonly [amount: bigint, bigint, bigint]>;
     readonly multisigTransaction: (client: PublicClient, multisig: Address, transactionId: Hex) => Promise<{
         actionCount: number;
