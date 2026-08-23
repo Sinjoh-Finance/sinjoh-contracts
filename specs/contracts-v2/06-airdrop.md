@@ -53,10 +53,10 @@ at launch; the Treasury is excluded by default.
 ## 4. Why snapshots use a committed tree
 
 ERC-20 and ERC-721 contracts cannot enumerate all historical owners on-chain. A reference indexer
-therefore reconstructs the deterministic snapshot and an immutable attestor commits a cumulative,
-direction-aware Merkle-sum root.
+therefore reconstructs the deterministic snapshot and an immutable attestor commits an independent,
+direction-aware Merkle-sum root for each epoch.
 
-The attestor can misweight or omit a wallet. It cannot commit more cumulative entitlement than the
+The attestor can misweight or omit a wallet. It cannot commit more epoch entitlement than the
 Airdrop has funded, replace an epoch root, pay an excluded address, redirect a proof to another
 recipient, or make total payments exceed liabilities.
 
@@ -78,12 +78,11 @@ assets are supported. Fee-on-transfer/rebasing assets are rejected.
 
 The first funding fixes:
 
-- minimum payout;
 - maximum push batch size;
 - minimum snapshot confirmations;
 - epoch cadence (on-demand, 24 hours, or 7 days);
 - eligibility mode and immutable exclusion hash;
-- unclaimed destination (Treasury, next epoch, or original funder).
+- division-dust destination (Treasury, next epoch, or original funder).
 
 Later funding must match the canonical account config hash.
 
@@ -100,7 +99,6 @@ struct EpochCommitment {
     uint256 rootSum;
     uint256 epochAmount;
     uint256 totalEligibleWeight;
-    uint48 pushDeadline;
 }
 ```
 
@@ -111,7 +109,7 @@ Rules:
 3. commitment is within the chain's verifiable block-hash window;
 4. root hash/sum, epoch amount, and total eligible weight are nonzero;
 5. epoch amount is no greater than uncommitted funded balance;
-6. root sum is no greater than the cumulative funded entitlement represented by the epoch series;
+6. root sum is no greater than `epochAmount`; any difference is explicit integer-division dust;
 7. a root is immutable after commitment;
 8. the same snapshot cannot fund two epochs for the same account unless their assets/accounts differ.
 
@@ -128,15 +126,19 @@ function push(
 ) external;
 ```
 
-Anyone may submit a bounded batch. The contract verifies each cumulative entitlement proof and pays
-only the positive difference from that holder's previously paid cumulative amount.
+Anyone may submit a bounded batch. Each leaf commits `(accountId, epochId, snapshotBlock, holder,
+amount)`. The contract verifies the independent epoch proof and pays that holder at most once for
+the epoch.
 
 Transfer failure records the holder's exact retryable credit and continues the batch through an
 isolated self-call. Anyone may retry, but payment can only reach the proven holder. Payment requires
 no signature or wallet transaction from the holder.
 
-After the deadline, anyone may finalize the epoch. Unpaid rounding dust and never-pushed value go
-only to the configured unclaimed destination; retryable credits already created remain payable.
+Processing a valid leaf increments `settledEntitlement` exactly once whether its transfer succeeds
+or becomes a retryable credit. An epoch can finalize only when `settledEntitlement == rootSum`.
+The finalizer sends only `epochAmount - rootSum` integer-division dust to the configured destination.
+A keeper cannot skip a leaf and sweep its entitlement. Retryable credits remain payable after
+finalization, and finalization does not affect any later independent epoch.
 
 ## 8. Basket dividend integration
 
@@ -162,10 +164,10 @@ Events:
 - `AccountConfigured(accountId, funder, asset, mode, configHash)`;
 - `Funded(accountId, asset, gross, fee, net)`;
 - `EpochCommitted(accountId, epochId, snapshotBlock, rootHash, rootSum, epochAmount)`;
-- `PaymentSucceeded(accountId, epochId, holder, cumulativeAmount, paidNow)`;
+- `PaymentSucceeded(accountId, epochId, holder, amount)`;
 - `PaymentDeferred(accountId, epochId, holder, amount, reasonHash)`;
 - `CreditDelivered(holder, asset, amount)`;
-- `EpochFinalized(accountId, epochId, unclaimedAmount, destination)`.
+- `EpochFinalized(accountId, epochId, divisionDust, destination)`.
 
 ## 10. Required worker checks
 
@@ -173,10 +175,11 @@ Events:
 2. verify snapshot hashes through at least two independent RPC endpoints;
 3. cross-check holder-mode supply or staker-mode total against on-chain historical values;
 4. apply the immutable complete exclusion set;
-5. sort unique holders and compute raw-unit proportional amounts with checked arithmetic;
+5. sort unique holders and compute every nonzero raw-unit proportional amount with checked
+   arithmetic;
 6. publish complete leaves/proofs and a deterministic artifact hash;
-7. push all payable leaves above `minPayout` and retry transfer failures;
-8. reconcile aggregate payments against on-chain liabilities.
+7. push every nonzero leaf and retry transfer failures;
+8. reconcile aggregate payments against on-chain liabilities before finalization.
 
 ## 11. Acceptance criteria
 
@@ -191,6 +194,8 @@ Events:
 8. An attestor cannot commit entitlements above account funding or replace a committed root.
 9. The 1% service fee is correct on cumulative gross funding despite split deposits.
 10. Basket harvest integration creates the correct holder/staker account and cadence.
+11. An epoch cannot finalize until every committed leaf is paid or converted into the proven
+    holder's retryable credit; only division dust can leave through the dust destination.
 
 ## 12. Out of scope
 

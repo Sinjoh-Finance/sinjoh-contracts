@@ -32,6 +32,10 @@ independent Foundry package with pinned compiler settings and its own tests.
 The packages compose through copied interfaces and ordinary calls or asset
 transfers; they do not import one another's implementations.
 
+Greenfield specifications for the next integrated deployment generation are in
+[`specs/contracts-v2`](./specs/contracts-v2/README.md). They do not modify or migrate the deployed
+contracts listed above.
+
 ## Build and test
 
 Requirements:

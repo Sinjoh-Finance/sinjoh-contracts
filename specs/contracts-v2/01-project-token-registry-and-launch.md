@@ -24,7 +24,7 @@ Required behavior:
 - `getPastTotalSupply(timepoint)` equals historical voting supply, excluding immutable system
   custody addresses;
 - `delegates(account)` returns `account`;
-- `delegate` accepts only self and changes no state; `delegateBySig` is unsupported.
+- `delegate` and `delegateBySig` always revert with `DelegationUnsupported`.
 
 This makes liquid voting automatic. A holder who received tokens before a proposal snapshot can
 vote; there is no self-delegation transaction or separate votes adapter.
@@ -80,11 +80,10 @@ Rules:
 2. one subject may have one v2 project record;
 3. module addresses are either a deployed contract or zero when disabled;
 4. all enabled modules must report the same `projectId`, subject, and authority before registration;
-5. creator, token, authority, treasury, reference supply, protocol version, and launch time never
-   change;
-6. operational metadata updates are limited to adding a canonical pool address created after the
-   token and publishing replacement UI metadata URIs; these updates require project governance and
-   do not change contract authority or eligibility;
+5. creator, token, authority, treasury, canonical pool, reference supply, protocol version, and
+   launch time never change;
+6. operational metadata updates are limited to publishing replacement UI metadata URIs; these
+   updates require project governance and do not change contract authority or eligibility;
 7. the registry never custodies project assets and has no transfer functions.
 
 ## 4. Launch configuration
@@ -104,6 +103,11 @@ struct ModuleSelection {
     bool liquidity;
 }
 
+struct TokenAllocation {
+    address recipient;
+    uint256 amount;
+}
+
 struct LaunchConfig {
     address creator;
     string name;
@@ -113,6 +117,7 @@ struct LaunchConfig {
     GovernanceMode governanceMode;
     VoteSource voteSource;
     ModuleSelection modules;
+    TokenAllocation[] tokenAllocations;
     bytes governanceConfig;
     bytes treasuryConfig;
     bytes routerConfig;
@@ -129,6 +134,8 @@ struct LaunchConfig {
 Validation:
 
 - creator, supply, name, and symbol are nonzero/nonempty;
+- token allocations contain one to sixteen unique nonzero recipients, every amount is nonzero, and
+  the sum equals `totalSupply` exactly;
 - `STAKED` governance requires staking;
 - basket requires treasury and airdrop;
 - treasury automatic basket routing requires basket;
@@ -185,7 +192,6 @@ Required events:
 - `ProjectLaunched(projectId, subject, creator, authority, launchConfigHash, enabledModules)`;
 - `ProjectModules(projectId, treasury, router, stakingPool, posNft, airdrop, raffle,
   liquidityManager, fundingBands, basketManager, primaryBasketId)`;
-- `CanonicalPoolRecorded(projectId, pool)`;
 - `ProjectMetadataUpdated(projectId, metadataHash)`.
 
 Views must return the complete record, resolve `projectId` by subject, expose predicted addresses,

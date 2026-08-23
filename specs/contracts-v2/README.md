@@ -41,6 +41,7 @@ the other protocols are specified around the product vision rather than retrofit
 | [10-liquidity.md](./10-liquidity.md) | preserved permanent-liquidity behavior and v2 integration boundary |
 | [11-security-testing-and-release.md](./11-security-testing-and-release.md) | shared invariants, tests, deployment manifests, audit and release gates |
 | [12-delivery-plan.md](./12-delivery-plan.md) | implementation packages, dependency order, and completion gates |
+| [13-vision-traceability.md](./13-vision-traceability.md) | requirement-by-requirement coverage across the full platform vision |
 
 ## Product rules locked by this specification
 
@@ -55,10 +56,12 @@ the other protocols are specified around the product vision rather than retrofit
    operation that unlocks basket principal.
 7. Holder and staker airdrops are proportional. The creator participates normally when eligible;
    liquidity pools and the Pons locker are ineligible.
-8. Raffle and permanent-liquidity product behavior remains unchanged.
-9. Contracts are non-upgradeable. A new audited factory/implementation version is used for future
+8. The first release creates at most one primary Basket per project Treasury; the Basket Manager
+   may serve many different projects/Basket NFTs.
+9. Raffle and permanent-liquidity product behavior remains unchanged.
+10. Contracts are non-upgradeable. A new audited factory/implementation version is used for future
    behavior changes.
-10. No protocol exposes an unrestricted arbitrary-call function.
+11. No protocol exposes an unrestricted arbitrary-call function.
 
 ## Terminology
 

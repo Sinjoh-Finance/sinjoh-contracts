@@ -17,8 +17,12 @@ The protocol has three narrow components:
 - one `BasketVaultV2` per token ID: custodies the Basket's assets and talks only to its configured
   adapters.
 
+`BasketVaultV2` is the Basket's own treasury referenced in the product model. It is separate from
+the project Treasury, and it can release principal only through the Basket burn lifecycle.
+
 The NFT is the bearer ownership and redemption right. `ownerOf(tokenId)` is always the destination
 for unlocked assets after tax. The initial owner for a project launch is the registered Treasury.
+The first release mints at most one primary Basket to each project Treasury.
 
 ## 3. Configuration
 
@@ -176,14 +180,14 @@ ACTIVE -> BURNING -> BURNED
 4. each target must either exit all assets or transfer its complete redeemable position into the
    vault under its audited exit rule;
 5. when all targets are processed, the NFT owner calls `finalizeBurn`;
-6. `burnPriceSubject` project tokens are pulled from the owner-designated payer and burned, when
-   nonzero;
+6. `burnPriceSubject` project tokens are pulled from the current NFT owner and burned, when nonzero;
 7. for each unlocked asset, `floor(amount * burnTaxBps / 10_000)` is sent to the configured tax
    destination and the remainder to the current NFT owner;
 8. all exact transfers succeed, then the NFT is burned and the vault is permanently closed.
 
-If the owner is the project Treasury, the Treasury is both redemption recipient and default burn-
-price payer. Tax destination behavior:
+If the owner is the project Treasury, the Treasury is both redemption recipient and burn-price
+payer. Its typed finalize function grants only the exact temporary project-token allowance needed
+and clears it after use. Tax destination behavior:
 
 - `CREATOR`: exact in-kind tax to immutable project creator;
 - `TREASURY`: exact in-kind tax to registered Treasury (a no-op destination when it is already

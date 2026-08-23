@@ -34,12 +34,17 @@ Default launch parameters:
 | --- | ---: | ---: |
 | voting delay | 1 day | 1 hour to 7 days |
 | voting period | 3 days | 1 day to 14 days |
-| proposal threshold | 1% of initial eligible vote supply | 0.1% to 10% |
+| proposal threshold | 1% of Registry `referenceSupply` | 0.1% to 10% of `referenceSupply` |
 | quorum | 10% of past eligible vote supply | 1% to 30% |
 | timelock delay | 1 day | 6 hours to 7 days |
 
 The clock is timestamp-based for both liquid and staked voting. Parameters are immutable in the
 first release; changing governance rules requires a future separately audited deployment.
+
+Using `referenceSupply` keeps a staked-governance launch usable even though no tokens are staked in
+the launch transaction. A proposer must later hold enough liquid tokens or active stake for the
+selected source to meet the same absolute threshold. Quorum remains a percentage of the historical
+eligible supply reported by that vote source.
 
 ## 3. Vote sources
 

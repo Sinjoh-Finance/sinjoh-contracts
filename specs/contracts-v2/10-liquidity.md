@@ -61,7 +61,7 @@ NFT burn can withdraw it. Position fees may be configured to:
 If Treasury receives fees and its basket policy is enabled, those Treasury receipts may then route
 to the Basket through the normal Treasury flow. Liquidity Manager never funds a Basket directly.
 
-## 5. Required v2 compatibility tests
+## 5. V2 acceptance criteria
 
 1. Every required current Liquidity Manager test continues to pass.
 2. Router funding initializes or adds to only the registered project/funder account.
