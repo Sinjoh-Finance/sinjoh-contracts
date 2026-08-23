@@ -43,7 +43,8 @@ if [[ -n "$(git -C "$repo_dir" status --porcelain --untracked-files=normal)" ]];
 fi
 
 required_environment=(
-  RPC_URL EXPECTED_CHAIN_ID PRIVATE_KEY PROTOCOL_FEE_RECIPIENT INTEGRATION_APPROVAL_ROOT
+  RPC_URL EXPECTED_CHAIN_ID DEPLOYER_ADDRESS FOUNDRY_ACCOUNT PROTOCOL_FEE_RECIPIENT
+  INTEGRATION_APPROVAL_ROOT
   RANDOMNESS_ADAPTER RANDOMNESS_ADAPTER_RUNTIME_HASH
   V3_FACTORY V3_FACTORY_RUNTIME_HASH V3_POSITION_MANAGER V3_POSITION_MANAGER_RUNTIME_HASH
   V4_POSITION_MANAGER V4_POSITION_MANAGER_RUNTIME_HASH V4_STATE_VIEW V4_STATE_VIEW_RUNTIME_HASH
@@ -103,9 +104,8 @@ npm test --prefix sdk
 
 release_contracts=(
   ProjectVotesToken ProjectMultisigAccountV2 ProjectTimelockV2 ProjectStakingPoolV2
-  ProjectTreasuryVaultV2 ProjectAirdropV2 ProjectRouterV2 BasketManagerV2
-  ProjectFundingBandsV2 ProjectRaffleV2 ProjectLiquidityManagerV2 BasketVaultV2
-  ERC4626BasketYieldAdapter ERC4626BasketYieldAdapterFactory
+  ProjectTreasuryVaultV2 ProjectAirdropV2 ProjectRouterV2 ProjectFundingBandsV2
+  ProjectRaffleV2 ProjectLiquidityManagerV2
   UniswapV3FundingBandMarketCapGuard UniswapV3FundingBandPositionAdapter
   FundingBandV3IntegrationFactory CreationCodeStoreV2 ProjectRegistryV2
   ProjectLaunchDeployerV2 ProjectLauncherV2
@@ -120,6 +120,8 @@ export RELEASE_BUILD_HASH="$(printf '%s' "$build_material" | sha256)"
 
 forge script script/DeployProjectLauncherV2.s.sol:DeployProjectLauncherV2 \
   --rpc-url "$RPC_URL" \
+  --account "$FOUNDRY_ACCOUNT" \
+  --sender "$DEPLOYER_ADDRESS" \
   --broadcast \
   --verify \
   --verifier "$VERIFIER" \

@@ -4,12 +4,6 @@ pragma solidity 0.8.28;
 import { Script } from "forge-std/Script.sol";
 import { console2 } from "forge-std/console2.sol";
 import { ProjectAirdropV2 } from "../src/airdrop/ProjectAirdropV2.sol";
-import { ERC4626BasketYieldAdapter } from "../src/adapters/ERC4626BasketYieldAdapter.sol";
-import {
-    ERC4626BasketYieldAdapterFactory
-} from "../src/adapters/ERC4626BasketYieldAdapterFactory.sol";
-import { BasketManagerV2 } from "../src/basket/BasketManagerV2.sol";
-import { BasketVaultV2 } from "../src/basket/BasketVaultV2.sol";
 import { ProjectFundingBandsV2 } from "../src/bands/ProjectFundingBandsV2.sol";
 import { FundingBandV3IntegrationFactory } from "../src/bands/FundingBandV3IntegrationFactory.sol";
 import {
@@ -44,16 +38,12 @@ contract DeployProjectLauncherV2 is Script {
             ProjectLaunchDeployerV2 deployer
         )
     {
-        uint256 privateKey = vm.envUint("PRIVATE_KEY");
-        address broadcaster = vm.addr(privateKey);
+        address broadcaster = vm.envAddress("DEPLOYER_ADDRESS");
         uint256 expectedChainId = vm.envUint("EXPECTED_CHAIN_ID");
         require(block.chainid == expectedChainId, "WRONG_CHAIN");
 
-        vm.startBroadcast(privateKey);
+        vm.startBroadcast();
         ProjectRaffleV2 raffleImplementation = new ProjectRaffleV2();
-        BasketVaultV2 basketVaultImplementation = new BasketVaultV2();
-        ERC4626BasketYieldAdapterFactory erc4626YieldAdapterFactory =
-            new ERC4626BasketYieldAdapterFactory();
         address v3Factory = vm.envAddress("V3_FACTORY");
         address v3PositionManager = vm.envAddress("V3_POSITION_MANAGER");
         FundingBandV3IntegrationFactory fundingBandV3IntegrationFactory =
@@ -63,10 +53,11 @@ contract DeployProjectLauncherV2 is Script {
         LauncherReleaseConfig memory release = LauncherReleaseConfig({
             protocolFeeRecipient: vm.envAddress("PROTOCOL_FEE_RECIPIENT"),
             integrationApprovalRoot: vm.envBytes32("INTEGRATION_APPROVAL_ROOT"),
+            basketEnabled: false,
             raffleImplementation: address(raffleImplementation),
             randomnessAdapter: vm.envAddress("RANDOMNESS_ADAPTER"),
-            basketVaultImplementation: address(basketVaultImplementation),
-            erc4626YieldAdapterFactory: address(erc4626YieldAdapterFactory),
+            basketVaultImplementation: address(0),
+            erc4626YieldAdapterFactory: address(0),
             fundingBandV3IntegrationFactory: address(fundingBandV3IntegrationFactory),
             v3Factory: v3Factory,
             v3PositionManager: v3PositionManager,
@@ -98,7 +89,7 @@ contract DeployProjectLauncherV2 is Script {
     }
 
     function _deployCreationCodeStores() private returns (CreationCodeBinding[] memory bindings) {
-        bindings = new CreationCodeBinding[](10);
+        bindings = new CreationCodeBinding[](9);
         bindings[0] = _binding(keccak256("TOKEN"), type(ProjectVotesToken).creationCode);
         bindings[1] = _binding(keccak256("MULTISIG"), type(ProjectMultisigAccountV2).creationCode);
         bindings[2] = _binding(keccak256("TIMELOCK"), type(ProjectTimelockV2).creationCode);
@@ -106,9 +97,8 @@ contract DeployProjectLauncherV2 is Script {
         bindings[4] = _binding(keccak256("TREASURY"), type(ProjectTreasuryVaultV2).creationCode);
         bindings[5] = _binding(keccak256("AIRDROP"), type(ProjectAirdropV2).creationCode);
         bindings[6] = _binding(keccak256("ROUTER"), type(ProjectRouterV2).creationCode);
-        bindings[7] = _binding(keccak256("BASKET"), type(BasketManagerV2).creationCode);
-        bindings[8] = _binding(keccak256("BANDS"), type(ProjectFundingBandsV2).creationCode);
-        bindings[9] = _binding(keccak256("LIQUIDITY"), type(ProjectLiquidityManagerV2).creationCode);
+        bindings[7] = _binding(keccak256("BANDS"), type(ProjectFundingBandsV2).creationCode);
+        bindings[8] = _binding(keccak256("LIQUIDITY"), type(ProjectLiquidityManagerV2).creationCode);
     }
 
     function _binding(bytes32 key, bytes memory creationCode)
@@ -136,21 +126,9 @@ contract DeployProjectLauncherV2 is Script {
             "RAFFLE_IMPLEMENTATION_HASH_MISMATCH"
         );
         _verifyExternalRuntime(deployer.randomnessAdapter(), "RANDOMNESS_ADAPTER_RUNTIME_HASH");
-        require(
-            deployer.basketVaultImplementation().codehash
-                == keccak256(type(BasketVaultV2).runtimeCode),
-            "BASKET_IMPLEMENTATION_HASH_MISMATCH"
-        );
-        require(
-            address(deployer.erc4626YieldAdapterFactory()).codehash
-                == keccak256(type(ERC4626BasketYieldAdapterFactory).runtimeCode),
-            "ERC4626_FACTORY_HASH_MISMATCH"
-        );
-        require(
-            deployer.erc4626YieldAdapterFactory().ADAPTER_RUNTIME_HASH()
-                == keccak256(type(ERC4626BasketYieldAdapter).runtimeCode),
-            "ERC4626_ADAPTER_HASH_MISMATCH"
-        );
+        require(!deployer.basketEnabled(), "BASKET_MUST_BE_DISABLED");
+        require(deployer.basketVaultImplementation() == address(0), "BASKET_IMPLEMENTATION_SET");
+        require(address(deployer.erc4626YieldAdapterFactory()) == address(0), "ERC4626_FACTORY_SET");
         require(
             address(deployer.fundingBandV3IntegrationFactory()).code.length != 0,
             "FUNDING_BAND_V3_FACTORY_MISSING"
@@ -178,7 +156,6 @@ contract DeployProjectLauncherV2 is Script {
         );
         _verifyCreationCode(deployer, keccak256("AIRDROP"), type(ProjectAirdropV2).creationCode);
         _verifyCreationCode(deployer, keccak256("ROUTER"), type(ProjectRouterV2).creationCode);
-        _verifyCreationCode(deployer, keccak256("BASKET"), type(BasketManagerV2).creationCode);
         _verifyCreationCode(deployer, keccak256("BANDS"), type(ProjectFundingBandsV2).creationCode);
         _verifyCreationCode(
             deployer, keccak256("LIQUIDITY"), type(ProjectLiquidityManagerV2).creationCode
@@ -246,27 +223,16 @@ contract DeployProjectLauncherV2 is Script {
         vm.serializeBytes32(
             object, "randomnessAdapterRuntimeHash", deployer.randomnessAdapter().codehash
         );
+        vm.serializeBool(object, "basketEnabled", deployer.basketEnabled());
         vm.serializeAddress(
             object, "basketVaultImplementation", deployer.basketVaultImplementation()
         );
-        vm.serializeBytes32(
-            object,
-            "basketVaultImplementationRuntimeHash",
-            deployer.basketVaultImplementation().codehash
-        );
+        vm.serializeBytes32(object, "basketVaultImplementationRuntimeHash", bytes32(0));
         vm.serializeAddress(
             object, "erc4626YieldAdapterFactory", address(deployer.erc4626YieldAdapterFactory())
         );
-        vm.serializeBytes32(
-            object,
-            "erc4626YieldAdapterFactoryRuntimeHash",
-            address(deployer.erc4626YieldAdapterFactory()).codehash
-        );
-        vm.serializeBytes32(
-            object,
-            "erc4626YieldAdapterRuntimeHash",
-            deployer.erc4626YieldAdapterFactory().ADAPTER_RUNTIME_HASH()
-        );
+        vm.serializeBytes32(object, "erc4626YieldAdapterFactoryRuntimeHash", bytes32(0));
+        vm.serializeBytes32(object, "erc4626YieldAdapterRuntimeHash", bytes32(0));
         vm.serializeAddress(
             object,
             "fundingBandV3IntegrationFactory",
@@ -322,9 +288,7 @@ contract DeployProjectLauncherV2 is Script {
         vm.serializeBytes32(
             object, "routerCreationCodeHash", deployer.creationCodeHash(keccak256("ROUTER"))
         );
-        vm.serializeBytes32(
-            object, "basketCreationCodeHash", deployer.creationCodeHash(keccak256("BASKET"))
-        );
+        vm.serializeBytes32(object, "basketCreationCodeHash", bytes32(0));
         vm.serializeBytes32(
             object, "bandsCreationCodeHash", deployer.creationCodeHash(keccak256("BANDS"))
         );

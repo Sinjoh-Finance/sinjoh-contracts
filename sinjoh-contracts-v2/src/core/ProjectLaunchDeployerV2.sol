@@ -33,6 +33,7 @@ contract ProjectLaunchDeployerV2 {
     address private constant BURN_ADDRESS = SinjohV2Constants.BURN_ADDRESS;
     address private constant PONS_LOCKER = 0xda4bCee76B29EFEc9697Fcf663601c2042043968;
     uint256 private constant REQUIRED_CODE_STORES = 10;
+    uint256 private constant REQUIRED_CODE_STORES_WITHOUT_BASKET = 9;
 
     bytes32 private constant TOKEN = keccak256("TOKEN");
     bytes32 private constant MULTISIG = keccak256("MULTISIG");
@@ -52,6 +53,7 @@ contract ProjectLaunchDeployerV2 {
     bytes32 public immutable integrationApprovalRoot;
     address public immutable raffleImplementation;
     address public immutable randomnessAdapter;
+    bool public immutable basketEnabled;
     address public immutable basketVaultImplementation;
     ERC4626BasketYieldAdapterFactory public immutable erc4626YieldAdapterFactory;
     FundingBandV3IntegrationFactory public immutable fundingBandV3IntegrationFactory;
@@ -88,12 +90,23 @@ contract ProjectLaunchDeployerV2 {
         _requireAddress(release.protocolFeeRecipient, false);
         _requireAddress(release.raffleImplementation, true);
         _requireAddress(release.randomnessAdapter, true);
-        _requireAddress(release.basketVaultImplementation, true);
-        _requireAddress(release.erc4626YieldAdapterFactory, true);
+        if (release.basketEnabled) {
+            _requireAddress(release.basketVaultImplementation, true);
+            _requireAddress(release.erc4626YieldAdapterFactory, true);
+        } else if (
+            release.basketVaultImplementation != address(0)
+                || release.erc4626YieldAdapterFactory != address(0)
+        ) {
+            address invalidBasketInfrastructure = release.basketVaultImplementation != address(0)
+                ? release.basketVaultImplementation
+                : release.erc4626YieldAdapterFactory;
+            revert InvalidReleaseAddress(invalidBasketInfrastructure);
+        }
         _requireAddress(release.fundingBandV3IntegrationFactory, true);
         if (
-            release.erc4626YieldAdapterFactory.codehash
-                != keccak256(type(ERC4626BasketYieldAdapterFactory).runtimeCode)
+            release.basketEnabled
+                && release.erc4626YieldAdapterFactory.codehash
+                    != keccak256(type(ERC4626BasketYieldAdapterFactory).runtimeCode)
         ) revert InvalidReleaseAddress(release.erc4626YieldAdapterFactory);
         _requireAddress(release.v3Factory, true);
         _requireAddress(release.v3PositionManager, true);
@@ -106,7 +119,9 @@ contract ProjectLaunchDeployerV2 {
             bandFactory.v3Factory() != release.v3Factory
                 || bandFactory.v3PositionManager() != release.v3PositionManager
         ) revert InvalidReleaseAddress(release.fundingBandV3IntegrationFactory);
-        if (bindings.length != REQUIRED_CODE_STORES) {
+        uint256 requiredCodeStores =
+            release.basketEnabled ? REQUIRED_CODE_STORES : REQUIRED_CODE_STORES_WITHOUT_BASKET;
+        if (bindings.length != requiredCodeStores) {
             revert InvalidCodeStoreCount(bindings.length);
         }
 
@@ -116,6 +131,7 @@ contract ProjectLaunchDeployerV2 {
         integrationApprovalRoot = release.integrationApprovalRoot;
         raffleImplementation = release.raffleImplementation;
         randomnessAdapter = release.randomnessAdapter;
+        basketEnabled = release.basketEnabled;
         basketVaultImplementation = release.basketVaultImplementation;
         erc4626YieldAdapterFactory =
             ERC4626BasketYieldAdapterFactory(release.erc4626YieldAdapterFactory);
@@ -130,6 +146,9 @@ contract ProjectLaunchDeployerV2 {
         for (uint256 i; i < bindings.length; ++i) {
             CreationCodeBinding memory binding = bindings[i];
             if (!_isCreationCodeKey(binding.moduleKey)) revert UnknownModuleKey(binding.moduleKey);
+            if (!release.basketEnabled && binding.moduleKey == BASKET) {
+                revert UnknownModuleKey(binding.moduleKey);
+            }
             if (address(creationCodeStore[binding.moduleKey]) != address(0)) {
                 revert DuplicateModuleKey(binding.moduleKey);
             }

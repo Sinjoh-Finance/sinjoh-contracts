@@ -117,14 +117,17 @@ contract ProjectLauncherV2Test is Test {
 
     function setUp() public {
         releaseRandomness = new MockRaffleRandomness();
-        _installLauncher(keccak256("TEST_APPROVAL_ROOT"));
+        _installLauncher(keccak256("TEST_APPROVAL_ROOT"), true);
     }
 
-    function _installLauncher(bytes32 approvalRoot) private {
+    function _installLauncher(bytes32 approvalRoot, bool basketEnabled) private {
         ProjectRaffleV2 raffleImplementation = new ProjectRaffleV2();
-        BasketVaultV2 basketVaultImplementation = new BasketVaultV2();
-        ERC4626BasketYieldAdapterFactory erc4626YieldAdapterFactory =
-            new ERC4626BasketYieldAdapterFactory();
+        address basketVaultImplementation;
+        address erc4626YieldAdapterFactory;
+        if (basketEnabled) {
+            basketVaultImplementation = address(new BasketVaultV2());
+            erc4626YieldAdapterFactory = address(new ERC4626BasketYieldAdapterFactory());
+        }
         MockV3Factory v3Factory = new MockV3Factory();
         MockV3PositionManager v3PositionManager = new MockV3PositionManager();
         v3PositionManager.setFactory(address(v3Factory));
@@ -134,14 +137,15 @@ contract ProjectLauncherV2Test is Test {
         MockV4PositionManager v4PositionManager = new MockV4PositionManager(permit2);
         MockV4StateView v4StateView = new MockV4StateView();
 
-        CreationCodeBinding[] memory bindings = _deployCreationCodeStores();
+        CreationCodeBinding[] memory bindings = _deployCreationCodeStores(basketEnabled);
         LauncherReleaseConfig memory release = LauncherReleaseConfig({
             protocolFeeRecipient: FEE_RECIPIENT,
             integrationApprovalRoot: approvalRoot,
+            basketEnabled: basketEnabled,
             raffleImplementation: address(raffleImplementation),
             randomnessAdapter: address(releaseRandomness),
-            basketVaultImplementation: address(basketVaultImplementation),
-            erc4626YieldAdapterFactory: address(erc4626YieldAdapterFactory),
+            basketVaultImplementation: basketVaultImplementation,
+            erc4626YieldAdapterFactory: erc4626YieldAdapterFactory,
             fundingBandV3IntegrationFactory: address(fundingBandV3IntegrationFactory),
             v3Factory: address(v3Factory),
             v3PositionManager: address(v3PositionManager),
@@ -163,6 +167,24 @@ contract ProjectLauncherV2Test is Test {
         assertEq(address(registry), predictedRegistry);
         assertEq(address(deployer), predictedDeployer);
         assertEq(address(launcher), predictedLauncher);
+    }
+
+    function testBasketDisabledReleaseRejectsBasketLaunchConfiguration() public {
+        _installLauncher(keccak256("NON_BASKET_APPROVAL_ROOT"), false);
+        ProjectLaunchDeployerV2 releaseDeployer =
+            ProjectLaunchDeployerV2(address(launcher.deployer()));
+        assertFalse(releaseDeployer.basketEnabled());
+        assertEq(releaseDeployer.basketVaultImplementation(), address(0));
+        assertEq(address(releaseDeployer.erc4626YieldAdapterFactory()), address(0));
+        assertEq(address(releaseDeployer.creationCodeStore(keccak256("BASKET"))), address(0));
+
+        ProjectLaunchConfig memory config = _baseMultisigConfig();
+        config.modules.treasury = true;
+        config.modules.airdrop = true;
+        config.modules.basket = true;
+        config.airdrop.attestor = address(0x4444);
+        vm.expectPartialRevert(ProjectLauncherV2.InvalidBasketConfiguration.selector);
+        launcher.validateLaunchConfig(config);
     }
 
     function testLaunchMultisigTreasuryIsAtomicAndDeterministic() public {
@@ -255,7 +277,7 @@ contract ProjectLauncherV2Test is Test {
             keccak256(type(UniswapV3FundingBandPositionAdapter).runtimeCode),
             keccak256(type(MockV3PositionManager).runtimeCode)
         );
-        _installLauncher(approvalLeaf);
+        _installLauncher(approvalLeaf, true);
         ProjectLaunchDeployerV2 deployer = ProjectLaunchDeployerV2(address(launcher.deployer()));
         assertEq(address(deployer), predictedEngine);
         assertEq(deployer.v3Factory(), predictedV3Factory);
@@ -544,7 +566,7 @@ contract ProjectLauncherV2Test is Test {
         bytes32 approvalRoot = _basketYieldLeafHash(
             keccak256(type(ERC4626BasketYieldAdapter).runtimeCode), address(asset), address(erc4626)
         );
-        _installLauncher(approvalRoot);
+        _installLauncher(approvalRoot, true);
 
         ProjectLaunchConfig memory config = _baseMultisigConfig();
         config.salt = keccak256("TREASURY_BASKET_AIRDROP");
@@ -845,7 +867,7 @@ contract ProjectLauncherV2Test is Test {
         bytes32 bandLeaf = _bandIntegrationLeaf(
             address(pool), address(quote), address(guard), address(bandAdapter)
         );
-        _installLauncher(_hashPair(yieldLeaf, bandLeaf));
+        _installLauncher(_hashPair(yieldLeaf, bandLeaf), true);
         assertEq(address(registry), predicted.registry);
         assertEq(address(launcher.deployer()), predicted.engine);
         assertEq(address(launcher), predicted.launcher);
@@ -1156,8 +1178,11 @@ contract ProjectLauncherV2Test is Test {
         });
     }
 
-    function _deployCreationCodeStores() private returns (CreationCodeBinding[] memory bindings) {
-        bindings = new CreationCodeBinding[](10);
+    function _deployCreationCodeStores(bool basketEnabled)
+        private
+        returns (CreationCodeBinding[] memory bindings)
+    {
+        bindings = new CreationCodeBinding[](basketEnabled ? 10 : 9);
         bindings[0] = _binding(keccak256("TOKEN"), type(ProjectVotesToken).creationCode);
         bindings[1] = _binding(keccak256("MULTISIG"), type(ProjectMultisigAccountV2).creationCode);
         bindings[2] = _binding(keccak256("TIMELOCK"), type(ProjectTimelockV2).creationCode);
@@ -1165,9 +1190,13 @@ contract ProjectLauncherV2Test is Test {
         bindings[4] = _binding(keccak256("TREASURY"), type(ProjectTreasuryVaultV2).creationCode);
         bindings[5] = _binding(keccak256("AIRDROP"), type(ProjectAirdropV2).creationCode);
         bindings[6] = _binding(keccak256("ROUTER"), type(ProjectRouterV2).creationCode);
-        bindings[7] = _binding(keccak256("BASKET"), type(BasketManagerV2).creationCode);
-        bindings[8] = _binding(keccak256("BANDS"), type(ProjectFundingBandsV2).creationCode);
-        bindings[9] = _binding(keccak256("LIQUIDITY"), type(ProjectLiquidityManagerV2).creationCode);
+        uint256 index = 7;
+        if (basketEnabled) {
+            bindings[index++] = _binding(keccak256("BASKET"), type(BasketManagerV2).creationCode);
+        }
+        bindings[index++] = _binding(keccak256("BANDS"), type(ProjectFundingBandsV2).creationCode);
+        bindings[index] =
+            _binding(keccak256("LIQUIDITY"), type(ProjectLiquidityManagerV2).creationCode);
     }
 
     function _binding(bytes32 key, bytes memory creationCode)

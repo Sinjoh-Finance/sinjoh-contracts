@@ -1,5 +1,10 @@
 # Contracts v2 release artifacts
 
+The current release is explicitly non-Basket. Its Launcher rejects Basket module selections, its
+release bundle omits the Basket creation-code store, and deployment does not publish Basket vault
+or yield-adapter infrastructure. Basket will ship as a separate release after its RWA/dividend
+design is finalized.
+
 Release deployment is intentionally fail-closed. Do not invoke the Foundry broadcast script
 directly. Run:
 
@@ -14,7 +19,7 @@ manifest afterward.
 
 Required environment variables:
 
-- `RPC_URL`, `EXPECTED_CHAIN_ID`, and `PRIVATE_KEY`;
+- `RPC_URL`, `EXPECTED_CHAIN_ID`, `DEPLOYER_ADDRESS`, and `FOUNDRY_ACCOUNT`;
 - `PROTOCOL_FEE_RECIPIENT` and `INTEGRATION_APPROVAL_ROOT`;
 - `RANDOMNESS_ADAPTER` and its approved `RANDOMNESS_ADAPTER_RUNTIME_HASH`;
 - `V3_FACTORY`, `V3_POSITION_MANAGER`, `V4_POSITION_MANAGER`, `V4_STATE_VIEW`, and `PERMIT2`;

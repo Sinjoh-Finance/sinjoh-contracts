@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 const manifestPath = process.argv[2];
 if (!manifestPath) throw new Error("usage: node script/verify-release-manifest.mjs <manifest.json>");
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+const zeroAddress = `0x${"0".repeat(40)}`;
+const zeroBytes32 = `0x${"0".repeat(64)}`;
 
 const required = [
   "chainId", "protocolVersion", "gitCommit", "sourceTreeHash", "buildHash", "compiler",
@@ -14,6 +16,7 @@ const required = [
   "registry", "deploymentEngine", "launcher", "raffleImplementation",
   "raffleImplementationRuntimeHash",
   "randomnessAdapter", "randomnessAdapterRuntimeHash",
+  "basketEnabled",
   "basketVaultImplementation", "basketVaultImplementationRuntimeHash",
   "erc4626YieldAdapterFactory", "erc4626YieldAdapterFactoryRuntimeHash",
   "erc4626YieldAdapterRuntimeHash",
@@ -43,6 +46,13 @@ const expected = {
   optimizerEnabled: true,
   optimizerRuns: 1000,
   viaIr: true,
+  basketEnabled: false,
+  basketVaultImplementation: zeroAddress,
+  basketVaultImplementationRuntimeHash: zeroBytes32,
+  erc4626YieldAdapterFactory: zeroAddress,
+  erc4626YieldAdapterFactoryRuntimeHash: zeroBytes32,
+  erc4626YieldAdapterRuntimeHash: zeroBytes32,
+  basketCreationCodeHash: zeroBytes32,
   auditReportVersion: process.env.AUDIT_REPORT_VERSION,
   auditEvidence: process.env.AUDIT_EVIDENCE_PATH,
   auditEvidenceHash: process.env.AUDIT_EVIDENCE_HASH,
@@ -97,6 +107,11 @@ for (const [key, value] of Object.entries(manifest)) {
       || ["broadcaster", "protocolFeeRecipient", "registry", "deploymentEngine", "launcher",
         "randomnessAdapter", "v3Factory", "v4StateView", "permit2"].includes(key)
   ) {
+    if (
+      !manifest.basketEnabled
+        && ["basketVaultImplementation", "erc4626YieldAdapterFactory"].includes(key)
+        && /^0x0{40}$/i.test(value)
+    ) continue;
     if (!addressPattern.test(value) || /^0x0{40}$/i.test(value)) {
       throw new Error(`release manifest '${key}' is not a nonzero address`);
     }

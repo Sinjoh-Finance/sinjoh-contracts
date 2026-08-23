@@ -255,6 +255,7 @@ contract ProjectLauncherV2 is ReentrancyGuard {
                 != (config.treasury.basketAllocationBps == 0)
         ) revert InvalidTreasuryConfiguration();
         if (config.modules.basket) {
+            if (!deployer.basketEnabled()) revert InvalidBasketConfiguration();
             if (deployer.integrationApprovalRoot() == bytes32(0)) {
                 revert InvalidBasketConfiguration();
             }

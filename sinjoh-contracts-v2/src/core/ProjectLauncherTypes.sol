@@ -127,6 +127,7 @@ struct ProjectLaunchPreview {
 struct LauncherReleaseConfig {
     address protocolFeeRecipient;
     bytes32 integrationApprovalRoot;
+    bool basketEnabled;
     address raffleImplementation;
     address randomnessAdapter;
     address basketVaultImplementation;
