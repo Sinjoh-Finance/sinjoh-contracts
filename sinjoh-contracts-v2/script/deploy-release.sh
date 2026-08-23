@@ -34,19 +34,12 @@ for command_name in git forge cast node npm awk tr; do
 done
 
 if [[ "${SIMULATE_ONLY:-0}" == "0" ]]; then
-  tracked_changes="$(
-    git -C "$repo_dir" status --porcelain --untracked-files=no -- "$package_relative"
+  source_changes="$(
+    git -C "$repo_dir" status --porcelain --untracked-files=normal -- \
+      "$package_relative" \
+      ":(exclude)$package_relative/deployments/project-launcher-v2-*.json"
   )"
-  untracked_source="$(
-    git -C "$repo_dir" ls-files --others --exclude-standard -- "$package_relative" |
-      while IFS= read -r path; do
-        case "$path" in
-          "$package_relative"/deployments/project-launcher-v2-[0-9]*.json) ;;
-          *) printf '%s\n' "$path" ;;
-        esac
-      done
-  )"
-  if [[ -n "$tracked_changes" || -n "$untracked_source" ]]; then
+  if [[ -n "$source_changes" ]]; then
     fail "the contracts-v2 source tree is not clean"
   fi
 fi
