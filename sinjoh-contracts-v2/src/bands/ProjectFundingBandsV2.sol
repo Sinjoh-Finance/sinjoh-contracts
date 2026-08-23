@@ -338,7 +338,7 @@ contract ProjectFundingBandsV2 is
         ) revert InvalidConfirmationPeriod(market.confirmationPeriod);
         if (
             market.maximumObservationAge == 0
-                || market.maximumObservationAge > market.confirmationPeriod
+                || market.maximumObservationAge > SinjohV2Constants.FUNDING_BAND_MAX_OBSERVATION_AGE
         ) revert InvalidObservationAge(market.maximumObservationAge);
 
         expectedProjectId = ProjectIds.derive(block.chainid, project.registry, project.subject);

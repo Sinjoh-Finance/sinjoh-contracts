@@ -294,7 +294,8 @@ contract ProjectLauncherV2 is ReentrancyGuard {
                     || config.bands.confirmationPeriod < 5 minutes
                     || config.bands.confirmationPeriod > 1 days
                     || config.bands.maximumObservationAge == 0
-                    || config.bands.maximumObservationAge > config.bands.confirmationPeriod
+                    || config.bands.maximumObservationAge
+                        > SinjohV2Constants.FUNDING_BAND_MAX_OBSERVATION_AGE
                     || (!automatic && !externalIntegrations)
             ) revert InvalidBandsConfiguration();
             if (automatic) {

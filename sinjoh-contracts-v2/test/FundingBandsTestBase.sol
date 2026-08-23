@@ -113,7 +113,7 @@ abstract contract FundingBandsTestBase is Test {
         config.marketCapGuard = address(guard);
         config.positionAdapter = address(positionAdapter);
         config.confirmationPeriod = 15 minutes;
-        config.maximumObservationAge = 5 minutes;
+        config.maximumObservationAge = 25 hours;
         config.integrationApprovalProof = integrationProof;
     }
 

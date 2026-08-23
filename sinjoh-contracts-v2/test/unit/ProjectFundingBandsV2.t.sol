@@ -102,7 +102,7 @@ contract ProjectFundingBandsV2Test is Test {
                         twapWindow: 0,
                         quoteUsdOracle: address(0),
                         confirmationPeriod: 15 minutes,
-                        maximumObservationAge: 5 minutes,
+                        maximumObservationAge: 25 hours,
                         integrationApprovalProof: integrationProof
                     })
                 })
@@ -323,10 +323,10 @@ contract ProjectFundingBandsV2Test is Test {
     }
 
     function testCreationRejectsStaleObservation() public {
-        vm.warp(1 days);
+        vm.warp(2 days);
         assertTrue(subject.transfer(address(bands), INVENTORY));
         guard.setObservation(
-            LOWER - 1, uint48(block.timestamp - 5 minutes - 1), keccak256("stale"), 100, 200
+            LOWER - 1, uint48(block.timestamp - 25 hours - 1), keccak256("stale"), 100, 200
         );
         vm.expectPartialRevert(ProjectFundingBandsV2.InvalidObservation.selector);
         controller.execute(

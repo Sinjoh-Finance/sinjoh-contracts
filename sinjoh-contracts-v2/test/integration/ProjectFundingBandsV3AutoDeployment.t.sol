@@ -153,7 +153,7 @@ contract ProjectFundingBandsV3AutoDeploymentTest is Test {
             referenceSupply: system.subject.totalSupply(),
             twapWindow: 15 minutes,
             quoteUsdOracle: address(system.quoteUsdOracle),
-            maximumOracleAge: 5 minutes
+            maximumOracleAge: 25 hours
         });
         (system.predictedGuard, system.predictedAdapter) = factory.predict(integration);
         system.approvalLeaf = _approvalLeaf(
@@ -186,7 +186,7 @@ contract ProjectFundingBandsV3AutoDeploymentTest is Test {
             twapWindow: 15 minutes,
             quoteUsdOracle: address(system.quoteUsdOracle),
             confirmationPeriod: 15 minutes,
-            maximumObservationAge: 5 minutes,
+            maximumObservationAge: 25 hours,
             integrationApprovalProof: new bytes32[](0)
         });
         system.bands = new ProjectFundingBandsV2(abi.encode(deployment));

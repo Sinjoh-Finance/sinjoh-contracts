@@ -242,7 +242,7 @@ contract ProjectLauncherV2Test is Test {
         config.bands.twapWindow = 15 minutes;
         config.bands.quoteUsdOracle = address(oracle);
         config.bands.confirmationPeriod = 15 minutes;
-        config.bands.maximumObservationAge = 5 minutes;
+        config.bands.maximumObservationAge = 25 hours;
 
         ProjectLaunchPreview memory preview = launcher.validateLaunchConfig(config);
         assertNotEq(preview.addresses.fundingBands, address(0));
@@ -256,6 +256,25 @@ contract ProjectLauncherV2Test is Test {
             launcher.validateLaunchConfig(config).addresses.fundingBandMarketCapGuard,
             preview.addresses.fundingBandMarketCapGuard
         );
+    }
+
+    function testFundingBandsPreflightRejectsObservationAgeBeyondChainlinkMargin() public {
+        MockBasketAsset quote = new MockBasketAsset("Quote", "QUOTE");
+        MockFundingBandPool pool = new MockFundingBandPool();
+        MockFundingBandQuoteUsdOracle oracle = new MockFundingBandQuoteUsdOracle(address(quote));
+        oracle.setObservation(1e8, uint48(block.timestamp), keccak256("QUOTE"));
+        ProjectLaunchConfig memory config = _baseMultisigConfig();
+        config.modules.treasury = true;
+        config.modules.fundingBands = true;
+        config.launchProfile.canonicalPool = address(pool);
+        config.bands.quoteAsset = address(quote);
+        config.bands.twapWindow = 15 minutes;
+        config.bands.quoteUsdOracle = address(oracle);
+        config.bands.confirmationPeriod = 15 minutes;
+        config.bands.maximumObservationAge = 25 hours + 1;
+
+        vm.expectPartialRevert(ProjectLauncherV2.InvalidBandsConfiguration.selector);
+        launcher.validateLaunchConfig(config);
     }
 
     function testLaunchFundingBandsAtomicallyDeploysPlatformManagedIntegrations() public {
@@ -303,7 +322,7 @@ contract ProjectLauncherV2Test is Test {
         config.bands.twapWindow = 15 minutes;
         config.bands.quoteUsdOracle = address(oracle);
         config.bands.confirmationPeriod = 15 minutes;
-        config.bands.maximumObservationAge = 5 minutes;
+        config.bands.maximumObservationAge = 25 hours;
 
         ProjectLaunchPreview memory preview = launcher.validateLaunchConfig(config);
         assertEq(preview.addresses.subject, predictedSubject);
@@ -920,7 +939,7 @@ contract ProjectLauncherV2Test is Test {
         config.bands.marketCapGuard = address(guard);
         config.bands.positionAdapter = address(bandAdapter);
         config.bands.confirmationPeriod = 5 minutes;
-        config.bands.maximumObservationAge = 5 minutes;
+        config.bands.maximumObservationAge = 25 hours;
         config.bands.integrationApprovalProof = _proof(yieldLeaf);
         config.raffle = _raffleConfig(address(0), address(quote));
 
