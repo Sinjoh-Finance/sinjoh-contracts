@@ -8,7 +8,10 @@ import {
     AirdropAccountConfig,
     AirdropCadence,
     AirdropDustDestination,
-    AirdropEligibilityMode
+    AirdropEligibilityMode,
+    AirdropEpochCommitment,
+    AirdropLeaf,
+    AirdropProof
 } from "../../src/airdrop/AirdropTypes.sol";
 import { ProjectAirdropV2 } from "../../src/airdrop/ProjectAirdropV2.sol";
 import {
@@ -80,6 +83,7 @@ contract ProjectLauncherV2Test is Test {
     address internal constant FEE_RECIPIENT = address(0xFEE);
     address internal constant GUARDIAN = address(0xBEEF);
     address internal constant HOLDER = address(0xB0B);
+    uint256 internal constant ATTESTOR_KEY = 0xA773570;
 
     ProjectLauncherV2 internal launcher;
     ProjectRegistryV2 internal registry;
@@ -571,6 +575,82 @@ contract ProjectLauncherV2Test is Test {
         );
     }
 
+    function testE2EBasketYieldHarvestPushesHolderDividendWithoutClaim() public {
+        _basketDividendJourney(LaunchVoteSource.LIQUID, 1_000_000e18);
+    }
+
+    function testE2EBasketYieldHarvestPushesStakerDividendByPoSNftWeight() public {
+        _basketDividendJourney(LaunchVoteSource.STAKED, 600_000e18);
+    }
+
+    function _basketDividendJourney(LaunchVoteSource voteSource, uint256 eligibleWeight) private {
+        (ProjectLaunchPreview memory launched, MockBasketAsset quote) =
+            _launchAllModules(LaunchGovernanceMode.TOKEN_HOLDER, voteSource);
+        if (voteSource == LaunchVoteSource.STAKED) {
+            ProjectVotesToken subject = ProjectVotesToken(launched.addresses.subject);
+            ProjectStakingPoolV2 staking =
+                ProjectStakingPoolV2(payable(launched.addresses.stakingPool));
+            vm.startPrank(CREATOR);
+            subject.approve(address(staking), eligibleWeight);
+            staking.stake(eligibleWeight, CREATOR);
+            vm.stopPrank();
+        }
+        ProjectTreasuryVaultV2 treasury =
+            ProjectTreasuryVaultV2(payable(launched.addresses.treasury));
+        quote.mint(address(this), 1_000e18);
+        quote.approve(address(treasury), 1_000e18);
+        treasury.deposit(address(quote), 1_000e18, true);
+        treasury.executeBasketRoute(address(quote), type(uint256).max);
+
+        ERC4626BasketYieldAdapter adapter =
+            ERC4626BasketYieldAdapter(launched.addresses.basketYieldAdapters[0]);
+        quote.mint(address(this), 25e18);
+        quote.transfer(address(adapter.vault()), 25e18);
+        vm.warp(block.timestamp + 1 days);
+        BasketManagerV2(payable(launched.addresses.basketManager)).harvest(1);
+
+        ProjectAirdropV2 airdrop = ProjectAirdropV2(payable(launched.addresses.airdrop));
+        bytes32 accountId = airdrop.accountId(launched.addresses.primaryBasketVault, address(quote));
+        (ProjectAirdropV2.AccountState memory account,,) = airdrop.accountStatus(accountId);
+        uint256 epochAmount = account.uncommittedFunding;
+        assertGt(epochAmount, 0);
+
+        uint64 snapshotBlock = uint64(block.number);
+        bytes32 snapshotHash = keccak256("basket dividend snapshot");
+        uint48 snapshotTime = uint48(block.timestamp);
+        vm.warp(block.timestamp + 1);
+        vm.roll(block.number + 2);
+        vm.setBlockhash(snapshotBlock, snapshotHash);
+        AirdropLeaf memory leaf =
+            AirdropLeaf({ holder: CREATOR, weight: eligibleWeight, amount: epochAmount });
+        bytes32 root = airdrop.leafHash(accountId, 1, snapshotBlock, snapshotTime, leaf);
+        AirdropEpochCommitment memory commitment = AirdropEpochCommitment({
+            accountId: accountId,
+            epochId: 1,
+            snapshotBlock: snapshotBlock,
+            snapshotBlockHash: snapshotHash,
+            snapshotTime: snapshotTime,
+            rootHash: root,
+            rootSum: epochAmount,
+            epochAmount: epochAmount,
+            totalEligibleWeight: eligibleWeight,
+            leafCount: 1,
+            artifactHash: keccak256("basket dividend artifact")
+        });
+        bytes32 digest = airdrop.commitmentDigest(commitment);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ATTESTOR_KEY, digest);
+        airdrop.commitEpoch(commitment, abi.encodePacked(r, s, v));
+        AirdropLeaf[] memory leaves = new AirdropLeaf[](1);
+        leaves[0] = leaf;
+        AirdropProof[] memory proofs = new AirdropProof[](1);
+        airdrop.push(accountId, 1, leaves, proofs);
+        airdrop.finalizeEpoch(accountId, 1);
+
+        assertEq(quote.balanceOf(CREATOR), epochAmount);
+        assertTrue(airdrop.processed(accountId, 1, CREATOR));
+        assertTrue(airdrop.epochStatus(accountId, 1).finalized);
+    }
+
     function _launchAllModules(LaunchGovernanceMode governanceMode, LaunchVoteSource voteSource)
         private
         returns (ProjectLaunchPreview memory launched, MockBasketAsset quote)
@@ -644,7 +724,7 @@ contract ProjectLauncherV2Test is Test {
         config.modules.raffle = true;
         config.modules.liquidity = true;
         config.staking = StakingLaunchConfig({ guardian: GUARDIAN, lockDuration: 7 days });
-        config.airdrop.attestor = address(0x4444);
+        config.airdrop.attestor = vm.addr(ATTESTOR_KEY);
         bool stakedEligibility = voteSource == LaunchVoteSource.STAKED;
         config.airdrop.eligibilityMode =
             stakedEligibility ? AirdropEligibilityMode.STAKERS : AirdropEligibilityMode.HOLDERS;

@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import { Test } from "forge-std/Test.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {
     AirdropAccountConfig,
     AirdropCadence,
@@ -31,7 +32,7 @@ contract ERC4626BasketYieldAdapterV2IntegrationTest is Test {
     uint256 private constant BASKET_ID = 1;
     address private constant CREATOR = address(0xC0FFEE);
 
-    function testBasketFundsHarvestsAndBurnExitsReviewedERC4626Vault() public {
+    function testE2EBasketYieldHarvestTransferAndPricedTaxedBurn() public {
         MockRegistry registry = new MockRegistry();
         MockProjectToken subject =
             new MockProjectToken(address(registry), address(this), 1_000_000e18);
@@ -95,14 +96,27 @@ contract ERC4626BasketYieldAdapterV2IntegrationTest is Test {
         assertGt(airdrop.funded(address(asset)), 0);
         assertGe(adapter.totalAssets(), adapter.managedPrincipal());
 
-        treasury.execute(address(manager), abi.encodeCall(manager.beginBurn, (BASKET_ID)));
+        treasury.execute(
+            address(manager.basketNFT()),
+            abi.encodeCall(IERC721.transferFrom, (address(treasury), address(this), BASKET_ID))
+        );
+        assertEq(manager.basketNFT().ownerOf(BASKET_ID), address(this));
+        uint256 subjectSupplyBefore = subject.totalSupply();
+        subject.approve(address(manager), 10e18);
+        manager.beginBurn(BASKET_ID);
         manager.processBurnTarget(BASKET_ID, 0);
-        treasury.execute(address(manager), abi.encodeCall(manager.finalizeBurn, (BASKET_ID)));
+        manager.finalizeBurn(BASKET_ID);
         assertEq(adapter.totalAssets(), 0);
         assertEq(erc4626.balanceOf(address(adapter)), 0);
-        assertGe(asset.balanceOf(address(treasury)), 1_000e18);
+        assertEq(subject.totalSupply(), subjectSupplyBefore - 10e18);
+        assertApproxEqAbs(asset.balanceOf(address(this)), 900e18, 3);
+        assertApproxEqAbs(asset.balanceOf(CREATOR), 100e18, 3);
+        assertApproxEqAbs(airdrop.funded(address(asset)), 100e18, 3);
         assertApproxEqAbs(
-            asset.balanceOf(address(treasury)) + airdrop.funded(address(asset)), 1_100e18, 1
+            asset.balanceOf(address(this)) + asset.balanceOf(CREATOR)
+                + airdrop.funded(address(asset)),
+            1_100e18,
+            3
         );
     }
 
@@ -133,9 +147,9 @@ contract ERC4626BasketYieldAdapterV2IntegrationTest is Test {
             cadence: BasketHarvestCadence.ONE_DAY,
             eligibilityMode: BasketEligibilityMode.HOLDERS,
             governanceUpdatesEnabled: false,
-            burnTaxBps: 0,
+            burnTaxBps: 1_000,
             burnTaxDestination: BasketBurnTaxDestination.CREATOR,
-            burnPriceSubject: 0,
+            burnPriceSubject: 10e18,
             airdropAccountConfig: abi.encode(account),
             allocation: allocation
         });
