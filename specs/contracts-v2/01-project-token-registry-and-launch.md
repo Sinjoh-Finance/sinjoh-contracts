@@ -131,6 +131,7 @@ struct LaunchConfig {
     bytes stakingConfig;
     bytes airdropConfig;
     bytes basketConfig;
+    address[] basketERC4626Vaults;
     bytes bandsConfig;
     bytes raffleConfig;
     bytes liquidityConfig;
@@ -145,6 +146,11 @@ Validation:
   the sum equals `totalSupply` exactly;
 - `STAKED` governance requires staking;
 - basket requires treasury and airdrop;
+- the standard Basket path supplies one reviewed synchronous ERC-4626 vault per target and leaves
+  target adapter addresses empty; the Launcher validates each vault's asset and atomically deploys
+  the correctly bound adapter;
+- an advanced Basket path may instead supply pre-reviewed target adapters and no ERC-4626 vault
+  list; standard and advanced paths cannot be mixed within one launch;
 - treasury automatic basket routing requires basket;
 - staker-only airdrops require staking;
 - raffle and liquidity configs satisfy their preserved specifications;
@@ -164,11 +170,13 @@ Validation:
 6. deploy the selected independent Multisig Account or Token Governance protocol, using the token
    or staking pool only when Token Governance is selected;
 7. deploy the treasury and every selected module with the same project bindings;
-8. mint a configured Basket NFT directly to the treasury when basket is enabled;
-9. create/resolve the canonical pool required by the launch profile;
-10. verify all module readbacks, roles, and code hashes;
-11. register the project;
-12. renounce every bootstrap role and emit `ProjectLaunched` with all addresses.
+8. when Basket uses the standard ERC-4626 path, deterministically deploy and bind every yield
+   adapter from the release's ownerless factory;
+9. mint a configured Basket NFT directly to the treasury when basket is enabled;
+10. create/resolve the canonical pool required by the launch profile;
+11. verify all module and adapter readbacks, roles, exclusions, and code hashes;
+12. register the project;
+13. renounce every bootstrap role and emit `ProjectLaunched` with all addresses.
 
 Any failure reverts the complete launch. There is no half-launched project and no temporary factory
 controller power that must be cleaned up later.

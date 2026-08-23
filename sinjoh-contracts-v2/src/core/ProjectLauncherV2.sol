@@ -2,10 +2,13 @@
 pragma solidity 0.8.28;
 
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
+import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { ERC4626BasketYieldAdapterFactory } from "../adapters/ERC4626BasketYieldAdapterFactory.sol";
 import { AirdropEligibilityMode } from "../airdrop/AirdropTypes.sol";
 import { BasketManagerV2 } from "../basket/BasketManagerV2.sol";
 import { IProjectModule } from "../interfaces/IProjectModule.sol";
+import { IBasketYieldAdapter } from "../interfaces/IBasketYieldAdapter.sol";
 import { ProjectIds } from "../libraries/ProjectIds.sol";
 import { ProjectModuleBits } from "../libraries/ProjectModuleBits.sol";
 import { SinjohV2Constants } from "../libraries/SinjohV2Constants.sol";
@@ -101,7 +104,7 @@ contract ProjectLauncherV2 is ReentrancyGuard {
         if (msg.sender != config.creator) revert CreatorMustLaunch(msg.sender, config.creator);
         deployer.deployProject(config, preview);
         _initializeLaunchConfiguration(config, preview);
-        _verifyModules(preview);
+        _verifyModules(config, preview);
         _register(config, preview);
 
         emit ProjectLaunchCompleted(
@@ -253,6 +256,22 @@ contract ProjectLauncherV2 is ReentrancyGuard {
             if (uint8(config.basket.eligibilityMode) != uint8(config.airdrop.eligibilityMode)) {
                 revert InvalidBasketConfiguration();
             }
+            uint256 adapterCount = config.basketERC4626Vaults.length;
+            uint256 targetCount = config.basket.allocation.targets.length;
+            if (adapterCount != 0) {
+                if (adapterCount != targetCount) revert InvalidBasketConfiguration();
+                for (uint256 i; i < adapterCount; ++i) {
+                    address erc4626Vault = config.basketERC4626Vaults[i];
+                    if (
+                        config.basket.allocation.targets[i].yieldAdapter != address(0)
+                            || erc4626Vault.code.length == 0
+                            || IERC4626(erc4626Vault).asset()
+                                != config.basket.allocation.targets[i].depositAsset
+                    ) revert InvalidBasketConfiguration();
+                }
+            }
+        } else if (config.basketERC4626Vaults.length != 0) {
+            revert InvalidBasketConfiguration();
         }
         if (config.modules.fundingBands) {
             if (
@@ -349,6 +368,18 @@ contract ProjectLauncherV2 is ReentrancyGuard {
                 keccak256(abi.encode(projectId, uint256(1))),
                 a.basketManager
             );
+            uint256 adapterCount = config.basketERC4626Vaults.length;
+            if (adapterCount != 0) {
+                a.basketYieldAdapters = new address[](adapterCount);
+                ERC4626BasketYieldAdapterFactory factory = deployer.erc4626YieldAdapterFactory();
+                for (uint256 i; i < adapterCount; ++i) {
+                    a.basketYieldAdapters[i] = factory.predict(
+                        a.primaryBasketVault,
+                        config.basketERC4626Vaults[i],
+                        _basketAdapterUserSalt(config.creator, config.salt, i)
+                    );
+                }
+            }
         }
         if (config.modules.fundingBands) a.fundingBands = _predict(config, configHash, BANDS);
         preview = ProjectLaunchPreview({
@@ -404,7 +435,10 @@ contract ProjectLauncherV2 is ReentrancyGuard {
         }
     }
 
-    function _verifyModules(ProjectLaunchPreview memory preview) private view {
+    function _verifyModules(
+        ProjectLaunchConfig calldata config,
+        ProjectLaunchPreview memory preview
+    ) private view {
         ProjectLaunchAddresses memory a = preview.addresses;
         address[8] memory modules = [
             a.treasury,
@@ -424,6 +458,15 @@ contract ProjectLauncherV2 is ReentrancyGuard {
                     || IProjectModule(module).subject() != a.subject
                     || IProjectModule(module).projectId() != preview.projectId
             ) revert ModuleDeploymentMismatch(bytes32(i), module);
+        }
+        for (uint256 i; i < a.basketYieldAdapters.length; ++i) {
+            address adapter = a.basketYieldAdapters[i];
+            if (
+                adapter.code.length == 0
+                    || IBasketYieldAdapter(adapter).basketVault() != a.primaryBasketVault
+                    || IBasketYieldAdapter(adapter).depositAsset()
+                        != config.basket.allocation.targets[i].depositAsset
+            ) revert ModuleDeploymentMismatch(keccak256(abi.encode(BASKET, i)), adapter);
         }
     }
 
@@ -479,6 +522,12 @@ contract ProjectLauncherV2 is ReentrancyGuard {
                     || recipient == config.bands.positionAdapter || recipient == PONS_LOCKER
                     || _contains(config.launchProfile.additionalCustodyExclusions, recipient)
             ) revert AllocationToCustody(recipient);
+            for (uint256 j; j < config.basket.allocation.targets.length; ++j) {
+                address adapter = a.basketYieldAdapters.length == 0
+                    ? config.basket.allocation.targets[j].yieldAdapter
+                    : a.basketYieldAdapters[j];
+                if (recipient == adapter) revert AllocationToCustody(recipient);
+            }
         }
     }
 
@@ -492,6 +541,14 @@ contract ProjectLauncherV2 is ReentrancyGuard {
 
     function _firstCreateAddress(address parent) private pure returns (address) {
         return address(uint160(uint256(keccak256(abi.encodePacked(hex"d694", parent, hex"01")))));
+    }
+
+    function _basketAdapterUserSalt(address creator, bytes32 projectSalt, uint256 index)
+        private
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encode(creator, projectSalt, PROTOCOL_VERSION, BASKET, index));
     }
 
     function _enabledModules(ProjectLaunchConfig calldata config)

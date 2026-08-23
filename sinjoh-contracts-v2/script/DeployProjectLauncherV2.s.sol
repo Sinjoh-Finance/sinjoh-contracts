@@ -4,6 +4,9 @@ pragma solidity 0.8.28;
 import { Script } from "forge-std/Script.sol";
 import { console2 } from "forge-std/console2.sol";
 import { ProjectAirdropV2 } from "../src/airdrop/ProjectAirdropV2.sol";
+import {
+    ERC4626BasketYieldAdapterFactory
+} from "../src/adapters/ERC4626BasketYieldAdapterFactory.sol";
 import { BasketManagerV2 } from "../src/basket/BasketManagerV2.sol";
 import { BasketVaultV2 } from "../src/basket/BasketVaultV2.sol";
 import { ProjectFundingBandsV2 } from "../src/bands/ProjectFundingBandsV2.sol";
@@ -39,6 +42,8 @@ contract DeployProjectLauncherV2 is Script {
         vm.startBroadcast(privateKey);
         ProjectRaffleV2 raffleImplementation = new ProjectRaffleV2();
         BasketVaultV2 basketVaultImplementation = new BasketVaultV2();
+        ERC4626BasketYieldAdapterFactory erc4626YieldAdapterFactory =
+            new ERC4626BasketYieldAdapterFactory();
         CreationCodeBinding[] memory bindings = _deployCreationCodeStores();
 
         LauncherReleaseConfig memory release = LauncherReleaseConfig({
@@ -46,6 +51,7 @@ contract DeployProjectLauncherV2 is Script {
             integrationApprovalRoot: vm.envBytes32("INTEGRATION_APPROVAL_ROOT"),
             raffleImplementation: address(raffleImplementation),
             basketVaultImplementation: address(basketVaultImplementation),
+            erc4626YieldAdapterFactory: address(erc4626YieldAdapterFactory),
             v3Factory: vm.envAddress("V3_FACTORY"),
             v3PositionManager: vm.envAddress("V3_POSITION_MANAGER"),
             v4PositionManager: vm.envAddress("V4_POSITION_MANAGER"),
@@ -155,6 +161,14 @@ contract DeployProjectLauncherV2 is Script {
         vm.serializeAddress(object, "raffleImplementation", deployer.raffleImplementation());
         vm.serializeAddress(
             object, "basketVaultImplementation", deployer.basketVaultImplementation()
+        );
+        vm.serializeAddress(
+            object, "erc4626YieldAdapterFactory", address(deployer.erc4626YieldAdapterFactory())
+        );
+        vm.serializeBytes32(
+            object,
+            "erc4626YieldAdapterRuntimeHash",
+            deployer.erc4626YieldAdapterFactory().ADAPTER_RUNTIME_HASH()
         );
         vm.serializeBytes32(object, "integrationApprovalRoot", deployer.integrationApprovalRoot());
         vm.serializeBytes32(object, "registryRuntimeHash", address(registry).codehash);

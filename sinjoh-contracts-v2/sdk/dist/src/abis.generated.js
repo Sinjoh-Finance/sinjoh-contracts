@@ -602,6 +602,11 @@ export const projectLauncherV2Abi = [
                         ]
                     },
                     {
+                        "name": "basketERC4626Vaults",
+                        "type": "address[]",
+                        "internalType": "address[]"
+                    },
+                    {
                         "name": "bands",
                         "type": "tuple",
                         "internalType": "struct BandsLaunchConfig",
@@ -1207,6 +1212,11 @@ export const projectLauncherV2Abi = [
                         ]
                     },
                     {
+                        "name": "basketERC4626Vaults",
+                        "type": "address[]",
+                        "internalType": "address[]"
+                    },
+                    {
                         "name": "bands",
                         "type": "tuple",
                         "internalType": "struct BandsLaunchConfig",
@@ -1517,6 +1527,11 @@ export const projectLauncherV2Abi = [
                                 "name": "primaryBasketVault",
                                 "type": "address",
                                 "internalType": "address"
+                            },
+                            {
+                                "name": "basketYieldAdapters",
+                                "type": "address[]",
+                                "internalType": "address[]"
                             },
                             {
                                 "name": "primaryBasketId",
@@ -1921,6 +1936,11 @@ export const projectLauncherV2Abi = [
                         ]
                     },
                     {
+                        "name": "basketERC4626Vaults",
+                        "type": "address[]",
+                        "internalType": "address[]"
+                    },
+                    {
                         "name": "bands",
                         "type": "tuple",
                         "internalType": "struct BandsLaunchConfig",
@@ -2231,6 +2251,11 @@ export const projectLauncherV2Abi = [
                                 "name": "primaryBasketVault",
                                 "type": "address",
                                 "internalType": "address"
+                            },
+                            {
+                                "name": "basketYieldAdapters",
+                                "type": "address[]",
+                                "internalType": "address[]"
                             },
                             {
                                 "name": "primaryBasketId",
@@ -2677,6 +2702,11 @@ export const projectLauncherV2Abi = [
                         ]
                     },
                     {
+                        "name": "basketERC4626Vaults",
+                        "type": "address[]",
+                        "internalType": "address[]"
+                    },
+                    {
                         "name": "bands",
                         "type": "tuple",
                         "internalType": "struct BandsLaunchConfig",
@@ -2987,6 +3017,11 @@ export const projectLauncherV2Abi = [
                                 "name": "primaryBasketVault",
                                 "type": "address",
                                 "internalType": "address"
+                            },
+                            {
+                                "name": "basketYieldAdapters",
+                                "type": "address[]",
+                                "internalType": "address[]"
                             },
                             {
                                 "name": "primaryBasketId",
@@ -29034,6 +29069,494 @@ export const projectLiquidityManagerV2Abi = [
         "type": "error",
         "name": "UnexpectedNFT",
         "inputs": []
+    }
+];
+export const erc4626BasketYieldAdapterAbi = [
+    {
+        "type": "constructor",
+        "inputs": [
+            {
+                "name": "basketVault_",
+                "type": "address",
+                "internalType": "address"
+            },
+            {
+                "name": "vault_",
+                "type": "address",
+                "internalType": "address"
+            }
+        ],
+        "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
+        "name": "basketVault",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "address",
+                "internalType": "address"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "deposit",
+        "inputs": [
+            {
+                "name": "assets",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "positionUnits",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
+        "name": "depositAsset",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "address",
+                "internalType": "address"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "exitAll",
+        "inputs": [
+            {
+                "name": "recipient",
+                "type": "address",
+                "internalType": "address"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "assets",
+                "type": "address[]",
+                "internalType": "address[]"
+            },
+            {
+                "name": "amounts",
+                "type": "uint256[]",
+                "internalType": "uint256[]"
+            }
+        ],
+        "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
+        "name": "harvest",
+        "inputs": [
+            {
+                "name": "recipient",
+                "type": "address",
+                "internalType": "address"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "assets",
+                "type": "address[]",
+                "internalType": "address[]"
+            },
+            {
+                "name": "amounts",
+                "type": "uint256[]",
+                "internalType": "uint256[]"
+            }
+        ],
+        "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
+        "name": "managedPrincipal",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "totalAssets",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "assets",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "vault",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "address",
+                "internalType": "contract IERC4626"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "event",
+        "name": "Deposited",
+        "inputs": [
+            {
+                "name": "assets",
+                "type": "uint256",
+                "indexed": false,
+                "internalType": "uint256"
+            },
+            {
+                "name": "shares",
+                "type": "uint256",
+                "indexed": false,
+                "internalType": "uint256"
+            },
+            {
+                "name": "managedPrincipal",
+                "type": "uint256",
+                "indexed": false,
+                "internalType": "uint256"
+            }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "event",
+        "name": "Exited",
+        "inputs": [
+            {
+                "name": "assets",
+                "type": "uint256",
+                "indexed": false,
+                "internalType": "uint256"
+            }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "event",
+        "name": "Harvested",
+        "inputs": [
+            {
+                "name": "assets",
+                "type": "uint256",
+                "indexed": false,
+                "internalType": "uint256"
+            },
+            {
+                "name": "remainingPositionValue",
+                "type": "uint256",
+                "indexed": false,
+                "internalType": "uint256"
+            }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "error",
+        "name": "InexactAssetMovement",
+        "inputs": [
+            {
+                "name": "expected",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "actual",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ]
+    },
+    {
+        "type": "error",
+        "name": "InexactShareMovement",
+        "inputs": [
+            {
+                "name": "expected",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "actual",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ]
+    },
+    {
+        "type": "error",
+        "name": "InvalidAddress",
+        "inputs": [
+            {
+                "name": "candidate",
+                "type": "address",
+                "internalType": "address"
+            }
+        ]
+    },
+    {
+        "type": "error",
+        "name": "InvalidAmount",
+        "inputs": [
+            {
+                "name": "supplied",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ]
+    },
+    {
+        "type": "error",
+        "name": "InvalidRecipient",
+        "inputs": [
+            {
+                "name": "supplied",
+                "type": "address",
+                "internalType": "address"
+            }
+        ]
+    },
+    {
+        "type": "error",
+        "name": "OnlyBasketVault",
+        "inputs": [
+            {
+                "name": "caller",
+                "type": "address",
+                "internalType": "address"
+            }
+        ]
+    },
+    {
+        "type": "error",
+        "name": "PrincipalImpaired",
+        "inputs": [
+            {
+                "name": "principal",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "positionValue",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ]
+    },
+    {
+        "type": "error",
+        "name": "ReentrancyGuardReentrantCall",
+        "inputs": []
+    },
+    {
+        "type": "error",
+        "name": "SafeERC20FailedOperation",
+        "inputs": [
+            {
+                "name": "token",
+                "type": "address",
+                "internalType": "address"
+            }
+        ]
+    }
+];
+export const erc4626BasketYieldAdapterFactoryAbi = [
+    {
+        "type": "function",
+        "name": "ADAPTER_RUNTIME_HASH",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "bytes32",
+                "internalType": "bytes32"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "PROTOCOL_VERSION",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint32",
+                "internalType": "uint32"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "adapterSalt",
+        "inputs": [
+            {
+                "name": "basketVault",
+                "type": "address",
+                "internalType": "address"
+            },
+            {
+                "name": "erc4626Vault",
+                "type": "address",
+                "internalType": "address"
+            },
+            {
+                "name": "userSalt",
+                "type": "bytes32",
+                "internalType": "bytes32"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "",
+                "type": "bytes32",
+                "internalType": "bytes32"
+            }
+        ],
+        "stateMutability": "pure"
+    },
+    {
+        "type": "function",
+        "name": "deploy",
+        "inputs": [
+            {
+                "name": "basketVault",
+                "type": "address",
+                "internalType": "address"
+            },
+            {
+                "name": "erc4626Vault",
+                "type": "address",
+                "internalType": "address"
+            },
+            {
+                "name": "userSalt",
+                "type": "bytes32",
+                "internalType": "bytes32"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "adapter",
+                "type": "address",
+                "internalType": "address"
+            }
+        ],
+        "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
+        "name": "predict",
+        "inputs": [
+            {
+                "name": "basketVault",
+                "type": "address",
+                "internalType": "address"
+            },
+            {
+                "name": "erc4626Vault",
+                "type": "address",
+                "internalType": "address"
+            },
+            {
+                "name": "userSalt",
+                "type": "bytes32",
+                "internalType": "bytes32"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "",
+                "type": "address",
+                "internalType": "address"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "event",
+        "name": "AdapterDeployed",
+        "inputs": [
+            {
+                "name": "basketVault",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+            },
+            {
+                "name": "erc4626Vault",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+            },
+            {
+                "name": "adapter",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+            },
+            {
+                "name": "userSalt",
+                "type": "bytes32",
+                "indexed": false,
+                "internalType": "bytes32"
+            }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "error",
+        "name": "DeploymentAddressMismatch",
+        "inputs": [
+            {
+                "name": "expected",
+                "type": "address",
+                "internalType": "address"
+            },
+            {
+                "name": "deployed",
+                "type": "address",
+                "internalType": "address"
+            }
+        ]
+    },
+    {
+        "type": "error",
+        "name": "ExistingAdapterMismatch",
+        "inputs": [
+            {
+                "name": "adapter",
+                "type": "address",
+                "internalType": "address"
+            }
+        ]
     }
 ];
 //# sourceMappingURL=abis.generated.js.map

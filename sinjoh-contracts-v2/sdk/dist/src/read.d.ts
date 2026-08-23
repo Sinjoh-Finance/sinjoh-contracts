@@ -4,6 +4,7 @@ export declare function predictLaunch(client: PublicClient, launcher: Address, c
     addresses: {
         airdrop: `0x${string}`;
         basketManager: `0x${string}`;
+        basketYieldAdapters: readonly `0x${string}`[];
         controller: `0x${string}`;
         fundingBands: `0x${string}`;
         liquidityManager: `0x${string}`;
@@ -28,6 +29,7 @@ export declare function validateLaunchConfig(client: PublicClient, launcher: Add
     addresses: {
         airdrop: `0x${string}`;
         basketManager: `0x${string}`;
+        basketYieldAdapters: readonly `0x${string}`[];
         controller: `0x${string}`;
         fundingBands: `0x${string}`;
         liquidityManager: `0x${string}`;
@@ -109,6 +111,7 @@ export declare const pendingWork: {
     }>;
     readonly basket: (client: PublicClient, manager: Address, basketId: bigint) => Promise<readonly [`0x${string}`, vault: `0x${string}`, number, number, bigint, number]>;
     readonly basketTarget: (client: PublicClient, vault: Address, targetIndex: bigint) => Promise<readonly [`0x${string}`, `0x${string}`, number, bigint, bigint, bigint, bigint, boolean, readonly `0x${string}`[]]>;
+    readonly erc4626BasketAdapter: (client: PublicClient, adapter: Address) => Promise<[`0x${string}`, `0x${string}`, `0x${string}`, bigint, bigint]>;
     readonly fundingBand: (client: PublicClient, bands: Address, bandId: bigint) => Promise<readonly [value: {
         armedAt: number;
         armedObservationAt: number;

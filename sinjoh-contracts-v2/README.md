@@ -70,6 +70,14 @@ rebalance. Principal can leave only through resumable NFT burn settlement, with 
 project-token burn price and in-kind tax. The per-Basket Vault is a deterministic clone of one
 audited implementation so the launch is both address-predictable and EVM-size compliant.
 
+`ERC4626BasketYieldAdapter` is the first production-shaped Basket adapter. Each instance is
+permanently bound to one Basket Vault and one reviewed ERC-4626 vault, exposes a release-stable
+runtime hash, clears exact approvals, harvests only value above recorded principal, and permits a
+full exit only back to its bound Basket Vault. For the standard creator flow, the Launcher predicts
+and deploys these adapters from an ownerless deterministic factory in the same transaction as the
+project; creators select reviewed ERC-4626 vaults and never deploy, bind, approve, or exclude an
+adapter manually. Pre-reviewed custom adapters remain available as an advanced launch path.
+
 `ProjectFundingBandsV2` lets the project controller atomically commit Treasury-held project tokens
 to post-launch market-cap bands whenever the current verified cap is below a band's lower bound.
 It holds the canonical position NFT, requires an advancing sustained-price observation before
@@ -100,7 +108,8 @@ project in one creator transaction. Module addresses remain stable while launch 
 Registry separately commits the exact final configuration hash. An ownerless deployment engine and
 immutable chunked creation-code stores keep runtime and initcode under EVM limits without proxies or
 retained project authority. Router destinations, Treasury Basket policy, Basket NFT ownership,
-governance vote source, and custody exclusions are materialized automatically. The all-modules
+ERC-4626 adapters, governance vote source, and custody exclusions are materialized automatically.
+The all-modules
 integration launch currently uses about 40.7M gas with a 50M regression ceiling; the target-chain
 limit must be confirmed in deployment rehearsal.
 

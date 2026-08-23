@@ -2,6 +2,8 @@
 pragma solidity 0.8.28;
 
 import { AirdropEligibilityMode } from "../airdrop/AirdropTypes.sol";
+import { ERC4626BasketYieldAdapterFactory } from "../adapters/ERC4626BasketYieldAdapterFactory.sol";
+import { BasketConfig } from "../basket/BasketTypes.sol";
 import { ProjectTimelockV2 } from "../governance/ProjectTimelockV2.sol";
 import { Create3V2 } from "../libraries/Create3V2.sol";
 import { SinjohV2Constants } from "../libraries/SinjohV2Constants.sol";
@@ -48,6 +50,7 @@ contract ProjectLaunchDeployerV2 {
     bytes32 public immutable integrationApprovalRoot;
     address public immutable raffleImplementation;
     address public immutable basketVaultImplementation;
+    ERC4626BasketYieldAdapterFactory public immutable erc4626YieldAdapterFactory;
     address public immutable v3Factory;
     address public immutable v3PositionManager;
     address public immutable v4PositionManager;
@@ -81,6 +84,11 @@ contract ProjectLaunchDeployerV2 {
         _requireAddress(release.protocolFeeRecipient, false);
         _requireAddress(release.raffleImplementation, true);
         _requireAddress(release.basketVaultImplementation, true);
+        _requireAddress(release.erc4626YieldAdapterFactory, true);
+        if (
+            release.erc4626YieldAdapterFactory.codehash
+                != keccak256(type(ERC4626BasketYieldAdapterFactory).runtimeCode)
+        ) revert InvalidReleaseAddress(release.erc4626YieldAdapterFactory);
         _requireAddress(release.v3Factory, true);
         _requireAddress(release.v3PositionManager, true);
         _requireAddress(release.v4PositionManager, true);
@@ -96,6 +104,8 @@ contract ProjectLaunchDeployerV2 {
         integrationApprovalRoot = release.integrationApprovalRoot;
         raffleImplementation = release.raffleImplementation;
         basketVaultImplementation = release.basketVaultImplementation;
+        erc4626YieldAdapterFactory =
+            ERC4626BasketYieldAdapterFactory(release.erc4626YieldAdapterFactory);
         v3Factory = release.v3Factory;
         v3PositionManager = release.v3PositionManager;
         v4PositionManager = release.v4PositionManager;
@@ -338,6 +348,8 @@ contract ProjectLaunchDeployerV2 {
             _requireExpected(ROUTER, a.router, deployed);
         }
         if (config.modules.basket) {
+            _deployBasketAdapters(config, preview);
+            BasketConfig memory basketConfig = _materializeBasketConfig(config, a);
             address deployed = _deploy(
                 BASKET,
                 config,
@@ -353,7 +365,7 @@ contract ProjectLaunchDeployerV2 {
                     a.stakingPool,
                     integrationApprovalRoot,
                     basketVaultImplementation,
-                    config.basket
+                    basketConfig
                 )
             );
             _requireExpected(BASKET, a.basketManager, deployed);
@@ -388,13 +400,59 @@ contract ProjectLaunchDeployerV2 {
         }
     }
 
+    function _deployBasketAdapters(
+        ProjectLaunchConfig calldata config,
+        ProjectLaunchPreview calldata preview
+    ) private {
+        ProjectLaunchAddresses memory a = preview.addresses;
+        uint256 count = a.basketYieldAdapters.length;
+        for (uint256 i; i < count; ++i) {
+            address deployed = erc4626YieldAdapterFactory.deploy(
+                a.primaryBasketVault,
+                config.basketERC4626Vaults[i],
+                _basketAdapterUserSalt(config.creator, config.salt, i)
+            );
+            _requireExpected(keccak256(abi.encode(BASKET, i)), a.basketYieldAdapters[i], deployed);
+        }
+    }
+
+    function _materializeBasketConfig(
+        ProjectLaunchConfig calldata config,
+        ProjectLaunchAddresses memory a
+    ) private pure returns (BasketConfig memory basketConfig) {
+        basketConfig = config.basket;
+        uint256 count = a.basketYieldAdapters.length;
+        for (uint256 i; i < count; ++i) {
+            basketConfig.allocation.targets[i].yieldAdapter = a.basketYieldAdapters[i];
+        }
+    }
+
+    function _basketAdapter(
+        ProjectLaunchConfig calldata config,
+        ProjectLaunchAddresses memory a,
+        uint256 index
+    ) private pure returns (address) {
+        return a.basketYieldAdapters.length == 0
+            ? config.basket.allocation.targets[index].yieldAdapter
+            : a.basketYieldAdapters[index];
+    }
+
+    function _basketAdapterUserSalt(address creator, bytes32 projectSalt, uint256 index)
+        private
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encode(creator, projectSalt, PROTOCOL_VERSION, BASKET, index));
+    }
+
     function _tokenExclusions(ProjectLaunchConfig calldata config, ProjectLaunchAddresses memory a)
         private
         pure
         returns (address[] memory)
     {
         uint256 extra = config.launchProfile.additionalCustodyExclusions.length;
-        address[] memory candidates = new address[](14 + extra);
+        uint256 adapterCount = config.basket.allocation.targets.length;
+        address[] memory candidates = new address[](14 + adapterCount + extra);
         candidates[0] = a.controller;
         candidates[1] = a.treasury;
         candidates[2] = a.router;
@@ -409,8 +467,11 @@ contract ProjectLaunchDeployerV2 {
         candidates[11] = PONS_LOCKER;
         candidates[12] = config.bands.marketCapGuard;
         candidates[13] = config.bands.positionAdapter;
+        for (uint256 i; i < adapterCount; ++i) {
+            candidates[14 + i] = _basketAdapter(config, a, i);
+        }
         for (uint256 i; i < extra; ++i) {
-            candidates[14 + i] = config.launchProfile.additionalCustodyExclusions[i];
+            candidates[14 + adapterCount + i] = config.launchProfile.additionalCustodyExclusions[i];
         }
         address[] memory forbidden = new address[](4);
         forbidden[0] = address(0);
@@ -427,8 +488,9 @@ contract ProjectLaunchDeployerV2 {
         ProjectLaunchAddresses memory a,
         address source
     ) private pure returns (address[] memory) {
+        uint256 adapterCount = config.basket.allocation.targets.length;
         uint256 extras = config.airdrop.additionalExclusions.length
-            + config.launchProfile.additionalCustodyExclusions.length;
+            + config.launchProfile.additionalCustodyExclusions.length + adapterCount;
         address[] memory candidates = new address[](10 + extras);
         candidates[0] = a.controller;
         candidates[1] = a.router;
@@ -441,6 +503,9 @@ contract ProjectLaunchDeployerV2 {
         candidates[8] = config.bands.marketCapGuard;
         candidates[9] = config.bands.positionAdapter;
         uint256 offset = 10;
+        for (uint256 i; i < adapterCount; ++i) {
+            candidates[offset++] = _basketAdapter(config, a, i);
+        }
         for (uint256 i; i < config.airdrop.additionalExclusions.length; ++i) {
             candidates[offset++] = config.airdrop.additionalExclusions[i];
         }
@@ -469,8 +534,9 @@ contract ProjectLaunchDeployerV2 {
         result = config.raffle;
         result.creator = config.creator;
         result.protocolFeeRecipient = protocolFeeRecipient;
+        uint256 adapterCount = config.basket.allocation.targets.length;
         uint256 extras = config.raffle.exclusions.length
-            + config.launchProfile.additionalCustodyExclusions.length;
+            + config.launchProfile.additionalCustodyExclusions.length + adapterCount;
         address[] memory candidates = new address[](11 + extras);
         candidates[0] = a.controller;
         candidates[1] = a.treasury;
@@ -484,6 +550,9 @@ contract ProjectLaunchDeployerV2 {
         candidates[9] = config.launchProfile.canonicalPool;
         candidates[10] = PONS_LOCKER;
         uint256 offset = 11;
+        for (uint256 i; i < adapterCount; ++i) {
+            candidates[offset++] = _basketAdapter(config, a, i);
+        }
         for (uint256 i; i < config.raffle.exclusions.length; ++i) {
             candidates[offset++] = config.raffle.exclusions[i];
         }

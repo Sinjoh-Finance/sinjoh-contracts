@@ -84,6 +84,7 @@ struct ProjectLaunchConfig {
     TreasuryLaunchConfig treasury;
     RouterRouteInput[] routerRoutes;
     BasketConfig basket;
+    address[] basketERC4626Vaults;
     BandsLaunchConfig bands;
     RaffleTypes.Config raffle;
     LaunchProfileConfig launchProfile;
@@ -107,6 +108,7 @@ struct ProjectLaunchAddresses {
     address fundingBands;
     address basketManager;
     address primaryBasketVault;
+    address[] basketYieldAdapters;
     uint256 primaryBasketId;
 }
 
@@ -122,6 +124,7 @@ struct LauncherReleaseConfig {
     bytes32 integrationApprovalRoot;
     address raffleImplementation;
     address basketVaultImplementation;
+    address erc4626YieldAdapterFactory;
     address v3Factory;
     address v3PositionManager;
     address v4PositionManager;

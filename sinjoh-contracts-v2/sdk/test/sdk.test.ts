@@ -5,6 +5,7 @@ import test from "node:test";
 import { decodeFunctionData, type Address, type Hex } from "viem";
 import {
   encodeGovernanceAction,
+  erc4626BasketYieldAdapterFactoryAbi,
   projectLauncherV2Abi,
   projectRegistryV2Abi,
   projectTreasuryVaultV2Abi,
@@ -25,6 +26,11 @@ test("exports the required project discovery and launch ABI", () => {
   assert.ok(projectLauncherV2Abi.some((item) => item.type === "function" && item.name === "predictLaunch"));
   assert.ok(projectLauncherV2Abi.some((item) => item.type === "function" && item.name === "validateLaunchConfig"));
   assert.ok(projectRegistryV2Abi.some((item) => item.type === "function" && item.name === "project"));
+  assert.ok(
+    erc4626BasketYieldAdapterFactoryAbi.some(
+      (item) => item.type === "function" && item.name === "predict",
+    ),
+  );
 });
 
 test("encodes the shared Treasury governance action fixture", () => {

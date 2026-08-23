@@ -465,6 +465,10 @@ export declare const projectLauncherV2Abi: readonly [{
                 }];
             }];
         }, {
+            readonly name: "basketERC4626Vaults";
+            readonly type: "address[]";
+            readonly internalType: "address[]";
+        }, {
             readonly name: "bands";
             readonly type: "tuple";
             readonly internalType: "struct BandsLaunchConfig";
@@ -937,6 +941,10 @@ export declare const projectLauncherV2Abi: readonly [{
                 }];
             }];
         }, {
+            readonly name: "basketERC4626Vaults";
+            readonly type: "address[]";
+            readonly internalType: "address[]";
+        }, {
             readonly name: "bands";
             readonly type: "tuple";
             readonly internalType: "struct BandsLaunchConfig";
@@ -1182,6 +1190,10 @@ export declare const projectLauncherV2Abi: readonly [{
                 readonly name: "primaryBasketVault";
                 readonly type: "address";
                 readonly internalType: "address";
+            }, {
+                readonly name: "basketYieldAdapters";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
             }, {
                 readonly name: "primaryBasketId";
                 readonly type: "uint256";
@@ -1495,6 +1507,10 @@ export declare const projectLauncherV2Abi: readonly [{
                 }];
             }];
         }, {
+            readonly name: "basketERC4626Vaults";
+            readonly type: "address[]";
+            readonly internalType: "address[]";
+        }, {
             readonly name: "bands";
             readonly type: "tuple";
             readonly internalType: "struct BandsLaunchConfig";
@@ -1740,6 +1756,10 @@ export declare const projectLauncherV2Abi: readonly [{
                 readonly name: "primaryBasketVault";
                 readonly type: "address";
                 readonly internalType: "address";
+            }, {
+                readonly name: "basketYieldAdapters";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
             }, {
                 readonly name: "primaryBasketId";
                 readonly type: "uint256";
@@ -2085,6 +2105,10 @@ export declare const projectLauncherV2Abi: readonly [{
                 }];
             }];
         }, {
+            readonly name: "basketERC4626Vaults";
+            readonly type: "address[]";
+            readonly internalType: "address[]";
+        }, {
             readonly name: "bands";
             readonly type: "tuple";
             readonly internalType: "struct BandsLaunchConfig";
@@ -2330,6 +2354,10 @@ export declare const projectLauncherV2Abi: readonly [{
                 readonly name: "primaryBasketVault";
                 readonly type: "address";
                 readonly internalType: "address";
+            }, {
+                readonly name: "basketYieldAdapters";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
             }, {
                 readonly name: "primaryBasketId";
                 readonly type: "uint256";
@@ -22342,5 +22370,375 @@ export declare const projectLiquidityManagerV2Abi: readonly [{
     readonly type: "error";
     readonly name: "UnexpectedNFT";
     readonly inputs: readonly [];
+}];
+export declare const erc4626BasketYieldAdapterAbi: readonly [{
+    readonly type: "constructor";
+    readonly inputs: readonly [{
+        readonly name: "basketVault_";
+        readonly type: "address";
+        readonly internalType: "address";
+    }, {
+        readonly name: "vault_";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly stateMutability: "nonpayable";
+}, {
+    readonly type: "function";
+    readonly name: "basketVault";
+    readonly inputs: readonly [];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "deposit";
+    readonly inputs: readonly [{
+        readonly name: "assets";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "positionUnits";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly stateMutability: "nonpayable";
+}, {
+    readonly type: "function";
+    readonly name: "depositAsset";
+    readonly inputs: readonly [];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "exitAll";
+    readonly inputs: readonly [{
+        readonly name: "recipient";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "assets";
+        readonly type: "address[]";
+        readonly internalType: "address[]";
+    }, {
+        readonly name: "amounts";
+        readonly type: "uint256[]";
+        readonly internalType: "uint256[]";
+    }];
+    readonly stateMutability: "nonpayable";
+}, {
+    readonly type: "function";
+    readonly name: "harvest";
+    readonly inputs: readonly [{
+        readonly name: "recipient";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "assets";
+        readonly type: "address[]";
+        readonly internalType: "address[]";
+    }, {
+        readonly name: "amounts";
+        readonly type: "uint256[]";
+        readonly internalType: "uint256[]";
+    }];
+    readonly stateMutability: "nonpayable";
+}, {
+    readonly type: "function";
+    readonly name: "managedPrincipal";
+    readonly inputs: readonly [];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "totalAssets";
+    readonly inputs: readonly [];
+    readonly outputs: readonly [{
+        readonly name: "assets";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "vault";
+    readonly inputs: readonly [];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "address";
+        readonly internalType: "contract IERC4626";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "event";
+    readonly name: "Deposited";
+    readonly inputs: readonly [{
+        readonly name: "assets";
+        readonly type: "uint256";
+        readonly indexed: false;
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "shares";
+        readonly type: "uint256";
+        readonly indexed: false;
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "managedPrincipal";
+        readonly type: "uint256";
+        readonly indexed: false;
+        readonly internalType: "uint256";
+    }];
+    readonly anonymous: false;
+}, {
+    readonly type: "event";
+    readonly name: "Exited";
+    readonly inputs: readonly [{
+        readonly name: "assets";
+        readonly type: "uint256";
+        readonly indexed: false;
+        readonly internalType: "uint256";
+    }];
+    readonly anonymous: false;
+}, {
+    readonly type: "event";
+    readonly name: "Harvested";
+    readonly inputs: readonly [{
+        readonly name: "assets";
+        readonly type: "uint256";
+        readonly indexed: false;
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "remainingPositionValue";
+        readonly type: "uint256";
+        readonly indexed: false;
+        readonly internalType: "uint256";
+    }];
+    readonly anonymous: false;
+}, {
+    readonly type: "error";
+    readonly name: "InexactAssetMovement";
+    readonly inputs: readonly [{
+        readonly name: "expected";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "actual";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+}, {
+    readonly type: "error";
+    readonly name: "InexactShareMovement";
+    readonly inputs: readonly [{
+        readonly name: "expected";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "actual";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+}, {
+    readonly type: "error";
+    readonly name: "InvalidAddress";
+    readonly inputs: readonly [{
+        readonly name: "candidate";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+}, {
+    readonly type: "error";
+    readonly name: "InvalidAmount";
+    readonly inputs: readonly [{
+        readonly name: "supplied";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+}, {
+    readonly type: "error";
+    readonly name: "InvalidRecipient";
+    readonly inputs: readonly [{
+        readonly name: "supplied";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+}, {
+    readonly type: "error";
+    readonly name: "OnlyBasketVault";
+    readonly inputs: readonly [{
+        readonly name: "caller";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+}, {
+    readonly type: "error";
+    readonly name: "PrincipalImpaired";
+    readonly inputs: readonly [{
+        readonly name: "principal";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "positionValue";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+}, {
+    readonly type: "error";
+    readonly name: "ReentrancyGuardReentrantCall";
+    readonly inputs: readonly [];
+}, {
+    readonly type: "error";
+    readonly name: "SafeERC20FailedOperation";
+    readonly inputs: readonly [{
+        readonly name: "token";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+}];
+export declare const erc4626BasketYieldAdapterFactoryAbi: readonly [{
+    readonly type: "function";
+    readonly name: "ADAPTER_RUNTIME_HASH";
+    readonly inputs: readonly [];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "bytes32";
+        readonly internalType: "bytes32";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "PROTOCOL_VERSION";
+    readonly inputs: readonly [];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "uint32";
+        readonly internalType: "uint32";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "adapterSalt";
+    readonly inputs: readonly [{
+        readonly name: "basketVault";
+        readonly type: "address";
+        readonly internalType: "address";
+    }, {
+        readonly name: "erc4626Vault";
+        readonly type: "address";
+        readonly internalType: "address";
+    }, {
+        readonly name: "userSalt";
+        readonly type: "bytes32";
+        readonly internalType: "bytes32";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "bytes32";
+        readonly internalType: "bytes32";
+    }];
+    readonly stateMutability: "pure";
+}, {
+    readonly type: "function";
+    readonly name: "deploy";
+    readonly inputs: readonly [{
+        readonly name: "basketVault";
+        readonly type: "address";
+        readonly internalType: "address";
+    }, {
+        readonly name: "erc4626Vault";
+        readonly type: "address";
+        readonly internalType: "address";
+    }, {
+        readonly name: "userSalt";
+        readonly type: "bytes32";
+        readonly internalType: "bytes32";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "adapter";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly stateMutability: "nonpayable";
+}, {
+    readonly type: "function";
+    readonly name: "predict";
+    readonly inputs: readonly [{
+        readonly name: "basketVault";
+        readonly type: "address";
+        readonly internalType: "address";
+    }, {
+        readonly name: "erc4626Vault";
+        readonly type: "address";
+        readonly internalType: "address";
+    }, {
+        readonly name: "userSalt";
+        readonly type: "bytes32";
+        readonly internalType: "bytes32";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "event";
+    readonly name: "AdapterDeployed";
+    readonly inputs: readonly [{
+        readonly name: "basketVault";
+        readonly type: "address";
+        readonly indexed: true;
+        readonly internalType: "address";
+    }, {
+        readonly name: "erc4626Vault";
+        readonly type: "address";
+        readonly indexed: true;
+        readonly internalType: "address";
+    }, {
+        readonly name: "adapter";
+        readonly type: "address";
+        readonly indexed: true;
+        readonly internalType: "address";
+    }, {
+        readonly name: "userSalt";
+        readonly type: "bytes32";
+        readonly indexed: false;
+        readonly internalType: "bytes32";
+    }];
+    readonly anonymous: false;
+}, {
+    readonly type: "error";
+    readonly name: "DeploymentAddressMismatch";
+    readonly inputs: readonly [{
+        readonly name: "expected";
+        readonly type: "address";
+        readonly internalType: "address";
+    }, {
+        readonly name: "deployed";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+}, {
+    readonly type: "error";
+    readonly name: "ExistingAdapterMismatch";
+    readonly inputs: readonly [{
+        readonly name: "adapter";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
 }];
 //# sourceMappingURL=abis.generated.d.ts.map

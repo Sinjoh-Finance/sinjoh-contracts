@@ -23,6 +23,8 @@ const contracts = [
   ["projectFundingBandsV2Abi", "ProjectFundingBandsV2"],
   ["projectRaffleV2Abi", "ProjectRaffleV2"],
   ["projectLiquidityManagerV2Abi", "ProjectLiquidityManagerV2"],
+  ["erc4626BasketYieldAdapterAbi", "ERC4626BasketYieldAdapter"],
+  ["erc4626BasketYieldAdapterFactoryAbi", "ERC4626BasketYieldAdapterFactory"],
 ];
 
 const declarations = [];

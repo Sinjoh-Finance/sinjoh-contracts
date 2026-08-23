@@ -2,6 +2,7 @@ import type { Address, Hex, PublicClient } from "viem";
 import {
   basketManagerV2Abi,
   basketVaultV2Abi,
+  erc4626BasketYieldAdapterAbi,
   projectAirdropV2Abi,
   projectFundingBandsV2Abi,
   projectLauncherV2Abi,
@@ -98,6 +99,35 @@ export const pendingWork = {
       functionName: "targetStatus",
       args: [targetIndex],
     });
+  },
+  erc4626BasketAdapter(client: PublicClient, adapter: Address) {
+    return Promise.all([
+      client.readContract({
+        address: adapter,
+        abi: erc4626BasketYieldAdapterAbi,
+        functionName: "basketVault",
+      }),
+      client.readContract({
+        address: adapter,
+        abi: erc4626BasketYieldAdapterAbi,
+        functionName: "vault",
+      }),
+      client.readContract({
+        address: adapter,
+        abi: erc4626BasketYieldAdapterAbi,
+        functionName: "depositAsset",
+      }),
+      client.readContract({
+        address: adapter,
+        abi: erc4626BasketYieldAdapterAbi,
+        functionName: "managedPrincipal",
+      }),
+      client.readContract({
+        address: adapter,
+        abi: erc4626BasketYieldAdapterAbi,
+        functionName: "totalAssets",
+      }),
+    ]);
   },
   fundingBand(client: PublicClient, bands: Address, bandId: bigint) {
     return client.readContract({

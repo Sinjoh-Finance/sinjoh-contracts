@@ -108,7 +108,6 @@ interface IBasketYieldAdapter {
     function deposit(uint256 assets) external returns (uint256 positionUnits);
     function totalAssets() external view returns (uint256 assets);
     function harvest(address recipient) external returns (address[] memory assets, uint256[] memory amounts);
-    function withdrawPrincipal(uint256 assets, address recipient) external returns (uint256 received);
     function exitAll(address recipient) external returns (address[] memory assets, uint256[] memory amounts);
 }
 ```
@@ -121,6 +120,17 @@ For deterministic verification, both `harvest` and `exitAll` return the complete
 `depositAsset + configured rewardAssets`, including zero amounts. The Vault rejects missing,
 additional, reordered, duplicated, or misreported outputs by comparing every value to its measured
 balance delta.
+
+The first production-shaped implementation is `ERC4626BasketYieldAdapter`. It binds one predicted
+Basket Vault to one reviewed synchronous ERC-4626 vault. Deposits and full exits use measured asset
+and share deltas, exact allowances are cleared, and compounding share-price yield is redeemed only
+to the bound Basket Vault while leaving recorded principal in the position. Constructor bindings
+are frozen ordinary storage so every instance retains the same release-approvable runtime hash.
+The standard Launcher flow accepts the reviewed ERC-4626 vault addresses and atomically predicts,
+deploys, binds, and excludes the adapters through an ownerless deterministic factory. Creators do
+not handle adapter addresses, Merkle proofs, deployment salts, approvals, or post-launch wiring.
+Pre-reviewed custom adapters remain an advanced launch option. Asynchronous/queued-withdrawal
+vaults require a separate reviewed adapter version.
 
 ## 5. Funding and allocation
 

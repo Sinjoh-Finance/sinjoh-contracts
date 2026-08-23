@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import { Test } from "forge-std/Test.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {
     AirdropAccountConfig,
     AirdropCadence,
@@ -10,6 +11,10 @@ import {
     AirdropEligibilityMode
 } from "../../src/airdrop/AirdropTypes.sol";
 import { ProjectAirdropV2 } from "../../src/airdrop/ProjectAirdropV2.sol";
+import {
+    ERC4626BasketYieldAdapterFactory
+} from "../../src/adapters/ERC4626BasketYieldAdapterFactory.sol";
+import { ERC4626BasketYieldAdapter } from "../../src/adapters/ERC4626BasketYieldAdapter.sol";
 import { BasketManagerV2 } from "../../src/basket/BasketManagerV2.sol";
 import { BasketVaultV2 } from "../../src/basket/BasketVaultV2.sol";
 import {
@@ -58,7 +63,8 @@ import {
     MockV4StateView
 } from "../mocks/liquidity/MockUniswap.sol";
 import { MockRaffleRandomness } from "../mocks/MockRaffleIntegrations.sol";
-import { MockBasketAsset, MockBasketYieldAdapter } from "../mocks/MockBasketIntegrations.sol";
+import { MockBasketAsset } from "../mocks/MockBasketIntegrations.sol";
+import { MockERC4626 } from "../mocks/MockERC4626.sol";
 import { MockERC20 } from "../mocks/liquidity/MockERC20.sol";
 import { MockPriceGuard } from "../mocks/liquidity/MockPriceGuard.sol";
 import { MockSwapAdapter } from "../mocks/liquidity/MockSwapAdapter.sol";
@@ -83,6 +89,8 @@ contract ProjectLauncherV2Test is Test {
     function _installLauncher(bytes32 approvalRoot) private {
         ProjectRaffleV2 raffleImplementation = new ProjectRaffleV2();
         BasketVaultV2 basketVaultImplementation = new BasketVaultV2();
+        ERC4626BasketYieldAdapterFactory erc4626YieldAdapterFactory =
+            new ERC4626BasketYieldAdapterFactory();
         MockV3Factory v3Factory = new MockV3Factory();
         MockV3PositionManager v3PositionManager = new MockV3PositionManager();
         MockPermit2 permit2 = new MockPermit2();
@@ -95,6 +103,7 @@ contract ProjectLauncherV2Test is Test {
             integrationApprovalRoot: approvalRoot,
             raffleImplementation: address(raffleImplementation),
             basketVaultImplementation: address(basketVaultImplementation),
+            erc4626YieldAdapterFactory: address(erc4626YieldAdapterFactory),
             v3Factory: address(v3Factory),
             v3PositionManager: address(v3PositionManager),
             v4PositionManager: address(v4PositionManager),
@@ -365,20 +374,9 @@ contract ProjectLauncherV2Test is Test {
 
     function testLaunchTreasuryBasketAndAirdropNeedsNoPostLaunchWiring() public {
         MockBasketAsset asset = new MockBasketAsset("Yield Asset", "YLD");
-        address[] memory outputs = new address[](1);
-        outputs[0] = address(asset);
-        MockBasketYieldAdapter adapter = new MockBasketYieldAdapter(address(asset), outputs);
-        bytes32 approvalRoot = keccak256(
-            bytes.concat(
-                keccak256(
-                    abi.encode(
-                        keccak256("SINJOH_V2_BASKET_YIELD_APPROVAL"),
-                        block.chainid,
-                        address(adapter).codehash,
-                        address(asset)
-                    )
-                )
-            )
+        MockERC4626 erc4626 = new MockERC4626(IERC20(address(asset)));
+        bytes32 approvalRoot = _basketYieldLeafHash(
+            keccak256(type(ERC4626BasketYieldAdapter).runtimeCode), address(asset)
         );
         _installLauncher(approvalRoot);
 
@@ -398,7 +396,7 @@ contract ProjectLauncherV2Test is Test {
         allocation.targets = new BasketTarget[](1);
         allocation.targets[0] = BasketTarget({
             depositAsset: address(asset),
-            yieldAdapter: address(adapter),
+            yieldAdapter: address(0),
             targetWeightBps: 10_000,
             rewardAssets: new address[](0),
             yieldApprovalProof: new bytes32[](0)
@@ -420,11 +418,15 @@ contract ProjectLauncherV2Test is Test {
             airdropAccountConfig: abi.encode(account),
             allocation: allocation
         });
+        config.basketERC4626Vaults = new address[](1);
+        config.basketERC4626Vaults[0] = address(erc4626);
 
         ProjectLaunchPreview memory predicted = launcher.predictLaunch(config);
-        adapter.bind(predicted.addresses.primaryBasketVault);
+        assertEq(predicted.addresses.basketYieldAdapters.length, 1);
+        assertEq(predicted.addresses.basketYieldAdapters[0].code.length, 0);
         vm.prank(CREATOR);
         ProjectLaunchPreview memory launched = launcher.launch(config);
+        address adapter = launched.addresses.basketYieldAdapters[0];
 
         BasketManagerV2 manager = BasketManagerV2(payable(launched.addresses.basketManager));
         ProjectTreasuryVaultV2 treasury =
@@ -435,10 +437,16 @@ contract ProjectLauncherV2Test is Test {
         assertTrue(treasury.basketRouteEnabled());
         assertEq(treasury.routedBasketId(), 1);
         assertEq(treasury.basketAllocationBps(), 2_500);
+        assertEq(
+            ERC4626BasketYieldAdapter(adapter).basketVault(), launched.addresses.primaryBasketVault
+        );
+        assertEq(address(ERC4626BasketYieldAdapter(adapter).vault()), address(erc4626));
         assertTrue(
             ProjectVotesToken(launched.addresses.subject)
                 .isVotingExcluded(launched.addresses.primaryBasketVault)
         );
+        assertTrue(ProjectVotesToken(launched.addresses.subject).isVotingExcluded(adapter));
+        assertTrue(ProjectAirdropV2(payable(launched.addresses.airdrop)).isExcluded(adapter));
         assertTrue(
             ProjectAirdropV2(payable(launched.addresses.airdrop))
                 .isExcluded(ProjectAirdropV2(payable(launched.addresses.airdrop)).BURN_ADDRESS())
@@ -452,16 +460,16 @@ contract ProjectLauncherV2Test is Test {
         address predictedPool = vm.computeCreateAddress(address(this), nonce + 1);
         address predictedGuard = vm.computeCreateAddress(address(this), nonce + 2);
         address predictedBandAdapter = vm.computeCreateAddress(address(this), nonce + 3);
-        address predictedYieldAdapter = vm.computeCreateAddress(address(this), nonce + 4);
+        address predictedERC4626 = vm.computeCreateAddress(address(this), nonce + 4);
         address predictedRandomness = vm.computeCreateAddress(address(this), nonce + 5);
         address predictedBasketImplementation =
             vm.computeCreateAddress(address(this), nonce + integrationCount + 1);
         address predictedRegistry =
-            vm.computeCreateAddress(address(this), nonce + integrationCount + 17);
-        address predictedEngine =
             vm.computeCreateAddress(address(this), nonce + integrationCount + 18);
-        address predictedLauncher =
+        address predictedEngine =
             vm.computeCreateAddress(address(this), nonce + integrationCount + 19);
+        address predictedLauncher =
+            vm.computeCreateAddress(address(this), nonce + integrationCount + 20);
 
         bytes32 userSalt = keccak256("ALL_MODULES");
         address predictedSubject = _predictFromEngine(predictedEngine, userSalt, keccak256("TOKEN"));
@@ -481,21 +489,20 @@ contract ProjectLauncherV2Test is Test {
             new MockFundingBandGuard(predictedSubject, predictedPool, 1_000_000e18);
         MockFundingBandPositionAdapter bandAdapter =
             new MockFundingBandPositionAdapter(predictedSubject, predictedQuote, predictedPool);
-        address[] memory outputs = new address[](1);
-        outputs[0] = predictedQuote;
-        MockBasketYieldAdapter yieldAdapter = new MockBasketYieldAdapter(predictedQuote, outputs);
+        MockERC4626 erc4626 = new MockERC4626(IERC20(predictedQuote));
         MockRaffleRandomness randomness = new MockRaffleRandomness();
         assertEq(address(quote), predictedQuote);
         assertEq(address(pool), predictedPool);
         assertEq(address(guard), predictedGuard);
         assertEq(address(bandAdapter), predictedBandAdapter);
-        assertEq(address(yieldAdapter), predictedYieldAdapter);
+        assertEq(address(erc4626), predictedERC4626);
         assertEq(address(randomness), predictedRandomness);
         guard.bind(predictedBands);
         bandAdapter.bind(predictedBands);
-        yieldAdapter.bind(predictedVault);
 
-        bytes32 yieldLeaf = _basketYieldLeaf(address(yieldAdapter), address(quote));
+        bytes32 yieldLeaf = _basketYieldLeafHash(
+            keccak256(type(ERC4626BasketYieldAdapter).runtimeCode), address(quote)
+        );
         bytes32 bandLeaf = _bandIntegrationLeaf(
             address(pool), address(quote), address(guard), address(bandAdapter), 1_000_000e18
         );
@@ -523,8 +530,10 @@ contract ProjectLauncherV2Test is Test {
         config.treasury.basketRouteAssets[0] = address(quote);
         config.launchProfile.canonicalPool = address(pool);
         config.basket = _singleTargetBasketConfig(
-            address(quote), address(yieldAdapter), _proof(bandLeaf), BasketEligibilityMode.STAKERS
+            address(quote), address(0), _proof(bandLeaf), BasketEligibilityMode.STAKERS
         );
+        config.basketERC4626Vaults = new address[](1);
+        config.basketERC4626Vaults[0] = address(erc4626);
         config.bands.quoteAsset = address(quote);
         config.bands.marketCapGuard = address(guard);
         config.bands.positionAdapter = address(bandAdapter);
@@ -537,6 +546,7 @@ contract ProjectLauncherV2Test is Test {
         assertEq(preview.addresses.subject, predictedSubject);
         assertEq(preview.addresses.fundingBands, predictedBands);
         assertEq(preview.addresses.primaryBasketVault, predictedVault);
+        assertEq(preview.addresses.basketYieldAdapters.length, 1);
         uint256 gasBeforeLaunch = gasleft();
         vm.prank(CREATOR);
         ProjectLaunchPreview memory launched = launcher.launch(config);
@@ -555,6 +565,12 @@ contract ProjectLauncherV2Test is Test {
         assertEq(record.liquidityManager, launched.addresses.liquidityManager);
         assertEq(record.primaryBasketId, 1);
         assertEq(record.canonicalPool, address(pool));
+        address adapter = launched.addresses.basketYieldAdapters[0];
+        assertEq(ERC4626BasketYieldAdapter(adapter).basketVault(), predictedVault);
+        assertEq(address(ERC4626BasketYieldAdapter(adapter).vault()), address(erc4626));
+        assertTrue(ProjectVotesToken(launched.addresses.subject).isVotingExcluded(adapter));
+        assertTrue(ProjectAirdropV2(payable(launched.addresses.airdrop)).isExcluded(adapter));
+        assertTrue(ProjectRaffleV2(payable(launched.addresses.raffle)).isExcluded(adapter));
     }
 
     function _predictFromEngine(address engine, bytes32 userSalt, bytes32 moduleKey)
@@ -567,13 +583,21 @@ contract ProjectLauncherV2Test is Test {
     }
 
     function _basketYieldLeaf(address adapter, address asset) private view returns (bytes32) {
+        return _basketYieldLeafHash(adapter.codehash, asset);
+    }
+
+    function _basketYieldLeafHash(bytes32 runtimeHash, address asset)
+        private
+        view
+        returns (bytes32)
+    {
         return keccak256(
             bytes.concat(
                 keccak256(
                     abi.encode(
                         keccak256("SINJOH_V2_BASKET_YIELD_APPROVAL"),
                         block.chainid,
-                        adapter.codehash,
+                        runtimeHash,
                         asset
                     )
                 )

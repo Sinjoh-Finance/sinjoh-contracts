@@ -1,4 +1,4 @@
-import { basketManagerV2Abi, basketVaultV2Abi, projectAirdropV2Abi, projectFundingBandsV2Abi, projectLauncherV2Abi, projectLiquidityManagerV2Abi, projectMultisigAccountV2Abi, projectRaffleV2Abi, projectRegistryV2Abi, projectRouterV2Abi, projectStakingPoolV2Abi, projectTreasuryVaultV2Abi, } from "./abis.generated.js";
+import { basketManagerV2Abi, basketVaultV2Abi, erc4626BasketYieldAdapterAbi, projectAirdropV2Abi, projectFundingBandsV2Abi, projectLauncherV2Abi, projectLiquidityManagerV2Abi, projectMultisigAccountV2Abi, projectRaffleV2Abi, projectRegistryV2Abi, projectRouterV2Abi, projectStakingPoolV2Abi, projectTreasuryVaultV2Abi, } from "./abis.generated.js";
 export function predictLaunch(client, launcher, config) {
     return client.readContract({
         address: launcher,
@@ -71,6 +71,35 @@ export const pendingWork = {
             functionName: "targetStatus",
             args: [targetIndex],
         });
+    },
+    erc4626BasketAdapter(client, adapter) {
+        return Promise.all([
+            client.readContract({
+                address: adapter,
+                abi: erc4626BasketYieldAdapterAbi,
+                functionName: "basketVault",
+            }),
+            client.readContract({
+                address: adapter,
+                abi: erc4626BasketYieldAdapterAbi,
+                functionName: "vault",
+            }),
+            client.readContract({
+                address: adapter,
+                abi: erc4626BasketYieldAdapterAbi,
+                functionName: "depositAsset",
+            }),
+            client.readContract({
+                address: adapter,
+                abi: erc4626BasketYieldAdapterAbi,
+                functionName: "managedPrincipal",
+            }),
+            client.readContract({
+                address: adapter,
+                abi: erc4626BasketYieldAdapterAbi,
+                functionName: "totalAssets",
+            }),
+        ]);
     },
     fundingBand(client, bands, bandId) {
         return client.readContract({
