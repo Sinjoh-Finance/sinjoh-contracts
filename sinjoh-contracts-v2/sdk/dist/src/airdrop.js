@@ -4,6 +4,7 @@ const NODE_DOMAIN = keccak256(toBytes("SINJOH_V2_AIRDROP_NODE"));
 const MAX_UINT32 = 2n ** 32n - 1n;
 const MAX_UINT48 = 2n ** 48n - 1n;
 const MAX_UINT64 = 2n ** 64n - 1n;
+const MAX_UINT256 = 2n ** 256n - 1n;
 const leafParameters = parseAbiParameters("bytes32,uint256,address,bytes32,uint64,uint64,uint48,address,uint256,uint256");
 const nodeParameters = parseAbiParameters("bytes32,bytes32,uint256,uint256,uint32,bytes32,uint256,uint256,uint32");
 /**
@@ -80,13 +81,17 @@ export function buildAirdropEpoch(parameters) {
     assertUnsigned(parameters.epochId, 64n, "Epoch ID");
     assertUnsigned(parameters.snapshotBlock, 64n, "Snapshot block");
     assertUnsigned(parameters.snapshotTime, 48n, "Snapshot time");
-    if (parameters.epochAmount <= 0n)
-        throw new RangeError("Epoch amount must be greater than zero");
+    if (parameters.epochAmount <= 0n || parameters.epochAmount > MAX_UINT256) {
+        throw new RangeError("Epoch amount must fit uint256 and be greater than zero");
+    }
     if (parameters.weights.length === 0 || BigInt(parameters.weights.length) > MAX_UINT32) {
         throw new RangeError("Airdrop artifact must contain at least one holder");
     }
     const weights = canonicalWeights(parameters.weights, parameters.exclusions);
     const totalEligibleWeight = weights.reduce((total, entry) => total + entry.weight, 0n);
+    if (totalEligibleWeight > MAX_UINT256) {
+        throw new RangeError("Total eligible Airdrop weight exceeds uint256");
+    }
     if (parameters.expectedTotalEligibleWeight !== undefined
         && totalEligibleWeight !== parameters.expectedTotalEligibleWeight) {
         throw new RangeError("Holder weights do not match the on-chain eligible supply");
@@ -182,8 +187,9 @@ function canonicalWeights(supplied, suppliedExclusions) {
     const seen = new Set();
     return supplied.map(({ holder, weight }) => {
         assertAddress(holder, "Holder");
-        if (weight <= 0n)
-            throw new RangeError("Every Airdrop holder must have positive weight");
+        if (weight <= 0n || weight > MAX_UINT256) {
+            throw new RangeError("Every Airdrop holder weight must fit uint256 and be positive");
+        }
         const normalized = holder.toLowerCase();
         if (exclusions.has(normalized))
             throw new RangeError(`Excluded holder ${holder} cannot receive`);
@@ -271,7 +277,13 @@ function assertBytes32(value, label) {
         throw new RangeError(`${label} must be exactly 32 bytes`);
 }
 function assertUnsigned(value, bits, label) {
-    const maximum = bits === 64n ? MAX_UINT64 : bits === 48n ? MAX_UINT48 : 2n ** bits - 1n;
+    const maximum = bits === 256n
+        ? MAX_UINT256
+        : bits === 64n
+            ? MAX_UINT64
+            : bits === 48n
+                ? MAX_UINT48
+                : 2n ** bits - 1n;
     if (value < 0n || value > maximum)
         throw new RangeError(`${label} exceeds uint${bits}`);
 }

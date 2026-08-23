@@ -109,6 +109,7 @@ export declare const pendingWork: {
         snapshotTime: number;
         totalEligibleWeight: bigint;
     }>;
+    readonly airdropCredit: (client: PublicClient, airdrop: Address, recipient: Address, asset: Address) => Promise<bigint>;
     readonly basket: (client: PublicClient, manager: Address, basketId: bigint) => Promise<readonly [`0x${string}`, vault: `0x${string}`, number, number, bigint, number]>;
     readonly basketTarget: (client: PublicClient, vault: Address, targetIndex: bigint) => Promise<readonly [`0x${string}`, `0x${string}`, number, bigint, bigint, bigint, bigint, boolean, readonly `0x${string}`[]]>;
     readonly erc4626BasketAdapter: (client: PublicClient, adapter: Address) => Promise<[`0x${string}`, `0x${string}`, `0x${string}`, bigint, bigint]>;

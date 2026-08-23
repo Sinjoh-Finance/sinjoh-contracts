@@ -28,6 +28,13 @@ import {
   it sorts positive-weight holders, retains zero-entitlement leaves, and builds the exact
   direction-aware Merkle-sum proofs used by automatic push delivery.
   `airdropCommitmentTypedData` supplies the attestor signing payload.
+- `reconstructHolderAirdropSnapshot` replays complete ERC-20 transfer history;
+  `reconstructStakerAirdropSnapshot` replays PoS position ownership. Both fail closed on malformed
+  log ordering and cross-check reconstructed aggregate and eligible historical supply.
+- `planAirdropPushBatches` skips already-settled holders, respects the on-chain batch cap, and keeps
+  zero-entitlement leaves in the work queue because they still count toward epoch finalization.
+- `encodeAirdropPushCalls`, `encodeAirdropRetryCreditCall`, and `encodeAirdropFinalizeCall` return
+  typed permissionless keeper transactions; `pendingWork.airdropCredit` exposes exact retry work.
 
 Run `npm test` to rebuild the ABIs from Foundry artifacts, type-check the package, and verify the
 shared Solidity/TypeScript calldata fixture.

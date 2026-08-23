@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import test from "node:test";
 import { decodeFunctionData, hashTypedData } from "viem";
-import { airdropCommitmentTypedData, buildFundingBandCreationActions, buildAirdropEpoch, buildVerifiedAirdropEpoch, buildLaunchFromPreset, encodeGovernanceAction, encodeMultisigSubmission, encodeTokenGovernanceProposal, erc4626BasketYieldAdapterFactoryAbi, fundingBandDestination, marketCapUsdE8, projectFundingBandsV2Abi, projectGovernorV2Abi, projectLauncherV2Abi, projectMultisigAccountV2Abi, projectRegistryV2Abi, projectTreasuryVaultV2Abi, simpleFundingBandConfig, launchErrorMessage, } from "../src/index.js";
+import { airdropCommitmentTypedData, buildFundingBandCreationActions, buildAirdropEpoch, buildVerifiedAirdropEpoch, buildLaunchFromPreset, encodeGovernanceAction, encodeAirdropFinalizeCall, encodeAirdropPushCalls, encodeAirdropRetryCreditCall, encodeMultisigSubmission, encodeTokenGovernanceProposal, erc4626BasketYieldAdapterFactoryAbi, fundingBandDestination, marketCapUsdE8, projectAirdropV2Abi, projectFundingBandsV2Abi, projectGovernorV2Abi, projectLauncherV2Abi, projectMultisigAccountV2Abi, projectRegistryV2Abi, projectTreasuryVaultV2Abi, simpleFundingBandConfig, launchErrorMessage, planAirdropPushBatches, reconstructHolderAirdropSnapshot, reconstructStakerAirdropSnapshot, } from "../src/index.js";
 const fixture = JSON.parse(await readFile(resolve(process.cwd(), "fixtures/treasury-send.json"), "utf8"));
 const airdropFixture = JSON.parse(await readFile(resolve(process.cwd(), "fixtures/airdrop-tree.json"), "utf8"));
 test("exports the required project discovery and launch ABI", () => {
@@ -236,5 +236,160 @@ test("requires two matching provider snapshots before building a signable Airdro
             totalEligibleWeight: BigInt(airdropFixture.totalEligibleWeight) - 1n,
         },
     }), /providers disagree.*do not sign/i);
+});
+test("reconstructs holder weights in log order and always removes burn weight", () => {
+    const snapshot = reconstructHolderAirdropSnapshot({
+        snapshotBlock: 12n,
+        snapshotBlockHash: `0x${"12".repeat(32)}`,
+        snapshotTime: 1200n,
+        totalSupply: 100n,
+        totalEligibleWeight: 70n,
+        exclusions: ["0x0000000000000000000000000000000000000002"],
+        transfers: [
+            {
+                blockNumber: 10n,
+                transactionIndex: 0,
+                logIndex: 0,
+                from: "0x0000000000000000000000000000000000000000",
+                to: "0x0000000000000000000000000000000000000001",
+                value: 100n,
+            },
+            {
+                blockNumber: 11n,
+                transactionIndex: 0,
+                logIndex: 0,
+                from: "0x0000000000000000000000000000000000000001",
+                to: "0x000000000000000000000000000000000000dEaD",
+                value: 10n,
+            },
+            {
+                blockNumber: 12n,
+                transactionIndex: 0,
+                logIndex: 0,
+                from: "0x0000000000000000000000000000000000000001",
+                to: "0x0000000000000000000000000000000000000002",
+                value: 20n,
+            },
+        ],
+    });
+    assert.deepEqual(snapshot.weights, [
+        { holder: "0x0000000000000000000000000000000000000001", weight: 70n },
+    ]);
+    assert.equal(snapshot.totalEligibleWeight, 70n);
+});
+test("reconstructs current staker ownership from PoS position lifecycle events", () => {
+    const snapshot = reconstructStakerAirdropSnapshot({
+        snapshotBlock: 20n,
+        snapshotBlockHash: `0x${"20".repeat(32)}`,
+        snapshotTime: 2000n,
+        totalStakedSupply: 70n,
+        totalEligibleWeight: 70n,
+        exclusions: [],
+        events: [
+            {
+                eventName: "PositionCreated",
+                blockNumber: 10n,
+                transactionIndex: 0,
+                logIndex: 0,
+                tokenId: 1n,
+                owner: "0x0000000000000000000000000000000000000001",
+                amount: 70n,
+            },
+            {
+                eventName: "PositionCreated",
+                blockNumber: 11n,
+                transactionIndex: 0,
+                logIndex: 0,
+                tokenId: 2n,
+                owner: "0x0000000000000000000000000000000000000002",
+                amount: 30n,
+            },
+            {
+                eventName: "PositionTransferred",
+                blockNumber: 12n,
+                transactionIndex: 0,
+                logIndex: 0,
+                tokenId: 1n,
+                from: "0x0000000000000000000000000000000000000001",
+                to: "0x0000000000000000000000000000000000000003",
+                amount: 70n,
+            },
+            {
+                eventName: "PositionRedeemed",
+                blockNumber: 13n,
+                transactionIndex: 0,
+                logIndex: 0,
+                tokenId: 2n,
+                owner: "0x0000000000000000000000000000000000000002",
+                amount: 30n,
+            },
+        ],
+    });
+    assert.deepEqual(snapshot.weights, [
+        { holder: "0x0000000000000000000000000000000000000003", weight: 70n },
+    ]);
+});
+test("fails closed on incomplete event history and plans every unsettled leaf", () => {
+    assert.throws(() => reconstructHolderAirdropSnapshot({
+        snapshotBlock: 10n,
+        snapshotBlockHash: `0x${"10".repeat(32)}`,
+        snapshotTime: 1000n,
+        totalSupply: 100n,
+        totalEligibleWeight: 100n,
+        exclusions: [],
+        transfers: [{
+                blockNumber: 10n,
+                transactionIndex: 0,
+                logIndex: 0,
+                from: "0x0000000000000000000000000000000000000001",
+                to: "0x0000000000000000000000000000000000000002",
+                value: 1n,
+            }],
+    }), /spends more than the reconstructed balance/);
+    const epoch = buildAirdropEpoch({
+        chainId: BigInt(airdropFixture.chainId),
+        airdrop: airdropFixture.airdrop,
+        accountId: airdropFixture.accountId,
+        epochId: BigInt(airdropFixture.epochId),
+        snapshotBlock: BigInt(airdropFixture.snapshotBlock),
+        snapshotBlockHash: airdropFixture.snapshotBlockHash,
+        snapshotTime: BigInt(airdropFixture.snapshotTime),
+        epochAmount: BigInt(airdropFixture.epochAmount),
+        weights: airdropFixture.holders.map(({ holder, weight }) => ({
+            holder,
+            weight: BigInt(weight),
+        })),
+    });
+    const batches = planAirdropPushBatches({
+        epoch,
+        processedHolders: [airdropFixture.holders[1]?.holder],
+        maxPushBatchSize: 1,
+    });
+    assert.deepEqual(batches.map(({ indices }) => indices), [[0], [2]]);
+    assert.equal(batches[1]?.leaves[0]?.amount, 0n);
+    const pushCalls = encodeAirdropPushCalls({
+        airdrop: airdropFixture.airdrop,
+        accountId: airdropFixture.accountId,
+        epochId: BigInt(airdropFixture.epochId),
+        batches,
+    });
+    assert.deepEqual(decodeFunctionData({ abi: projectAirdropV2Abi, data: pushCalls[0]?.data }).functionName, "push");
+    assert.equal(decodeFunctionData({
+        abi: projectAirdropV2Abi,
+        data: encodeAirdropRetryCreditCall({
+            airdrop: airdropFixture.airdrop,
+            recipient: airdropFixture.holders[0]?.holder,
+            asset: "0x0000000000000000000000000000000000009000",
+            maxAmount: 4n,
+        }).data,
+    }).functionName, "retryCredit");
+    assert.equal(decodeFunctionData({
+        abi: projectAirdropV2Abi,
+        data: encodeAirdropFinalizeCall({
+            airdrop: airdropFixture.airdrop,
+            accountId: airdropFixture.accountId,
+            epochId: BigInt(airdropFixture.epochId),
+        }).data,
+    }).functionName, "finalizeEpoch");
 });
 //# sourceMappingURL=sdk.test.js.map

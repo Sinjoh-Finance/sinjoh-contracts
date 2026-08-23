@@ -56,6 +56,14 @@ export const pendingWork = {
             args: [accountId, epochId],
         });
     },
+    airdropCredit(client, airdrop, recipient, asset) {
+        return client.readContract({
+            address: airdrop,
+            abi: projectAirdropV2Abi,
+            functionName: "retryableCredit",
+            args: [recipient, asset],
+        });
+    },
     basket(client, manager, basketId) {
         return client.readContract({
             address: manager,
