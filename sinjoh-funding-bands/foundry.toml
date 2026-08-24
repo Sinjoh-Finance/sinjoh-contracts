@@ -11,6 +11,7 @@ remappings = [
   "@uniswap/v3-periphery/=../sinjoh-liquidity-manager/lib/v3-periphery/",
   "@uniswap/v4-core/=../sinjoh-liquidity-manager/lib/v4-periphery/lib/v4-core/",
   "@uniswap/v4-periphery/=../sinjoh-liquidity-manager/lib/v4-periphery/",
+  "@sinjoh-v2/=../sinjoh-contracts-v2/src/",
   "permit2/=../sinjoh-liquidity-manager/lib/v4-periphery/lib/permit2/",
   "sinjoh-launchpad-adapters/=../sinjoh-launchpad-adapters/",
   "sinjoh-fee-router/=../sinjoh-fee-router/"
@@ -22,7 +23,11 @@ optimizer_runs = 20_000
 via_ir = true
 bytecode_hash = "none"
 cbor_metadata = false
-allow_paths = ["../sinjoh-launchpad-adapters", "../sinjoh-fee-router"]
+allow_paths = [
+  "../sinjoh-contracts-v2",
+  "../sinjoh-launchpad-adapters",
+  "../sinjoh-fee-router"
+]
 
 [fmt]
 line_length = 100
