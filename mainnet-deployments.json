@@ -11,7 +11,13 @@
     "verifiedAtBlock": 33989899,
     "factoryProxy": {
       "address": "0x5bd1Fbe78a78fe8236fa00CF48fbEBA74ae34661",
-      "runtimeCodeHash": "0x51faa3f1aaa267eb4ffb4dd57f07a89edf3ffd618213bf35cf7f8254a07961e5"
+      "runtimeCodeHash": "0x51faa3f1aaa267eb4ffb4dd57f07a89edf3ffd618213bf35cf7f8254a07961e5",
+      "implementation": "0x3dfd73a63e15920add4b6c5c6a4b1b4b768b2c1a",
+      "implementationRuntimeCodeHash": "0xef0219f515c49723f589e3aa4748b6f99caa8ef8a3f03e4c1a2b4d977d80f731",
+      "implementationBinding": {
+        "kind": "eip1967",
+        "slot": "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
+      }
     },
     "factoryImplementation": {
       "address": "0x3dfd73a63e15920add4b6c5c6a4b1b4b768b2c1a",
@@ -134,9 +140,15 @@
         "runtimeCodeHash": "0xd373f618fc1355ec9344ae55717c563d9a1a795260bc5204ef50fc32e159d5a7"
       },
       "v4Infrastructure": {
-        "stateView": "0xF3334192D15450CdD385c8B70e03f9A6bD9E673b",
+        "stateView": {
+          "address": "0xF3334192D15450CdD385c8B70e03f9A6bD9E673b",
+          "runtimeCodeHash": "0x7d9c591e0956fd89d98feb4ffcfe8bf1f7a62bd485edd979fa21d104b49878a6"
+        },
         "stateViewRuntimeCodeHash": "0x7d9c591e0956fd89d98feb4ffcfe8bf1f7a62bd485edd979fa21d104b49878a6",
-        "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+        "poolManager": {
+          "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+          "runtimeCodeHash": "0xbd3881180b547f5fe817545743cfb4343e96b1bc6640dcd70c106b0066e95626"
+        },
         "poolManagerRuntimeCodeHash": "0xbd3881180b547f5fe817545743cfb4343e96b1bc6640dcd70c106b0066e95626"
       },
       "bindings": {
@@ -617,9 +629,18 @@
       "purpose": "Raffle operational accounts. The attestor commits snapshot roots (keeper env SINJOH_ATTESTOR_PRIVATE_KEY); the prover holds the ECVRF secret matching the adapter's immutable public key (SINJOH_ECVRF_SECRET_KEY). Deliberately distinct: their separation is what prevents single-operator outcome grinding."
     },
     "rafflePriceGuards": {
-      "guard500": "0xDad51edC925D4CCd46c1229763F40d1F32c7480C",
-      "guard3000": "0xd01273Fa749BF16e333cFB85D27fD11A82D1515D",
-      "guard10000": "0xf81d21e0b51A7DD815f44682B63b7e732E0b4803",
+      "guard500": {
+        "address": "0xDad51edC925D4CCd46c1229763F40d1F32c7480C",
+        "runtimeCodeHash": "0xd0d2cf2912d6344ddfaf657911a1fb2a9a4e74ecd6e829d835c18dd342f9801e"
+      },
+      "guard3000": {
+        "address": "0xd01273Fa749BF16e333cFB85D27fD11A82D1515D",
+        "runtimeCodeHash": "0xf3919ec4ce39d29d19e96af0452d1fe53cbb2dfce2a1e7ea053d48ae7f6cfc8f"
+      },
+      "guard10000": {
+        "address": "0xf81d21e0b51A7DD815f44682B63b7e732E0b4803",
+        "runtimeCodeHash": "0xd99afa61854a819bd0adcd593bbc8c3a9a278e5fe29cd2b6f150efe9cdc8b74d"
+      },
       "twapWindowSeconds": 300,
       "deployedAt": "2026-08-05",
       "preflight": {
@@ -768,38 +789,133 @@
     "routerOwnedPons": "Deliberately never deployed: duplicates DeployFeeRouter output."
   },
   "dependencies": {
-    "ponsLaunchFactory": "0xA5aAb3F0c6EeadF30Ef1D3Eb997108E976351feB",
-    "ponsLocker": "0x736D76699C26D0d966744cAe304C000d471f7F35",
-    "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
-    "v3Factory": "0x1f7d7550B1b028f7571E69A784071F0205FD2EfA",
-    "v3PositionManager": "0x73991a25C818Bf1f1128dEAaB1492D45638DE0D3",
-    "swapRouter": "0xCaf681a66D020601342297493863E78C959E5cb2",
-    "ponsV2LaunchFactory": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
-    "ponsV2LaunchDeployer": "0x3711ceA4feaDE896C913C68F01Eda97Cb06D1A42",
-    "ponsV2FeeEscrow": "0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e",
-    "ponsV2MemeHook": "0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044",
-    "ponsV2BuybackVault": "0x42df2a798f82289E177311362e8f5ccC45c1219c",
-    "ponsV2LaunchLocker": "0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952",
-    "ponsV2LaunchForwarder": "0xe33E9E479dF8802cb0866d5d05258bEc4cF62948",
-    "uniswapV4PoolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
-    "uniswapV4PositionManager": "0x58daec3116aae6D93017bAAea7749052E8a04fA7",
-    "uniswapV4UniversalRouter": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
-    "poolsTradeLiquidityLauncher": "0x0000FffFBE8efE702c8703aE3477FF5dE3d319C0",
-    "poolsTradeUERC20Factory": "0x000000e200088D55C39a11F609E5F667729ad49b",
-    "poolsTradeInstantStrategyCreatorFee": "0x23f8209572b4a1C2AD88A42749E830791Fb027f1",
-    "poolsTradeInstantStrategyNoFee": "0xAD44D55E7f8337C3cE113fBb591486E85be104b2",
-    "poolsTradeFeeSplitterCreatorFee": "0xeFF166AAf189323c58dc27eD1206EB2C37FaACDf",
-    "poolsTradeFeeSplitterNoFee": "0x222D6d4f1ce59b0d48D5505114eC8Addc90A4359",
-    "poolsTradeBeneficiaryVault": "0xd35E9CA72F64C7F93BE30fad67524323396B36D7",
-    "poolsTradeCompoundingClaimRecipient": "0xf9526Dd3361fe0ba6b7a99533ed471D3E808E99a",
-    "poolsTradeLBPStrategy": "0x05d552391067389EE44fec3924157ed33F976000",
-    "poolsTradeCCAFactory": "0x000000001F26a0044BaA66024e7b6599c61963F8",
-    "poolsTradeInitializerHook": "0xD462a559337859369EF271814851A18F496ba000",
-    "poolsTradeTokenSplitter": "0x4F5E3FBb9745358A92Da5674305FAb8D2B8a73cE",
+    "ponsLaunchFactory": {
+      "address": "0xA5aAb3F0c6EeadF30Ef1D3Eb997108E976351feB",
+      "runtimeCodeHash": "0x0a62b8ed1d88d30c7b342ea8361dfaf0ac336706992cf0c8ba38b129f06391d4"
+    },
+    "ponsLocker": {
+      "address": "0x736D76699C26D0d966744cAe304C000d471f7F35",
+      "runtimeCodeHash": "0xa7880a625a649da833de5597c9f41585bb75e20ef91d45830ccc6f4e49cc281c"
+    },
+    "weth": {
+      "address": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+      "runtimeCodeHash": "0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353"
+    },
+    "v3Factory": {
+      "address": "0x1f7d7550B1b028f7571E69A784071F0205FD2EfA",
+      "runtimeCodeHash": "0xec72b1abd1f2faee020cfea9c646bd8994f9fb389054f6e574f103a895091739"
+    },
+    "v3PositionManager": {
+      "address": "0x73991a25C818Bf1f1128dEAaB1492D45638DE0D3",
+      "runtimeCodeHash": "0x0a493d1af3d0f25fed8efa205244ebee14114267a08647fc38c515c7cd6ead4f"
+    },
+    "swapRouter": {
+      "address": "0xCaf681a66D020601342297493863E78C959E5cb2",
+      "runtimeCodeHash": "0x6f36c378e272c6324c48f045182bcb54bd8ad654cf9ebd42e8893d52c4cb25dc"
+    },
+    "ponsV2LaunchFactory": {
+      "address": "0x7DCeEaB0A53684b001A4900768a52eAcDb27294e",
+      "runtimeCodeHash": "0x3392f4e9040deec97e49bf05fc3a696f295b79806ef83910d84943d431d05e83"
+    },
+    "ponsV2LaunchDeployer": {
+      "address": "0xa0bc05240f1cD1f3Df7FEfA35e48C19ffF4c6ACe",
+      "runtimeCodeHash": "0x1a02242a68ae3b615880e87cba298a208fe991a7a6f87cbc9b34e596e9518fc7"
+    },
+    "ponsV2FeeEscrow": {
+      "address": "0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e",
+      "runtimeCodeHash": "0xf25f75cfbc1637ba068dc34f69098fa4e8a80f8ee8fe7bf7820594e0b3fed2f1"
+    },
+    "ponsV2MemeHook": {
+      "address": "0xE9Ec0Ffc7d5bEF33f815D7b0cDd15A7c5Dc1e044",
+      "runtimeCodeHash": "0x5f3bc01971cffe8dea490d70f123c25c01ae2c3579b68d40109c3ac68e1461eb"
+    },
+    "ponsV2BuybackVault": {
+      "address": "0xA61f18568d3B817bbb95450D42F7403e871Ce0a1",
+      "runtimeCodeHash": "0x99fd213fd5cccddc5bb26e9ab9763a69bd17f7286333f93ae9c3b96817f8f904"
+    },
+    "ponsV2LaunchLocker": {
+      "address": "0x1006fA85294A9c38AA4214d52c86CC970Ddc5647",
+      "runtimeCodeHash": "0x5304631acb89c64e75397509c745337b6ddb3e7f529e2297a335114049bcff7d"
+    },
+    "ponsV2LaunchForwarder": {
+      "address": "0xAc299024C0f4E561D6e99CEFABB9b7212de729b6",
+      "runtimeCodeHash": "0x964762b1cdb587f7dc7d27f796e0ed403e0066e00a7ed0d015c90b1df32c5ec5"
+    },
+    "uniswapV4PoolManager": {
+      "address": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+      "runtimeCodeHash": "0xbd3881180b547f5fe817545743cfb4343e96b1bc6640dcd70c106b0066e95626"
+    },
+    "uniswapV4PositionManager": {
+      "address": "0x58daec3116aae6D93017bAAea7749052E8a04fA7",
+      "runtimeCodeHash": "0xc873e135dc9aaec88489cfbad146b4cb49d6a32e0d80326377784b7ba17670b2"
+    },
+    "uniswapV4UniversalRouter": {
+      "address": "0x8876789976dEcBfCbBbe364623C63652db8C0904",
+      "runtimeCodeHash": "0x2ce6aaaf9f4151f5e1cbf774668772f17f532ae11b15e9284fd0a072a8b0fbde"
+    },
+    "poolsTradeLiquidityLauncher": {
+      "address": "0x0000FffFBE8efE702c8703aE3477FF5dE3d319C0",
+      "runtimeCodeHash": "0x4a586d925c9d59ece13ce2239ebd7dea9ee725f9d33c6667e0fd16ae8d977d80"
+    },
+    "poolsTradeUERC20Factory": {
+      "address": "0x000000e200088D55C39a11F609E5F667729ad49b",
+      "runtimeCodeHash": "0x9f042af1533641f048ced56b55898d9e87b2ccb0ec6854292e2cd8ea733e6aeb"
+    },
+    "poolsTradeInstantStrategyCreatorFee": {
+      "address": "0x23f8209572b4a1C2AD88A42749E830791Fb027f1",
+      "runtimeCodeHash": "0x29df27cf43533e9b3708dcd2a2c0fd17a1a8796407e7d39375f47e5c809cffca"
+    },
+    "poolsTradeInstantStrategyNoFee": {
+      "address": "0xAD44D55E7f8337C3cE113fBb591486E85be104b2",
+      "runtimeCodeHash": "0x6944058fa8339bcf018c4a2ddc043d378b47516f8756db34202bdc6cf93a9a8e"
+    },
+    "poolsTradeFeeSplitterCreatorFee": {
+      "address": "0xeFF166AAf189323c58dc27eD1206EB2C37FaACDf",
+      "runtimeCodeHash": "0x8238e5106b3a895514083110d1f3b4e51be61148604f35113719af56ae325f42"
+    },
+    "poolsTradeFeeSplitterNoFee": {
+      "address": "0x222D6d4f1ce59b0d48D5505114eC8Addc90A4359",
+      "runtimeCodeHash": "0x8238e5106b3a895514083110d1f3b4e51be61148604f35113719af56ae325f42"
+    },
+    "poolsTradeBeneficiaryVault": {
+      "address": "0xd35E9CA72F64C7F93BE30fad67524323396B36D7",
+      "runtimeCodeHash": "0x725412bf002214373afc095b0b9e4c756b1d12ac37d5c7dfe1667db4385403b6"
+    },
+    "poolsTradeCompoundingClaimRecipient": {
+      "address": "0xf9526Dd3361fe0ba6b7a99533ed471D3E808E99a",
+      "runtimeCodeHash": "0xb9b1a32990c06baedf12b01208967d6a8373afbf99b684ea81b07c7b99e5dbe9"
+    },
+    "poolsTradeLBPStrategy": {
+      "address": "0x05d552391067389EE44fec3924157ed33F976000",
+      "runtimeCodeHash": "0x6e822d6a2f634311363ec357109a691d86912414df5c211a2f6ac6de9a680d68"
+    },
+    "poolsTradeCCAFactory": {
+      "address": "0x000000001F26a0044BaA66024e7b6599c61963F8",
+      "runtimeCodeHash": "0xa1d2a90564f4f63580b25de42efaff92505c254b00fc666f65ab38126cce5cfa"
+    },
+    "poolsTradeInitializerHook": {
+      "address": "0xD462a559337859369EF271814851A18F496ba000",
+      "runtimeCodeHash": "0xbd115add5605cc659e68632d42884c67da58251c9ceb17d5019d0a85d36c2a2e"
+    },
+    "poolsTradeTokenSplitter": {
+      "address": "0x4F5E3FBb9745358A92Da5674305FAb8D2B8a73cE",
+      "runtimeCodeHash": "0x3373016823b274303947e411171478087acc3d1e844c649bc9b84e69de685d62"
+    },
     "poolsTradeNotes": "pools.trade is Uniswap's liquidity-launcher stack; contract sourcing and both launch shapes are documented in POOLS-TRADE-FINDINGS.md and sinjoh-launchpad-adapters/SPEC.md. Watch items: the CCA factory's protocolFeeController() is zero but mutable (the keeper logs loudly if it changes), and strategy addresses rotate with upstream versions.",
     "poolsTradeRaffleNotes": "A raffle over a pools.trade launch must exclude every protocol contract that custodies the subject: the launch's adapter, the LiquidityLauncher, uniswapV4PositionManager, uniswapV4PoolManager, and per shape - instant: the InstantLaunchStrategy, its FeeSplitter, and (creator-fee variant) the UERC20BeneficiaryVault; LBP: the LBPStrategy and the launch's ContinuousClearingAuction. Build the list with sinjoh-keeper/src/poolstrade/predict.ts raffleExclusionsForPoolsTradeLaunch, which reads all of it off the adapter's own immutable views and returns the canonical sorted-unique form.",
-    "robinhoodStockBeacon": "0xe10b6f6B275de231345c20D14Ab812db62151b00",
-    "robinhoodStockImplementation": "0xb35490d6f9163DE4F80d88dc75c3516eb64C5aE2",
+    "robinhoodStockBeacon": {
+      "address": "0xe10b6f6B275de231345c20D14Ab812db62151b00",
+      "runtimeCodeHash": "0x8b465c0b53a2ba499566e9b4ca67d8c90ed6131743df806a570d156956a7e90e",
+      "implementation": "0xb35490d6f9163DE4F80d88dc75c3516eb64C5aE2",
+      "implementationRuntimeCodeHash": "0xdc07e86ee482f99641bdafb9a0d772846b167401e094d90a666b94dbdcd1eec7",
+      "implementationBinding": {
+        "kind": "beacon"
+      }
+    },
+    "robinhoodStockImplementation": {
+      "address": "0xb35490d6f9163DE4F80d88dc75c3516eb64C5aE2",
+      "runtimeCodeHash": "0xdc07e86ee482f99641bdafb9a0d772846b167401e094d90a666b94dbdcd1eec7"
+    },
     "ponsV2RaffleNotes": "A raffle over a Pons v2 launch must exclude the launch's bonding curve (predict pre-launch via PonsV2LaunchDeployer.predictLaunchAddresses; tooling in sinjoh-keeper/src/ponsv2 and sinjoh-fee-router PonsV2LaunchPrediction) plus ponsV2LaunchFactory, uniswapV4PoolManager, ponsV2BuybackVault, ponsV2MemeHook, and the launchpad adapter. Stocks are beacon proxies: see sinjoh-raffle-rewards/ROBINHOOD_STOCKS.md."
   }
 }

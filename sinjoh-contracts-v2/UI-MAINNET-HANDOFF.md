@@ -1,177 +1,78 @@
-# Sinjoh Contracts V2 mainnet UI handoff
+# Sinjoh Project V2 mainnet UI handoff
 
-Status: **deployed and verified, not promoted into production consumers**
+Status: **canonical deployed release; use this release for production consumers**
 
 Chain: Robinhood Chain mainnet (`4663`)
 
-Deployment date: `2026-08-23`
+Canonical source commit: `618f7113cfd58fa818bdc798ee230aba4e05d2a6`
 
-Source commit: `4ca4f6aca08e7669b1c7e08f21a1219be2cab548`
+Canonical build hash: `2f869c15eb3f2500ade570880377d5eab57559a5a9771face16e3556b9aae551`
 
-Deployment blocks: `44402702` through `44402706`
+Deployment blocks: `45138065` through `45138244`
 
-This is the handoff for the comprehensive pre-wiring sweep. It does not authorize a production
-UI, API, indexer, keeper, SDK deployment-registry, or environment cutover by itself.
+The earlier `4ca4f6aca08e7669b1c7e08f21a1219be2cab548` deployment is superseded and must
+not be used by the UI, API, SDK, indexers, keepers, or verification scripts.
 
-## Canonical release artifact
+## Canonical artifacts
 
-Use [`deployments/project-launcher-v2-4663-4ca4f6a-chainlink.json`](./deployments/project-launcher-v2-4663-4ca4f6a-chainlink.json)
-as the machine-readable source of truth. It pins the release commit, build hash, compiler settings,
-addresses, runtime hashes, creation-code hashes, external infrastructure, approval root, leaves,
-and Merkle proofs.
+- [`deployments/project-v2-recovery-manifest-4663-7837.json`](./deployments/project-v2-recovery-manifest-4663-7837.json)
+- [`deployments/project-v2-recovery-promotion-entry-4663-7837.json`](./deployments/project-v2-recovery-promotion-entry-4663-7837.json)
+- [`deployments/project-v2-recovery-consumer-input-4663-7837.json`](./deployments/project-v2-recovery-consumer-input-4663-7837.json)
+- [`../deployments/consumers/bindings.json`](../deployments/consumers/bindings.json)
 
-The release can be rechecked without a signer:
+The promotion entry is incorporated into `mainnet-deployments.json` under
+`currentInfrastructure.projectV2`. Render consumer environments from the repository binding model;
+do not copy addresses into application source.
+
+## Browser entry points
+
+| Contract | Address | Runtime code hash | Deployment transaction |
+| --- | --- | --- | --- |
+| `ProjectLauncherV2` | `0x87B67dfFf09363AA75f4BEf1a43ae7d90C8f497B` | `0x86b7c7f88e40538022f80f00cad22469d622cbfb45a66c8d39577560e6ac5131` | `0x0ed96cfdcb1a484bcfad83756f26f865489689a53fe8233744a612ec8906ae90` |
+| `ProjectRegistryV2` | `0xb10f8350264315850D3aa8b9794f34F496F6d0Cf` | `0x4317d73c13f1c9706677709ef42fa4cf4b03202ed130230c363eb2e10082ffe6` | `0xaa8258c49b72d63ce0f7366802904ad5c15f16bb9992c7a9fb901b16a87b2226` |
+| `ProjectLaunchDeployerV2` | `0x92EBaC0139001Face632aA25Bf6EC19Dc3a5747e` | `0x4b84e29376fa6ab3363fb7256057e30741b41dd22356d7d5ea7be6ea82edf128` | `0x31cc7ba558ebe23677dadb7b7e5a683ce4d5d7984aa1774ca4c982dfd73bf590` |
+| `SinjohPonsV2ProjectAdapterFactory` | `0xAc299024C0f4E561D6e99CEFABB9b7212de729b6` | `0x964762b1cdb587f7dc7d27f796e0ed403e0066e00a7ed0d015c90b1df32c5ec5` | `0x5c632df37c4d79ed4c40ac1f944b431ee7f33ecaceb45a9309b783ac08bdaf41` |
+| `SinjohPonsV2ProjectAdapter` implementation | `0x3943b7f46b201CFe5033367Ae2E102555e0ea50F` | `0xd61178a140dc8f8df8a0ae4987dc93b7063334496591c10e81aee660d1d916e6` | `0xc9121126ed8dae4812802ddc23b68fea872d7bfce68947258a24ea6cede2edbd` |
+
+An atomic Pons + Project launch transacts with
+`0xAc299024C0f4E561D6e99CEFABB9b7212de729b6`. A direct Project-token launch
+transacts with `0x87B67dfFf09363AA75f4BEf1a43ae7d90C8f497B`.
+
+## Canonical Pons V2 dependencies
+
+| Contract | Address | Runtime code hash |
+| --- | --- | --- |
+| Launch factory | `0x7DCeEaB0A53684b001A4900768a52eAcDb27294e` | `0x3392f4e9040deec97e49bf05fc3a696f295b79806ef83910d84943d431d05e83` |
+| Launch deployer | `0xa0bc05240f1cD1f3Df7FEfA35e48C19ffF4c6ACe` | `0x1a02242a68ae3b615880e87cba298a208fe991a7a6f87cbc9b34e596e9518fc7` |
+| Fee escrow | `0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e` | `0xf25f75cfbc1637ba068dc34f69098fa4e8a80f8ee8fe7bf7820594e0b3fed2f1` |
+| Meme hook | `0xE9Ec0Ffc7d5bEF33f815D7b0cDd15A7c5Dc1e044` | `0x5f3bc01971cffe8dea490d70f123c25c01ae2c3579b68d40109c3ac68e1461eb` |
+| Buyback vault | `0xA61f18568d3B817bbb95450D42F7403e871Ce0a1` | `0x99fd213fd5cccddc5bb26e9ab9763a69bd17f7286333f93ae9c3b96817f8f904` |
+| Launch locker | `0x1006fA85294A9c38AA4214d52c86CC970Ddc5647` | `0x5304631acb89c64e75397509c745337b6ddb3e7f529e2297a335114049bcff7d` |
+| Uniswap V4 PoolManager | `0x8366a39CC670B4001A1121B8F6A443A643e40951` | `0xbd3881180b547f5fe817545743cfb4343e96b1bc6640dcd70c106b0066e95626` |
+
+The launch factory, hook, locker, and buyback vault are owned by
+`0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49`; each `pendingOwner()` is zero.
+
+## Release behavior
+
+- Baskets are disabled.
+- Project Raffle, Staking, Treasury, governance, Airdrop, Router, and the Pons Project adapter are available.
+- Project Airdrop uses signed `AirdropEpochCommitment` calldata; legacy airdrop calldata is incompatible.
+- Project Funding Bands for Pons launches activates after graduation through the canonical Pons V4 Funding Bands path. The Project-specific V3 module is not selected for an atomic Pons launch.
+- Protocol fee recipient: `0x5Bb7582557F5be30b62c335Ad3ccf4bA79E138c5`.
+- Integration approval root: `0x97c6b100e3d71cb95d125537fcd2736043d90ff56852f425eac29dc33956b19d`.
+
+## Indexer and verification
+
+Start Project V2 discovery at block `45138065` and enumerate Registry
+`0xb10f8350264315850D3aa8b9794f34F496F6d0Cf`.
+
+Use the configured Chainstack primary and QuickNode secondary. Never substitute a public
+Robinhood RPC or Alchemy.
 
 ```bash
-export RPC_URL=https://rpc.mainnet.chain.robinhood.com
-export RELEASE_MANIFEST=deployments/project-launcher-v2-4663-4ca4f6a-chainlink.json
-export RELEASE_GIT_COMMIT="$(jq -r .gitCommit "$RELEASE_MANIFEST")"
-export RELEASE_SOURCE_TREE_HASH="$(jq -r .sourceTreeHash "$RELEASE_MANIFEST")"
-test "$(git -C .. rev-parse "${RELEASE_GIT_COMMIT}:sinjoh-contracts-v2")" = "$RELEASE_SOURCE_TREE_HASH"
-node script/verify-deployed-release.mjs "$RELEASE_MANIFEST"
-SOURCE_VERIFIER=sourcify ./script/verify-release-sources.sh "$RELEASE_MANIFEST"
+cd sinjoh-contracts-v2
+export RELEASE_MANIFEST=deployments/project-v2-recovery-manifest-4663-7837.json
+RPC_URL="$CHAINSTACK_RPC_URL" node script/verify-deployed-release.mjs "$RELEASE_MANIFEST"
+RPC_URL="$QUICKNODE_RPC_URL" node script/verify-deployed-release.mjs "$RELEASE_MANIFEST"
 ```
-
-## UI entry points
-
-| Contract | Address | Runtime hash | Deployment transaction |
-| --- | --- | --- | --- |
-| `ProjectLauncherV2` | `0x9e6Ec5429776aA52d1ec37E0c7c3b145980c8072` | `0xc106b5ea982d60ebc79fc3e99dd12f9faad18d39e491f8ca32972be2dd780778` | `0x201430ed395eb31ef43f5abf758855a79047afeb85714c4bb3cf19d543c04fd7` |
-| `ProjectRegistryV2` | `0xb5e082e6Bb54f007a0b1Aa7534e6e9855490A473` | `0xa0ccc5c5c1d8ca873a3a84bcc13073f027f99976c414dabe0d97997744104f4d` | `0x2384d715b6c8ac763e601edab74da077675d4ae36bc94a445d7844bf2ec4262d` |
-| `ProjectLaunchDeployerV2` | `0x5aa60b74eFC414ABEfAeBa783959afF9fF99dD99` | `0xd81561cd73484fb2ff950796f2fb8fdc97c54166ab9dd0df6d1b8c6c0c9b0e39` | `0x29ceb5fdb709e120b34ebec94350c4a448fc1d396e4d524e1dee8f6c4eff3972` |
-
-Explorer base: `https://robinhoodchain.blockscout.com`
-
-Sourcify base: `https://repo.sourcify.dev/4663`
-
-The browser should transact only with the Launcher. The deployment engine and creation-code stores
-are immutable implementation plumbing, not user-facing contracts.
-
-Suggested future UI manifest block:
-
-```ts
-contractsV2: {
-  status: "deployed-not-promoted",
-  protocolVersion: 2,
-  deploymentBlock: 44402706n,
-  launcher: "0x9e6Ec5429776aA52d1ec37E0c7c3b145980c8072",
-  launcherRuntimeCodeHash:
-    "0xc106b5ea982d60ebc79fc3e99dd12f9faad18d39e491f8ca32972be2dd780778",
-  registry: "0xb5e082e6Bb54f007a0b1Aa7534e6e9855490A473",
-  registryRuntimeCodeHash:
-    "0xa0ccc5c5c1d8ca873a3a84bcc13073f027f99976c414dabe0d97997744104f4d",
-  deploymentEngine: "0x5aa60b74eFC414ABEfAeBa783959afF9fF99dD99",
-  deploymentEngineRuntimeCodeHash:
-    "0xd81561cd73484fb2ff950796f2fb8fdc97c54166ab9dd0df6d1b8c6c0c9b0e39",
-}
-```
-
-## Fixed release infrastructure
-
-| Purpose | Address | Runtime hash |
-| --- | --- | --- |
-| Raffle implementation | `0xf2B8d3B1bF78223e435063BF347a7c57211c7fd4` | `0xba22d4e2aa622933541cb231f6ab8eca670539c748c8507e21742125157a0010` |
-| Randomness adapter | `0xD16BCD59ca33C1e85578Aa5d60a02C4E2231c491` | `0x72ce584dc295ce6e9bfb87803e2445c44a79ced3e5461d894d5028c13f9f5d0b` |
-| Project swap adapter | `0xc9F600ebaf9EE1F4a24568D2e4Af9E8df1e07D7B` | `0x17b8eecc60ff9af5768240b0384e96c4e54fd8611355297e45146303294c6ac6` |
-| Funding-band integration factory | `0xdADA6d24c02dc06eEbAcB148F5F95f10C1e1645F` | `0x42af7b6fdbaab808c06db8761a7a91578a1e07cc75ce40551b9d6e010c71dcb3` |
-| Funding-band quote adapter | `0x4a98F742D67f725aB3BD0E427308273354353195` | `0x6bde18fbfb602edfb4e5554b44ae9fe1f7b2d47ccbe35a7311b0936134a66efd` |
-| Chainlink ETH/USD feed | `0x78F3556b67E17Df817D51Ef5a990cDaF09E8d3A9` | `0xbd6f524cdc4268b6bd1bb6f77a8821faeea9c52ee9e0afa0b6d948ce82c966c2` |
-| V3 price guard, fee `500` | `0x8a5516Fbe589Ea4d4E9a69e39Cae307b109b5842` | `0xa1eb83fbcd5959e18a125614d807969eae7cde0c718670e5aaecbe089797be4f` |
-| V3 price guard, fee `3000` | `0xE46485a5A9BA6CFe5d5c5d37049460ebFDF50d13` | `0x0ccd2e844de8f5ee2dccdeca6140189a3e75c791a2a9d1969976f1447b495872` |
-| V3 price guard, fee `10000` | `0x425060E1edfcB3d7B3CEb0BEdECc20A771081AC3` | `0x6ad1162bbc16e7298069e52ae6d2313aabf751733f92c1e833e3ce8a54bcbd63` |
-
-The protocol fee recipient is `0x5Bb7582557F5be30b62c335Ad3ccf4bA79E138c5`. The release approval root is
-`0x88d96153c5e0e6eafaf05e05958ef43773829e556e2a0931280791308e76561a`.
-Both are immutable in this deployment engine.
-
-## Feature gates
-
-- **Baskets:** hard-disabled in this release. `basketEnabled == false`; the Basket implementation,
-  ERC-4626 factory, runtime hashes, and Basket creation-code hash are all zero. Do not render a
-  Basket choice, silently substitute a Basket config, or import the prototype Basket ABI into the
-  production launch path. Baskets will ship as their own later release.
-- **Funding Bands:** deployed and ready for the later production-wiring sweep. The quote asset is
-  canonical WETH, and its immutable quote adapter reads Chainlink's direct `ETH / USD` feed. USDG
-  is not a supported Funding Bands asset or oracle dependency. Keep the production UI gate closed
-  until the infrastructure sweep verifies the final preset, automation, indexer, API, and UI wiring.
-  The reviewed preset should set the maximum observation age to 25 hours (the onchain upper bound,
-  covering the feed's 24-hour heartbeat plus a one-hour delivery margin), independently of a
-  15-minute market-cap confirmation period and 15-minute TWAP. It must never substitute a DEX-pool
-  USD price or weaken the onchain staleness checks.
-- **Raffle:** available. Its implementation is initialization-locked and the deployment engine
-  supplies the reviewed randomness adapter and protocol fee recipient. Creator forms must not ask
-  users to enter those release-owned values.
-- **Token, Multisig/Token Governance, Timelock, Staking, Treasury, Airdrop, Router, Liquidity:**
-  deployed through the Launcher from the exact creation code pinned in the release manifest.
-
-## ABI and SDK source
-
-The exact generated ABIs are in [`sdk/src/abis.generated.ts`](./sdk/src/abis.generated.ts). The
-contract-local package exports the launch/read/action helpers from [`sdk/src/index.ts`](./sdk/src/index.ts):
-
-- `buildLaunchFromPreset`
-- `validateLaunchConfig`
-- `predictLaunch`
-- `projectRecord`
-- `buildProjectLaunchManifest`
-- `projectLauncherV2Abi` and `projectRegistryV2Abi`
-- typed custom-error names and user-facing launch error copy
-
-Do not manually recreate the nested `ProjectLaunchConfig` tuple in UI code. Promote the reviewed
-contract-local SDK surface into the public SDK first, then consume that typed package from the app.
-The platform owns reviewed presets; the creator owns only the fields represented by
-`CreatorLaunchChoices`.
-
-## Wallet launch sequence
-
-1. Assert chain ID `4663` and verify the Launcher, Registry, and deployment-engine runtime hashes.
-2. Load one versioned, platform-reviewed preset. Keep Baskets disabled. Do not enable Funding Bands
-   until the separate infrastructure-wiring sweep is complete.
-3. Hydrate creator-owned choices with `buildLaunchFromPreset`.
-4. Call `validateLaunchConfig(config)` and `predictLaunch(config)` against the canonical Launcher.
-5. Simulate `launch(config)` from the exact connected creator address. A different sender fails with
-   `CreatorMustLaunch`.
-6. Submit the same simulated call through the wallet, wait for a successful receipt, and preserve
-   the transaction hash if receipt observation is temporarily unavailable. Never sign a second
-   launch merely because receipt polling failed.
-7. Decode `ProjectLaunchCompleted` from the Launcher, then read the Registry by both `projectId` and
-   subject. Assert the config hash, subject, creator, controller, enabled-module bitmap, and every
-   predicted module address before reporting success.
-8. Build and persist the canonical project launch manifest from the confirmed receipt and Registry
-   readback.
-
-The Launcher is nonpayable. Do not attach ETH to `launch(config)`.
-
-## Indexer and API handoff
-
-Start V2 discovery at block `44402706`:
-
-- Launcher event: `ProjectLaunchCompleted(projectId, subject, creator, controller, launchConfigHash, enabledModules)`
-- Registry events: `ProjectLaunched`, `ProjectModules`, and `ProjectMetadataUpdated`
-
-The Registry had `projectCount() == 0` at handoff, so the first indexed V2 project should be index
-zero. The API/indexer should still enumerate the Registry rather than assuming that count remains
-zero or requiring a manual per-project publication step.
-
-API responses for V2 projects must preserve:
-
-- protocol version and canonical Registry/Launcher identity;
-- the complete module bitmap and module addresses;
-- governance mode, controller, vote source, reference supply, canonical pool, and metadata version;
-- the launch transaction, block, config hash, and release commit/build hash;
-- explicit feature availability. Baskets must remain unavailable. Funding Bands should appear only
-  after its production wiring is deliberately enabled, not merely because support contracts exist.
-
-## Verification record
-
-- Deployment: `18/18` receipts succeeded, with no pending transactions.
-- Runtime/state: every deployed and external dependency hash, immutable, core cross-link, approval
-  root, creation-code store/hash/chunk, and Raffle implementation lock was read back from chain.
-- Source: all `18` deployed contracts report matching creation and runtime source on Sourcify.
-- Contracts: `460` passed, `0` failed, `1` intentionally skipped external-vault fork test.
-- Contract-local SDK: `23` passed.
-- Public SDK: `119` passed; typecheck, OpenAPI lint, package dry-run, and release metadata passed.
-- Platform/API/keepers/indexers: `291` passed; typecheck and Envio code generation passed.
-- UI: lint and typecheck passed; production build completed; `420` tests passed.
-
-No production consumer was rewired while producing this handoff.
