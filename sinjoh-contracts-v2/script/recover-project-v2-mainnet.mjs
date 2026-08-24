@@ -1251,6 +1251,7 @@ export function runRecovery(overrides = {}) {
         "script", scriptTarget,
         "--sig", action.signature,
         "--sender", DEPLOYER,
+        "--rpc-url", primary,
         "--gas-estimate-multiplier", String(RECOVERY_GAS_ESTIMATE_MULTIPLIER)
       ],
       { env: environment }
@@ -1286,6 +1287,7 @@ export function runRecovery(overrides = {}) {
         "--sig", action.signature,
         "--sender", DEPLOYER,
         ...signerArguments,
+        "--rpc-url", primary,
         "--broadcast",
         "--slow",
         "--gas-estimate-multiplier", String(RECOVERY_GAS_ESTIMATE_MULTIPLIER)
