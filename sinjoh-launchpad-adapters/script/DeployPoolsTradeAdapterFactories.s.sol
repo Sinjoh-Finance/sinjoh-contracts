@@ -7,6 +7,7 @@ import {
 } from "../src/SinjohPoolsTradeInstantAdapterFactory.sol";
 import { SinjohPoolsTradeLBPAdapter } from "../src/SinjohPoolsTradeLBPAdapter.sol";
 import { SinjohPoolsTradeLBPAdapterFactory } from "../src/SinjohPoolsTradeLBPAdapterFactory.sol";
+import { PoolsProjectRegistrationHelper } from "../src/PoolsProjectRegistrationHelper.sol";
 
 interface VmPoolsTradeAdapterFactories {
     function startBroadcast() external;
@@ -72,7 +73,8 @@ contract DeployPoolsTradeAdapterFactories {
         returns (
             SinjohPoolsTradeInstantAdapterFactory creatorFeeFactory,
             SinjohPoolsTradeInstantAdapterFactory noFeeFactory,
-            SinjohPoolsTradeLBPAdapterFactory lbpFactory
+            SinjohPoolsTradeLBPAdapterFactory lbpFactory,
+            PoolsProjectRegistrationHelper projectRegistrationHelper
         )
     {
         if (block.chainid != ROBINHOOD_MAINNET_CHAIN_ID) revert WrongChain(block.chainid);
@@ -111,11 +113,13 @@ contract DeployPoolsTradeAdapterFactories {
             WETH,
             ROBINHOOD_MAINNET_CHAIN_ID
         );
+        projectRegistrationHelper = new PoolsProjectRegistrationHelper();
         vm.stopBroadcast();
 
         _verifyInstant(creatorFeeFactory, INSTANT_STRATEGY_CREATOR_FEE, true);
         _verifyInstant(noFeeFactory, INSTANT_STRATEGY_NO_FEE, false);
         _verifyLBP(lbpFactory);
+        if (address(projectRegistrationHelper).code.length == 0) revert DeploymentFailed();
     }
 
     function _verifyInstant(
