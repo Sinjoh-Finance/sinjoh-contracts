@@ -4,6 +4,7 @@ set -euo pipefail
 readonly REPO_ROOT="/Users/dsb/sinjoh-contracts-unified-governance"
 readonly INTENDED_OWNER="0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49"
 readonly FOUNDRY_ACCOUNT_NAME="sinjoh-deployer"
+readonly FOUNDRY_KEYSTORE_PATH="/Users/dsb/.foundry/keystores/sinjoh-deployer"
 readonly RECOVERY_CONFIRMATION="I_UNDERSTAND_THIS_BROADCASTS_MAINNET"
 readonly RAILWAY_PROJECT="3e8e2a91-1b86-498e-887c-6cbd5d694dcb"
 readonly RAILWAY_SERVICE="039acfe1-72a1-4d66-8470-af0366c7b626"
@@ -83,6 +84,7 @@ intended_owner_lower="$(tr '[:upper:]' '[:lower:]' <<<"$INTENDED_OWNER")"
 RPC_URL="$primary_rpc" \
 RPC_VERIFICATION_URL="$secondary_rpc" \
 FOUNDRY_ACCOUNT="$FOUNDRY_ACCOUNT_NAME" \
+FOUNDRY_KEYSTORE_PATH="$FOUNDRY_KEYSTORE_PATH" \
 FOUNDRY_PASSWORD_FILE="$password_file" \
 EXECUTE_PROJECT_V2_RECOVERY="$RECOVERY_CONFIRMATION" \
 node sinjoh-contracts-v2/script/recover-project-v2-mainnet.mjs

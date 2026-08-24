@@ -11,6 +11,7 @@ const requireFromSdk = createRequire(new URL("../sdk/package.json", import.meta.
 const { concatHex, encodeAbiParameters, keccak256, stringToHex } = requireFromSdk("viem");
 
 export const RECOVERY_CONFIRMATION = "I_UNDERSTAND_THIS_BROADCASTS_MAINNET";
+export const RECOVERY_REHEARSAL_CONFIRMATION = "I_UNDERSTAND_THIS_DOES_NOT_BROADCAST";
 export const DEPLOYER = "0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49";
 export const CHAIN_ID = 4663;
 export const RECOVERY_GAS_ESTIMATE_MULTIPLIER = 200;
@@ -53,6 +54,21 @@ export function assertGasMultiplier(multiplier = RECOVERY_GAS_ESTIMATE_MULTIPLIE
       throw new Error(`${replay.action}: configured gas multiplier is below live trace floor`);
     }
   }
+}
+
+export function recoverySignerArguments(environmentInput) {
+  if (environmentInput.FOUNDRY_KEYSTORE_PATH) {
+    const arguments_ = ["--keystore", environmentInput.FOUNDRY_KEYSTORE_PATH];
+    if (environmentInput.FOUNDRY_PASSWORD_FILE) {
+      arguments_.push("--password-file", environmentInput.FOUNDRY_PASSWORD_FILE);
+    }
+    return arguments_;
+  }
+  if (!environmentInput.FOUNDRY_ACCOUNT) throw new Error("FOUNDRY_ACCOUNT is required");
+  if (environmentInput.FOUNDRY_PASSWORD_FILE) {
+    throw new Error("FOUNDRY_PASSWORD_FILE requires FOUNDRY_KEYSTORE_PATH");
+  }
+  return ["--account", environmentInput.FOUNDRY_ACCOUNT];
 }
 
 const packageDirectory = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -1144,10 +1160,12 @@ function emitRecoveryArtifacts(primary, secondary, baseline, plan, state, enviro
 
 export function runRecovery(overrides = {}) {
   const environmentInput = { ...process.env, ...overrides };
-  if (environmentInput.EXECUTE_PROJECT_V2_RECOVERY !== RECOVERY_CONFIRMATION) {
+  const rehearsalOnly = environmentInput.REHEARSE_PROJECT_V2_RECOVERY
+    === RECOVERY_REHEARSAL_CONFIRMATION;
+  if (!rehearsalOnly && environmentInput.EXECUTE_PROJECT_V2_RECOVERY !== RECOVERY_CONFIRMATION) {
     throw new Error(`refusing to broadcast; set EXECUTE_PROJECT_V2_RECOVERY=${RECOVERY_CONFIRMATION}`);
   }
-  if (!environmentInput.FOUNDRY_ACCOUNT) throw new Error("FOUNDRY_ACCOUNT is required");
+  if (!rehearsalOnly) recoverySignerArguments(environmentInput);
   if (environmentInput.FOUNDRY_PASSWORD_FILE
       && !existsSync(environmentInput.FOUNDRY_PASSWORD_FILE)) {
     throw new Error("FOUNDRY_PASSWORD_FILE does not exist");
@@ -1200,7 +1218,10 @@ export function runRecovery(overrides = {}) {
   environment.RPC_URL = primary;
   environment.RPC_VERIFICATION_URL = secondary;
   environment.ETH_RPC_URL = primary;
-  run("forge", ["build", "--force"], { env: environment });
+  console.log(state.buildFingerprint
+    ? "Recovery build fingerprint found; validating the cached forced build."
+    : "Building recovery contracts from scratch.");
+  run("forge", state.buildFingerprint ? ["build"] : ["build", "--force"], { env: environment });
   const buildFingerprint = recoveryBuildFingerprint();
   if (state.buildFingerprint && state.buildFingerprint !== buildFingerprint) {
     throw new Error("forced recovery build differs from the journaled build");
@@ -1211,8 +1232,30 @@ export function runRecovery(overrides = {}) {
   if (freshState) writeState(statePath, state);
   prepareResume(primary, secondary, plan, environment, state, statePath);
   assertOwnershipAndBindingProgress(primary, secondary, environment, state);
+  console.log("Dual-provider runtime, ownership, nonce and binding preflight passed.");
 
-  for (const action of plan) {
+  if (rehearsalOnly) {
+    const action = plan.find((candidate) => !state.actions[candidate.id]);
+    if (!action) {
+      console.log("Recovery journal is already complete; no action remains to rehearse.");
+      return state;
+    }
+    console.log(`Rehearsing ${action.id} without signing or broadcasting.`);
+    run(
+      "forge",
+      [
+        "script", scriptTarget,
+        "--sig", action.signature,
+        "--sender", DEPLOYER,
+        "--gas-estimate-multiplier", String(RECOVERY_GAS_ESTIMATE_MULTIPLIER)
+      ],
+      { env: environment }
+    );
+    console.log(`${action.id} rehearsal passed without broadcasting.`);
+    return state;
+  }
+
+  for (const [actionIndex, action] of plan.entries()) {
     const record = state.actions[action.id];
     if (record) {
       assertStoredAttestation(action, record);
@@ -1230,10 +1273,8 @@ export function runRecovery(overrides = {}) {
       throw new Error(`${action.id}: nonce drift; expected ${action.nonce}, observed ${nonce}`);
     }
 
-    const signerArguments = ["--account", environmentInput.FOUNDRY_ACCOUNT];
-    if (environmentInput.FOUNDRY_PASSWORD_FILE) {
-      signerArguments.push("--password-file", environmentInput.FOUNDRY_PASSWORD_FILE);
-    }
+    const signerArguments = recoverySignerArguments(environmentInput);
+    console.log(`[${actionIndex + 1}/${plan.length}] Broadcasting ${action.id} at nonce ${action.nonce}.`);
     run(
       "forge",
       [
@@ -1264,6 +1305,7 @@ export function runRecovery(overrides = {}) {
     );
     if (action.kind === "call") verifyCallState(primary, secondary, action, environment);
     recordVerifiedAction(statePath, state, action, environment, transactionHash, verified);
+    console.log(`[${actionIndex + 1}/${plan.length}] ${action.id} verified: ${transactionHash}`);
   }
   state.recoveryArtifacts = emitRecoveryArtifacts(
     primary, secondary, baseline, plan, state, environment
@@ -1275,7 +1317,11 @@ export function runRecovery(overrides = {}) {
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   try {
     const state = runRecovery();
-    console.log(`Project V2 recovery completed with ${Object.keys(state.actions).length} verified actions.`);
+    const rehearsalOnly = process.env.REHEARSE_PROJECT_V2_RECOVERY
+      === RECOVERY_REHEARSAL_CONFIRMATION;
+    console.log(rehearsalOnly
+      ? `Project V2 recovery rehearsal completed with ${Object.keys(state.actions).length} recorded actions.`
+      : `Project V2 recovery completed with ${Object.keys(state.actions).length} verified actions.`);
   } catch (error) {
     console.error(`Project V2 recovery aborted: ${error.message}`);
     process.exitCode = 1;
