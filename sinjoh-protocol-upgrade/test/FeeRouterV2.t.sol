@@ -219,6 +219,74 @@ contract FeeRouterV2Test is TestBase {
         assertEq(token.balanceOf(address(router)), 9_900);
     }
 
+    function testCumulativeAllocationPreventsMicroBatchRoundingBias() public {
+        FeeRouterV2.Route[] memory routes = new FeeRouterV2.Route[](2);
+        routes[0] = FeeRouterV2.Route({
+            inputToken: address(token),
+            recipient: ALICE,
+            shareBps: 5_000,
+            action: FeeRouterV2.Action.SEND,
+            config: ""
+        });
+        routes[1] = FeeRouterV2.Route({
+            inputToken: address(token),
+            recipient: BOB,
+            shareBps: 5_000,
+            action: FeeRouterV2.Action.SEND,
+            config: ""
+        });
+        _activate(routes);
+
+        token.mint(address(router), 1);
+        router.sync(address(token));
+        token.mint(address(router), 1);
+        router.sync(address(token));
+
+        assertEq(token.balanceOf(ALICE), 1);
+        assertEq(token.balanceOf(BOB), 1);
+        assertEq(router.cumulativeNetRouted(1, address(token)), 2);
+        assertEq(router.cumulativeRouteAllocation(1, 0), 1);
+        assertEq(router.cumulativeRouteAllocation(1, 1), 1);
+    }
+
+    function testCumulativePrefixAllocationRemainsExactAcrossThreeRoutes() public {
+        FeeRouterV2.Route[] memory routes = new FeeRouterV2.Route[](3);
+        routes[0] = FeeRouterV2.Route({
+            inputToken: address(token),
+            recipient: ALICE,
+            shareBps: 3_333,
+            action: FeeRouterV2.Action.SEND,
+            config: ""
+        });
+        routes[1] = FeeRouterV2.Route({
+            inputToken: address(token),
+            recipient: BOB,
+            shareBps: 3_333,
+            action: FeeRouterV2.Action.SEND,
+            config: ""
+        });
+        routes[2] = FeeRouterV2.Route({
+            inputToken: address(token),
+            recipient: address(0xCAFE),
+            shareBps: 3_334,
+            action: FeeRouterV2.Action.SEND,
+            config: ""
+        });
+        _activate(routes);
+
+        for (uint256 i; i < 100; ++i) {
+            token.mint(address(router), 1);
+            router.sync(address(token));
+        }
+
+        uint256 net = router.cumulativeNetRouted(1, address(token));
+        uint256 firstTarget = net * 3_333 / 10_000;
+        uint256 prefixTarget = net * 6_666 / 10_000;
+        assertEq(token.balanceOf(ALICE), firstTarget);
+        assertEq(token.balanceOf(BOB), prefixTarget - firstTarget);
+        assertEq(token.balanceOf(address(0xCAFE)), net - prefixTarget);
+    }
+
     function testGovernanceCanRecoverPermanentlyFailedEscrow() public {
         MockFundable failingAdapter = new MockFundable();
         failingAdapter.setPullFunds(false);

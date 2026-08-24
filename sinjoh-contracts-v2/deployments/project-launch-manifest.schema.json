@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sinjoh.example/schemas/contracts-v2-project-launch-manifest.json",
+  "title": "Sinjoh Contracts v2 Project Launch Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "chainId",
+    "transactionHash",
+    "blockNumber",
+    "release",
+    "launchConfigHash",
+    "projectId",
+    "subject",
+    "creator",
+    "controller",
+    "enabledModules",
+    "configuration",
+    "predictedAddresses",
+    "registryRecord"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "chainId": { "$ref": "#/$defs/positiveInteger" },
+    "transactionHash": { "$ref": "#/$defs/bytes32" },
+    "blockNumber": { "$ref": "#/$defs/nonnegativeInteger" },
+    "release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gitCommit", "buildHash", "launcher", "registry"],
+      "properties": {
+        "gitCommit": { "type": "string", "pattern": "^(0x)?([0-9a-fA-F]{40}|[0-9a-fA-F]{64})$" },
+        "buildHash": { "type": "string", "pattern": "^(0x)?[0-9a-fA-F]{64}$" },
+        "launcher": { "$ref": "#/$defs/address" },
+        "registry": { "$ref": "#/$defs/address" }
+      }
+    },
+    "launchConfigHash": { "$ref": "#/$defs/bytes32" },
+    "projectId": { "$ref": "#/$defs/bytes32" },
+    "subject": { "$ref": "#/$defs/address" },
+    "creator": { "$ref": "#/$defs/address" },
+    "controller": { "$ref": "#/$defs/address" },
+    "enabledModules": { "$ref": "#/$defs/nonnegativeInteger" },
+    "configuration": { "type": "object" },
+    "predictedAddresses": { "type": "object" },
+    "registryRecord": { "type": "object" }
+  },
+  "$defs": {
+    "address": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+    "bytes32": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$" },
+    "positiveInteger": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+    "nonnegativeInteger": { "type": "string", "pattern": "^(0|[1-9][0-9]*)$" }
+  }
+}

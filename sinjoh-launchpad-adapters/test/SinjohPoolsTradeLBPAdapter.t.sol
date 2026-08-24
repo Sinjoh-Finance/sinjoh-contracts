@@ -4,12 +4,24 @@ pragma solidity 0.8.28;
 import { TestBase } from "./TestBase.sol";
 import { SinjohPoolsTradeLBPAdapter } from "../src/SinjohPoolsTradeLBPAdapter.sol";
 import { SinjohPoolsTradeLBPAdapterFactory } from "../src/SinjohPoolsTradeLBPAdapterFactory.sol";
+import { PoolsProjectRegistrationHelper } from "../src/PoolsProjectRegistrationHelper.sol";
 import {
+    PTAuctionParameters,
     PTLiquidityAllocationBracket,
+    PTMigratorParameters,
+    PTPoolParameters,
     PTPositionDefinition,
     PTSplit,
     PTTokenMetadata
 } from "../src/interfaces/IPoolsTrade.sol";
+import {
+    ProjectLaunchConfig,
+    ProjectLaunchPreview
+} from "@sinjoh-v2/core/ProjectLauncherTypes.sol";
+import { LaunchpadProjectVotesToken } from "@sinjoh-v2/token/LaunchpadProjectVotesToken.sol";
+import {
+    LaunchpadProjectVotesTokenFactoryV2
+} from "@sinjoh-v2/token/LaunchpadProjectVotesTokenFactoryV2.sol";
 import { MockERC20, MockPoolManager, MockRouter, MockWETH } from "./mocks/PonsV2Mocks.sol";
 import {
     MockMerkleClaimFactory,
@@ -21,6 +33,42 @@ import {
     MockPTTokenFactory,
     MockUERC20
 } from "./mocks/PoolsTradeMocks.sol";
+
+contract MockLBPProjectRegistry { }
+
+contract MockLBPProjectLauncher {
+    address public immutable registry;
+    address public immutable expectedRouter;
+    address public registeredSubject;
+
+    constructor(address registry_, address expectedRouter_) {
+        registry = registry_;
+        expectedRouter = expectedRouter_;
+    }
+
+    function predictExistingTokenLaunch(ProjectLaunchConfig calldata config, address subject)
+        public
+        view
+        returns (ProjectLaunchPreview memory preview)
+    {
+        preview.launchConfigHash = keccak256(abi.encode(config, subject));
+        preview.projectId = LaunchpadProjectVotesToken(subject).projectId();
+        preview.addresses.subject = subject;
+        preview.addresses.voteSource = subject;
+        preview.addresses.router = expectedRouter;
+    }
+
+    function launchExistingToken(
+        ProjectLaunchConfig calldata config,
+        address subject,
+        bytes32[] calldata
+    ) external returns (ProjectLaunchPreview memory) {
+        LaunchpadProjectVotesToken(subject)
+            .finalizeVotingExclusions(config.launchProfile.additionalCustodyExclusions);
+        registeredSubject = subject;
+        return predictExistingTokenLaunch(config, subject);
+    }
+}
 
 contract SinjohPoolsTradeLBPAdapterTest is TestBase {
     uint256 constant CHAIN_ID = 4663;
@@ -179,6 +227,125 @@ contract SinjohPoolsTradeLBPAdapterTest is TestBase {
         assertEq(assets.length, 2);
         assertEq(assets[0], token);
         assertEq(assets[1], address(weth));
+    }
+
+    function test_projectV2DistributesAndRegistersOneCanonicalLbpToken() public {
+        MockRouter projectRouter = new MockRouter();
+        MockLBPProjectRegistry registry = new MockLBPProjectRegistry();
+        MockLBPProjectLauncher projectLauncher =
+            new MockLBPProjectLauncher(address(registry), address(projectRouter));
+        LaunchpadProjectVotesTokenFactoryV2 projectTokenFactory =
+            new LaunchpadProjectVotesTokenFactoryV2();
+        PoolsProjectRegistrationHelper registrationHelper = new PoolsProjectRegistrationHelper();
+        adapterFactory.bindProjectV2(
+            address(projectLauncher),
+            address(registry),
+            address(projectTokenFactory),
+            address(registrationHelper)
+        );
+
+        vm.prank(creator);
+        SinjohPoolsTradeLBPAdapter adapter = SinjohPoolsTradeLBPAdapter(
+            payable(adapterFactory.deploy(creator, address(projectRouter), USER_SALT))
+        );
+        SinjohPoolsTradeLBPAdapter.LBPLaunchParams memory params = _params(address(0));
+        address predicted = adapter.predictProjectSubject(
+            params.name, params.symbol, params.totalSupply, USER_SALT
+        );
+        address predictedAuction = _predictProjectAuction(adapter, params, predicted);
+
+        ProjectLaunchConfig memory config;
+        config.creator = creator;
+        config.name = params.name;
+        config.symbol = params.symbol;
+        config.totalSupply = params.totalSupply;
+        config.salt = USER_SALT;
+        config.modules.router = true;
+        address[] memory custody = new address[](5);
+        custody[0] = address(adapter);
+        custody[1] = address(launcher);
+        custody[2] = address(strategy);
+        custody[3] = address(poolManager);
+        custody[4] = predictedAuction;
+        config.launchProfile.additionalCustodyExclusions = _sort(custody);
+
+        vm.prank(creator);
+        (address token, address auction) =
+            adapter.launchProjectV2(params, USER_SALT, abi.encode(config, new bytes32[](0)));
+
+        assertEq(token, predicted);
+        assertEq(auction, predictedAuction);
+        assertEq(token, adapter.subject());
+        assertEq(token, projectLauncher.registeredSubject());
+        assertEq(adapterFactory.adapterForSubject(token), address(adapter));
+        LaunchpadProjectVotesToken subject = LaunchpadProjectVotesToken(token);
+        assertEq(subject.registry(), address(registry));
+        assertEq(subject.creator(), creator);
+        assertEq(subject.totalSupply(), TOTAL_SUPPLY);
+        assertTrue(subject.votingExclusionsFinalized());
+        assertTrue(subject.isVotingExcluded(auction));
+        assertTrue(subject.isVotingExcluded(address(strategy)));
+        assertEq(subject.balanceOf(auction), AUCTION_AMOUNT - LP_RESERVE);
+        assertEq(subject.balanceOf(address(strategy)), LP_RESERVE);
+        assertEq(subject.balanceOf(teamWallet), TOTAL_SUPPLY - AUCTION_AMOUNT);
+        assertTrue(!projectRouter.bound());
+    }
+
+    function _predictProjectAuction(
+        SinjohPoolsTradeLBPAdapter adapter,
+        SinjohPoolsTradeLBPAdapter.LBPLaunchParams memory params,
+        address token
+    ) private view returns (address) {
+        PTMigratorParameters memory migrator = PTMigratorParameters({
+            token: token,
+            currency: params.currency,
+            migrationBlock: params.migrationBlock,
+            reservedTokenAmountForLP: params.reservedTokenAmountForLP,
+            recipient: address(adapter),
+            positionRecipient: address(adapter),
+            poolParameters: PTPoolParameters({
+                fee: params.poolFee, tickSpacing: params.poolTickSpacing, hook: params.poolHook
+            }),
+            positionDefinitions: abi.encode(params.positionDefinitions),
+            lpAllocationSchedule: abi.encode(params.lpAllocationSchedule)
+        });
+        bytes memory auctionParams = abi.encode(
+            PTAuctionParameters({
+                currency: params.currency,
+                tokensRecipient: address(adapter),
+                fundsRecipient: address(strategy),
+                startBlock: params.startBlock,
+                endBlock: params.endBlock,
+                claimBlock: params.claimBlock,
+                tickSpacing: params.auctionPriceTickSpacing,
+                validationHook: params.validationHook,
+                floorPrice: params.floorPrice,
+                requiredCurrencyRaised: params.requiredCurrencyRaised,
+                auctionStepsData: params.auctionStepsData
+            })
+        );
+        bytes32 launcherSalt = keccak256(abi.encode(address(adapter), params.distributionSalt));
+        bytes32 initializerSalt = keccak256(abi.encode(launcherSalt, migrator));
+        return auctionFactory.getAddress(
+            token,
+            uint256(params.auctionAmount) - params.reservedTokenAmountForLP,
+            auctionParams,
+            initializerSalt,
+            address(strategy)
+        );
+    }
+
+    function _sort(address[] memory values) private pure returns (address[] memory) {
+        for (uint256 i = 1; i < values.length; ++i) {
+            address value = values[i];
+            uint256 j = i;
+            while (j != 0 && values[j - 1] > value) {
+                values[j] = values[j - 1];
+                --j;
+            }
+            values[j] = value;
+        }
+        return values;
     }
 
     function test_launchWithErc20Currency() public {

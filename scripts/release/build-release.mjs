@@ -25,6 +25,7 @@ const packages = [
   "sinjoh-treasury-vault",
   "sinjoh-pons-v1-adapter",
   "sinjoh-launchpad-adapters",
+  "sinjoh-contracts-v2",
   "sinjoh-protocol-upgrade",
   "sinjoh-integration"
 ];
@@ -167,4 +168,3 @@ const checksumLines = walk(output)
 writeFileSync(join(output, "checksums.sha256"), `${checksumLines.join("\n")}\n`);
 
 console.log(output);
-

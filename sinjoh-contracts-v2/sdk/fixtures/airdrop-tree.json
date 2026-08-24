@@ -1,0 +1,37 @@
+{
+  "chainId": "8453",
+  "airdrop": "0x0000000000000000000000000000000000001000",
+  "accountId": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "epochId": "1",
+  "snapshotBlock": "100",
+  "snapshotBlockHash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "snapshotTime": "1000",
+  "epochAmount": "10",
+  "totalEligibleWeight": "100",
+  "holders": [
+    {
+      "holder": "0x0000000000000000000000000000000000000001",
+      "weight": "49",
+      "amount": "4",
+      "leafHash": "0x8b0ccc9e18685466ecd5ffcc490f67bc14fd8a2589448679a1078a564a0a8f8a"
+    },
+    {
+      "holder": "0x0000000000000000000000000000000000000002",
+      "weight": "50",
+      "amount": "5",
+      "leafHash": "0xe433a8f275cbd819081d609266cf441a2d0f307562c81df2791b8c79ef316f9b"
+    },
+    {
+      "holder": "0x0000000000000000000000000000000000000003",
+      "weight": "1",
+      "amount": "0",
+      "leafHash": "0x30d4b8ff76c78de86110c301e32469d11e354160dc18ded836bc3dd963249064"
+    }
+  ],
+  "pairHash": "0x73b6597f4f7d06ed4f6fe60684793d1626059eb3217feb87918900316e2abb9d",
+  "rootHash": "0x60183964f8f2e1fe75de17dc6f7b52bd80b352970bca3e0da1f4444fec5092bd",
+  "rootSum": "9",
+  "leafCount": 3,
+  "artifactHash": "0x61752588222fa8e497520a382f9fd36e587a0fb89f31567ef7470af8b2535159",
+  "typedDataDigest": "0xbe025019b5784bd47d9a272ceb15a2f24a84290cfdab2168974667edcebc9c81"
+}

@@ -89,6 +89,17 @@ interface IPonsV2LaunchFactory {
         address[] calldata snipeTaxExemptions
     ) external payable returns (address token, address curve);
 
+    /// @notice Trusted-forwarder path for a canonical Project V2 token.
+    /// @dev `projectTokenData` is decoded by the pinned Pons launch deployer.
+    function launchProjectTokenFor(
+        TokenParams calldata params,
+        uint256 launchConfigId,
+        address pairToken,
+        address originalDeployer,
+        address[] calldata snipeTaxExemptions,
+        bytes calldata projectTokenData
+    ) external payable returns (address token, address curve);
+
     function launchFee() external view returns (uint256);
 
     function launchEnabled() external view returns (bool);
@@ -117,6 +128,8 @@ interface IPonsV2LaunchFactory {
     function maxCreatorTaxBps() external view returns (uint256);
 
     function feeEscrow() external view returns (address);
+
+    function launchForwarder() external view returns (address);
 
     function locker() external view returns (address);
 

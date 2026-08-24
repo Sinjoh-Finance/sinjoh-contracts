@@ -1,0 +1,161 @@
+{
+  "schemaVersion": "1.0",
+  "run": {
+    "id": "20260824-075900",
+    "date": "2026-08-24",
+    "requirements": "Production-ready canonical Pons and Project V2 wallet launch with post-graduation custody safety"
+  },
+  "summary": {
+    "building": "An atomic Pons and Project V2 launch that remains governance-safe after Uniswap v4 graduation",
+    "verdict": "blocked",
+    "topRisk": "The historical release omitted the current Pons locker and singleton PoolManager from one-time voting exclusions",
+    "mustDecideFirst": "Confirm the final Production multisig and hardened-release deployment sequence",
+    "watchOutFor": "The required SDK 2.1.0 packages are unpublished and the public RPC is not recommended for Production"
+  },
+  "components": [
+    {
+      "name": "@sinjoh/sdk",
+      "type": "SDK",
+      "version": "2.1.0-target",
+      "sourceUrl": "https://registry.npmjs.org/@sinjoh%2fsdk",
+      "status": "fresh",
+      "risks": [
+        {
+          "severity": "critical",
+          "title": "Required 2.1.0 package is not published",
+          "detail": "The registry exposes 2.0.0 as latest and no 2.1.0 version, so clean remote builds cannot resolve the UI dependency."
+        }
+      ]
+    },
+    {
+      "name": "viem",
+      "type": "SDK",
+      "version": "2.55.19",
+      "sourceUrl": "https://viem.sh/docs/contract/simulateContract",
+      "status": "fresh",
+      "risks": [
+        {
+          "severity": "medium",
+          "title": "Simulation can be mistaken for launch proof",
+          "detail": "Simulation does not persist state or prove wallet UX; exact payload verification and a wallet-signed canary remain required."
+        }
+      ]
+    },
+    {
+      "name": "Robinhood Chain",
+      "type": "Blockchain",
+      "version": "unversioned-chain-4663",
+      "sourceUrl": "https://docs.robinhood.com/chain/connecting/",
+      "status": "fresh",
+      "risks": [
+        {
+          "severity": "high",
+          "title": "Production defaults to a rate-limited public RPC",
+          "detail": "Robinhood explicitly says the public endpoint is rate-limited and not recommended for Production."
+        }
+      ]
+    },
+    {
+      "name": "Uniswap v4 core",
+      "type": "SDK",
+      "version": "1.0.2",
+      "sourceUrl": "https://developers.uniswap.org/docs/protocols/v4/concepts/poolmanager",
+      "status": "fresh",
+      "risks": [
+        {
+          "severity": "critical",
+          "title": "Graduation custody was omitted by the historical Project release",
+          "detail": "Tokens held by the current locker and singleton PoolManager can inflate eligible voting supply and holder eligibility unless both are finalized as exclusions."
+        }
+      ]
+    },
+    {
+      "name": "OpenZeppelin Contracts",
+      "type": "SDK",
+      "version": "5.6.1",
+      "sourceUrl": "https://docs.openzeppelin.com/contracts/5.x/api/token/erc20",
+      "status": "fresh",
+      "risks": [
+        {
+          "severity": "low",
+          "title": "Future major hook changes require vote-accounting review",
+          "detail": "The current _update override is correct for 5.6.1, but major library upgrades must revalidate that transfer customization point."
+        }
+      ]
+    },
+    {
+      "name": "Reown AppKit / WalletConnect",
+      "type": "Auth",
+      "version": "1.7.8-transitive",
+      "sourceUrl": "https://docs.reown.com/appkit/faq",
+      "status": "fresh",
+      "risks": [
+        {
+          "severity": "high",
+          "title": "Production wallet connections require external domain configuration",
+          "detail": "A missing or unverified Production origin causes documented AppKit failures even when application code is correct."
+        }
+      ]
+    },
+    {
+      "name": "Vercel",
+      "type": "Infra",
+      "version": "unversioned",
+      "sourceUrl": "https://vercel.com/docs/deployments/environments",
+      "status": "fresh",
+      "risks": [
+        {
+          "severity": "medium",
+          "title": "Preview parity can hide missing Production configuration",
+          "detail": "Preview and Production have independent variables and domains, so Preview success does not prove Production readiness."
+        }
+      ]
+    }
+  ],
+  "riskTotals": {
+    "critical": 2,
+    "high": 2,
+    "medium": 2,
+    "low": 1
+  },
+  "preCodingDecisions": [
+    {
+      "title": "Immutable graduation custody set",
+      "detail": "Finalize exclusions for the predicted adapter and curve plus live locker 0x1006fA85294A9c38AA4214d52c86CC970Ddc5647 and PoolManager 0x8366a39CC670B4001A1121B8F6A443A643e40951.",
+      "immutable": true
+    },
+    {
+      "title": "Production release authority",
+      "detail": "Confirm the final multisig before ownership transfer or one-time integration binding.",
+      "immutable": true
+    },
+    {
+      "title": "Production RPC provider",
+      "detail": "Choose a provider-backed endpoint and quota/abuse policy for browser reads and launch simulation.",
+      "immutable": false
+    }
+  ],
+  "requirementsCorrections": [
+    {
+      "kind": "wrong_assumption",
+      "detail": "GovTest proves single-token identity but not post-graduation custody safety."
+    },
+    {
+      "kind": "missing_constraint",
+      "detail": "The current Pons locker and v4 PoolManager must be included before one-time voting exclusion finalization."
+    },
+    {
+      "kind": "missing_constraint",
+      "detail": "SDK, ABI, and deployment packages 2.1.0 must be published together for a clean Vercel build."
+    },
+    {
+      "kind": "underspecified",
+      "detail": "Production RPC provider, Reown domains, and final ownership remain external configuration decisions."
+    }
+  ],
+  "openQuestions": [
+    "Unresolvable from public sources: the final Production multisig has not been confirmed.",
+    "Unresolvable from public sources: current Reown project-domain dashboard state is private.",
+    "Unresolvable from public sources: npm publication authentication is operator state."
+  ]
+}
