@@ -131,6 +131,11 @@ Registry separately commits the exact final configuration hash. An ownerless dep
 immutable chunked creation-code stores keep runtime and initcode under EVM limits without proxies or
 retained project authority. Router destinations, governance vote source, and custody exclusions are
 materialized automatically. Basket selection is rejected by this release and will ship separately.
+Approved Pons and Pools integrations use `launchExistingToken`: the launchpad creates and distributes
+one canonical voting token, and Project V2 registers that exact address as the subject before attaching
+governance and optional modules. The traded asset, Registry subject, vote source, Treasury asset,
+Router asset, Raffle asset, staking asset, and liquidity asset therefore cannot diverge into a second
+token or wrapper.
 The all-modules
 integration launch currently uses about 40.7M gas with a 50M regression ceiling; the target-chain
 limit must be confirmed in deployment rehearsal.
