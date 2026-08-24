@@ -3,6 +3,10 @@ pragma solidity 0.8.28;
 
 import { ProjectVotesToken } from "../../src/token/ProjectVotesToken.sol";
 import { PonsProjectVotesToken } from "../../src/token/PonsProjectVotesToken.sol";
+import { LaunchpadProjectVotesToken } from "../../src/token/LaunchpadProjectVotesToken.sol";
+import {
+    LaunchpadProjectVotesTokenFactoryV2
+} from "../../src/token/LaunchpadProjectVotesTokenFactoryV2.sol";
 import { ProjectVotesTokenFactoryV2 } from "../../src/token/ProjectVotesTokenFactoryV2.sol";
 import { MockRegistry } from "../mocks/MockRegistry.sol";
 import { TestBase } from "../TestBase.sol";
@@ -76,27 +80,34 @@ contract ProjectVotesTokenFactoryV2Test is TestBase {
         token.finalizeVotingExclusions(finalExclusions);
     }
 
-    function testDeploysGenericCanonicalTokenForExistingTokenLaunchpads() public {
+    function testDeploysFinalizableCanonicalTokenForExistingTokenDistribution() public {
         ProjectVotesToken.TokenAllocation[] memory allocations =
             new ProjectVotesToken.TokenAllocation[](1);
         allocations[0] = ProjectVotesToken.TokenAllocation({ recipient: CURVE, amount: SUPPLY });
-        address[] memory exclusions = new address[](1);
-        exclusions[0] = CURVE;
-        ProjectVotesTokenFactoryV2.TokenDeployment memory deployment =
-            ProjectVotesTokenFactoryV2.TokenDeployment({
+        LaunchpadProjectVotesTokenFactoryV2 launchpadFactory =
+            new LaunchpadProjectVotesTokenFactoryV2();
+        LaunchpadProjectVotesTokenFactoryV2.TokenDeployment memory deployment =
+            LaunchpadProjectVotesTokenFactoryV2.TokenDeployment({
                 name: "Pools Project",
                 symbol: "POOL",
                 registry: address(registry),
                 creator: CREATOR,
                 allocations: allocations,
-                votingExclusions: exclusions,
-                salt: keccak256("POOLS")
+                votingExclusions: new address[](0),
+                votingExclusionConfigurator: address(this),
+                salt: keccak256("POOLS_FINALIZABLE")
             });
-
-        address predicted = factory.predict(deployment, address(this));
-        ProjectVotesToken token = ProjectVotesToken(factory.deploy(deployment));
+        address predicted = launchpadFactory.predict(deployment, address(this));
+        LaunchpadProjectVotesToken token =
+            LaunchpadProjectVotesToken(launchpadFactory.deploy(deployment));
         assertEq(address(token), predicted);
         assertEq(token.balanceOf(CURVE), SUPPLY);
+        assertEq(token.eligibleVotingSupply(), SUPPLY);
+
+        address[] memory exclusions = new address[](1);
+        exclusions[0] = CURVE;
+        token.finalizeVotingExclusions(exclusions);
+        assertTrue(token.isVotingExcluded(CURVE));
         assertEq(token.eligibleVotingSupply(), 0);
     }
 
