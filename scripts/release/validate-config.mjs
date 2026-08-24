@@ -295,7 +295,16 @@ function validateConsumerBindings() {
           `${path}: ${consumerName}.${variableName} has invalid canonical path`,
         );
         requireValue(
-          ["address", "runtimeCodeHash", "deploymentBlock"].includes(binding.field),
+          [
+            "address",
+            "runtimeCodeHash",
+            "deploymentBlock",
+            "sourceCommit",
+            "buildHash",
+            "approvalProof0",
+            "approvalProof1",
+            "approvalProof2",
+          ].includes(binding.field),
           `${path}: ${consumerName}.${variableName} has invalid field`,
         );
       }
