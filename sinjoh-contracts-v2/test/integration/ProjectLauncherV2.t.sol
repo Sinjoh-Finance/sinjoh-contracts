@@ -1070,7 +1070,8 @@ contract ProjectLauncherV2Test is Test {
             vm.computeCreateAddress(address(this), nonce + integrationCount + 1);
         predicted.registry = vm.computeCreateAddress(address(this), nonce + integrationCount + 19);
         predicted.engine = vm.computeCreateAddress(address(this), nonce + integrationCount + 20);
-        predicted.launcher = vm.computeCreateAddress(address(this), nonce + integrationCount + 21);
+        // Registry, deployment engine, validator, then Launcher.
+        predicted.launcher = vm.computeCreateAddress(address(this), nonce + integrationCount + 22);
 
         bytes32 userSalt = keccak256("ALL_MODULES");
         predicted.subject = _predictFromEngine(predicted.engine, userSalt, keccak256("TOKEN"));
