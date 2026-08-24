@@ -3,6 +3,13 @@ pragma solidity 0.8.28;
 
 import { IPonsV2LaunchFactory } from "../../src/interfaces/IPonsV2.sol";
 
+struct MockProjectTokenDeploymentData {
+    address tokenFactory;
+    address registry;
+    address votingExclusionConfigurator;
+    address[] votingExclusions;
+}
+
 contract MockERC20 {
     string public name;
     string public symbol;
@@ -42,6 +49,48 @@ contract MockERC20 {
         balanceOf[from] -= amount;
         balanceOf[to] += amount;
         return true;
+    }
+}
+
+contract MockProjectToken is MockERC20 {
+    address public immutable registry;
+    address public immutable creator;
+    address public immutable curve;
+    address public immutable votingExclusionConfigurator;
+    uint256 public immutable initialSupply;
+    bytes32 public immutable projectId;
+    bool public votingExclusionsFinalized;
+    mapping(address => bool) public isVotingExcluded;
+
+    constructor(
+        string memory name_,
+        string memory symbol_,
+        address registry_,
+        address creator_,
+        address curve_,
+        address configurator_,
+        uint256 supply_
+    ) MockERC20(name_, symbol_, 18) {
+        registry = registry_;
+        creator = creator_;
+        curve = curve_;
+        votingExclusionConfigurator = configurator_;
+        initialSupply = supply_;
+        projectId = keccak256(abi.encode("MOCK_PROJECT", block.chainid, registry_, address(this)));
+        balanceOf[curve_] = supply_;
+    }
+
+    function totalSupply() external view returns (uint256) {
+        return initialSupply;
+    }
+
+    function finalizeVotingExclusions(address[] calldata exclusions) external {
+        require(msg.sender == votingExclusionConfigurator, "OnlyConfigurator");
+        require(!votingExclusionsFinalized, "AlreadyFinalized");
+        votingExclusionsFinalized = true;
+        for (uint256 i; i < exclusions.length; ++i) {
+            isVotingExcluded[exclusions[i]] = true;
+        }
     }
 }
 
@@ -214,6 +263,8 @@ contract MockLaunchFactory {
     /// requires both to be live contracts.
     address public memeHook;
     address public poolManager;
+    address public launchForwarder;
+    uint256 public constant PROJECT_SUPPLY = 1_000_000_000e18;
 
     mapping(address => bool) public approvedPairTokens;
     mapping(address => uint256) private _phantomQuote;
@@ -234,6 +285,26 @@ contract MockLaunchFactory {
     function setGraduationInfrastructure(address memeHook_, address poolManager_) external {
         memeHook = memeHook_;
         poolManager = poolManager_;
+    }
+
+    function setLaunchForwarder(address forwarder) external {
+        launchForwarder = forwarder;
+    }
+
+    function getLaunchConfig(uint256)
+        external
+        pure
+        returns (IPonsV2LaunchFactory.LaunchConfig memory)
+    {
+        return IPonsV2LaunchFactory.LaunchConfig({
+            supply: PROJECT_SUPPLY,
+            curveFeeBps: 100,
+            phantomQuote: 10 ether,
+            graduationThreshold: 100 ether,
+            poolFee: 10_000,
+            tickSpacing: 200,
+            enabled: true
+        });
     }
 
     /// @dev Mirrors the real factory's launch record for tokens the tests
@@ -295,6 +366,32 @@ contract MockLaunchFactory {
         return keccak256(abi.encode("economics", launchConfigId, pairToken));
     }
 
+    function predictProjectCurve(
+        IPonsV2LaunchFactory.TokenParams calldata params,
+        address pairToken
+    ) external view returns (address) {
+        bytes32 initCodeHash = keccak256(
+            abi.encodePacked(
+                type(MockBondingCurve).creationCode,
+                abi.encode(
+                    pairToken,
+                    params.creatorFeeRecipient,
+                    params.creatorFeeRecipient,
+                    MockFeeEscrow(feeEscrow)
+                )
+            )
+        );
+        return address(
+            uint160(
+                uint256(
+                    keccak256(
+                        abi.encodePacked(bytes1(0xff), address(this), params.salt, initCodeHash)
+                    )
+                )
+            )
+        );
+    }
+
     function launchToken(
         IPonsV2LaunchFactory.TokenParams calldata params,
         uint256 launchConfigId,
@@ -337,6 +434,53 @@ contract MockLaunchFactory {
         lastCurve = address(deployed);
         registerLaunch(address(launched), address(deployed), pairToken, 0, 200, 0);
         return (address(launched), address(deployed));
+    }
+
+    function launchProjectTokenFor(
+        IPonsV2LaunchFactory.TokenParams calldata params,
+        uint256 launchConfigId,
+        address pairToken,
+        address originalDeployer,
+        address[] calldata snipeTaxExemptions,
+        bytes calldata projectTokenData
+    ) external payable returns (address token, address curve) {
+        require(msg.sender == launchForwarder, "NotLaunchForwarder");
+        require(msg.value == launchFee, "LaunchFeeNotPaid");
+        require(
+            params.expectedEconomics == bytes32(0)
+                || params.expectedEconomics == previewLaunchEconomics(launchConfigId, pairToken),
+            "LaunchEconomicsMismatch"
+        );
+        MockProjectTokenDeploymentData memory project =
+            abi.decode(projectTokenData, (MockProjectTokenDeploymentData));
+        MockBondingCurve deployed = new MockBondingCurve{ salt: params.salt }(
+            pairToken,
+            params.creatorFeeRecipient,
+            params.creatorFeeRecipient,
+            MockFeeEscrow(feeEscrow)
+        );
+
+        token = address(
+            new MockProjectToken(
+                params.name,
+                params.symbol,
+                project.registry,
+                originalDeployer,
+                address(deployed),
+                project.votingExclusionConfigurator,
+                PROJECT_SUPPLY
+            )
+        );
+        curve = address(deployed);
+        deployed.initialize(token);
+        deployed.setClamp(nextClamp);
+        deployed.exemptFromSnipeTax(params.creatorFeeRecipient);
+        for (uint256 i; i < snipeTaxExemptions.length; ++i) {
+            deployed.exemptFromSnipeTax(snipeTaxExemptions[i]);
+        }
+        lastToken = token;
+        lastCurve = curve;
+        registerLaunch(token, curve, pairToken, 10_000, 200, 0);
     }
 }
 

@@ -7,13 +7,19 @@ import {
     SinjohPonsV2Adapter
 } from "../src/SinjohPonsV2Adapter.sol";
 import { SinjohPonsV2AdapterFactory } from "../src/SinjohPonsV2AdapterFactory.sol";
+import { SinjohPonsV2ProjectAdapter } from "../src/SinjohPonsV2ProjectAdapter.sol";
 import { IPonsV2LaunchFactory } from "../src/interfaces/IPonsV2.sol";
 import { Clones } from "../src/libraries/Clones.sol";
+import {
+    ProjectLaunchConfig,
+    ProjectLaunchPreview
+} from "@sinjoh-v2/core/ProjectLauncherTypes.sol";
 import {
     MockBondingCurve,
     MockERC20,
     MockFeeEscrow,
     MockLaunchFactory,
+    MockProjectToken,
     MockRouter,
     MockWETH
 } from "./mocks/PonsV2Mocks.sol";
@@ -43,6 +49,42 @@ contract MockFundingBandsLaunchEscrow is ISinjohFundingBandsLaunchEscrow {
         escrowedInventory = developerBuyTokens_ * inventoryBps / 10_000;
         MockERC20(subject_).transferFrom(msg.sender, address(this), escrowedInventory);
         return escrowedInventory;
+    }
+}
+
+contract MockProjectRegistry { }
+
+contract MockProjectLauncher {
+    address public immutable registry;
+    address public immutable expectedRouter;
+    address public registeredSubject;
+
+    constructor(address registry_, address expectedRouter_) {
+        registry = registry_;
+        expectedRouter = expectedRouter_;
+    }
+
+    function predictExistingTokenLaunch(ProjectLaunchConfig calldata config, address subject)
+        public
+        view
+        returns (ProjectLaunchPreview memory preview)
+    {
+        preview.launchConfigHash = keccak256(abi.encode(config, subject));
+        preview.projectId = MockProjectToken(subject).projectId();
+        preview.addresses.subject = subject;
+        preview.addresses.voteSource = subject;
+        preview.addresses.router = expectedRouter;
+    }
+
+    function launchExistingToken(
+        ProjectLaunchConfig calldata config,
+        address subject,
+        bytes32[] calldata
+    ) external returns (ProjectLaunchPreview memory preview) {
+        MockProjectToken(subject)
+            .finalizeVotingExclusions(config.launchProfile.additionalCustodyExclusions);
+        registeredSubject = subject;
+        return predictExistingTokenLaunch(config, subject);
     }
 }
 
@@ -303,6 +345,118 @@ contract SinjohPonsV2AdapterTest is TestBase {
         assertTrue(router.bound());
         assertEq(router.subject(), token);
         assertEq(adapter.subject(), token);
+    }
+
+    function test_projectV2LaunchRegistersTheExactPonsTokenBeforeAnyDeveloperBuy() public {
+        (
+            SinjohPonsV2ProjectAdapter adapter,
+            MockProjectLauncher projectLauncher,
+            MockRouter projectRouter,
+            ProjectLaunchConfig memory config,
+            address predictedCurve
+        ) = _projectFixture(false);
+
+        SinjohPonsV2ProjectAdapter.LaunchRequest memory request = _projectRequest(adapter, config);
+        vm.prank(creator);
+        (address token, address curve) = adapter.launch{ value: LAUNCH_FEE }(request);
+
+        assertEq(curve, predictedCurve);
+        assertEq(token, launchFactory.lastToken());
+        assertEq(token, adapter.subject());
+        assertEq(token, projectLauncher.registeredSubject());
+        MockProjectToken subject = MockProjectToken(token);
+        assertEq(subject.registry(), address(projectLauncher.registry()));
+        assertEq(subject.creator(), creator);
+        assertEq(subject.curve(), curve);
+        assertTrue(subject.votingExclusionsFinalized());
+        assertTrue(subject.isVotingExcluded(curve));
+        assertTrue(subject.isVotingExcluded(address(adapter)));
+        assertEq(subject.balanceOf(curve), config.totalSupply);
+        assertTrue(!projectRouter.bound());
+    }
+
+    function test_projectRouterMismatchRevertsTheEntirePonsLaunch() public {
+        SinjohPonsV2ProjectAdapter adapter;
+        ProjectLaunchConfig memory config;
+        (adapter,,, config,) = _projectFixture(true);
+        SinjohPonsV2ProjectAdapter.LaunchRequest memory request = _projectRequest(adapter, config);
+
+        vm.prank(creator);
+        vm.expectPartialRevert(SinjohPonsV2ProjectAdapter.ProjectRouterMismatch.selector);
+        adapter.launch{ value: LAUNCH_FEE }(request);
+
+        assertTrue(!adapter.launched());
+        assertEq(adapter.subject(), address(0));
+        assertEq(launchFactory.lastToken(), address(0));
+        assertEq(launchFactory.lastCurve(), address(0));
+    }
+
+    function _projectFixture(bool mismatch)
+        private
+        returns (
+            SinjohPonsV2ProjectAdapter adapter,
+            MockProjectLauncher projectLauncher,
+            MockRouter projectRouter,
+            ProjectLaunchConfig memory config,
+            address predictedCurve
+        )
+    {
+        projectRouter = new MockRouter();
+        MockRouter adapterRouter = mismatch ? new MockRouter() : projectRouter;
+        MockProjectRegistry projectRegistry = new MockProjectRegistry();
+        projectLauncher = new MockProjectLauncher(address(projectRegistry), address(projectRouter));
+        MockProjectRegistry projectTokenFactory = new MockProjectRegistry();
+        SinjohPonsV2ProjectAdapter projectImplementation = new SinjohPonsV2ProjectAdapter(
+            address(adapterFactory),
+            address(launchFactory),
+            address(escrow),
+            address(weth),
+            CHAIN_ID
+        );
+        adapterFactory.bindProjectV2(
+            address(projectLauncher),
+            address(projectRegistry),
+            address(projectTokenFactory),
+            address(projectImplementation)
+        );
+        launchFactory.setLaunchForwarder(address(adapterFactory));
+
+        address predictedAdapter = adapterFactory.predictProjectAddress(creator, USER_SALT);
+        vm.prank(creator);
+        adapter = SinjohPonsV2ProjectAdapter(
+            payable(adapterFactory.deployProject(creator, address(adapterRouter), USER_SALT))
+        );
+        assertEq(address(adapter), predictedAdapter);
+        assertTrue(adapterFactory.isAdapter(address(adapter)));
+
+        predictedCurve = launchFactory.predictProjectCurve(
+            _params(address(adapter), 0, address(0)), address(0)
+        );
+        config.creator = creator;
+        config.name = "Sinjoh Test";
+        config.symbol = "SJT";
+        config.totalSupply = launchFactory.PROJECT_SUPPLY();
+        config.salt = USER_SALT;
+        config.modules.router = true;
+        config.launchProfile.additionalCustodyExclusions = new address[](2);
+        if (address(adapter) < predictedCurve) {
+            config.launchProfile.additionalCustodyExclusions[0] = address(adapter);
+            config.launchProfile.additionalCustodyExclusions[1] = predictedCurve;
+        } else {
+            config.launchProfile.additionalCustodyExclusions[0] = predictedCurve;
+            config.launchProfile.additionalCustodyExclusions[1] = address(adapter);
+        }
+    }
+
+    function _projectRequest(SinjohPonsV2ProjectAdapter adapter, ProjectLaunchConfig memory config)
+        private
+        pure
+        returns (SinjohPonsV2ProjectAdapter.LaunchRequest memory request)
+    {
+        request.token = _params(address(adapter), 0, address(0));
+        request.project = config;
+        request.snipeTaxExemptions = _none();
+        request.launchpadApprovalProof = new bytes32[](0);
     }
 
     /// @dev The factory exempts the launch caller (the adapter) and the

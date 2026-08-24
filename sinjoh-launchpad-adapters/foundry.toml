@@ -9,7 +9,15 @@ evm_version = "cancun"
 optimizer = true
 optimizer_runs = 20_000
 via_ir = true
-allow_paths = ["../sinjoh-fee-router"]
+allow_paths = [
+    "../sinjoh-fee-router",
+    "../sinjoh-contracts-v2",
+    "../sinjoh-treasury-vault/lib/openzeppelin-contracts",
+]
+remappings = [
+    "@sinjoh-v2/=../sinjoh-contracts-v2/src/",
+    "@openzeppelin/contracts/=../sinjoh-treasury-vault/lib/openzeppelin-contracts/contracts/",
+]
 fs_permissions = [{ access = "read", path = "script/artifacts" }]
 bytecode_hash = "none"
 cbor_metadata = false
