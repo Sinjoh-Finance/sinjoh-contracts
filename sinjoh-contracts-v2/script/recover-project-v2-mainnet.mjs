@@ -1148,6 +1148,10 @@ export function runRecovery(overrides = {}) {
     throw new Error(`refusing to broadcast; set EXECUTE_PROJECT_V2_RECOVERY=${RECOVERY_CONFIRMATION}`);
   }
   if (!environmentInput.FOUNDRY_ACCOUNT) throw new Error("FOUNDRY_ACCOUNT is required");
+  if (environmentInput.FOUNDRY_PASSWORD_FILE
+      && !existsSync(environmentInput.FOUNDRY_PASSWORD_FILE)) {
+    throw new Error("FOUNDRY_PASSWORD_FILE does not exist");
+  }
   assertCleanTrackedWorktree();
   const primary = environmentInput.RPC_URL;
   const secondary = environmentInput.RPC_VERIFICATION_URL;
@@ -1226,13 +1230,17 @@ export function runRecovery(overrides = {}) {
       throw new Error(`${action.id}: nonce drift; expected ${action.nonce}, observed ${nonce}`);
     }
 
+    const signerArguments = ["--account", environmentInput.FOUNDRY_ACCOUNT];
+    if (environmentInput.FOUNDRY_PASSWORD_FILE) {
+      signerArguments.push("--password-file", environmentInput.FOUNDRY_PASSWORD_FILE);
+    }
     run(
       "forge",
       [
         "script", scriptTarget,
         "--sig", action.signature,
         "--sender", DEPLOYER,
-        "--account", environmentInput.FOUNDRY_ACCOUNT,
+        ...signerArguments,
         "--broadcast",
         "--slow",
         "--gas-estimate-multiplier", String(RECOVERY_GAS_ESTIMATE_MULTIPLIER)
