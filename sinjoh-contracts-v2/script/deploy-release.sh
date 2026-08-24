@@ -231,13 +231,6 @@ forge_args=(
   --rpc-url "$RPC_URL"
   --sender "$DEPLOYER_ADDRESS"
 )
-deployment_nonce="$(cast nonce "$DEPLOYER_ADDRESS" --rpc-url "$RPC_URL")"
-if [[ -n "${RPC_VERIFICATION_URL:-}" ]]; then
-  verification_deployment_nonce="$(cast nonce "$DEPLOYER_ADDRESS" --rpc-url "$RPC_VERIFICATION_URL")"
-  [[ "$verification_deployment_nonce" == "$deployment_nonce" ]] \
-    || fail "deployment nonce disagrees across RPC providers (primary $deployment_nonce, verification $verification_deployment_nonce)"
-fi
-forge_args+=(--sender-nonce "$deployment_nonce")
 if [[ "$simulate_only" == "0" ]]; then
   forge_args+=("${signer_args[@]}" --broadcast)
 fi

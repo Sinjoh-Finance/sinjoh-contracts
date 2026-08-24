@@ -50,8 +50,7 @@ For the canonical Robinhood Chain successor, use
 `RPC_URL` and the independently operated authenticated QuickNode URL in
 `RPC_VERIFICATION_URL`; the wrapper rejects public RPC, non-HTTPS URLs, and other provider hosts.
 It pins chain ID 4663, requires both providers to agree on the Pons owner and deployer nonce, and
-pins that nonce for the Forge transaction sequence so CREATE address predictions cannot silently
-drift. It derives all reusable public addresses and runtime hashes from the last canonical manifest, and writes the
+derives all reusable public addresses and runtime hashes from the last canonical manifest. It writes the
 new canonical manifest to `deployments/project-launcher-v2-4663.json`. The operator must set
 `FOUNDRY_ACCOUNT` to the name of an existing local Foundry keystore; the wrapper does not invent or
 create an account alias. It never accepts a raw private key. The operator's only secret input is the
