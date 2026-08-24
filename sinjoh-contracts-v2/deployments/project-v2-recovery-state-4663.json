@@ -1,0 +1,156 @@
+{
+  "schemaVersion": "1.0",
+  "chainId": 4663,
+  "deployer": "0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49",
+  "startingNonce": 7837,
+  "actions": {
+    "raffle": {
+      "nonce": 7837,
+      "transactionHash": "0x89b94fd22c6ad525fd475b5017b15879fcf20f083411667fe3398eef95a991d3",
+      "contractAddress": "0xaf4E45a4BC6f7F14E97cA87333A6be4A0d5c3e95",
+      "inputHash": "0x10182b5675573b6632d9745de1c92d730451d1701baa25aed3b1f33c02c7bf1b",
+      "runtimeHash": "0xba22d4e2aa622933541cb231f6ab8eca670539c748c8507e21742125157a0010",
+      "blockNumber": "0x2b0be7d"
+    },
+    "fundingBandIntegration": {
+      "nonce": 7838,
+      "transactionHash": "0x4884d438e23907a30fb756a4b9d251ae7ce14025d63b513735e5cbea09af6bf6",
+      "contractAddress": "0x30B80bb9bE611EEd0535beA0A382163ba91B2859",
+      "inputHash": "0x994389132f0990892a785e564a3116f80a426b78de9f2cd7832fe9692a613a22",
+      "runtimeHash": "0x42af7b6fdbaab808c06db8761a7a91578a1e07cc75ce40551b9d6e010c71dcb3",
+      "blockNumber": "0x2b0bec3"
+    },
+    "quoteOracle": {
+      "nonce": 7839,
+      "transactionHash": "0xdf0cdc5823df7ae99599e8885910af12680b4c1b66def9fe4f5ae2c43bd96587",
+      "contractAddress": "0x79c9152a8C9f3e609e9c9989ae0a46a57d4faaEa",
+      "inputHash": "0x78b73d9f5a0747eaaa084389e8f17c64ad7847809ca219ff1d9f66d609a3f1aa",
+      "runtimeHash": "0x6bde18fbfb602edfb4e5554b44ae9fe1f7b2d47ccbe35a7311b0936134a66efd",
+      "blockNumber": "0x2b0befe"
+    },
+    "guard500": {
+      "nonce": 7840,
+      "transactionHash": "0xc970850a74a59e9343f04d2b69c95cb3ef228315e524a094c559497c65dd5e73",
+      "contractAddress": "0x0A6e4CE76163Cda15a5549d0436570De8a931Ba9",
+      "inputHash": "0x20589d36d1628ff5cb1cc2eaeb4d0aade0bf4645ba263820bda52076035c950d",
+      "runtimeHash": "0xa1eb83fbcd5959e18a125614d807969eae7cde0c718670e5aaecbe089797be4f",
+      "blockNumber": "0x2b0bf36"
+    },
+    "guard3000": {
+      "nonce": 7841,
+      "transactionHash": "0x3ecc33e9a6caf9b088e291de8d40ad9e2875968c8619195042d05d5110f235e0",
+      "contractAddress": "0x82d830f603D437ea9dAbdD3a6de0b33100c01158",
+      "inputHash": "0x75c06b566ef10737ce40c45deaa476bf010aaecc90b907cfa10f387d9fb548ea",
+      "runtimeHash": "0x0ccd2e844de8f5ee2dccdeca6140189a3e75c791a2a9d1969976f1447b495872",
+      "blockNumber": "0x2b0bf72"
+    },
+    "guard10000": {
+      "nonce": 7842,
+      "transactionHash": "0x6d715b4ed97b1d53e0bd5ffdb34c73e6807a89e35270b2a7640ff8fb3aa55bc8",
+      "contractAddress": "0x58214C993A406eaC8C9eA26707dAE716fFf4D827",
+      "inputHash": "0x5544de78903bd6c1eecb90bdfa76f9630a133734148e269e968dc6e641ef39e7",
+      "runtimeHash": "0x6ad1162bbc16e7298069e52ae6d2313aabf751733f92c1e833e3ce8a54bcbd63",
+      "blockNumber": "0x2b0bfad"
+    },
+    "stakingStore": {
+      "nonce": 7843,
+      "transactionHash": "0x9b975806f0c48cc71d2cc1e01e8e62b20b2994c642736e0d6877098dbc699dcb",
+      "contractAddress": "0xAbc1eA8aCd4dfdCe882a134854F39Cf910A2eb57",
+      "inputHash": "0x96fde4afa9ff13fcb6afe14c717b4baa490a0279383416dffcfa31e92bb3fd75",
+      "runtimeHash": "0x06389caf47fa0038d9fbc0205075c44721ee89e146bb096564201b12b3f9a963",
+      "blockNumber": "0x2b0bfe6"
+    },
+    "ponsTokenFactory": {
+      "nonce": 7844,
+      "transactionHash": "0x0aa079a523de5f6330587ed27b2425f5f6e0b31f0bc8e8c7f75fccbfab924d3d",
+      "contractAddress": "0x42A7883275912256780A8689F9B29a426fB2C0BA",
+      "inputHash": "0x3af84d14e0af77b94560ebc278f3f6b85e6cdc3e13ef35ae32d0e08297e19524",
+      "runtimeHash": "0x3ab99ca63c12efb229c701e56787ec86f8c7b59be41465936e0384de7046173c",
+      "blockNumber": "0x2b0c021"
+    },
+    "launchpadTokenFactory": {
+      "nonce": 7845,
+      "transactionHash": "0xe44b5b34a9d31b5e16b03716f26e2091d21e7dd51a35dfb1c26826c890a919be",
+      "contractAddress": "0xefC203F86299Ac9113Bf746328C58d647d22E004",
+      "inputHash": "0x418c3cadb077ae1bbeff359a0ce60c918602bbe27bef9ee2962a21e4b4e642ef",
+      "runtimeHash": "0xb03c479677d6d7da6f4e65ff10864f2f64f8a471c2b6abf259ec73b696a4240f",
+      "blockNumber": "0x2b0c059"
+    },
+    "registry": {
+      "nonce": 7846,
+      "transactionHash": "0xaa8258c49b72d63ce0f7366802904ad5c15f16bb9992c7a9fb901b16a87b2226",
+      "contractAddress": "0xb10f8350264315850D3aa8b9794f34F496F6d0Cf",
+      "inputHash": "0x8ee512fb8b503fc69b3761a285f110d60b1500eb28f40e360bd7ee2be0e52eac",
+      "runtimeHash": "0x4317d73c13f1c9706677709ef42fa4cf4b03202ed130230c363eb2e10082ffe6",
+      "blockNumber": "0x2b0c091"
+    },
+    "deploymentEngine": {
+      "nonce": 7847,
+      "transactionHash": "0x31cc7ba558ebe23677dadb7b7e5a683ce4d5d7984aa1774ca4c982dfd73bf590",
+      "contractAddress": "0x92EBaC0139001Face632aA25Bf6EC19Dc3a5747e",
+      "inputHash": "0xbba2f5c5544ed2ead5adbb39b87a22228c8bf3ebbc0b42b4eb52d3e65cb86a50",
+      "runtimeHash": "0x4b84e29376fa6ab3363fb7256057e30741b41dd22356d7d5ea7be6ea82edf128",
+      "blockNumber": "0x2b0c0d1"
+    },
+    "launchValidator": {
+      "nonce": 7848,
+      "transactionHash": "0xaad785d1bdd5324c8654bdeff551f95347e085cf4bf2b248f90c0cdd5a29c4b3",
+      "contractAddress": "0x2502C08433f239123CCd4D31479B63646213cbC0",
+      "inputHash": "0x1124a98c37b7c06096308be132fad203244ef1f608359abe82aed70816cf10c9",
+      "runtimeHash": "0x4ce85e7a26197e230d09f76f1af51f14b64009ec9fe1fac8440a7664114395a9",
+      "blockNumber": "0x2b0c10a"
+    },
+    "launcher": {
+      "nonce": 7849,
+      "transactionHash": "0x0ed96cfdcb1a484bcfad83756f26f865489689a53fe8233744a612ec8906ae90",
+      "contractAddress": "0x87B67dfFf09363AA75f4BEf1a43ae7d90C8f497B",
+      "inputHash": "0x6bb695f4b6eba20ebb619de4a87c81bb19edf09af08d04bbd387924769d147aa",
+      "runtimeHash": "0x86b7c7f88e40538022f80f00cad22469d622cbfb45a66c8d39577560e6ac5131",
+      "blockNumber": "0x2b0c144"
+    },
+    "bindPons": {
+      "nonce": 7850,
+      "transactionHash": "0x2436a738138a31e852d296c642d772b92e809b0127a0db38815e73f9ace2361d",
+      "target": "0xAc299024C0f4E561D6e99CEFABB9b7212de729b6",
+      "inputHash": "0xe814736ab69a6aacaa46cd9ce19063676cfc3429030f518ca63c8374d0f2eee1",
+      "blockNumber": "0x2b0c17d"
+    },
+    "setPonsForwarder": {
+      "nonce": 7851,
+      "transactionHash": "0x49f0f9b65e574790a8bb76e57f60622f1a078b1784b1edca4b15eb4b0ddb6a47",
+      "target": "0x7DCeEaB0A53684b001A4900768a52eAcDb27294e",
+      "inputHash": "0xbe9893bde43e62505c97b5b88a0ac74cfc92b43176ed87eab9a5d45353808c72",
+      "blockNumber": "0x2b0c1c9"
+    },
+    "bindPoolsInstant": {
+      "nonce": 7852,
+      "transactionHash": "0x6d603f3d142f442c2b4dfbf18c1b218a88a56950330dbbdde1af6bd4f2321f71",
+      "target": "0xc13238cdF673eE82704255C14C6224fC7AfA9C36",
+      "inputHash": "0x683351a5de5d8535431dc30515bfec3aa66dfccd76a8608adb5f2a35c8840658",
+      "blockNumber": "0x2b0c204"
+    },
+    "bindPoolsInstantNoFee": {
+      "nonce": 7853,
+      "transactionHash": "0x8bd49931832e2cb488a544e764ceedef0f923e56ce3b1fe99e1d84e90b155d93",
+      "target": "0x990A008705c115eF1cb779B73D20F2BcA865f03A",
+      "inputHash": "0x683351a5de5d8535431dc30515bfec3aa66dfccd76a8608adb5f2a35c8840658",
+      "blockNumber": "0x2b0c24d"
+    },
+    "bindPoolsLbp": {
+      "nonce": 7854,
+      "transactionHash": "0x1f68ba2d97e247d12770c91d5eb1d426eda92f1a561ac236b86e1dbb8ea74f0f",
+      "target": "0x00ed429B6810281784372B6Bf610541670815A60",
+      "inputHash": "0xeabc5f9582f82f328cffb53811a296c02d608a47aa8d374f0aa2a5900aefee74",
+      "blockNumber": "0x2b0c297"
+    }
+  },
+  "buildFingerprint": "fa1aecc6d149e29abe52f5dc73f6f3af65650ab69e4d47ff60bf74595e92df58",
+  "recoveryArtifacts": {
+    "manifestPath": "/Users/dsb/sinjoh-contracts-unified-governance/sinjoh-contracts-v2/deployments/project-v2-recovery-manifest-4663-7837.json",
+    "manifestSha256": "20ed991f4b25456a999325d79e961cc4e3c26de393fa42ad987a8453dfa70957",
+    "promotionEntryPath": "/Users/dsb/sinjoh-contracts-unified-governance/sinjoh-contracts-v2/deployments/project-v2-recovery-promotion-entry-4663-7837.json",
+    "promotionEntrySha256": "ac4ae73afd179d352c12e9f326bc9d1aff006638e64346771c8ca217e8920952",
+    "consumerInputPath": "/Users/dsb/sinjoh-contracts-unified-governance/sinjoh-contracts-v2/deployments/project-v2-recovery-consumer-input-4663-7837.json",
+    "consumerInputSha256": "644cf7dc24c1d2b50aa86955471047e0b94bd9c81ce49dda09ea25320e8aded7"
+  }
+}
