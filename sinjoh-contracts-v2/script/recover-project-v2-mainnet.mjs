@@ -191,8 +191,12 @@ function run(command, args, options = {}) {
     return typeof output === "string" ? output.trim() : "";
   } catch (error) {
     const status = Number.isInteger(error?.status) ? ` (exit ${error.status})` : "";
-    // Never interpolate command arguments or child stderr: both may contain authenticated RPC URLs.
-    throw new Error(`${command} failed${status}`);
+    const stderr = typeof error?.stderr === "string"
+      ? error.stderr
+        .replaceAll(/https?:\/\/[^\s"']+/g, "[RPC_URL_REDACTED]")
+        .trim()
+      : "";
+    throw new Error(`${command} failed${status}${stderr ? `: ${stderr}` : ""}`);
   }
 }
 
