@@ -94,11 +94,13 @@ contract DeployProjectLauncherV2 is Script {
         bytes32 fundingBandLeaf;
         address ponsAdapterFactory;
         address poolsInstantAdapterFactory;
+        address poolsInstantNoFeeAdapterFactory;
         address poolsLbpAdapterFactory;
         address ponsProjectAdapterImplementation;
         address poolsProjectRegistrationHelper;
         bytes32 ponsLaunchpadLeaf;
         bytes32 poolsInstantLaunchpadLeaf;
+        bytes32 poolsInstantNoFeeLaunchpadLeaf;
         bytes32 poolsLbpLaunchpadLeaf;
         bytes32 approvalRoot;
     }
@@ -170,6 +172,8 @@ contract DeployProjectLauncherV2 is Script {
             .setLaunchForwarder(integrations.ponsAdapterFactory);
         IPoolsInstantProjectAdapterFactoryRelease(integrations.poolsInstantAdapterFactory)
             .bindProjectV2(address(launcher), address(registry), address(launchpadTokenFactory));
+        IPoolsInstantProjectAdapterFactoryRelease(integrations.poolsInstantNoFeeAdapterFactory)
+            .bindProjectV2(address(launcher), address(registry), address(launchpadTokenFactory));
         IPoolsLbpProjectAdapterFactoryRelease(integrations.poolsLbpAdapterFactory)
             .bindProjectV2(
                 address(launcher),
@@ -188,6 +192,9 @@ contract DeployProjectLauncherV2 is Script {
                     == address(ponsTokenFactory)
                 && IPoolsInstantProjectAdapterFactoryRelease(
                         integrations.poolsInstantAdapterFactory
+                    ).projectTokenFactory() == address(launchpadTokenFactory)
+                && IPoolsInstantProjectAdapterFactoryRelease(
+                        integrations.poolsInstantNoFeeAdapterFactory
                     ).projectTokenFactory() == address(launchpadTokenFactory)
                 && IPoolsLbpProjectAdapterFactoryRelease(integrations.poolsLbpAdapterFactory)
                     .projectTokenFactory() == address(launchpadTokenFactory),
@@ -248,6 +255,8 @@ contract DeployProjectLauncherV2 is Script {
         integrations.ponsAdapterFactory = vm.envAddress("PONS_PROJECT_ADAPTER_FACTORY");
         integrations.poolsInstantAdapterFactory =
             vm.envAddress("POOLS_INSTANT_PROJECT_ADAPTER_FACTORY");
+        integrations.poolsInstantNoFeeAdapterFactory =
+            vm.envAddress("POOLS_INSTANT_NO_FEE_PROJECT_ADAPTER_FACTORY");
         integrations.poolsLbpAdapterFactory = vm.envAddress("POOLS_LBP_PROJECT_ADAPTER_FACTORY");
         integrations.ponsProjectAdapterImplementation =
             vm.envAddress("PONS_PROJECT_ADAPTER_IMPLEMENTATION");
@@ -259,6 +268,10 @@ contract DeployProjectLauncherV2 is Script {
         _verifyExternalRuntime(
             integrations.poolsInstantAdapterFactory,
             "POOLS_INSTANT_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH"
+        );
+        _verifyExternalRuntime(
+            integrations.poolsInstantNoFeeAdapterFactory,
+            "POOLS_INSTANT_NO_FEE_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH"
         );
         _verifyExternalRuntime(
             integrations.poolsLbpAdapterFactory, "POOLS_LBP_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH"
@@ -275,6 +288,8 @@ contract DeployProjectLauncherV2 is Script {
             LaunchpadApproval.factoryLeaf(integrations.ponsAdapterFactory);
         integrations.poolsInstantLaunchpadLeaf =
             LaunchpadApproval.factoryLeaf(integrations.poolsInstantAdapterFactory);
+        integrations.poolsInstantNoFeeLaunchpadLeaf =
+            LaunchpadApproval.factoryLeaf(integrations.poolsInstantNoFeeAdapterFactory);
         integrations.poolsLbpLaunchpadLeaf =
             LaunchpadApproval.factoryLeaf(integrations.poolsLbpAdapterFactory);
         integrations.approvalRoot = _approvalRoot(integrations);
@@ -285,14 +300,15 @@ contract DeployProjectLauncherV2 is Script {
         pure
         returns (bytes32[] memory leaves)
     {
-        leaves = new bytes32[](7);
+        leaves = new bytes32[](8);
         leaves[0] = integrations.swapLeaf500;
         leaves[1] = integrations.swapLeaf3000;
         leaves[2] = integrations.swapLeaf10000;
         leaves[3] = integrations.fundingBandLeaf;
         leaves[4] = integrations.ponsLaunchpadLeaf;
         leaves[5] = integrations.poolsInstantLaunchpadLeaf;
-        leaves[6] = integrations.poolsLbpLaunchpadLeaf;
+        leaves[6] = integrations.poolsInstantNoFeeLaunchpadLeaf;
+        leaves[7] = integrations.poolsLbpLaunchpadLeaf;
     }
 
     function _approvalRoot(ReleaseIntegrations memory integrations) private pure returns (bytes32) {
@@ -300,8 +316,9 @@ contract DeployProjectLauncherV2 is Script {
         bytes32 node01 = leaves[0].commutativeKeccak256(leaves[1]);
         bytes32 node23 = leaves[2].commutativeKeccak256(leaves[3]);
         bytes32 node45 = leaves[4].commutativeKeccak256(leaves[5]);
-        bytes32 node456 = node45.commutativeKeccak256(leaves[6]);
-        return node01.commutativeKeccak256(node23).commutativeKeccak256(node456);
+        bytes32 node67 = leaves[6].commutativeKeccak256(leaves[7]);
+        return node01.commutativeKeccak256(node23)
+            .commutativeKeccak256(node45.commutativeKeccak256(node67));
     }
 
     function _approvalProof(ReleaseIntegrations memory integrations, uint256 index)
@@ -313,22 +330,17 @@ contract DeployProjectLauncherV2 is Script {
         bytes32 node01 = leaves[0].commutativeKeccak256(leaves[1]);
         bytes32 node23 = leaves[2].commutativeKeccak256(leaves[3]);
         bytes32 node45 = leaves[4].commutativeKeccak256(leaves[5]);
+        bytes32 node67 = leaves[6].commutativeKeccak256(leaves[7]);
         bytes32 node0123 = node01.commutativeKeccak256(node23);
-        bytes32 node456 = node45.commutativeKeccak256(leaves[6]);
+        bytes32 node4567 = node45.commutativeKeccak256(node67);
+        proof = new bytes32[](3);
+        proof[0] = leaves[index ^ 1];
         if (index < 4) {
-            proof = new bytes32[](3);
-            proof[0] = leaves[index ^ 1];
             proof[1] = index < 2 ? node23 : node01;
-            proof[2] = node456;
-        } else if (index < 6) {
-            proof = new bytes32[](3);
-            proof[0] = leaves[index ^ 1];
-            proof[1] = leaves[6];
-            proof[2] = node0123;
+            proof[2] = node4567;
         } else {
-            proof = new bytes32[](2);
-            proof[0] = node45;
-            proof[1] = node0123;
+            proof[1] = index < 6 ? node67 : node45;
+            proof[2] = node0123;
         }
     }
 
@@ -425,6 +437,13 @@ contract DeployProjectLauncherV2 is Script {
             instantFactory.projectLauncher() == address(launcher)
                 && instantFactory.projectRegistry() == address(registry),
             "POOLS_INSTANT_PROJECT_BINDING_MISMATCH"
+        );
+        IPoolsInstantProjectAdapterFactoryRelease instantNoFeeFactory =
+            IPoolsInstantProjectAdapterFactoryRelease(integrations.poolsInstantNoFeeAdapterFactory);
+        require(
+            instantNoFeeFactory.projectLauncher() == address(launcher)
+                && instantNoFeeFactory.projectRegistry() == address(registry),
+            "POOLS_INSTANT_NO_FEE_PROJECT_BINDING_MISMATCH"
         );
         IPoolsLbpProjectAdapterFactoryRelease lbpFactory =
             IPoolsLbpProjectAdapterFactoryRelease(integrations.poolsLbpAdapterFactory);
@@ -621,6 +640,16 @@ contract DeployProjectLauncherV2 is Script {
             integrations.poolsInstantAdapterFactory.codehash
         );
         vm.serializeAddress(
+            object,
+            "poolsInstantNoFeeProjectAdapterFactory",
+            integrations.poolsInstantNoFeeAdapterFactory
+        );
+        vm.serializeBytes32(
+            object,
+            "poolsInstantNoFeeProjectAdapterFactoryRuntimeHash",
+            integrations.poolsInstantNoFeeAdapterFactory.codehash
+        );
+        vm.serializeAddress(
             object, "poolsLbpProjectAdapterFactory", integrations.poolsLbpAdapterFactory
         );
         vm.serializeBytes32(
@@ -663,6 +692,11 @@ contract DeployProjectLauncherV2 is Script {
             object, "poolsInstantLaunchpadApprovalLeaf", integrations.poolsInstantLaunchpadLeaf
         );
         vm.serializeBytes32(
+            object,
+            "poolsInstantNoFeeLaunchpadApprovalLeaf",
+            integrations.poolsInstantNoFeeLaunchpadLeaf
+        );
+        vm.serializeBytes32(
             object, "poolsLbpLaunchpadApprovalLeaf", integrations.poolsLbpLaunchpadLeaf
         );
         vm.serializeBytes32(object, "swapApprovalProof500", _approvalProof(integrations, 0));
@@ -674,7 +708,10 @@ contract DeployProjectLauncherV2 is Script {
             object, "poolsInstantLaunchpadApprovalProof", _approvalProof(integrations, 5)
         );
         vm.serializeBytes32(
-            object, "poolsLbpLaunchpadApprovalProof", _approvalProof(integrations, 6)
+            object, "poolsInstantNoFeeLaunchpadApprovalProof", _approvalProof(integrations, 6)
+        );
+        vm.serializeBytes32(
+            object, "poolsLbpLaunchpadApprovalProof", _approvalProof(integrations, 7)
         );
         vm.serializeAddress(object, "registry", address(registry));
         vm.serializeAddress(object, "deploymentEngine", address(deployer));

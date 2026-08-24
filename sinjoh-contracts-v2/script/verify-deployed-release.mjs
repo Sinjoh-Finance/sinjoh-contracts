@@ -146,6 +146,7 @@ const runtimeBindings = [
   ["launchpad project token factory", "launchpadProjectTokenFactory", "launchpadProjectTokenFactoryRuntimeHash"],
   ["Pons project adapter factory", "ponsProjectAdapterFactory", "ponsProjectAdapterFactoryRuntimeHash"],
   ["Pools Instant project adapter factory", "poolsInstantProjectAdapterFactory", "poolsInstantProjectAdapterFactoryRuntimeHash"],
+  ["Pools Instant no-fee project adapter factory", "poolsInstantNoFeeProjectAdapterFactory", "poolsInstantNoFeeProjectAdapterFactoryRuntimeHash"],
   ["Pools LBP project adapter factory", "poolsLbpProjectAdapterFactory", "poolsLbpProjectAdapterFactoryRuntimeHash"],
   ["Pons project adapter implementation", "ponsProjectAdapterImplementation", "ponsProjectAdapterImplementationRuntimeHash"],
   ["Pools project registration helper", "poolsProjectRegistrationHelper", "poolsProjectRegistrationHelperRuntimeHash"],
@@ -181,6 +182,7 @@ assertEqual("registry launcher", await read(manifest.registry, registryAbi, "lau
 for (const [label, address, abi, expectedTokenFactory] of [
   ["Pons", manifest.ponsProjectAdapterFactory, ponsProjectFactoryAbi, manifest.ponsProjectTokenFactory],
   ["Pools Instant", manifest.poolsInstantProjectAdapterFactory, poolsProjectFactoryAbi, manifest.launchpadProjectTokenFactory],
+  ["Pools Instant no-fee", manifest.poolsInstantNoFeeProjectAdapterFactory, poolsProjectFactoryAbi, manifest.launchpadProjectTokenFactory],
   ["Pools LBP", manifest.poolsLbpProjectAdapterFactory, poolsLbpProjectFactoryAbi, manifest.launchpadProjectTokenFactory],
 ]) {
   assertEqual(`${label} project launcher binding`, await read(address, abi, "projectLauncher"), manifest.launcher);

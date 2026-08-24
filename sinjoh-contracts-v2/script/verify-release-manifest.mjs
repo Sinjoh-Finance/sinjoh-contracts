@@ -43,13 +43,15 @@ const required = [
   "swapApprovalProof3000", "swapApprovalProof10000", "fundingBandIntegrationProof",
   "ponsProjectAdapterFactory", "ponsProjectAdapterFactoryRuntimeHash",
   "poolsInstantProjectAdapterFactory", "poolsInstantProjectAdapterFactoryRuntimeHash",
+  "poolsInstantNoFeeProjectAdapterFactory", "poolsInstantNoFeeProjectAdapterFactoryRuntimeHash",
   "poolsLbpProjectAdapterFactory", "poolsLbpProjectAdapterFactoryRuntimeHash",
   "ponsProjectAdapterImplementation", "ponsProjectAdapterImplementationRuntimeHash",
   "poolsProjectRegistrationHelper", "poolsProjectRegistrationHelperRuntimeHash",
   "ponsLaunchFactory", "ponsLaunchFactoryRuntimeHash",
   "ponsLaunchpadApprovalLeaf", "poolsInstantLaunchpadApprovalLeaf",
   "poolsLbpLaunchpadApprovalLeaf", "ponsLaunchpadApprovalProof",
-  "poolsInstantLaunchpadApprovalProof", "poolsLbpLaunchpadApprovalProof",
+  "poolsInstantLaunchpadApprovalProof", "poolsInstantNoFeeLaunchpadApprovalLeaf",
+  "poolsInstantNoFeeLaunchpadApprovalProof", "poolsLbpLaunchpadApprovalProof",
   "registryRuntimeHash", "deploymentEngineRuntimeHash", "launcherRuntimeHash",
   "tokenCreationCodeHash", "multisigCreationCodeHash", "timelockCreationCodeHash",
   "stakingCreationCodeHash", "treasuryCreationCodeHash", "airdropCreationCodeHash",
@@ -109,6 +111,8 @@ const approvedReleaseValues = {
   ponsProjectAdapterFactoryRuntimeHash: "PONS_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH",
   poolsInstantProjectAdapterFactory: "POOLS_INSTANT_PROJECT_ADAPTER_FACTORY",
   poolsInstantProjectAdapterFactoryRuntimeHash: "POOLS_INSTANT_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH",
+  poolsInstantNoFeeProjectAdapterFactory: "POOLS_INSTANT_NO_FEE_PROJECT_ADAPTER_FACTORY",
+  poolsInstantNoFeeProjectAdapterFactoryRuntimeHash: "POOLS_INSTANT_NO_FEE_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH",
   poolsLbpProjectAdapterFactory: "POOLS_LBP_PROJECT_ADAPTER_FACTORY",
   poolsLbpProjectAdapterFactoryRuntimeHash: "POOLS_LBP_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH",
   ponsProjectAdapterImplementation: "PONS_PROJECT_ADAPTER_IMPLEMENTATION",
@@ -130,7 +134,7 @@ for (const [key, expectedLength] of [
   ["swapApprovalProof500", 3], ["swapApprovalProof3000", 3],
   ["swapApprovalProof10000", 3], ["fundingBandIntegrationProof", 3],
   ["ponsLaunchpadApprovalProof", 3], ["poolsInstantLaunchpadApprovalProof", 3],
-  ["poolsLbpLaunchpadApprovalProof", 2],
+  ["poolsInstantNoFeeLaunchpadApprovalProof", 3], ["poolsLbpLaunchpadApprovalProof", 3],
 ]) {
   if (!Array.isArray(manifest[key]) || manifest[key].length !== expectedLength
       || manifest[key].some((value) => !bytes32Pattern.test(value))) {
@@ -201,6 +205,11 @@ const computedLeaves = {
     [launchpadFactoryDomain, BigInt(manifest.chainId), manifest.poolsInstantProjectAdapterFactory,
       manifest.poolsInstantProjectAdapterFactoryRuntimeHash],
   ),
+  poolsInstantNoFeeLaunchpadApprovalLeaf: doubleHash(
+    [bytes32Type, uint256Type, addressType, bytes32Type],
+    [launchpadFactoryDomain, BigInt(manifest.chainId), manifest.poolsInstantNoFeeProjectAdapterFactory,
+      manifest.poolsInstantNoFeeProjectAdapterFactoryRuntimeHash],
+  ),
   poolsLbpLaunchpadApprovalLeaf: doubleHash(
     [bytes32Type, uint256Type, addressType, bytes32Type],
     [launchpadFactoryDomain, BigInt(manifest.chainId), manifest.poolsLbpProjectAdapterFactory,
@@ -212,7 +221,7 @@ for (const [key, computed] of Object.entries(computedLeaves)) {
     throw new Error(`release manifest '${key}' does not match its exact approved integration`);
   }
 }
-if (new Set(Object.values(computedLeaves).map((value) => value.toLowerCase())).size !== 7) {
+if (new Set(Object.values(computedLeaves).map((value) => value.toLowerCase())).size !== 8) {
   throw new Error("release manifest integration approval leaves must be unique");
 }
 const processProof = (leaf, proof) => proof.reduce((hash, sibling) => {
@@ -226,6 +235,7 @@ const proofFields = {
   fundingBandIntegrationLeaf: "fundingBandIntegrationProof",
   ponsLaunchpadApprovalLeaf: "ponsLaunchpadApprovalProof",
   poolsInstantLaunchpadApprovalLeaf: "poolsInstantLaunchpadApprovalProof",
+  poolsInstantNoFeeLaunchpadApprovalLeaf: "poolsInstantNoFeeLaunchpadApprovalProof",
   poolsLbpLaunchpadApprovalLeaf: "poolsLbpLaunchpadApprovalProof",
 };
 for (const [leafField, proofField] of Object.entries(proofFields)) {
