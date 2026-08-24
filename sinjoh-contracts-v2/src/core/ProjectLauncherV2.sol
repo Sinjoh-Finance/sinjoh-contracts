@@ -9,6 +9,9 @@ import { FundingBandV3IntegrationConfig } from "../bands/FundingBandV3Integratio
 import { ProjectFundingBandsV2 } from "../bands/ProjectFundingBandsV2.sol";
 import { IProjectModule } from "../interfaces/IProjectModule.sol";
 import { IBasketYieldAdapter } from "../interfaces/IBasketYieldAdapter.sol";
+import {
+    IProjectVotingExclusionFinalizer
+} from "../interfaces/IProjectVotingExclusionFinalizer.sol";
 import { ProjectIds } from "../libraries/ProjectIds.sol";
 import { ProjectModuleBits } from "../libraries/ProjectModuleBits.sol";
 import { SinjohV2Constants } from "../libraries/SinjohV2Constants.sol";
@@ -142,6 +145,8 @@ contract ProjectLauncherV2 is ReentrancyGuard {
         validator.validateLaunchpadCaller(
             msg.sender, config.creator, subject, launchpadApprovalProof
         );
+        address[] memory exclusions = deployer.tokenExclusions(config, preview.addresses);
+        _finalizeVotingExclusionsIfSupported(subject, exclusions);
         validator.validateExternalSubject(config, preview);
         deployer.deployProjectModules(config, preview);
         _initializeLaunchConfiguration(config, preview);
@@ -344,6 +349,18 @@ contract ProjectLauncherV2 is ReentrancyGuard {
             ProjectRouterV2(payable(a.router))
                 .initializeRoutesFromLauncher(_materializeRouterRoutes(config, a));
         }
+    }
+
+    function _finalizeVotingExclusionsIfSupported(address subject, address[] memory exclusions)
+        private
+    {
+        IProjectVotingExclusionFinalizer finalizer = IProjectVotingExclusionFinalizer(subject);
+        try finalizer.votingExclusionConfigurator() returns (address configurator) {
+            if (configurator != address(this)) revert InvalidExternalSubject(subject);
+            if (!finalizer.votingExclusionsFinalized()) {
+                finalizer.finalizeVotingExclusions(exclusions);
+            }
+        } catch { }
     }
 
     function _materializeRouterRoutes(

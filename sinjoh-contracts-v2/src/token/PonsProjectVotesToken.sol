@@ -24,6 +24,7 @@ contract PonsProjectVotesToken is ProjectVotesToken {
         address creator;
         address curve;
         address launchFactory;
+        address votingExclusionConfigurator;
         uint256 supply;
         address[] votingExclusions;
     }
@@ -31,6 +32,8 @@ contract PonsProjectVotesToken is ProjectVotesToken {
     address public immutable deployer;
     address public immutable launchFactory;
     address public immutable curve;
+    address public immutable votingExclusionConfigurator;
+    bool public votingExclusionsFinalized;
 
     string public logo;
     string public description;
@@ -38,6 +41,9 @@ contract PonsProjectVotesToken is ProjectVotesToken {
     Socials private _socials;
 
     error InvalidPonsLaunch(address curve, address launchFactory);
+    error InvalidVotingExclusionConfigurator(address configurator);
+    error VotingExclusionsAlreadyFinalized();
+    error OnlyVotingExclusionConfigurator(address caller);
 
     constructor(TokenConfig memory config)
         ProjectVotesToken(
@@ -52,12 +58,25 @@ contract PonsProjectVotesToken is ProjectVotesToken {
         if (config.curve == address(0) || config.launchFactory == address(0)) {
             revert InvalidPonsLaunch(config.curve, config.launchFactory);
         }
+        if (config.votingExclusionConfigurator.code.length == 0) {
+            revert InvalidVotingExclusionConfigurator(config.votingExclusionConfigurator);
+        }
         deployer = config.creator;
         launchFactory = config.launchFactory;
         curve = config.curve;
+        votingExclusionConfigurator = config.votingExclusionConfigurator;
         logo = config.logo;
         description = config.description;
         _socials = config.socials;
+    }
+
+    function finalizeVotingExclusions(address[] calldata exclusions) external {
+        if (msg.sender != votingExclusionConfigurator) {
+            revert OnlyVotingExclusionConfigurator(msg.sender);
+        }
+        if (votingExclusionsFinalized) revert VotingExclusionsAlreadyFinalized();
+        votingExclusionsFinalized = true;
+        _appendPostLaunchVotingExclusions(exclusions);
     }
 
     function socials()

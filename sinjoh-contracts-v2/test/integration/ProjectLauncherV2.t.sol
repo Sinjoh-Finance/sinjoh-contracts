@@ -48,7 +48,9 @@ import { RaffleTypes } from "../../src/raffle/RaffleTypes.sol";
 import { ProjectRouterV2 } from "../../src/router/ProjectRouterV2.sol";
 import { RouterAction, RouterActionType, RouterRouteInput } from "../../src/router/RouterTypes.sol";
 import { ProjectStakingPoolV2 } from "../../src/staking/ProjectStakingPoolV2.sol";
+import { PonsProjectVotesToken } from "../../src/token/PonsProjectVotesToken.sol";
 import { ProjectVotesToken } from "../../src/token/ProjectVotesToken.sol";
+import { ProjectVotesTokenFactoryV2 } from "../../src/token/ProjectVotesTokenFactoryV2.sol";
 import { ProjectTreasuryVaultV2 } from "../../src/treasury/ProjectTreasuryVaultV2.sol";
 import { Create3V2 } from "../../src/libraries/Create3V2.sol";
 import { ProjectIds } from "../../src/libraries/ProjectIds.sol";
@@ -304,6 +306,76 @@ contract ProjectLauncherV2Test is Test {
         assertEq(record.voteSource, address(subject));
         assertEq(record.creator, CREATOR);
         assertEq(record.referenceSupply, config.totalSupply);
+    }
+
+    function testApprovedPonsTokenFinalizesProjectCustodyWithoutChangingCanonicalSubject() public {
+        MockProjectLaunchAdapterFactory adapterFactory = new MockProjectLaunchAdapterFactory();
+        _installLauncher(_launchpadFactoryLeaf(address(adapterFactory)), true);
+
+        ProjectLaunchConfig memory config = _baseTokenGovernanceConfig();
+        config.salt = keccak256("PONS_CANONICAL_GOVERNANCE");
+        config.modules.treasury = true;
+        config.tokenAllocations = new LaunchTokenAllocation[](0);
+
+        address curve = address(0xC01234);
+        address[] memory initialExclusions = new address[](1);
+        initialExclusions[0] = curve;
+        ProjectVotesTokenFactoryV2 tokenFactory = new ProjectVotesTokenFactoryV2();
+        ProjectVotesTokenFactoryV2.PonsTokenDeployment memory deployment =
+            ProjectVotesTokenFactoryV2.PonsTokenDeployment({
+                token: PonsProjectVotesToken.TokenConfig({
+                    name: config.name,
+                    symbol: config.symbol,
+                    logo: "",
+                    description: "",
+                    socials: PonsProjectVotesToken.Socials({
+                        twitter: "", telegram: "", discord: "", website: "", farcaster: ""
+                    }),
+                    registry: address(registry),
+                    creator: CREATOR,
+                    curve: curve,
+                    launchFactory: address(adapterFactory),
+                    votingExclusionConfigurator: address(launcher),
+                    supply: config.totalSupply,
+                    votingExclusions: initialExclusions
+                }),
+                salt: config.salt
+            });
+        address predictedSubject = tokenFactory.predictPons(deployment, address(this));
+        MockProjectLaunchAdapter adapter = adapterFactory.deploy(CREATOR, predictedSubject);
+
+        config.launchProfile.additionalCustodyExclusions = new address[](2);
+        if (curve < address(adapter)) {
+            config.launchProfile.additionalCustodyExclusions[0] = curve;
+            config.launchProfile.additionalCustodyExclusions[1] = address(adapter);
+        } else {
+            config.launchProfile.additionalCustodyExclusions[0] = address(adapter);
+            config.launchProfile.additionalCustodyExclusions[1] = curve;
+        }
+
+        PonsProjectVotesToken subject = PonsProjectVotesToken(tokenFactory.deployPons(deployment));
+        assertEq(address(subject), predictedSubject);
+        assertFalse(subject.votingExclusionsFinalized());
+        assertEq(subject.balanceOf(curve), config.totalSupply);
+        assertEq(subject.eligibleVotingSupply(), 0);
+
+        ProjectLaunchPreview memory launched = adapter.finalize(launcher, config, new bytes32[](0));
+
+        assertEq(launched.addresses.subject, address(subject));
+        assertEq(launched.addresses.voteSource, address(subject));
+        assertTrue(subject.votingExclusionsFinalized());
+        address[] memory required = launcher.requiredVotingExclusions(config, address(subject));
+        for (uint256 i; i < required.length; ++i) {
+            assertTrue(subject.isVotingExcluded(required[i]));
+        }
+        assertEq(
+            address(ProjectGovernorV2(payable(launched.addresses.tokenGovernor)).token()),
+            address(subject)
+        );
+        ProjectRegistryV2.ProjectRecord memory record = registry.project(launched.projectId);
+        assertEq(record.subject, address(subject));
+        assertEq(record.voteSource, address(subject));
+        assertEq(record.treasury, launched.addresses.treasury);
     }
 
     function testExistingTokenLaunchRejectsUnapprovedAdapterFactory() public {

@@ -11,6 +11,7 @@ contract ProjectVotesTokenFactoryV2Test is TestBase {
     address private constant CREATOR = address(0xC0FFEE);
     address private constant CURVE = address(0xC01234);
     address private constant BUYER = address(0xB0B);
+    address private constant LATE_CUSTODY = address(0xD00000);
     uint256 private constant SUPPLY = 1_000_000e18;
 
     MockRegistry private registry;
@@ -52,6 +53,27 @@ contract ProjectVotesTokenFactoryV2Test is TestBase {
             factory.predictPons(deployment, address(this)),
             factory.predictPons(deployment, address(0xBEEF))
         );
+    }
+
+    function testPinnedLauncherFinalizesLateCustodyExactlyOnceAndCorrectsVotes() public {
+        PonsProjectVotesToken token = PonsProjectVotesToken(factory.deployPons(_ponsDeployment()));
+        vm.prank(CURVE);
+        token.transfer(LATE_CUSTODY, 10_000e18);
+        assertEq(token.getVotes(LATE_CUSTODY), 10_000e18);
+        assertEq(token.eligibleVotingSupply(), 10_000e18);
+
+        address[] memory finalExclusions = new address[](2);
+        finalExclusions[0] = CURVE;
+        finalExclusions[1] = LATE_CUSTODY;
+        token.finalizeVotingExclusions(finalExclusions);
+
+        assertTrue(token.votingExclusionsFinalized());
+        assertTrue(token.isVotingExcluded(LATE_CUSTODY));
+        assertEq(token.getVotes(LATE_CUSTODY), 0);
+        assertEq(token.eligibleVotingSupply(), 0);
+
+        vm.expectRevert(PonsProjectVotesToken.VotingExclusionsAlreadyFinalized.selector);
+        token.finalizeVotingExclusions(finalExclusions);
     }
 
     function testDeploysGenericCanonicalTokenForExistingTokenLaunchpads() public {
@@ -98,6 +120,7 @@ contract ProjectVotesTokenFactoryV2Test is TestBase {
                 creator: CREATOR,
                 curve: CURVE,
                 launchFactory: address(0xFAc7),
+                votingExclusionConfigurator: address(this),
                 supply: SUPPLY,
                 votingExclusions: exclusions
             }),

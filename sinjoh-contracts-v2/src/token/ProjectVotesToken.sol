@@ -39,11 +39,11 @@ contract ProjectVotesToken is
     bytes32 public immutable override projectId;
     uint256 public immutable override initialSupply;
 
-    uint256 private _eligibleVotingSupply;
-    mapping(address account => bool excluded) private _additionalVotingExclusion;
-    address[] private _additionalVotingExclusions;
-    mapping(address account => Checkpoints.Trace256 checkpoints) private _voteCheckpoints;
-    Checkpoints.Trace256 private _eligibleSupplyCheckpoints;
+    uint256 internal _eligibleVotingSupply;
+    mapping(address account => bool excluded) internal _additionalVotingExclusion;
+    address[] internal _additionalVotingExclusions;
+    mapping(address account => Checkpoints.Trace256 checkpoints) internal _voteCheckpoints;
+    Checkpoints.Trace256 internal _eligibleSupplyCheckpoints;
 
     error InvalidRegistry(address candidate);
     error InvalidCreator();
@@ -139,7 +139,7 @@ contract ProjectVotesToken is
         revert DelegationUnsupported();
     }
 
-    function isVotingExcluded(address account) public view returns (bool) {
+    function isVotingExcluded(address account) public view virtual returns (bool) {
         return account == address(0) || account == address(this) || account == BURN_ADDRESS
             || _additionalVotingExclusion[account];
     }
@@ -199,6 +199,45 @@ contract ProjectVotesToken is
             previous = account;
             _additionalVotingExclusion[account] = true;
             _additionalVotingExclusions.push(account);
+            emit VotingExclusionConfigured(account, false);
+        }
+    }
+
+    /// @dev One-time launchpad subclasses may append their final deterministic custody set before
+    /// Project registration. Existing balances are removed from voting supply at the same clock.
+    function _appendPostLaunchVotingExclusions(address[] calldata exclusions) internal {
+        uint256 length = exclusions.length;
+        address previous;
+        uint256 additions;
+        for (uint256 i; i < length; ++i) {
+            address account = exclusions[i];
+            if (account == address(0)) revert InvalidVotingExclusion(i, account);
+            if (account == address(this) || account == BURN_ADDRESS) {
+                revert ReservedVotingExclusion(account);
+            }
+            if (i != 0 && account <= previous) {
+                revert UnsortedVotingExclusions(i, previous, account);
+            }
+            previous = account;
+            if (!_additionalVotingExclusion[account]) ++additions;
+        }
+        uint256 total = _additionalVotingExclusions.length + additions;
+        if (total > MAX_ADDITIONAL_VOTING_EXCLUSIONS) {
+            revert TooManyVotingExclusions(total);
+        }
+
+        uint256 timepoint = clock();
+        for (uint256 i; i < length; ++i) {
+            address account = exclusions[i];
+            if (_additionalVotingExclusion[account]) continue;
+            uint256 balance = balanceOf(account);
+            _additionalVotingExclusion[account] = true;
+            _additionalVotingExclusions.push(account);
+            if (balance != 0) {
+                _eligibleVotingSupply -= balance;
+                _voteCheckpoints[account].push(timepoint, 0);
+                _eligibleSupplyCheckpoints.push(timepoint, _eligibleVotingSupply);
+            }
             emit VotingExclusionConfigured(account, false);
         }
     }
