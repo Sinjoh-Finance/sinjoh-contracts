@@ -115,6 +115,19 @@ export const projectLauncherV2Abi = [
   },
   {
     "type": "function",
+    "name": "PONS_POOL_MANAGER",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "PROTOCOL_VERSION",
     "inputs": [],
     "outputs": [
@@ -20178,6 +20191,19 @@ export const projectAirdropV2Abi = [
   {
     "type": "function",
     "name": "PONS_LOCKER",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "PONS_POOL_MANAGER",
     "inputs": [],
     "outputs": [
       {

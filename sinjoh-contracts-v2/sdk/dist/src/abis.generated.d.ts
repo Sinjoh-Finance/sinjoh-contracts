@@ -86,6 +86,16 @@ export declare const projectLauncherV2Abi: readonly [{
     readonly stateMutability: "view";
 }, {
     readonly type: "function";
+    readonly name: "PONS_POOL_MANAGER";
+    readonly inputs: readonly [];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
     readonly name: "PROTOCOL_VERSION";
     readonly inputs: readonly [];
     readonly outputs: readonly [{
@@ -15552,6 +15562,16 @@ export declare const projectAirdropV2Abi: readonly [{
 }, {
     readonly type: "function";
     readonly name: "PONS_LOCKER";
+    readonly inputs: readonly [];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "PONS_POOL_MANAGER";
     readonly inputs: readonly [];
     readonly outputs: readonly [{
         readonly name: "";
