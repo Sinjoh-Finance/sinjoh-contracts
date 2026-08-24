@@ -31,6 +31,12 @@ export declare const fundingBandDestination: {
     readonly raffle: 5;
     readonly basketViaTreasury: 6;
 };
+/** Exact release leaf that authorizes one immutable launchpad adapter factory generation. */
+export declare function launchpadFactoryApprovalLeaf(parameters: {
+    chainId: bigint;
+    factory: Address;
+    factoryRuntimeHash: Hex;
+}): Hex;
 /**
  * Builds the exact release-approval leaf for one production Funding Bands integration profile.
  * The leaf approves reviewed code and market infrastructure; each deployed guard separately binds

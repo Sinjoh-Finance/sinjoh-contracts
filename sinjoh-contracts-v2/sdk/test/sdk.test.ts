@@ -9,6 +9,7 @@ import {
   buildAirdropEpoch,
   buildVerifiedAirdropEpoch,
   buildLaunchFromPreset,
+  buildProjectLaunchConfig,
   buildProjectLaunchManifest,
   encodeAirdropAbortCall,
   encodeGovernanceAction,
@@ -34,6 +35,7 @@ import {
   projectTreasuryVaultV2Abi,
   simpleFundingBandConfig,
   launchErrorMessage,
+  launchpadFactoryApprovalLeaf,
   planAirdropPushBatches,
   reconstructHolderAirdropSnapshot,
   reconstructStakerAirdropSnapshot,
@@ -159,6 +161,14 @@ test("rejects invalid funding-band product inputs before wallet submission", () 
 
 test("builds Solidity-identical release approval leaves", () => {
   assert.equal(
+    launchpadFactoryApprovalLeaf({
+      chainId: 8_453n,
+      factory: "0x0000000000000000000000000000000000001234",
+      factoryRuntimeHash: `0x${"ab".repeat(32)}`,
+    }),
+    "0x061d585aaf83bb23e08c44bd63af3d43beb2ed43256fdca6e8d104dbfd2a7d6d",
+  );
+  assert.equal(
     fundingBandFactoryIntegrationApprovalLeaf({
       chainId: 8_453n,
       integrationFactory: "0x0000000000000000000000000000000000001000",
@@ -192,6 +202,76 @@ test("builds Solidity-identical release approval leaves", () => {
     }),
     "0x0f8910b46062a14419552a66b4a825d137cb506870a3f548c885256124efdb38",
   );
+});
+
+test("builds launchpad governance without a second token allocation or preset-owned identities", () => {
+  const zero = "0x0000000000000000000000000000000000000000" as Address;
+  const policy = {
+    id: "release-policy",
+    protocolVersion: "2.0.0",
+    modules: {
+      treasury: true, router: true, staking: false, airdrop: false,
+      basket: false, fundingBands: false, raffle: false, liquidity: false,
+    },
+    treasury: { basketAllocationBps: 0, basketRouteAssets: [] },
+    routerRoutes: [],
+    basket: {
+      cadence: 0, eligibilityMode: 0, governanceUpdatesEnabled: false,
+      burnTaxBps: 0, burnTaxDestination: 0, burnPriceSubject: 0n,
+      airdropAccountConfig: "0x",
+      allocation: { inputAssets: [], targets: [], swapLegs: [] },
+    },
+    basketERC4626Vaults: [],
+    bands: {
+      quoteAsset: zero, marketCapGuard: zero, positionAdapter: zero,
+      twapWindow: 0, quoteUsdOracle: zero, confirmationPeriod: 0,
+      maximumObservationAge: 0, integrationApprovalProof: [],
+    },
+    raffle: {
+      creator: zero, attestor: zero, randomness: zero, prizeAsset: zero,
+      protocolFeeRecipient: zero, taxRecipient: zero, tokensPerTicket: 0n,
+      maxTicketsPerHolder: 0n, minPrize: 0n, maxPrize: 0n, prizeBps: 0,
+      recipientTaxBps: 0, recycleTaxBps: 0, minConfirmations: 0,
+      winnersPerRound: 0, minRoundInterval: 0, weightWindowBlocks: 0,
+      randomnessTimeout: 0, claimWindow: 0, basis: 0, exclusions: [], stockRewards: [],
+    },
+    launchProfile: { canonicalPool: zero, additionalCustodyExclusions: [] },
+  } as const;
+  const config = buildProjectLaunchConfig(policy, {
+    creator: "0x0000000000000000000000000000000000001000",
+    name: "Canonical",
+    symbol: "ONE",
+    totalSupply: 1_000n,
+    salt: `0x${"12".repeat(32)}`,
+    distribution: "launchpad",
+    governance: {
+      mode: "multisig",
+      voteSource: 0,
+      multisigSigners: [
+        "0x0000000000000000000000000000000000003000",
+        "0x0000000000000000000000000000000000001000",
+        "0x0000000000000000000000000000000000002000",
+      ],
+    },
+  });
+
+  assert.deepEqual(config.tokenAllocations, []);
+  assert.deepEqual(config.governance.multisigSigners, [
+    "0x0000000000000000000000000000000000001000",
+    "0x0000000000000000000000000000000000002000",
+    "0x0000000000000000000000000000000000003000",
+  ]);
+  assert.equal(config.governance.tokenGovernance.referenceSupply, 1_000n);
+  assert.throws(() => buildProjectLaunchConfig(policy, {
+    creator: "0x0000000000000000000000000000000000001000",
+    name: "Wrong",
+    symbol: "TWO",
+    totalSupply: 1_000n,
+    salt: `0x${"13".repeat(32)}`,
+    distribution: "launchpad",
+    tokenAllocations: [{ recipient: "0x0000000000000000000000000000000000001000", amount: 1_000n }],
+    governance: { mode: "token-holder", voteSource: 0 },
+  }), /second token allocation/);
 });
 
 test("hydrates a reviewed launch preset from creator-owned fields only", () => {

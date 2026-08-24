@@ -21,6 +21,18 @@ export type ProjectLaunchPreview = ContractFunctionReturnType<
   "validateLaunchConfig"
 >;
 
+export type ExistingTokenProjectLaunchConfig = ContractFunctionArgs<
+  typeof projectLauncherV2Abi,
+  "view",
+  "predictExistingTokenLaunch"
+>[0];
+
+export type ExistingTokenProjectLaunchPreview = ContractFunctionReturnType<
+  typeof projectLauncherV2Abi,
+  "view",
+  "predictExistingTokenLaunch"
+>;
+
 export type ProjectRecord = ContractFunctionReturnType<
   typeof projectRegistryV2Abi,
   "view",

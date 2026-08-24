@@ -47,6 +47,21 @@ export const fundingBandDestination = {
 const SWAP_INTEGRATION_DOMAIN = keccak256(stringToHex("SINJOH_V2_SWAP_INTEGRATION_APPROVAL"));
 const FUNDING_BAND_FACTORY_INTEGRATION_DOMAIN = keccak256(stringToHex("SINJOH_V2_FUNDING_BAND_FACTORY_INTEGRATION"));
 const FUNDING_BAND_PAIR_INTEGRATION_DOMAIN = keccak256(stringToHex("SINJOH_V2_FUNDING_BAND_PAIR_INTEGRATION"));
+const LAUNCHPAD_FACTORY_APPROVAL_DOMAIN = keccak256(stringToHex("SINJOH_V2_LAUNCHPAD_FACTORY_APPROVAL"));
+/** Exact release leaf that authorizes one immutable launchpad adapter factory generation. */
+export function launchpadFactoryApprovalLeaf(parameters) {
+    assertChainId(parameters.chainId);
+    assertNonzeroAddress(parameters.factory, "Launchpad adapter factory");
+    assertBytes32(parameters.factoryRuntimeHash, "Launchpad adapter factory runtime hash");
+    return doubleHash([
+        { type: "bytes32" }, { type: "uint256" }, { type: "address" }, { type: "bytes32" },
+    ], [
+        LAUNCHPAD_FACTORY_APPROVAL_DOMAIN,
+        parameters.chainId,
+        parameters.factory,
+        parameters.factoryRuntimeHash,
+    ]);
+}
 /**
  * Builds the exact release-approval leaf for one production Funding Bands integration profile.
  * The leaf approves reviewed code and market infrastructure; each deployed guard separately binds

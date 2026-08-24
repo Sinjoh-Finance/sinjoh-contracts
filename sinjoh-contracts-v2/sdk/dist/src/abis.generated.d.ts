@@ -8,6 +8,10 @@ export declare const projectLauncherV2Abi: readonly [{
         readonly name: "deployer_";
         readonly type: "address";
         readonly internalType: "address";
+    }, {
+        readonly name: "validator_";
+        readonly type: "address";
+        readonly internalType: "address";
     }];
     readonly stateMutability: "nonpayable";
 }, {
@@ -160,6 +164,498 @@ export declare const projectLauncherV2Abi: readonly [{
         readonly internalType: "contract ProjectLaunchDeployerV2";
     }];
     readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "hashExistingTokenLaunchConfig";
+    readonly inputs: readonly [{
+        readonly name: "config";
+        readonly type: "tuple";
+        readonly internalType: "struct ProjectLaunchConfig";
+        readonly components: readonly [{
+            readonly name: "creator";
+            readonly type: "address";
+            readonly internalType: "address";
+        }, {
+            readonly name: "name";
+            readonly type: "string";
+            readonly internalType: "string";
+        }, {
+            readonly name: "symbol";
+            readonly type: "string";
+            readonly internalType: "string";
+        }, {
+            readonly name: "totalSupply";
+            readonly type: "uint256";
+            readonly internalType: "uint256";
+        }, {
+            readonly name: "salt";
+            readonly type: "bytes32";
+            readonly internalType: "bytes32";
+        }, {
+            readonly name: "governanceMode";
+            readonly type: "uint8";
+            readonly internalType: "enum LaunchGovernanceMode";
+        }, {
+            readonly name: "voteSource";
+            readonly type: "uint8";
+            readonly internalType: "enum LaunchVoteSource";
+        }, {
+            readonly name: "modules";
+            readonly type: "tuple";
+            readonly internalType: "struct ModuleSelection";
+            readonly components: readonly [{
+                readonly name: "treasury";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "router";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "staking";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "airdrop";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "basket";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "fundingBands";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "raffle";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "liquidity";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }];
+        }, {
+            readonly name: "tokenAllocations";
+            readonly type: "tuple[]";
+            readonly internalType: "struct LaunchTokenAllocation[]";
+            readonly components: readonly [{
+                readonly name: "recipient";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "amount";
+                readonly type: "uint256";
+                readonly internalType: "uint256";
+            }];
+        }, {
+            readonly name: "governance";
+            readonly type: "tuple";
+            readonly internalType: "struct GovernanceLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "multisigSigners";
+                readonly type: "address[3]";
+                readonly internalType: "address[3]";
+            }, {
+                readonly name: "tokenGovernance";
+                readonly type: "tuple";
+                readonly internalType: "struct TokenGovernanceConfig";
+                readonly components: readonly [{
+                    readonly name: "votingDelay";
+                    readonly type: "uint48";
+                    readonly internalType: "uint48";
+                }, {
+                    readonly name: "votingPeriod";
+                    readonly type: "uint32";
+                    readonly internalType: "uint32";
+                }, {
+                    readonly name: "proposalThresholdBps";
+                    readonly type: "uint16";
+                    readonly internalType: "uint16";
+                }, {
+                    readonly name: "quorumBps";
+                    readonly type: "uint16";
+                    readonly internalType: "uint16";
+                }, {
+                    readonly name: "timelockDelay";
+                    readonly type: "uint48";
+                    readonly internalType: "uint48";
+                }, {
+                    readonly name: "referenceSupply";
+                    readonly type: "uint256";
+                    readonly internalType: "uint256";
+                }];
+            }];
+        }, {
+            readonly name: "staking";
+            readonly type: "tuple";
+            readonly internalType: "struct StakingLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "guardian";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "lockDuration";
+                readonly type: "uint64";
+                readonly internalType: "uint64";
+            }];
+        }, {
+            readonly name: "airdrop";
+            readonly type: "tuple";
+            readonly internalType: "struct AirdropLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "attestor";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "eligibilityMode";
+                readonly type: "uint8";
+                readonly internalType: "enum AirdropEligibilityMode";
+            }, {
+                readonly name: "additionalExclusions";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
+            }];
+        }, {
+            readonly name: "treasury";
+            readonly type: "tuple";
+            readonly internalType: "struct TreasuryLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "basketAllocationBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "basketRouteAssets";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
+            }];
+        }, {
+            readonly name: "routerRoutes";
+            readonly type: "tuple[]";
+            readonly internalType: "struct RouterRouteInput[]";
+            readonly components: readonly [{
+                readonly name: "inputAsset";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "actions";
+                readonly type: "tuple[]";
+                readonly internalType: "struct RouterAction[]";
+                readonly components: readonly [{
+                    readonly name: "actionType";
+                    readonly type: "uint8";
+                    readonly internalType: "enum RouterActionType";
+                }, {
+                    readonly name: "allocationBps";
+                    readonly type: "uint16";
+                    readonly internalType: "uint16";
+                }, {
+                    readonly name: "recipient";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "adapter";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "priceGuard";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "actionConfig";
+                    readonly type: "bytes";
+                    readonly internalType: "bytes";
+                }];
+            }];
+        }, {
+            readonly name: "basket";
+            readonly type: "tuple";
+            readonly internalType: "struct BasketConfig";
+            readonly components: readonly [{
+                readonly name: "cadence";
+                readonly type: "uint8";
+                readonly internalType: "enum BasketHarvestCadence";
+            }, {
+                readonly name: "eligibilityMode";
+                readonly type: "uint8";
+                readonly internalType: "enum BasketEligibilityMode";
+            }, {
+                readonly name: "governanceUpdatesEnabled";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "burnTaxBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "burnTaxDestination";
+                readonly type: "uint8";
+                readonly internalType: "enum BasketBurnTaxDestination";
+            }, {
+                readonly name: "burnPriceSubject";
+                readonly type: "uint256";
+                readonly internalType: "uint256";
+            }, {
+                readonly name: "airdropAccountConfig";
+                readonly type: "bytes";
+                readonly internalType: "bytes";
+            }, {
+                readonly name: "allocation";
+                readonly type: "tuple";
+                readonly internalType: "struct BasketAllocationConfig";
+                readonly components: readonly [{
+                    readonly name: "inputAssets";
+                    readonly type: "address[]";
+                    readonly internalType: "address[]";
+                }, {
+                    readonly name: "targets";
+                    readonly type: "tuple[]";
+                    readonly internalType: "struct BasketTarget[]";
+                    readonly components: readonly [{
+                        readonly name: "depositAsset";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "yieldAdapter";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "targetWeightBps";
+                        readonly type: "uint16";
+                        readonly internalType: "uint16";
+                    }, {
+                        readonly name: "rewardAssets";
+                        readonly type: "address[]";
+                        readonly internalType: "address[]";
+                    }, {
+                        readonly name: "yieldApprovalProof";
+                        readonly type: "bytes32[]";
+                        readonly internalType: "bytes32[]";
+                    }];
+                }, {
+                    readonly name: "swapLegs";
+                    readonly type: "tuple[]";
+                    readonly internalType: "struct BasketSwapLeg[]";
+                    readonly components: readonly [{
+                        readonly name: "inputAsset";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "targetIndex";
+                        readonly type: "uint8";
+                        readonly internalType: "uint8";
+                    }, {
+                        readonly name: "swapAdapter";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "priceGuard";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "maxSlippageBps";
+                        readonly type: "uint16";
+                        readonly internalType: "uint16";
+                    }, {
+                        readonly name: "routeData";
+                        readonly type: "bytes";
+                        readonly internalType: "bytes";
+                    }, {
+                        readonly name: "approvalProof";
+                        readonly type: "bytes32[]";
+                        readonly internalType: "bytes32[]";
+                    }];
+                }];
+            }];
+        }, {
+            readonly name: "basketERC4626Vaults";
+            readonly type: "address[]";
+            readonly internalType: "address[]";
+        }, {
+            readonly name: "bands";
+            readonly type: "tuple";
+            readonly internalType: "struct BandsLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "quoteAsset";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "marketCapGuard";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "positionAdapter";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "twapWindow";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "quoteUsdOracle";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "confirmationPeriod";
+                readonly type: "uint48";
+                readonly internalType: "uint48";
+            }, {
+                readonly name: "maximumObservationAge";
+                readonly type: "uint48";
+                readonly internalType: "uint48";
+            }, {
+                readonly name: "integrationApprovalProof";
+                readonly type: "bytes32[]";
+                readonly internalType: "bytes32[]";
+            }];
+        }, {
+            readonly name: "raffle";
+            readonly type: "tuple";
+            readonly internalType: "struct RaffleTypes.Config";
+            readonly components: readonly [{
+                readonly name: "creator";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "attestor";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "randomness";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "prizeAsset";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "protocolFeeRecipient";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "taxRecipient";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "tokensPerTicket";
+                readonly type: "uint128";
+                readonly internalType: "uint128";
+            }, {
+                readonly name: "maxTicketsPerHolder";
+                readonly type: "uint128";
+                readonly internalType: "uint128";
+            }, {
+                readonly name: "minPrize";
+                readonly type: "uint128";
+                readonly internalType: "uint128";
+            }, {
+                readonly name: "maxPrize";
+                readonly type: "uint128";
+                readonly internalType: "uint128";
+            }, {
+                readonly name: "prizeBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "recipientTaxBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "recycleTaxBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "minConfirmations";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "winnersPerRound";
+                readonly type: "uint8";
+                readonly internalType: "uint8";
+            }, {
+                readonly name: "minRoundInterval";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "weightWindowBlocks";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "randomnessTimeout";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "claimWindow";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "basis";
+                readonly type: "uint8";
+                readonly internalType: "enum RaffleTypes.TicketBasis";
+            }, {
+                readonly name: "exclusions";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
+            }, {
+                readonly name: "stockRewards";
+                readonly type: "tuple[]";
+                readonly internalType: "struct RaffleTypes.StockReward[]";
+                readonly components: readonly [{
+                    readonly name: "asset";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "swapAdapter";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "priceGuard";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "routeData";
+                    readonly type: "bytes";
+                    readonly internalType: "bytes";
+                }, {
+                    readonly name: "guardData";
+                    readonly type: "bytes";
+                    readonly internalType: "bytes";
+                }, {
+                    readonly name: "approvalProof";
+                    readonly type: "bytes32[]";
+                    readonly internalType: "bytes32[]";
+                }];
+            }];
+        }, {
+            readonly name: "launchProfile";
+            readonly type: "tuple";
+            readonly internalType: "struct LaunchProfileConfig";
+            readonly components: readonly [{
+                readonly name: "canonicalPool";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "additionalCustodyExclusions";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
+            }];
+        }, {
+            readonly name: "metadataURI";
+            readonly type: "string";
+            readonly internalType: "string";
+        }];
+    }, {
+        readonly name: "subject";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "bytes32";
+        readonly internalType: "bytes32";
+    }];
+    readonly stateMutability: "pure";
 }, {
     readonly type: "function";
     readonly name: "hashLaunchConfig";
@@ -1236,6 +1732,1204 @@ export declare const projectLauncherV2Abi: readonly [{
     readonly stateMutability: "nonpayable";
 }, {
     readonly type: "function";
+    readonly name: "launchExistingToken";
+    readonly inputs: readonly [{
+        readonly name: "config";
+        readonly type: "tuple";
+        readonly internalType: "struct ProjectLaunchConfig";
+        readonly components: readonly [{
+            readonly name: "creator";
+            readonly type: "address";
+            readonly internalType: "address";
+        }, {
+            readonly name: "name";
+            readonly type: "string";
+            readonly internalType: "string";
+        }, {
+            readonly name: "symbol";
+            readonly type: "string";
+            readonly internalType: "string";
+        }, {
+            readonly name: "totalSupply";
+            readonly type: "uint256";
+            readonly internalType: "uint256";
+        }, {
+            readonly name: "salt";
+            readonly type: "bytes32";
+            readonly internalType: "bytes32";
+        }, {
+            readonly name: "governanceMode";
+            readonly type: "uint8";
+            readonly internalType: "enum LaunchGovernanceMode";
+        }, {
+            readonly name: "voteSource";
+            readonly type: "uint8";
+            readonly internalType: "enum LaunchVoteSource";
+        }, {
+            readonly name: "modules";
+            readonly type: "tuple";
+            readonly internalType: "struct ModuleSelection";
+            readonly components: readonly [{
+                readonly name: "treasury";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "router";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "staking";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "airdrop";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "basket";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "fundingBands";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "raffle";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "liquidity";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }];
+        }, {
+            readonly name: "tokenAllocations";
+            readonly type: "tuple[]";
+            readonly internalType: "struct LaunchTokenAllocation[]";
+            readonly components: readonly [{
+                readonly name: "recipient";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "amount";
+                readonly type: "uint256";
+                readonly internalType: "uint256";
+            }];
+        }, {
+            readonly name: "governance";
+            readonly type: "tuple";
+            readonly internalType: "struct GovernanceLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "multisigSigners";
+                readonly type: "address[3]";
+                readonly internalType: "address[3]";
+            }, {
+                readonly name: "tokenGovernance";
+                readonly type: "tuple";
+                readonly internalType: "struct TokenGovernanceConfig";
+                readonly components: readonly [{
+                    readonly name: "votingDelay";
+                    readonly type: "uint48";
+                    readonly internalType: "uint48";
+                }, {
+                    readonly name: "votingPeriod";
+                    readonly type: "uint32";
+                    readonly internalType: "uint32";
+                }, {
+                    readonly name: "proposalThresholdBps";
+                    readonly type: "uint16";
+                    readonly internalType: "uint16";
+                }, {
+                    readonly name: "quorumBps";
+                    readonly type: "uint16";
+                    readonly internalType: "uint16";
+                }, {
+                    readonly name: "timelockDelay";
+                    readonly type: "uint48";
+                    readonly internalType: "uint48";
+                }, {
+                    readonly name: "referenceSupply";
+                    readonly type: "uint256";
+                    readonly internalType: "uint256";
+                }];
+            }];
+        }, {
+            readonly name: "staking";
+            readonly type: "tuple";
+            readonly internalType: "struct StakingLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "guardian";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "lockDuration";
+                readonly type: "uint64";
+                readonly internalType: "uint64";
+            }];
+        }, {
+            readonly name: "airdrop";
+            readonly type: "tuple";
+            readonly internalType: "struct AirdropLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "attestor";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "eligibilityMode";
+                readonly type: "uint8";
+                readonly internalType: "enum AirdropEligibilityMode";
+            }, {
+                readonly name: "additionalExclusions";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
+            }];
+        }, {
+            readonly name: "treasury";
+            readonly type: "tuple";
+            readonly internalType: "struct TreasuryLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "basketAllocationBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "basketRouteAssets";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
+            }];
+        }, {
+            readonly name: "routerRoutes";
+            readonly type: "tuple[]";
+            readonly internalType: "struct RouterRouteInput[]";
+            readonly components: readonly [{
+                readonly name: "inputAsset";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "actions";
+                readonly type: "tuple[]";
+                readonly internalType: "struct RouterAction[]";
+                readonly components: readonly [{
+                    readonly name: "actionType";
+                    readonly type: "uint8";
+                    readonly internalType: "enum RouterActionType";
+                }, {
+                    readonly name: "allocationBps";
+                    readonly type: "uint16";
+                    readonly internalType: "uint16";
+                }, {
+                    readonly name: "recipient";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "adapter";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "priceGuard";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "actionConfig";
+                    readonly type: "bytes";
+                    readonly internalType: "bytes";
+                }];
+            }];
+        }, {
+            readonly name: "basket";
+            readonly type: "tuple";
+            readonly internalType: "struct BasketConfig";
+            readonly components: readonly [{
+                readonly name: "cadence";
+                readonly type: "uint8";
+                readonly internalType: "enum BasketHarvestCadence";
+            }, {
+                readonly name: "eligibilityMode";
+                readonly type: "uint8";
+                readonly internalType: "enum BasketEligibilityMode";
+            }, {
+                readonly name: "governanceUpdatesEnabled";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "burnTaxBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "burnTaxDestination";
+                readonly type: "uint8";
+                readonly internalType: "enum BasketBurnTaxDestination";
+            }, {
+                readonly name: "burnPriceSubject";
+                readonly type: "uint256";
+                readonly internalType: "uint256";
+            }, {
+                readonly name: "airdropAccountConfig";
+                readonly type: "bytes";
+                readonly internalType: "bytes";
+            }, {
+                readonly name: "allocation";
+                readonly type: "tuple";
+                readonly internalType: "struct BasketAllocationConfig";
+                readonly components: readonly [{
+                    readonly name: "inputAssets";
+                    readonly type: "address[]";
+                    readonly internalType: "address[]";
+                }, {
+                    readonly name: "targets";
+                    readonly type: "tuple[]";
+                    readonly internalType: "struct BasketTarget[]";
+                    readonly components: readonly [{
+                        readonly name: "depositAsset";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "yieldAdapter";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "targetWeightBps";
+                        readonly type: "uint16";
+                        readonly internalType: "uint16";
+                    }, {
+                        readonly name: "rewardAssets";
+                        readonly type: "address[]";
+                        readonly internalType: "address[]";
+                    }, {
+                        readonly name: "yieldApprovalProof";
+                        readonly type: "bytes32[]";
+                        readonly internalType: "bytes32[]";
+                    }];
+                }, {
+                    readonly name: "swapLegs";
+                    readonly type: "tuple[]";
+                    readonly internalType: "struct BasketSwapLeg[]";
+                    readonly components: readonly [{
+                        readonly name: "inputAsset";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "targetIndex";
+                        readonly type: "uint8";
+                        readonly internalType: "uint8";
+                    }, {
+                        readonly name: "swapAdapter";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "priceGuard";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "maxSlippageBps";
+                        readonly type: "uint16";
+                        readonly internalType: "uint16";
+                    }, {
+                        readonly name: "routeData";
+                        readonly type: "bytes";
+                        readonly internalType: "bytes";
+                    }, {
+                        readonly name: "approvalProof";
+                        readonly type: "bytes32[]";
+                        readonly internalType: "bytes32[]";
+                    }];
+                }];
+            }];
+        }, {
+            readonly name: "basketERC4626Vaults";
+            readonly type: "address[]";
+            readonly internalType: "address[]";
+        }, {
+            readonly name: "bands";
+            readonly type: "tuple";
+            readonly internalType: "struct BandsLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "quoteAsset";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "marketCapGuard";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "positionAdapter";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "twapWindow";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "quoteUsdOracle";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "confirmationPeriod";
+                readonly type: "uint48";
+                readonly internalType: "uint48";
+            }, {
+                readonly name: "maximumObservationAge";
+                readonly type: "uint48";
+                readonly internalType: "uint48";
+            }, {
+                readonly name: "integrationApprovalProof";
+                readonly type: "bytes32[]";
+                readonly internalType: "bytes32[]";
+            }];
+        }, {
+            readonly name: "raffle";
+            readonly type: "tuple";
+            readonly internalType: "struct RaffleTypes.Config";
+            readonly components: readonly [{
+                readonly name: "creator";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "attestor";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "randomness";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "prizeAsset";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "protocolFeeRecipient";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "taxRecipient";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "tokensPerTicket";
+                readonly type: "uint128";
+                readonly internalType: "uint128";
+            }, {
+                readonly name: "maxTicketsPerHolder";
+                readonly type: "uint128";
+                readonly internalType: "uint128";
+            }, {
+                readonly name: "minPrize";
+                readonly type: "uint128";
+                readonly internalType: "uint128";
+            }, {
+                readonly name: "maxPrize";
+                readonly type: "uint128";
+                readonly internalType: "uint128";
+            }, {
+                readonly name: "prizeBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "recipientTaxBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "recycleTaxBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "minConfirmations";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "winnersPerRound";
+                readonly type: "uint8";
+                readonly internalType: "uint8";
+            }, {
+                readonly name: "minRoundInterval";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "weightWindowBlocks";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "randomnessTimeout";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "claimWindow";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "basis";
+                readonly type: "uint8";
+                readonly internalType: "enum RaffleTypes.TicketBasis";
+            }, {
+                readonly name: "exclusions";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
+            }, {
+                readonly name: "stockRewards";
+                readonly type: "tuple[]";
+                readonly internalType: "struct RaffleTypes.StockReward[]";
+                readonly components: readonly [{
+                    readonly name: "asset";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "swapAdapter";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "priceGuard";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "routeData";
+                    readonly type: "bytes";
+                    readonly internalType: "bytes";
+                }, {
+                    readonly name: "guardData";
+                    readonly type: "bytes";
+                    readonly internalType: "bytes";
+                }, {
+                    readonly name: "approvalProof";
+                    readonly type: "bytes32[]";
+                    readonly internalType: "bytes32[]";
+                }];
+            }];
+        }, {
+            readonly name: "launchProfile";
+            readonly type: "tuple";
+            readonly internalType: "struct LaunchProfileConfig";
+            readonly components: readonly [{
+                readonly name: "canonicalPool";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "additionalCustodyExclusions";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
+            }];
+        }, {
+            readonly name: "metadataURI";
+            readonly type: "string";
+            readonly internalType: "string";
+        }];
+    }, {
+        readonly name: "subject";
+        readonly type: "address";
+        readonly internalType: "address";
+    }, {
+        readonly name: "launchpadApprovalProof";
+        readonly type: "bytes32[]";
+        readonly internalType: "bytes32[]";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "preview";
+        readonly type: "tuple";
+        readonly internalType: "struct ProjectLaunchPreview";
+        readonly components: readonly [{
+            readonly name: "launchConfigHash";
+            readonly type: "bytes32";
+            readonly internalType: "bytes32";
+        }, {
+            readonly name: "projectId";
+            readonly type: "bytes32";
+            readonly internalType: "bytes32";
+        }, {
+            readonly name: "enabledModules";
+            readonly type: "uint256";
+            readonly internalType: "uint256";
+        }, {
+            readonly name: "addresses";
+            readonly type: "tuple";
+            readonly internalType: "struct ProjectLaunchAddresses";
+            readonly components: readonly [{
+                readonly name: "subject";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "controller";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "multisigAccount";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "tokenGovernor";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "tokenTimelock";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "voteSource";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "treasury";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "router";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "stakingPool";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "posNft";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "airdrop";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "raffle";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "liquidityManager";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "fundingBands";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "fundingBandMarketCapGuard";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "fundingBandPositionAdapter";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "basketManager";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "primaryBasketVault";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "basketYieldAdapters";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
+            }, {
+                readonly name: "primaryBasketId";
+                readonly type: "uint256";
+                readonly internalType: "uint256";
+            }];
+        }];
+    }];
+    readonly stateMutability: "nonpayable";
+}, {
+    readonly type: "function";
+    readonly name: "launchpadApprovalLeaf";
+    readonly inputs: readonly [{
+        readonly name: "adapterFactory";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "bytes32";
+        readonly internalType: "bytes32";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "predictExistingTokenLaunch";
+    readonly inputs: readonly [{
+        readonly name: "config";
+        readonly type: "tuple";
+        readonly internalType: "struct ProjectLaunchConfig";
+        readonly components: readonly [{
+            readonly name: "creator";
+            readonly type: "address";
+            readonly internalType: "address";
+        }, {
+            readonly name: "name";
+            readonly type: "string";
+            readonly internalType: "string";
+        }, {
+            readonly name: "symbol";
+            readonly type: "string";
+            readonly internalType: "string";
+        }, {
+            readonly name: "totalSupply";
+            readonly type: "uint256";
+            readonly internalType: "uint256";
+        }, {
+            readonly name: "salt";
+            readonly type: "bytes32";
+            readonly internalType: "bytes32";
+        }, {
+            readonly name: "governanceMode";
+            readonly type: "uint8";
+            readonly internalType: "enum LaunchGovernanceMode";
+        }, {
+            readonly name: "voteSource";
+            readonly type: "uint8";
+            readonly internalType: "enum LaunchVoteSource";
+        }, {
+            readonly name: "modules";
+            readonly type: "tuple";
+            readonly internalType: "struct ModuleSelection";
+            readonly components: readonly [{
+                readonly name: "treasury";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "router";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "staking";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "airdrop";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "basket";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "fundingBands";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "raffle";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "liquidity";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }];
+        }, {
+            readonly name: "tokenAllocations";
+            readonly type: "tuple[]";
+            readonly internalType: "struct LaunchTokenAllocation[]";
+            readonly components: readonly [{
+                readonly name: "recipient";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "amount";
+                readonly type: "uint256";
+                readonly internalType: "uint256";
+            }];
+        }, {
+            readonly name: "governance";
+            readonly type: "tuple";
+            readonly internalType: "struct GovernanceLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "multisigSigners";
+                readonly type: "address[3]";
+                readonly internalType: "address[3]";
+            }, {
+                readonly name: "tokenGovernance";
+                readonly type: "tuple";
+                readonly internalType: "struct TokenGovernanceConfig";
+                readonly components: readonly [{
+                    readonly name: "votingDelay";
+                    readonly type: "uint48";
+                    readonly internalType: "uint48";
+                }, {
+                    readonly name: "votingPeriod";
+                    readonly type: "uint32";
+                    readonly internalType: "uint32";
+                }, {
+                    readonly name: "proposalThresholdBps";
+                    readonly type: "uint16";
+                    readonly internalType: "uint16";
+                }, {
+                    readonly name: "quorumBps";
+                    readonly type: "uint16";
+                    readonly internalType: "uint16";
+                }, {
+                    readonly name: "timelockDelay";
+                    readonly type: "uint48";
+                    readonly internalType: "uint48";
+                }, {
+                    readonly name: "referenceSupply";
+                    readonly type: "uint256";
+                    readonly internalType: "uint256";
+                }];
+            }];
+        }, {
+            readonly name: "staking";
+            readonly type: "tuple";
+            readonly internalType: "struct StakingLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "guardian";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "lockDuration";
+                readonly type: "uint64";
+                readonly internalType: "uint64";
+            }];
+        }, {
+            readonly name: "airdrop";
+            readonly type: "tuple";
+            readonly internalType: "struct AirdropLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "attestor";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "eligibilityMode";
+                readonly type: "uint8";
+                readonly internalType: "enum AirdropEligibilityMode";
+            }, {
+                readonly name: "additionalExclusions";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
+            }];
+        }, {
+            readonly name: "treasury";
+            readonly type: "tuple";
+            readonly internalType: "struct TreasuryLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "basketAllocationBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "basketRouteAssets";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
+            }];
+        }, {
+            readonly name: "routerRoutes";
+            readonly type: "tuple[]";
+            readonly internalType: "struct RouterRouteInput[]";
+            readonly components: readonly [{
+                readonly name: "inputAsset";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "actions";
+                readonly type: "tuple[]";
+                readonly internalType: "struct RouterAction[]";
+                readonly components: readonly [{
+                    readonly name: "actionType";
+                    readonly type: "uint8";
+                    readonly internalType: "enum RouterActionType";
+                }, {
+                    readonly name: "allocationBps";
+                    readonly type: "uint16";
+                    readonly internalType: "uint16";
+                }, {
+                    readonly name: "recipient";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "adapter";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "priceGuard";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "actionConfig";
+                    readonly type: "bytes";
+                    readonly internalType: "bytes";
+                }];
+            }];
+        }, {
+            readonly name: "basket";
+            readonly type: "tuple";
+            readonly internalType: "struct BasketConfig";
+            readonly components: readonly [{
+                readonly name: "cadence";
+                readonly type: "uint8";
+                readonly internalType: "enum BasketHarvestCadence";
+            }, {
+                readonly name: "eligibilityMode";
+                readonly type: "uint8";
+                readonly internalType: "enum BasketEligibilityMode";
+            }, {
+                readonly name: "governanceUpdatesEnabled";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "burnTaxBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "burnTaxDestination";
+                readonly type: "uint8";
+                readonly internalType: "enum BasketBurnTaxDestination";
+            }, {
+                readonly name: "burnPriceSubject";
+                readonly type: "uint256";
+                readonly internalType: "uint256";
+            }, {
+                readonly name: "airdropAccountConfig";
+                readonly type: "bytes";
+                readonly internalType: "bytes";
+            }, {
+                readonly name: "allocation";
+                readonly type: "tuple";
+                readonly internalType: "struct BasketAllocationConfig";
+                readonly components: readonly [{
+                    readonly name: "inputAssets";
+                    readonly type: "address[]";
+                    readonly internalType: "address[]";
+                }, {
+                    readonly name: "targets";
+                    readonly type: "tuple[]";
+                    readonly internalType: "struct BasketTarget[]";
+                    readonly components: readonly [{
+                        readonly name: "depositAsset";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "yieldAdapter";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "targetWeightBps";
+                        readonly type: "uint16";
+                        readonly internalType: "uint16";
+                    }, {
+                        readonly name: "rewardAssets";
+                        readonly type: "address[]";
+                        readonly internalType: "address[]";
+                    }, {
+                        readonly name: "yieldApprovalProof";
+                        readonly type: "bytes32[]";
+                        readonly internalType: "bytes32[]";
+                    }];
+                }, {
+                    readonly name: "swapLegs";
+                    readonly type: "tuple[]";
+                    readonly internalType: "struct BasketSwapLeg[]";
+                    readonly components: readonly [{
+                        readonly name: "inputAsset";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "targetIndex";
+                        readonly type: "uint8";
+                        readonly internalType: "uint8";
+                    }, {
+                        readonly name: "swapAdapter";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "priceGuard";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "maxSlippageBps";
+                        readonly type: "uint16";
+                        readonly internalType: "uint16";
+                    }, {
+                        readonly name: "routeData";
+                        readonly type: "bytes";
+                        readonly internalType: "bytes";
+                    }, {
+                        readonly name: "approvalProof";
+                        readonly type: "bytes32[]";
+                        readonly internalType: "bytes32[]";
+                    }];
+                }];
+            }];
+        }, {
+            readonly name: "basketERC4626Vaults";
+            readonly type: "address[]";
+            readonly internalType: "address[]";
+        }, {
+            readonly name: "bands";
+            readonly type: "tuple";
+            readonly internalType: "struct BandsLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "quoteAsset";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "marketCapGuard";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "positionAdapter";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "twapWindow";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "quoteUsdOracle";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "confirmationPeriod";
+                readonly type: "uint48";
+                readonly internalType: "uint48";
+            }, {
+                readonly name: "maximumObservationAge";
+                readonly type: "uint48";
+                readonly internalType: "uint48";
+            }, {
+                readonly name: "integrationApprovalProof";
+                readonly type: "bytes32[]";
+                readonly internalType: "bytes32[]";
+            }];
+        }, {
+            readonly name: "raffle";
+            readonly type: "tuple";
+            readonly internalType: "struct RaffleTypes.Config";
+            readonly components: readonly [{
+                readonly name: "creator";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "attestor";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "randomness";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "prizeAsset";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "protocolFeeRecipient";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "taxRecipient";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "tokensPerTicket";
+                readonly type: "uint128";
+                readonly internalType: "uint128";
+            }, {
+                readonly name: "maxTicketsPerHolder";
+                readonly type: "uint128";
+                readonly internalType: "uint128";
+            }, {
+                readonly name: "minPrize";
+                readonly type: "uint128";
+                readonly internalType: "uint128";
+            }, {
+                readonly name: "maxPrize";
+                readonly type: "uint128";
+                readonly internalType: "uint128";
+            }, {
+                readonly name: "prizeBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "recipientTaxBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "recycleTaxBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "minConfirmations";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "winnersPerRound";
+                readonly type: "uint8";
+                readonly internalType: "uint8";
+            }, {
+                readonly name: "minRoundInterval";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "weightWindowBlocks";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "randomnessTimeout";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "claimWindow";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "basis";
+                readonly type: "uint8";
+                readonly internalType: "enum RaffleTypes.TicketBasis";
+            }, {
+                readonly name: "exclusions";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
+            }, {
+                readonly name: "stockRewards";
+                readonly type: "tuple[]";
+                readonly internalType: "struct RaffleTypes.StockReward[]";
+                readonly components: readonly [{
+                    readonly name: "asset";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "swapAdapter";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "priceGuard";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "routeData";
+                    readonly type: "bytes";
+                    readonly internalType: "bytes";
+                }, {
+                    readonly name: "guardData";
+                    readonly type: "bytes";
+                    readonly internalType: "bytes";
+                }, {
+                    readonly name: "approvalProof";
+                    readonly type: "bytes32[]";
+                    readonly internalType: "bytes32[]";
+                }];
+            }];
+        }, {
+            readonly name: "launchProfile";
+            readonly type: "tuple";
+            readonly internalType: "struct LaunchProfileConfig";
+            readonly components: readonly [{
+                readonly name: "canonicalPool";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "additionalCustodyExclusions";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
+            }];
+        }, {
+            readonly name: "metadataURI";
+            readonly type: "string";
+            readonly internalType: "string";
+        }];
+    }, {
+        readonly name: "subject";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "tuple";
+        readonly internalType: "struct ProjectLaunchPreview";
+        readonly components: readonly [{
+            readonly name: "launchConfigHash";
+            readonly type: "bytes32";
+            readonly internalType: "bytes32";
+        }, {
+            readonly name: "projectId";
+            readonly type: "bytes32";
+            readonly internalType: "bytes32";
+        }, {
+            readonly name: "enabledModules";
+            readonly type: "uint256";
+            readonly internalType: "uint256";
+        }, {
+            readonly name: "addresses";
+            readonly type: "tuple";
+            readonly internalType: "struct ProjectLaunchAddresses";
+            readonly components: readonly [{
+                readonly name: "subject";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "controller";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "multisigAccount";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "tokenGovernor";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "tokenTimelock";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "voteSource";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "treasury";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "router";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "stakingPool";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "posNft";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "airdrop";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "raffle";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "liquidityManager";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "fundingBands";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "fundingBandMarketCapGuard";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "fundingBandPositionAdapter";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "basketManager";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "primaryBasketVault";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "basketYieldAdapters";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
+            }, {
+                readonly name: "primaryBasketId";
+                readonly type: "uint256";
+                readonly internalType: "uint256";
+            }];
+        }];
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
     readonly name: "predictLaunch";
     readonly inputs: readonly [{
         readonly name: "config";
@@ -1854,6 +3548,1088 @@ export declare const projectLauncherV2Abi: readonly [{
     readonly stateMutability: "view";
 }, {
     readonly type: "function";
+    readonly name: "requiredVotingExclusions";
+    readonly inputs: readonly [{
+        readonly name: "config";
+        readonly type: "tuple";
+        readonly internalType: "struct ProjectLaunchConfig";
+        readonly components: readonly [{
+            readonly name: "creator";
+            readonly type: "address";
+            readonly internalType: "address";
+        }, {
+            readonly name: "name";
+            readonly type: "string";
+            readonly internalType: "string";
+        }, {
+            readonly name: "symbol";
+            readonly type: "string";
+            readonly internalType: "string";
+        }, {
+            readonly name: "totalSupply";
+            readonly type: "uint256";
+            readonly internalType: "uint256";
+        }, {
+            readonly name: "salt";
+            readonly type: "bytes32";
+            readonly internalType: "bytes32";
+        }, {
+            readonly name: "governanceMode";
+            readonly type: "uint8";
+            readonly internalType: "enum LaunchGovernanceMode";
+        }, {
+            readonly name: "voteSource";
+            readonly type: "uint8";
+            readonly internalType: "enum LaunchVoteSource";
+        }, {
+            readonly name: "modules";
+            readonly type: "tuple";
+            readonly internalType: "struct ModuleSelection";
+            readonly components: readonly [{
+                readonly name: "treasury";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "router";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "staking";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "airdrop";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "basket";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "fundingBands";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "raffle";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "liquidity";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }];
+        }, {
+            readonly name: "tokenAllocations";
+            readonly type: "tuple[]";
+            readonly internalType: "struct LaunchTokenAllocation[]";
+            readonly components: readonly [{
+                readonly name: "recipient";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "amount";
+                readonly type: "uint256";
+                readonly internalType: "uint256";
+            }];
+        }, {
+            readonly name: "governance";
+            readonly type: "tuple";
+            readonly internalType: "struct GovernanceLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "multisigSigners";
+                readonly type: "address[3]";
+                readonly internalType: "address[3]";
+            }, {
+                readonly name: "tokenGovernance";
+                readonly type: "tuple";
+                readonly internalType: "struct TokenGovernanceConfig";
+                readonly components: readonly [{
+                    readonly name: "votingDelay";
+                    readonly type: "uint48";
+                    readonly internalType: "uint48";
+                }, {
+                    readonly name: "votingPeriod";
+                    readonly type: "uint32";
+                    readonly internalType: "uint32";
+                }, {
+                    readonly name: "proposalThresholdBps";
+                    readonly type: "uint16";
+                    readonly internalType: "uint16";
+                }, {
+                    readonly name: "quorumBps";
+                    readonly type: "uint16";
+                    readonly internalType: "uint16";
+                }, {
+                    readonly name: "timelockDelay";
+                    readonly type: "uint48";
+                    readonly internalType: "uint48";
+                }, {
+                    readonly name: "referenceSupply";
+                    readonly type: "uint256";
+                    readonly internalType: "uint256";
+                }];
+            }];
+        }, {
+            readonly name: "staking";
+            readonly type: "tuple";
+            readonly internalType: "struct StakingLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "guardian";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "lockDuration";
+                readonly type: "uint64";
+                readonly internalType: "uint64";
+            }];
+        }, {
+            readonly name: "airdrop";
+            readonly type: "tuple";
+            readonly internalType: "struct AirdropLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "attestor";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "eligibilityMode";
+                readonly type: "uint8";
+                readonly internalType: "enum AirdropEligibilityMode";
+            }, {
+                readonly name: "additionalExclusions";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
+            }];
+        }, {
+            readonly name: "treasury";
+            readonly type: "tuple";
+            readonly internalType: "struct TreasuryLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "basketAllocationBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "basketRouteAssets";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
+            }];
+        }, {
+            readonly name: "routerRoutes";
+            readonly type: "tuple[]";
+            readonly internalType: "struct RouterRouteInput[]";
+            readonly components: readonly [{
+                readonly name: "inputAsset";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "actions";
+                readonly type: "tuple[]";
+                readonly internalType: "struct RouterAction[]";
+                readonly components: readonly [{
+                    readonly name: "actionType";
+                    readonly type: "uint8";
+                    readonly internalType: "enum RouterActionType";
+                }, {
+                    readonly name: "allocationBps";
+                    readonly type: "uint16";
+                    readonly internalType: "uint16";
+                }, {
+                    readonly name: "recipient";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "adapter";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "priceGuard";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "actionConfig";
+                    readonly type: "bytes";
+                    readonly internalType: "bytes";
+                }];
+            }];
+        }, {
+            readonly name: "basket";
+            readonly type: "tuple";
+            readonly internalType: "struct BasketConfig";
+            readonly components: readonly [{
+                readonly name: "cadence";
+                readonly type: "uint8";
+                readonly internalType: "enum BasketHarvestCadence";
+            }, {
+                readonly name: "eligibilityMode";
+                readonly type: "uint8";
+                readonly internalType: "enum BasketEligibilityMode";
+            }, {
+                readonly name: "governanceUpdatesEnabled";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "burnTaxBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "burnTaxDestination";
+                readonly type: "uint8";
+                readonly internalType: "enum BasketBurnTaxDestination";
+            }, {
+                readonly name: "burnPriceSubject";
+                readonly type: "uint256";
+                readonly internalType: "uint256";
+            }, {
+                readonly name: "airdropAccountConfig";
+                readonly type: "bytes";
+                readonly internalType: "bytes";
+            }, {
+                readonly name: "allocation";
+                readonly type: "tuple";
+                readonly internalType: "struct BasketAllocationConfig";
+                readonly components: readonly [{
+                    readonly name: "inputAssets";
+                    readonly type: "address[]";
+                    readonly internalType: "address[]";
+                }, {
+                    readonly name: "targets";
+                    readonly type: "tuple[]";
+                    readonly internalType: "struct BasketTarget[]";
+                    readonly components: readonly [{
+                        readonly name: "depositAsset";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "yieldAdapter";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "targetWeightBps";
+                        readonly type: "uint16";
+                        readonly internalType: "uint16";
+                    }, {
+                        readonly name: "rewardAssets";
+                        readonly type: "address[]";
+                        readonly internalType: "address[]";
+                    }, {
+                        readonly name: "yieldApprovalProof";
+                        readonly type: "bytes32[]";
+                        readonly internalType: "bytes32[]";
+                    }];
+                }, {
+                    readonly name: "swapLegs";
+                    readonly type: "tuple[]";
+                    readonly internalType: "struct BasketSwapLeg[]";
+                    readonly components: readonly [{
+                        readonly name: "inputAsset";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "targetIndex";
+                        readonly type: "uint8";
+                        readonly internalType: "uint8";
+                    }, {
+                        readonly name: "swapAdapter";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "priceGuard";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "maxSlippageBps";
+                        readonly type: "uint16";
+                        readonly internalType: "uint16";
+                    }, {
+                        readonly name: "routeData";
+                        readonly type: "bytes";
+                        readonly internalType: "bytes";
+                    }, {
+                        readonly name: "approvalProof";
+                        readonly type: "bytes32[]";
+                        readonly internalType: "bytes32[]";
+                    }];
+                }];
+            }];
+        }, {
+            readonly name: "basketERC4626Vaults";
+            readonly type: "address[]";
+            readonly internalType: "address[]";
+        }, {
+            readonly name: "bands";
+            readonly type: "tuple";
+            readonly internalType: "struct BandsLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "quoteAsset";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "marketCapGuard";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "positionAdapter";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "twapWindow";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "quoteUsdOracle";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "confirmationPeriod";
+                readonly type: "uint48";
+                readonly internalType: "uint48";
+            }, {
+                readonly name: "maximumObservationAge";
+                readonly type: "uint48";
+                readonly internalType: "uint48";
+            }, {
+                readonly name: "integrationApprovalProof";
+                readonly type: "bytes32[]";
+                readonly internalType: "bytes32[]";
+            }];
+        }, {
+            readonly name: "raffle";
+            readonly type: "tuple";
+            readonly internalType: "struct RaffleTypes.Config";
+            readonly components: readonly [{
+                readonly name: "creator";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "attestor";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "randomness";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "prizeAsset";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "protocolFeeRecipient";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "taxRecipient";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "tokensPerTicket";
+                readonly type: "uint128";
+                readonly internalType: "uint128";
+            }, {
+                readonly name: "maxTicketsPerHolder";
+                readonly type: "uint128";
+                readonly internalType: "uint128";
+            }, {
+                readonly name: "minPrize";
+                readonly type: "uint128";
+                readonly internalType: "uint128";
+            }, {
+                readonly name: "maxPrize";
+                readonly type: "uint128";
+                readonly internalType: "uint128";
+            }, {
+                readonly name: "prizeBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "recipientTaxBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "recycleTaxBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "minConfirmations";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "winnersPerRound";
+                readonly type: "uint8";
+                readonly internalType: "uint8";
+            }, {
+                readonly name: "minRoundInterval";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "weightWindowBlocks";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "randomnessTimeout";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "claimWindow";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "basis";
+                readonly type: "uint8";
+                readonly internalType: "enum RaffleTypes.TicketBasis";
+            }, {
+                readonly name: "exclusions";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
+            }, {
+                readonly name: "stockRewards";
+                readonly type: "tuple[]";
+                readonly internalType: "struct RaffleTypes.StockReward[]";
+                readonly components: readonly [{
+                    readonly name: "asset";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "swapAdapter";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "priceGuard";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "routeData";
+                    readonly type: "bytes";
+                    readonly internalType: "bytes";
+                }, {
+                    readonly name: "guardData";
+                    readonly type: "bytes";
+                    readonly internalType: "bytes";
+                }, {
+                    readonly name: "approvalProof";
+                    readonly type: "bytes32[]";
+                    readonly internalType: "bytes32[]";
+                }];
+            }];
+        }, {
+            readonly name: "launchProfile";
+            readonly type: "tuple";
+            readonly internalType: "struct LaunchProfileConfig";
+            readonly components: readonly [{
+                readonly name: "canonicalPool";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "additionalCustodyExclusions";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
+            }];
+        }, {
+            readonly name: "metadataURI";
+            readonly type: "string";
+            readonly internalType: "string";
+        }];
+    }, {
+        readonly name: "subject";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "address[]";
+        readonly internalType: "address[]";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "validateExistingTokenLaunchConfig";
+    readonly inputs: readonly [{
+        readonly name: "config";
+        readonly type: "tuple";
+        readonly internalType: "struct ProjectLaunchConfig";
+        readonly components: readonly [{
+            readonly name: "creator";
+            readonly type: "address";
+            readonly internalType: "address";
+        }, {
+            readonly name: "name";
+            readonly type: "string";
+            readonly internalType: "string";
+        }, {
+            readonly name: "symbol";
+            readonly type: "string";
+            readonly internalType: "string";
+        }, {
+            readonly name: "totalSupply";
+            readonly type: "uint256";
+            readonly internalType: "uint256";
+        }, {
+            readonly name: "salt";
+            readonly type: "bytes32";
+            readonly internalType: "bytes32";
+        }, {
+            readonly name: "governanceMode";
+            readonly type: "uint8";
+            readonly internalType: "enum LaunchGovernanceMode";
+        }, {
+            readonly name: "voteSource";
+            readonly type: "uint8";
+            readonly internalType: "enum LaunchVoteSource";
+        }, {
+            readonly name: "modules";
+            readonly type: "tuple";
+            readonly internalType: "struct ModuleSelection";
+            readonly components: readonly [{
+                readonly name: "treasury";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "router";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "staking";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "airdrop";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "basket";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "fundingBands";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "raffle";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "liquidity";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }];
+        }, {
+            readonly name: "tokenAllocations";
+            readonly type: "tuple[]";
+            readonly internalType: "struct LaunchTokenAllocation[]";
+            readonly components: readonly [{
+                readonly name: "recipient";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "amount";
+                readonly type: "uint256";
+                readonly internalType: "uint256";
+            }];
+        }, {
+            readonly name: "governance";
+            readonly type: "tuple";
+            readonly internalType: "struct GovernanceLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "multisigSigners";
+                readonly type: "address[3]";
+                readonly internalType: "address[3]";
+            }, {
+                readonly name: "tokenGovernance";
+                readonly type: "tuple";
+                readonly internalType: "struct TokenGovernanceConfig";
+                readonly components: readonly [{
+                    readonly name: "votingDelay";
+                    readonly type: "uint48";
+                    readonly internalType: "uint48";
+                }, {
+                    readonly name: "votingPeriod";
+                    readonly type: "uint32";
+                    readonly internalType: "uint32";
+                }, {
+                    readonly name: "proposalThresholdBps";
+                    readonly type: "uint16";
+                    readonly internalType: "uint16";
+                }, {
+                    readonly name: "quorumBps";
+                    readonly type: "uint16";
+                    readonly internalType: "uint16";
+                }, {
+                    readonly name: "timelockDelay";
+                    readonly type: "uint48";
+                    readonly internalType: "uint48";
+                }, {
+                    readonly name: "referenceSupply";
+                    readonly type: "uint256";
+                    readonly internalType: "uint256";
+                }];
+            }];
+        }, {
+            readonly name: "staking";
+            readonly type: "tuple";
+            readonly internalType: "struct StakingLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "guardian";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "lockDuration";
+                readonly type: "uint64";
+                readonly internalType: "uint64";
+            }];
+        }, {
+            readonly name: "airdrop";
+            readonly type: "tuple";
+            readonly internalType: "struct AirdropLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "attestor";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "eligibilityMode";
+                readonly type: "uint8";
+                readonly internalType: "enum AirdropEligibilityMode";
+            }, {
+                readonly name: "additionalExclusions";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
+            }];
+        }, {
+            readonly name: "treasury";
+            readonly type: "tuple";
+            readonly internalType: "struct TreasuryLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "basketAllocationBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "basketRouteAssets";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
+            }];
+        }, {
+            readonly name: "routerRoutes";
+            readonly type: "tuple[]";
+            readonly internalType: "struct RouterRouteInput[]";
+            readonly components: readonly [{
+                readonly name: "inputAsset";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "actions";
+                readonly type: "tuple[]";
+                readonly internalType: "struct RouterAction[]";
+                readonly components: readonly [{
+                    readonly name: "actionType";
+                    readonly type: "uint8";
+                    readonly internalType: "enum RouterActionType";
+                }, {
+                    readonly name: "allocationBps";
+                    readonly type: "uint16";
+                    readonly internalType: "uint16";
+                }, {
+                    readonly name: "recipient";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "adapter";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "priceGuard";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "actionConfig";
+                    readonly type: "bytes";
+                    readonly internalType: "bytes";
+                }];
+            }];
+        }, {
+            readonly name: "basket";
+            readonly type: "tuple";
+            readonly internalType: "struct BasketConfig";
+            readonly components: readonly [{
+                readonly name: "cadence";
+                readonly type: "uint8";
+                readonly internalType: "enum BasketHarvestCadence";
+            }, {
+                readonly name: "eligibilityMode";
+                readonly type: "uint8";
+                readonly internalType: "enum BasketEligibilityMode";
+            }, {
+                readonly name: "governanceUpdatesEnabled";
+                readonly type: "bool";
+                readonly internalType: "bool";
+            }, {
+                readonly name: "burnTaxBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "burnTaxDestination";
+                readonly type: "uint8";
+                readonly internalType: "enum BasketBurnTaxDestination";
+            }, {
+                readonly name: "burnPriceSubject";
+                readonly type: "uint256";
+                readonly internalType: "uint256";
+            }, {
+                readonly name: "airdropAccountConfig";
+                readonly type: "bytes";
+                readonly internalType: "bytes";
+            }, {
+                readonly name: "allocation";
+                readonly type: "tuple";
+                readonly internalType: "struct BasketAllocationConfig";
+                readonly components: readonly [{
+                    readonly name: "inputAssets";
+                    readonly type: "address[]";
+                    readonly internalType: "address[]";
+                }, {
+                    readonly name: "targets";
+                    readonly type: "tuple[]";
+                    readonly internalType: "struct BasketTarget[]";
+                    readonly components: readonly [{
+                        readonly name: "depositAsset";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "yieldAdapter";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "targetWeightBps";
+                        readonly type: "uint16";
+                        readonly internalType: "uint16";
+                    }, {
+                        readonly name: "rewardAssets";
+                        readonly type: "address[]";
+                        readonly internalType: "address[]";
+                    }, {
+                        readonly name: "yieldApprovalProof";
+                        readonly type: "bytes32[]";
+                        readonly internalType: "bytes32[]";
+                    }];
+                }, {
+                    readonly name: "swapLegs";
+                    readonly type: "tuple[]";
+                    readonly internalType: "struct BasketSwapLeg[]";
+                    readonly components: readonly [{
+                        readonly name: "inputAsset";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "targetIndex";
+                        readonly type: "uint8";
+                        readonly internalType: "uint8";
+                    }, {
+                        readonly name: "swapAdapter";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "priceGuard";
+                        readonly type: "address";
+                        readonly internalType: "address";
+                    }, {
+                        readonly name: "maxSlippageBps";
+                        readonly type: "uint16";
+                        readonly internalType: "uint16";
+                    }, {
+                        readonly name: "routeData";
+                        readonly type: "bytes";
+                        readonly internalType: "bytes";
+                    }, {
+                        readonly name: "approvalProof";
+                        readonly type: "bytes32[]";
+                        readonly internalType: "bytes32[]";
+                    }];
+                }];
+            }];
+        }, {
+            readonly name: "basketERC4626Vaults";
+            readonly type: "address[]";
+            readonly internalType: "address[]";
+        }, {
+            readonly name: "bands";
+            readonly type: "tuple";
+            readonly internalType: "struct BandsLaunchConfig";
+            readonly components: readonly [{
+                readonly name: "quoteAsset";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "marketCapGuard";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "positionAdapter";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "twapWindow";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "quoteUsdOracle";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "confirmationPeriod";
+                readonly type: "uint48";
+                readonly internalType: "uint48";
+            }, {
+                readonly name: "maximumObservationAge";
+                readonly type: "uint48";
+                readonly internalType: "uint48";
+            }, {
+                readonly name: "integrationApprovalProof";
+                readonly type: "bytes32[]";
+                readonly internalType: "bytes32[]";
+            }];
+        }, {
+            readonly name: "raffle";
+            readonly type: "tuple";
+            readonly internalType: "struct RaffleTypes.Config";
+            readonly components: readonly [{
+                readonly name: "creator";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "attestor";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "randomness";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "prizeAsset";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "protocolFeeRecipient";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "taxRecipient";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "tokensPerTicket";
+                readonly type: "uint128";
+                readonly internalType: "uint128";
+            }, {
+                readonly name: "maxTicketsPerHolder";
+                readonly type: "uint128";
+                readonly internalType: "uint128";
+            }, {
+                readonly name: "minPrize";
+                readonly type: "uint128";
+                readonly internalType: "uint128";
+            }, {
+                readonly name: "maxPrize";
+                readonly type: "uint128";
+                readonly internalType: "uint128";
+            }, {
+                readonly name: "prizeBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "recipientTaxBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "recycleTaxBps";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "minConfirmations";
+                readonly type: "uint16";
+                readonly internalType: "uint16";
+            }, {
+                readonly name: "winnersPerRound";
+                readonly type: "uint8";
+                readonly internalType: "uint8";
+            }, {
+                readonly name: "minRoundInterval";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "weightWindowBlocks";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "randomnessTimeout";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "claimWindow";
+                readonly type: "uint32";
+                readonly internalType: "uint32";
+            }, {
+                readonly name: "basis";
+                readonly type: "uint8";
+                readonly internalType: "enum RaffleTypes.TicketBasis";
+            }, {
+                readonly name: "exclusions";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
+            }, {
+                readonly name: "stockRewards";
+                readonly type: "tuple[]";
+                readonly internalType: "struct RaffleTypes.StockReward[]";
+                readonly components: readonly [{
+                    readonly name: "asset";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "swapAdapter";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "priceGuard";
+                    readonly type: "address";
+                    readonly internalType: "address";
+                }, {
+                    readonly name: "routeData";
+                    readonly type: "bytes";
+                    readonly internalType: "bytes";
+                }, {
+                    readonly name: "guardData";
+                    readonly type: "bytes";
+                    readonly internalType: "bytes";
+                }, {
+                    readonly name: "approvalProof";
+                    readonly type: "bytes32[]";
+                    readonly internalType: "bytes32[]";
+                }];
+            }];
+        }, {
+            readonly name: "launchProfile";
+            readonly type: "tuple";
+            readonly internalType: "struct LaunchProfileConfig";
+            readonly components: readonly [{
+                readonly name: "canonicalPool";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "additionalCustodyExclusions";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
+            }];
+        }, {
+            readonly name: "metadataURI";
+            readonly type: "string";
+            readonly internalType: "string";
+        }];
+    }, {
+        readonly name: "subject";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "preview";
+        readonly type: "tuple";
+        readonly internalType: "struct ProjectLaunchPreview";
+        readonly components: readonly [{
+            readonly name: "launchConfigHash";
+            readonly type: "bytes32";
+            readonly internalType: "bytes32";
+        }, {
+            readonly name: "projectId";
+            readonly type: "bytes32";
+            readonly internalType: "bytes32";
+        }, {
+            readonly name: "enabledModules";
+            readonly type: "uint256";
+            readonly internalType: "uint256";
+        }, {
+            readonly name: "addresses";
+            readonly type: "tuple";
+            readonly internalType: "struct ProjectLaunchAddresses";
+            readonly components: readonly [{
+                readonly name: "subject";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "controller";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "multisigAccount";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "tokenGovernor";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "tokenTimelock";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "voteSource";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "treasury";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "router";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "stakingPool";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "posNft";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "airdrop";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "raffle";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "liquidityManager";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "fundingBands";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "fundingBandMarketCapGuard";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "fundingBandPositionAdapter";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "basketManager";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "primaryBasketVault";
+                readonly type: "address";
+                readonly internalType: "address";
+            }, {
+                readonly name: "basketYieldAdapters";
+                readonly type: "address[]";
+                readonly internalType: "address[]";
+            }, {
+                readonly name: "primaryBasketId";
+                readonly type: "uint256";
+                readonly internalType: "uint256";
+            }];
+        }];
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
     readonly name: "validateLaunchConfig";
     readonly inputs: readonly [{
         readonly name: "config";
@@ -2439,6 +5215,16 @@ export declare const projectLauncherV2Abi: readonly [{
     }];
     readonly stateMutability: "view";
 }, {
+    readonly type: "function";
+    readonly name: "validator";
+    readonly inputs: readonly [];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "address";
+        readonly internalType: "contract ProjectLaunchValidatorV2";
+    }];
+    readonly stateMutability: "view";
+}, {
     readonly type: "event";
     readonly name: "ProjectLaunchCompleted";
     readonly inputs: readonly [{
@@ -2511,6 +5297,10 @@ export declare const projectLauncherV2Abi: readonly [{
     }];
 }, {
     readonly type: "error";
+    readonly name: "ExternalTokenAllocationsForbidden";
+    readonly inputs: readonly [];
+}, {
+    readonly type: "error";
     readonly name: "InvalidAirdropConfiguration";
     readonly inputs: readonly [];
 }, {
@@ -2531,8 +5321,28 @@ export declare const projectLauncherV2Abi: readonly [{
     }];
 }, {
     readonly type: "error";
+    readonly name: "InvalidExternalSubject";
+    readonly inputs: readonly [{
+        readonly name: "subject";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+}, {
+    readonly type: "error";
     readonly name: "InvalidGovernanceConfiguration";
     readonly inputs: readonly [];
+}, {
+    readonly type: "error";
+    readonly name: "InvalidLaunchpadAdapter";
+    readonly inputs: readonly [{
+        readonly name: "adapter";
+        readonly type: "address";
+        readonly internalType: "address";
+    }, {
+        readonly name: "factory";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
 }, {
     readonly type: "error";
     readonly name: "InvalidMetadataURI";
@@ -2607,6 +5417,14 @@ export declare const projectLauncherV2Abi: readonly [{
     readonly inputs: readonly [];
 }, {
     readonly type: "error";
+    readonly name: "LaunchpadNotApproved";
+    readonly inputs: readonly [{
+        readonly name: "approvalLeaf";
+        readonly type: "bytes32";
+        readonly internalType: "bytes32";
+    }];
+}, {
+    readonly type: "error";
     readonly name: "ModuleDeploymentMismatch";
     readonly inputs: readonly [{
         readonly name: "moduleKey";
@@ -2621,6 +5439,14 @@ export declare const projectLauncherV2Abi: readonly [{
     readonly type: "error";
     readonly name: "ReentrancyGuardReentrantCall";
     readonly inputs: readonly [];
+}, {
+    readonly type: "error";
+    readonly name: "RequiredVotingExclusionMissing";
+    readonly inputs: readonly [{
+        readonly name: "account";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
 }];
 export declare const projectRegistryV2Abi: readonly [{
     readonly type: "constructor";
@@ -4412,10 +7238,6 @@ export declare const projectVotesTokenAbi: readonly [{
         readonly type: "address";
         readonly internalType: "address";
     }];
-}, {
-    readonly type: "error";
-    readonly name: "NoEligibleVotingSupply";
-    readonly inputs: readonly [];
 }, {
     readonly type: "error";
     readonly name: "ReservedVotingExclusion";

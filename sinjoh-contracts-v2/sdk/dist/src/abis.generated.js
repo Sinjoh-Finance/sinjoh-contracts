@@ -12,6 +12,11 @@ export const projectLauncherV2Abi = [
                 "name": "deployer_",
                 "type": "address",
                 "internalType": "address"
+            },
+            {
+                "name": "validator_",
+                "type": "address",
+                "internalType": "address"
             }
         ],
         "stateMutability": "nonpayable"
@@ -210,6 +215,636 @@ export const projectLauncherV2Abi = [
             }
         ],
         "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "hashExistingTokenLaunchConfig",
+        "inputs": [
+            {
+                "name": "config",
+                "type": "tuple",
+                "internalType": "struct ProjectLaunchConfig",
+                "components": [
+                    {
+                        "name": "creator",
+                        "type": "address",
+                        "internalType": "address"
+                    },
+                    {
+                        "name": "name",
+                        "type": "string",
+                        "internalType": "string"
+                    },
+                    {
+                        "name": "symbol",
+                        "type": "string",
+                        "internalType": "string"
+                    },
+                    {
+                        "name": "totalSupply",
+                        "type": "uint256",
+                        "internalType": "uint256"
+                    },
+                    {
+                        "name": "salt",
+                        "type": "bytes32",
+                        "internalType": "bytes32"
+                    },
+                    {
+                        "name": "governanceMode",
+                        "type": "uint8",
+                        "internalType": "enum LaunchGovernanceMode"
+                    },
+                    {
+                        "name": "voteSource",
+                        "type": "uint8",
+                        "internalType": "enum LaunchVoteSource"
+                    },
+                    {
+                        "name": "modules",
+                        "type": "tuple",
+                        "internalType": "struct ModuleSelection",
+                        "components": [
+                            {
+                                "name": "treasury",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "router",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "staking",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "airdrop",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "basket",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "fundingBands",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "raffle",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "liquidity",
+                                "type": "bool",
+                                "internalType": "bool"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "tokenAllocations",
+                        "type": "tuple[]",
+                        "internalType": "struct LaunchTokenAllocation[]",
+                        "components": [
+                            {
+                                "name": "recipient",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "amount",
+                                "type": "uint256",
+                                "internalType": "uint256"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "governance",
+                        "type": "tuple",
+                        "internalType": "struct GovernanceLaunchConfig",
+                        "components": [
+                            {
+                                "name": "multisigSigners",
+                                "type": "address[3]",
+                                "internalType": "address[3]"
+                            },
+                            {
+                                "name": "tokenGovernance",
+                                "type": "tuple",
+                                "internalType": "struct TokenGovernanceConfig",
+                                "components": [
+                                    {
+                                        "name": "votingDelay",
+                                        "type": "uint48",
+                                        "internalType": "uint48"
+                                    },
+                                    {
+                                        "name": "votingPeriod",
+                                        "type": "uint32",
+                                        "internalType": "uint32"
+                                    },
+                                    {
+                                        "name": "proposalThresholdBps",
+                                        "type": "uint16",
+                                        "internalType": "uint16"
+                                    },
+                                    {
+                                        "name": "quorumBps",
+                                        "type": "uint16",
+                                        "internalType": "uint16"
+                                    },
+                                    {
+                                        "name": "timelockDelay",
+                                        "type": "uint48",
+                                        "internalType": "uint48"
+                                    },
+                                    {
+                                        "name": "referenceSupply",
+                                        "type": "uint256",
+                                        "internalType": "uint256"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "staking",
+                        "type": "tuple",
+                        "internalType": "struct StakingLaunchConfig",
+                        "components": [
+                            {
+                                "name": "guardian",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "lockDuration",
+                                "type": "uint64",
+                                "internalType": "uint64"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "airdrop",
+                        "type": "tuple",
+                        "internalType": "struct AirdropLaunchConfig",
+                        "components": [
+                            {
+                                "name": "attestor",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "eligibilityMode",
+                                "type": "uint8",
+                                "internalType": "enum AirdropEligibilityMode"
+                            },
+                            {
+                                "name": "additionalExclusions",
+                                "type": "address[]",
+                                "internalType": "address[]"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "treasury",
+                        "type": "tuple",
+                        "internalType": "struct TreasuryLaunchConfig",
+                        "components": [
+                            {
+                                "name": "basketAllocationBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "basketRouteAssets",
+                                "type": "address[]",
+                                "internalType": "address[]"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "routerRoutes",
+                        "type": "tuple[]",
+                        "internalType": "struct RouterRouteInput[]",
+                        "components": [
+                            {
+                                "name": "inputAsset",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "actions",
+                                "type": "tuple[]",
+                                "internalType": "struct RouterAction[]",
+                                "components": [
+                                    {
+                                        "name": "actionType",
+                                        "type": "uint8",
+                                        "internalType": "enum RouterActionType"
+                                    },
+                                    {
+                                        "name": "allocationBps",
+                                        "type": "uint16",
+                                        "internalType": "uint16"
+                                    },
+                                    {
+                                        "name": "recipient",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "adapter",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "priceGuard",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "actionConfig",
+                                        "type": "bytes",
+                                        "internalType": "bytes"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "basket",
+                        "type": "tuple",
+                        "internalType": "struct BasketConfig",
+                        "components": [
+                            {
+                                "name": "cadence",
+                                "type": "uint8",
+                                "internalType": "enum BasketHarvestCadence"
+                            },
+                            {
+                                "name": "eligibilityMode",
+                                "type": "uint8",
+                                "internalType": "enum BasketEligibilityMode"
+                            },
+                            {
+                                "name": "governanceUpdatesEnabled",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "burnTaxBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "burnTaxDestination",
+                                "type": "uint8",
+                                "internalType": "enum BasketBurnTaxDestination"
+                            },
+                            {
+                                "name": "burnPriceSubject",
+                                "type": "uint256",
+                                "internalType": "uint256"
+                            },
+                            {
+                                "name": "airdropAccountConfig",
+                                "type": "bytes",
+                                "internalType": "bytes"
+                            },
+                            {
+                                "name": "allocation",
+                                "type": "tuple",
+                                "internalType": "struct BasketAllocationConfig",
+                                "components": [
+                                    {
+                                        "name": "inputAssets",
+                                        "type": "address[]",
+                                        "internalType": "address[]"
+                                    },
+                                    {
+                                        "name": "targets",
+                                        "type": "tuple[]",
+                                        "internalType": "struct BasketTarget[]",
+                                        "components": [
+                                            {
+                                                "name": "depositAsset",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "yieldAdapter",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "targetWeightBps",
+                                                "type": "uint16",
+                                                "internalType": "uint16"
+                                            },
+                                            {
+                                                "name": "rewardAssets",
+                                                "type": "address[]",
+                                                "internalType": "address[]"
+                                            },
+                                            {
+                                                "name": "yieldApprovalProof",
+                                                "type": "bytes32[]",
+                                                "internalType": "bytes32[]"
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "name": "swapLegs",
+                                        "type": "tuple[]",
+                                        "internalType": "struct BasketSwapLeg[]",
+                                        "components": [
+                                            {
+                                                "name": "inputAsset",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "targetIndex",
+                                                "type": "uint8",
+                                                "internalType": "uint8"
+                                            },
+                                            {
+                                                "name": "swapAdapter",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "priceGuard",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "maxSlippageBps",
+                                                "type": "uint16",
+                                                "internalType": "uint16"
+                                            },
+                                            {
+                                                "name": "routeData",
+                                                "type": "bytes",
+                                                "internalType": "bytes"
+                                            },
+                                            {
+                                                "name": "approvalProof",
+                                                "type": "bytes32[]",
+                                                "internalType": "bytes32[]"
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "basketERC4626Vaults",
+                        "type": "address[]",
+                        "internalType": "address[]"
+                    },
+                    {
+                        "name": "bands",
+                        "type": "tuple",
+                        "internalType": "struct BandsLaunchConfig",
+                        "components": [
+                            {
+                                "name": "quoteAsset",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "marketCapGuard",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "positionAdapter",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "twapWindow",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "quoteUsdOracle",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "confirmationPeriod",
+                                "type": "uint48",
+                                "internalType": "uint48"
+                            },
+                            {
+                                "name": "maximumObservationAge",
+                                "type": "uint48",
+                                "internalType": "uint48"
+                            },
+                            {
+                                "name": "integrationApprovalProof",
+                                "type": "bytes32[]",
+                                "internalType": "bytes32[]"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "raffle",
+                        "type": "tuple",
+                        "internalType": "struct RaffleTypes.Config",
+                        "components": [
+                            {
+                                "name": "creator",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "attestor",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "randomness",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "prizeAsset",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "protocolFeeRecipient",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "taxRecipient",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "tokensPerTicket",
+                                "type": "uint128",
+                                "internalType": "uint128"
+                            },
+                            {
+                                "name": "maxTicketsPerHolder",
+                                "type": "uint128",
+                                "internalType": "uint128"
+                            },
+                            {
+                                "name": "minPrize",
+                                "type": "uint128",
+                                "internalType": "uint128"
+                            },
+                            {
+                                "name": "maxPrize",
+                                "type": "uint128",
+                                "internalType": "uint128"
+                            },
+                            {
+                                "name": "prizeBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "recipientTaxBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "recycleTaxBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "minConfirmations",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "winnersPerRound",
+                                "type": "uint8",
+                                "internalType": "uint8"
+                            },
+                            {
+                                "name": "minRoundInterval",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "weightWindowBlocks",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "randomnessTimeout",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "claimWindow",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "basis",
+                                "type": "uint8",
+                                "internalType": "enum RaffleTypes.TicketBasis"
+                            },
+                            {
+                                "name": "exclusions",
+                                "type": "address[]",
+                                "internalType": "address[]"
+                            },
+                            {
+                                "name": "stockRewards",
+                                "type": "tuple[]",
+                                "internalType": "struct RaffleTypes.StockReward[]",
+                                "components": [
+                                    {
+                                        "name": "asset",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "swapAdapter",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "priceGuard",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "routeData",
+                                        "type": "bytes",
+                                        "internalType": "bytes"
+                                    },
+                                    {
+                                        "name": "guardData",
+                                        "type": "bytes",
+                                        "internalType": "bytes"
+                                    },
+                                    {
+                                        "name": "approvalProof",
+                                        "type": "bytes32[]",
+                                        "internalType": "bytes32[]"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "launchProfile",
+                        "type": "tuple",
+                        "internalType": "struct LaunchProfileConfig",
+                        "components": [
+                            {
+                                "name": "canonicalPool",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "additionalCustodyExclusions",
+                                "type": "address[]",
+                                "internalType": "address[]"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "metadataURI",
+                        "type": "string",
+                        "internalType": "string"
+                    }
+                ]
+            },
+            {
+                "name": "subject",
+                "type": "address",
+                "internalType": "address"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "",
+                "type": "bytes32",
+                "internalType": "bytes32"
+            }
+        ],
+        "stateMutability": "pure"
     },
     {
         "type": "function",
@@ -1587,6 +2222,1538 @@ export const projectLauncherV2Abi = [
     },
     {
         "type": "function",
+        "name": "launchExistingToken",
+        "inputs": [
+            {
+                "name": "config",
+                "type": "tuple",
+                "internalType": "struct ProjectLaunchConfig",
+                "components": [
+                    {
+                        "name": "creator",
+                        "type": "address",
+                        "internalType": "address"
+                    },
+                    {
+                        "name": "name",
+                        "type": "string",
+                        "internalType": "string"
+                    },
+                    {
+                        "name": "symbol",
+                        "type": "string",
+                        "internalType": "string"
+                    },
+                    {
+                        "name": "totalSupply",
+                        "type": "uint256",
+                        "internalType": "uint256"
+                    },
+                    {
+                        "name": "salt",
+                        "type": "bytes32",
+                        "internalType": "bytes32"
+                    },
+                    {
+                        "name": "governanceMode",
+                        "type": "uint8",
+                        "internalType": "enum LaunchGovernanceMode"
+                    },
+                    {
+                        "name": "voteSource",
+                        "type": "uint8",
+                        "internalType": "enum LaunchVoteSource"
+                    },
+                    {
+                        "name": "modules",
+                        "type": "tuple",
+                        "internalType": "struct ModuleSelection",
+                        "components": [
+                            {
+                                "name": "treasury",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "router",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "staking",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "airdrop",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "basket",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "fundingBands",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "raffle",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "liquidity",
+                                "type": "bool",
+                                "internalType": "bool"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "tokenAllocations",
+                        "type": "tuple[]",
+                        "internalType": "struct LaunchTokenAllocation[]",
+                        "components": [
+                            {
+                                "name": "recipient",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "amount",
+                                "type": "uint256",
+                                "internalType": "uint256"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "governance",
+                        "type": "tuple",
+                        "internalType": "struct GovernanceLaunchConfig",
+                        "components": [
+                            {
+                                "name": "multisigSigners",
+                                "type": "address[3]",
+                                "internalType": "address[3]"
+                            },
+                            {
+                                "name": "tokenGovernance",
+                                "type": "tuple",
+                                "internalType": "struct TokenGovernanceConfig",
+                                "components": [
+                                    {
+                                        "name": "votingDelay",
+                                        "type": "uint48",
+                                        "internalType": "uint48"
+                                    },
+                                    {
+                                        "name": "votingPeriod",
+                                        "type": "uint32",
+                                        "internalType": "uint32"
+                                    },
+                                    {
+                                        "name": "proposalThresholdBps",
+                                        "type": "uint16",
+                                        "internalType": "uint16"
+                                    },
+                                    {
+                                        "name": "quorumBps",
+                                        "type": "uint16",
+                                        "internalType": "uint16"
+                                    },
+                                    {
+                                        "name": "timelockDelay",
+                                        "type": "uint48",
+                                        "internalType": "uint48"
+                                    },
+                                    {
+                                        "name": "referenceSupply",
+                                        "type": "uint256",
+                                        "internalType": "uint256"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "staking",
+                        "type": "tuple",
+                        "internalType": "struct StakingLaunchConfig",
+                        "components": [
+                            {
+                                "name": "guardian",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "lockDuration",
+                                "type": "uint64",
+                                "internalType": "uint64"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "airdrop",
+                        "type": "tuple",
+                        "internalType": "struct AirdropLaunchConfig",
+                        "components": [
+                            {
+                                "name": "attestor",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "eligibilityMode",
+                                "type": "uint8",
+                                "internalType": "enum AirdropEligibilityMode"
+                            },
+                            {
+                                "name": "additionalExclusions",
+                                "type": "address[]",
+                                "internalType": "address[]"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "treasury",
+                        "type": "tuple",
+                        "internalType": "struct TreasuryLaunchConfig",
+                        "components": [
+                            {
+                                "name": "basketAllocationBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "basketRouteAssets",
+                                "type": "address[]",
+                                "internalType": "address[]"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "routerRoutes",
+                        "type": "tuple[]",
+                        "internalType": "struct RouterRouteInput[]",
+                        "components": [
+                            {
+                                "name": "inputAsset",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "actions",
+                                "type": "tuple[]",
+                                "internalType": "struct RouterAction[]",
+                                "components": [
+                                    {
+                                        "name": "actionType",
+                                        "type": "uint8",
+                                        "internalType": "enum RouterActionType"
+                                    },
+                                    {
+                                        "name": "allocationBps",
+                                        "type": "uint16",
+                                        "internalType": "uint16"
+                                    },
+                                    {
+                                        "name": "recipient",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "adapter",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "priceGuard",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "actionConfig",
+                                        "type": "bytes",
+                                        "internalType": "bytes"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "basket",
+                        "type": "tuple",
+                        "internalType": "struct BasketConfig",
+                        "components": [
+                            {
+                                "name": "cadence",
+                                "type": "uint8",
+                                "internalType": "enum BasketHarvestCadence"
+                            },
+                            {
+                                "name": "eligibilityMode",
+                                "type": "uint8",
+                                "internalType": "enum BasketEligibilityMode"
+                            },
+                            {
+                                "name": "governanceUpdatesEnabled",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "burnTaxBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "burnTaxDestination",
+                                "type": "uint8",
+                                "internalType": "enum BasketBurnTaxDestination"
+                            },
+                            {
+                                "name": "burnPriceSubject",
+                                "type": "uint256",
+                                "internalType": "uint256"
+                            },
+                            {
+                                "name": "airdropAccountConfig",
+                                "type": "bytes",
+                                "internalType": "bytes"
+                            },
+                            {
+                                "name": "allocation",
+                                "type": "tuple",
+                                "internalType": "struct BasketAllocationConfig",
+                                "components": [
+                                    {
+                                        "name": "inputAssets",
+                                        "type": "address[]",
+                                        "internalType": "address[]"
+                                    },
+                                    {
+                                        "name": "targets",
+                                        "type": "tuple[]",
+                                        "internalType": "struct BasketTarget[]",
+                                        "components": [
+                                            {
+                                                "name": "depositAsset",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "yieldAdapter",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "targetWeightBps",
+                                                "type": "uint16",
+                                                "internalType": "uint16"
+                                            },
+                                            {
+                                                "name": "rewardAssets",
+                                                "type": "address[]",
+                                                "internalType": "address[]"
+                                            },
+                                            {
+                                                "name": "yieldApprovalProof",
+                                                "type": "bytes32[]",
+                                                "internalType": "bytes32[]"
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "name": "swapLegs",
+                                        "type": "tuple[]",
+                                        "internalType": "struct BasketSwapLeg[]",
+                                        "components": [
+                                            {
+                                                "name": "inputAsset",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "targetIndex",
+                                                "type": "uint8",
+                                                "internalType": "uint8"
+                                            },
+                                            {
+                                                "name": "swapAdapter",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "priceGuard",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "maxSlippageBps",
+                                                "type": "uint16",
+                                                "internalType": "uint16"
+                                            },
+                                            {
+                                                "name": "routeData",
+                                                "type": "bytes",
+                                                "internalType": "bytes"
+                                            },
+                                            {
+                                                "name": "approvalProof",
+                                                "type": "bytes32[]",
+                                                "internalType": "bytes32[]"
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "basketERC4626Vaults",
+                        "type": "address[]",
+                        "internalType": "address[]"
+                    },
+                    {
+                        "name": "bands",
+                        "type": "tuple",
+                        "internalType": "struct BandsLaunchConfig",
+                        "components": [
+                            {
+                                "name": "quoteAsset",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "marketCapGuard",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "positionAdapter",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "twapWindow",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "quoteUsdOracle",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "confirmationPeriod",
+                                "type": "uint48",
+                                "internalType": "uint48"
+                            },
+                            {
+                                "name": "maximumObservationAge",
+                                "type": "uint48",
+                                "internalType": "uint48"
+                            },
+                            {
+                                "name": "integrationApprovalProof",
+                                "type": "bytes32[]",
+                                "internalType": "bytes32[]"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "raffle",
+                        "type": "tuple",
+                        "internalType": "struct RaffleTypes.Config",
+                        "components": [
+                            {
+                                "name": "creator",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "attestor",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "randomness",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "prizeAsset",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "protocolFeeRecipient",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "taxRecipient",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "tokensPerTicket",
+                                "type": "uint128",
+                                "internalType": "uint128"
+                            },
+                            {
+                                "name": "maxTicketsPerHolder",
+                                "type": "uint128",
+                                "internalType": "uint128"
+                            },
+                            {
+                                "name": "minPrize",
+                                "type": "uint128",
+                                "internalType": "uint128"
+                            },
+                            {
+                                "name": "maxPrize",
+                                "type": "uint128",
+                                "internalType": "uint128"
+                            },
+                            {
+                                "name": "prizeBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "recipientTaxBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "recycleTaxBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "minConfirmations",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "winnersPerRound",
+                                "type": "uint8",
+                                "internalType": "uint8"
+                            },
+                            {
+                                "name": "minRoundInterval",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "weightWindowBlocks",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "randomnessTimeout",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "claimWindow",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "basis",
+                                "type": "uint8",
+                                "internalType": "enum RaffleTypes.TicketBasis"
+                            },
+                            {
+                                "name": "exclusions",
+                                "type": "address[]",
+                                "internalType": "address[]"
+                            },
+                            {
+                                "name": "stockRewards",
+                                "type": "tuple[]",
+                                "internalType": "struct RaffleTypes.StockReward[]",
+                                "components": [
+                                    {
+                                        "name": "asset",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "swapAdapter",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "priceGuard",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "routeData",
+                                        "type": "bytes",
+                                        "internalType": "bytes"
+                                    },
+                                    {
+                                        "name": "guardData",
+                                        "type": "bytes",
+                                        "internalType": "bytes"
+                                    },
+                                    {
+                                        "name": "approvalProof",
+                                        "type": "bytes32[]",
+                                        "internalType": "bytes32[]"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "launchProfile",
+                        "type": "tuple",
+                        "internalType": "struct LaunchProfileConfig",
+                        "components": [
+                            {
+                                "name": "canonicalPool",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "additionalCustodyExclusions",
+                                "type": "address[]",
+                                "internalType": "address[]"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "metadataURI",
+                        "type": "string",
+                        "internalType": "string"
+                    }
+                ]
+            },
+            {
+                "name": "subject",
+                "type": "address",
+                "internalType": "address"
+            },
+            {
+                "name": "launchpadApprovalProof",
+                "type": "bytes32[]",
+                "internalType": "bytes32[]"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "preview",
+                "type": "tuple",
+                "internalType": "struct ProjectLaunchPreview",
+                "components": [
+                    {
+                        "name": "launchConfigHash",
+                        "type": "bytes32",
+                        "internalType": "bytes32"
+                    },
+                    {
+                        "name": "projectId",
+                        "type": "bytes32",
+                        "internalType": "bytes32"
+                    },
+                    {
+                        "name": "enabledModules",
+                        "type": "uint256",
+                        "internalType": "uint256"
+                    },
+                    {
+                        "name": "addresses",
+                        "type": "tuple",
+                        "internalType": "struct ProjectLaunchAddresses",
+                        "components": [
+                            {
+                                "name": "subject",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "controller",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "multisigAccount",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "tokenGovernor",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "tokenTimelock",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "voteSource",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "treasury",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "router",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "stakingPool",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "posNft",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "airdrop",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "raffle",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "liquidityManager",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "fundingBands",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "fundingBandMarketCapGuard",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "fundingBandPositionAdapter",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "basketManager",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "primaryBasketVault",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "basketYieldAdapters",
+                                "type": "address[]",
+                                "internalType": "address[]"
+                            },
+                            {
+                                "name": "primaryBasketId",
+                                "type": "uint256",
+                                "internalType": "uint256"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
+        "name": "launchpadApprovalLeaf",
+        "inputs": [
+            {
+                "name": "adapterFactory",
+                "type": "address",
+                "internalType": "address"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "",
+                "type": "bytes32",
+                "internalType": "bytes32"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "predictExistingTokenLaunch",
+        "inputs": [
+            {
+                "name": "config",
+                "type": "tuple",
+                "internalType": "struct ProjectLaunchConfig",
+                "components": [
+                    {
+                        "name": "creator",
+                        "type": "address",
+                        "internalType": "address"
+                    },
+                    {
+                        "name": "name",
+                        "type": "string",
+                        "internalType": "string"
+                    },
+                    {
+                        "name": "symbol",
+                        "type": "string",
+                        "internalType": "string"
+                    },
+                    {
+                        "name": "totalSupply",
+                        "type": "uint256",
+                        "internalType": "uint256"
+                    },
+                    {
+                        "name": "salt",
+                        "type": "bytes32",
+                        "internalType": "bytes32"
+                    },
+                    {
+                        "name": "governanceMode",
+                        "type": "uint8",
+                        "internalType": "enum LaunchGovernanceMode"
+                    },
+                    {
+                        "name": "voteSource",
+                        "type": "uint8",
+                        "internalType": "enum LaunchVoteSource"
+                    },
+                    {
+                        "name": "modules",
+                        "type": "tuple",
+                        "internalType": "struct ModuleSelection",
+                        "components": [
+                            {
+                                "name": "treasury",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "router",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "staking",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "airdrop",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "basket",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "fundingBands",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "raffle",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "liquidity",
+                                "type": "bool",
+                                "internalType": "bool"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "tokenAllocations",
+                        "type": "tuple[]",
+                        "internalType": "struct LaunchTokenAllocation[]",
+                        "components": [
+                            {
+                                "name": "recipient",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "amount",
+                                "type": "uint256",
+                                "internalType": "uint256"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "governance",
+                        "type": "tuple",
+                        "internalType": "struct GovernanceLaunchConfig",
+                        "components": [
+                            {
+                                "name": "multisigSigners",
+                                "type": "address[3]",
+                                "internalType": "address[3]"
+                            },
+                            {
+                                "name": "tokenGovernance",
+                                "type": "tuple",
+                                "internalType": "struct TokenGovernanceConfig",
+                                "components": [
+                                    {
+                                        "name": "votingDelay",
+                                        "type": "uint48",
+                                        "internalType": "uint48"
+                                    },
+                                    {
+                                        "name": "votingPeriod",
+                                        "type": "uint32",
+                                        "internalType": "uint32"
+                                    },
+                                    {
+                                        "name": "proposalThresholdBps",
+                                        "type": "uint16",
+                                        "internalType": "uint16"
+                                    },
+                                    {
+                                        "name": "quorumBps",
+                                        "type": "uint16",
+                                        "internalType": "uint16"
+                                    },
+                                    {
+                                        "name": "timelockDelay",
+                                        "type": "uint48",
+                                        "internalType": "uint48"
+                                    },
+                                    {
+                                        "name": "referenceSupply",
+                                        "type": "uint256",
+                                        "internalType": "uint256"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "staking",
+                        "type": "tuple",
+                        "internalType": "struct StakingLaunchConfig",
+                        "components": [
+                            {
+                                "name": "guardian",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "lockDuration",
+                                "type": "uint64",
+                                "internalType": "uint64"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "airdrop",
+                        "type": "tuple",
+                        "internalType": "struct AirdropLaunchConfig",
+                        "components": [
+                            {
+                                "name": "attestor",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "eligibilityMode",
+                                "type": "uint8",
+                                "internalType": "enum AirdropEligibilityMode"
+                            },
+                            {
+                                "name": "additionalExclusions",
+                                "type": "address[]",
+                                "internalType": "address[]"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "treasury",
+                        "type": "tuple",
+                        "internalType": "struct TreasuryLaunchConfig",
+                        "components": [
+                            {
+                                "name": "basketAllocationBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "basketRouteAssets",
+                                "type": "address[]",
+                                "internalType": "address[]"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "routerRoutes",
+                        "type": "tuple[]",
+                        "internalType": "struct RouterRouteInput[]",
+                        "components": [
+                            {
+                                "name": "inputAsset",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "actions",
+                                "type": "tuple[]",
+                                "internalType": "struct RouterAction[]",
+                                "components": [
+                                    {
+                                        "name": "actionType",
+                                        "type": "uint8",
+                                        "internalType": "enum RouterActionType"
+                                    },
+                                    {
+                                        "name": "allocationBps",
+                                        "type": "uint16",
+                                        "internalType": "uint16"
+                                    },
+                                    {
+                                        "name": "recipient",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "adapter",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "priceGuard",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "actionConfig",
+                                        "type": "bytes",
+                                        "internalType": "bytes"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "basket",
+                        "type": "tuple",
+                        "internalType": "struct BasketConfig",
+                        "components": [
+                            {
+                                "name": "cadence",
+                                "type": "uint8",
+                                "internalType": "enum BasketHarvestCadence"
+                            },
+                            {
+                                "name": "eligibilityMode",
+                                "type": "uint8",
+                                "internalType": "enum BasketEligibilityMode"
+                            },
+                            {
+                                "name": "governanceUpdatesEnabled",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "burnTaxBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "burnTaxDestination",
+                                "type": "uint8",
+                                "internalType": "enum BasketBurnTaxDestination"
+                            },
+                            {
+                                "name": "burnPriceSubject",
+                                "type": "uint256",
+                                "internalType": "uint256"
+                            },
+                            {
+                                "name": "airdropAccountConfig",
+                                "type": "bytes",
+                                "internalType": "bytes"
+                            },
+                            {
+                                "name": "allocation",
+                                "type": "tuple",
+                                "internalType": "struct BasketAllocationConfig",
+                                "components": [
+                                    {
+                                        "name": "inputAssets",
+                                        "type": "address[]",
+                                        "internalType": "address[]"
+                                    },
+                                    {
+                                        "name": "targets",
+                                        "type": "tuple[]",
+                                        "internalType": "struct BasketTarget[]",
+                                        "components": [
+                                            {
+                                                "name": "depositAsset",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "yieldAdapter",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "targetWeightBps",
+                                                "type": "uint16",
+                                                "internalType": "uint16"
+                                            },
+                                            {
+                                                "name": "rewardAssets",
+                                                "type": "address[]",
+                                                "internalType": "address[]"
+                                            },
+                                            {
+                                                "name": "yieldApprovalProof",
+                                                "type": "bytes32[]",
+                                                "internalType": "bytes32[]"
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "name": "swapLegs",
+                                        "type": "tuple[]",
+                                        "internalType": "struct BasketSwapLeg[]",
+                                        "components": [
+                                            {
+                                                "name": "inputAsset",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "targetIndex",
+                                                "type": "uint8",
+                                                "internalType": "uint8"
+                                            },
+                                            {
+                                                "name": "swapAdapter",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "priceGuard",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "maxSlippageBps",
+                                                "type": "uint16",
+                                                "internalType": "uint16"
+                                            },
+                                            {
+                                                "name": "routeData",
+                                                "type": "bytes",
+                                                "internalType": "bytes"
+                                            },
+                                            {
+                                                "name": "approvalProof",
+                                                "type": "bytes32[]",
+                                                "internalType": "bytes32[]"
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "basketERC4626Vaults",
+                        "type": "address[]",
+                        "internalType": "address[]"
+                    },
+                    {
+                        "name": "bands",
+                        "type": "tuple",
+                        "internalType": "struct BandsLaunchConfig",
+                        "components": [
+                            {
+                                "name": "quoteAsset",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "marketCapGuard",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "positionAdapter",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "twapWindow",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "quoteUsdOracle",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "confirmationPeriod",
+                                "type": "uint48",
+                                "internalType": "uint48"
+                            },
+                            {
+                                "name": "maximumObservationAge",
+                                "type": "uint48",
+                                "internalType": "uint48"
+                            },
+                            {
+                                "name": "integrationApprovalProof",
+                                "type": "bytes32[]",
+                                "internalType": "bytes32[]"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "raffle",
+                        "type": "tuple",
+                        "internalType": "struct RaffleTypes.Config",
+                        "components": [
+                            {
+                                "name": "creator",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "attestor",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "randomness",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "prizeAsset",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "protocolFeeRecipient",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "taxRecipient",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "tokensPerTicket",
+                                "type": "uint128",
+                                "internalType": "uint128"
+                            },
+                            {
+                                "name": "maxTicketsPerHolder",
+                                "type": "uint128",
+                                "internalType": "uint128"
+                            },
+                            {
+                                "name": "minPrize",
+                                "type": "uint128",
+                                "internalType": "uint128"
+                            },
+                            {
+                                "name": "maxPrize",
+                                "type": "uint128",
+                                "internalType": "uint128"
+                            },
+                            {
+                                "name": "prizeBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "recipientTaxBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "recycleTaxBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "minConfirmations",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "winnersPerRound",
+                                "type": "uint8",
+                                "internalType": "uint8"
+                            },
+                            {
+                                "name": "minRoundInterval",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "weightWindowBlocks",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "randomnessTimeout",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "claimWindow",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "basis",
+                                "type": "uint8",
+                                "internalType": "enum RaffleTypes.TicketBasis"
+                            },
+                            {
+                                "name": "exclusions",
+                                "type": "address[]",
+                                "internalType": "address[]"
+                            },
+                            {
+                                "name": "stockRewards",
+                                "type": "tuple[]",
+                                "internalType": "struct RaffleTypes.StockReward[]",
+                                "components": [
+                                    {
+                                        "name": "asset",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "swapAdapter",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "priceGuard",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "routeData",
+                                        "type": "bytes",
+                                        "internalType": "bytes"
+                                    },
+                                    {
+                                        "name": "guardData",
+                                        "type": "bytes",
+                                        "internalType": "bytes"
+                                    },
+                                    {
+                                        "name": "approvalProof",
+                                        "type": "bytes32[]",
+                                        "internalType": "bytes32[]"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "launchProfile",
+                        "type": "tuple",
+                        "internalType": "struct LaunchProfileConfig",
+                        "components": [
+                            {
+                                "name": "canonicalPool",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "additionalCustodyExclusions",
+                                "type": "address[]",
+                                "internalType": "address[]"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "metadataURI",
+                        "type": "string",
+                        "internalType": "string"
+                    }
+                ]
+            },
+            {
+                "name": "subject",
+                "type": "address",
+                "internalType": "address"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "",
+                "type": "tuple",
+                "internalType": "struct ProjectLaunchPreview",
+                "components": [
+                    {
+                        "name": "launchConfigHash",
+                        "type": "bytes32",
+                        "internalType": "bytes32"
+                    },
+                    {
+                        "name": "projectId",
+                        "type": "bytes32",
+                        "internalType": "bytes32"
+                    },
+                    {
+                        "name": "enabledModules",
+                        "type": "uint256",
+                        "internalType": "uint256"
+                    },
+                    {
+                        "name": "addresses",
+                        "type": "tuple",
+                        "internalType": "struct ProjectLaunchAddresses",
+                        "components": [
+                            {
+                                "name": "subject",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "controller",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "multisigAccount",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "tokenGovernor",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "tokenTimelock",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "voteSource",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "treasury",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "router",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "stakingPool",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "posNft",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "airdrop",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "raffle",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "liquidityManager",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "fundingBands",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "fundingBandMarketCapGuard",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "fundingBandPositionAdapter",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "basketManager",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "primaryBasketVault",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "basketYieldAdapters",
+                                "type": "address[]",
+                                "internalType": "address[]"
+                            },
+                            {
+                                "name": "primaryBasketId",
+                                "type": "uint256",
+                                "internalType": "uint256"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
         "name": "predictLaunch",
         "inputs": [
             {
@@ -2378,6 +4545,1390 @@ export const projectLauncherV2Abi = [
     },
     {
         "type": "function",
+        "name": "requiredVotingExclusions",
+        "inputs": [
+            {
+                "name": "config",
+                "type": "tuple",
+                "internalType": "struct ProjectLaunchConfig",
+                "components": [
+                    {
+                        "name": "creator",
+                        "type": "address",
+                        "internalType": "address"
+                    },
+                    {
+                        "name": "name",
+                        "type": "string",
+                        "internalType": "string"
+                    },
+                    {
+                        "name": "symbol",
+                        "type": "string",
+                        "internalType": "string"
+                    },
+                    {
+                        "name": "totalSupply",
+                        "type": "uint256",
+                        "internalType": "uint256"
+                    },
+                    {
+                        "name": "salt",
+                        "type": "bytes32",
+                        "internalType": "bytes32"
+                    },
+                    {
+                        "name": "governanceMode",
+                        "type": "uint8",
+                        "internalType": "enum LaunchGovernanceMode"
+                    },
+                    {
+                        "name": "voteSource",
+                        "type": "uint8",
+                        "internalType": "enum LaunchVoteSource"
+                    },
+                    {
+                        "name": "modules",
+                        "type": "tuple",
+                        "internalType": "struct ModuleSelection",
+                        "components": [
+                            {
+                                "name": "treasury",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "router",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "staking",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "airdrop",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "basket",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "fundingBands",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "raffle",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "liquidity",
+                                "type": "bool",
+                                "internalType": "bool"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "tokenAllocations",
+                        "type": "tuple[]",
+                        "internalType": "struct LaunchTokenAllocation[]",
+                        "components": [
+                            {
+                                "name": "recipient",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "amount",
+                                "type": "uint256",
+                                "internalType": "uint256"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "governance",
+                        "type": "tuple",
+                        "internalType": "struct GovernanceLaunchConfig",
+                        "components": [
+                            {
+                                "name": "multisigSigners",
+                                "type": "address[3]",
+                                "internalType": "address[3]"
+                            },
+                            {
+                                "name": "tokenGovernance",
+                                "type": "tuple",
+                                "internalType": "struct TokenGovernanceConfig",
+                                "components": [
+                                    {
+                                        "name": "votingDelay",
+                                        "type": "uint48",
+                                        "internalType": "uint48"
+                                    },
+                                    {
+                                        "name": "votingPeriod",
+                                        "type": "uint32",
+                                        "internalType": "uint32"
+                                    },
+                                    {
+                                        "name": "proposalThresholdBps",
+                                        "type": "uint16",
+                                        "internalType": "uint16"
+                                    },
+                                    {
+                                        "name": "quorumBps",
+                                        "type": "uint16",
+                                        "internalType": "uint16"
+                                    },
+                                    {
+                                        "name": "timelockDelay",
+                                        "type": "uint48",
+                                        "internalType": "uint48"
+                                    },
+                                    {
+                                        "name": "referenceSupply",
+                                        "type": "uint256",
+                                        "internalType": "uint256"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "staking",
+                        "type": "tuple",
+                        "internalType": "struct StakingLaunchConfig",
+                        "components": [
+                            {
+                                "name": "guardian",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "lockDuration",
+                                "type": "uint64",
+                                "internalType": "uint64"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "airdrop",
+                        "type": "tuple",
+                        "internalType": "struct AirdropLaunchConfig",
+                        "components": [
+                            {
+                                "name": "attestor",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "eligibilityMode",
+                                "type": "uint8",
+                                "internalType": "enum AirdropEligibilityMode"
+                            },
+                            {
+                                "name": "additionalExclusions",
+                                "type": "address[]",
+                                "internalType": "address[]"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "treasury",
+                        "type": "tuple",
+                        "internalType": "struct TreasuryLaunchConfig",
+                        "components": [
+                            {
+                                "name": "basketAllocationBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "basketRouteAssets",
+                                "type": "address[]",
+                                "internalType": "address[]"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "routerRoutes",
+                        "type": "tuple[]",
+                        "internalType": "struct RouterRouteInput[]",
+                        "components": [
+                            {
+                                "name": "inputAsset",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "actions",
+                                "type": "tuple[]",
+                                "internalType": "struct RouterAction[]",
+                                "components": [
+                                    {
+                                        "name": "actionType",
+                                        "type": "uint8",
+                                        "internalType": "enum RouterActionType"
+                                    },
+                                    {
+                                        "name": "allocationBps",
+                                        "type": "uint16",
+                                        "internalType": "uint16"
+                                    },
+                                    {
+                                        "name": "recipient",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "adapter",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "priceGuard",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "actionConfig",
+                                        "type": "bytes",
+                                        "internalType": "bytes"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "basket",
+                        "type": "tuple",
+                        "internalType": "struct BasketConfig",
+                        "components": [
+                            {
+                                "name": "cadence",
+                                "type": "uint8",
+                                "internalType": "enum BasketHarvestCadence"
+                            },
+                            {
+                                "name": "eligibilityMode",
+                                "type": "uint8",
+                                "internalType": "enum BasketEligibilityMode"
+                            },
+                            {
+                                "name": "governanceUpdatesEnabled",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "burnTaxBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "burnTaxDestination",
+                                "type": "uint8",
+                                "internalType": "enum BasketBurnTaxDestination"
+                            },
+                            {
+                                "name": "burnPriceSubject",
+                                "type": "uint256",
+                                "internalType": "uint256"
+                            },
+                            {
+                                "name": "airdropAccountConfig",
+                                "type": "bytes",
+                                "internalType": "bytes"
+                            },
+                            {
+                                "name": "allocation",
+                                "type": "tuple",
+                                "internalType": "struct BasketAllocationConfig",
+                                "components": [
+                                    {
+                                        "name": "inputAssets",
+                                        "type": "address[]",
+                                        "internalType": "address[]"
+                                    },
+                                    {
+                                        "name": "targets",
+                                        "type": "tuple[]",
+                                        "internalType": "struct BasketTarget[]",
+                                        "components": [
+                                            {
+                                                "name": "depositAsset",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "yieldAdapter",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "targetWeightBps",
+                                                "type": "uint16",
+                                                "internalType": "uint16"
+                                            },
+                                            {
+                                                "name": "rewardAssets",
+                                                "type": "address[]",
+                                                "internalType": "address[]"
+                                            },
+                                            {
+                                                "name": "yieldApprovalProof",
+                                                "type": "bytes32[]",
+                                                "internalType": "bytes32[]"
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "name": "swapLegs",
+                                        "type": "tuple[]",
+                                        "internalType": "struct BasketSwapLeg[]",
+                                        "components": [
+                                            {
+                                                "name": "inputAsset",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "targetIndex",
+                                                "type": "uint8",
+                                                "internalType": "uint8"
+                                            },
+                                            {
+                                                "name": "swapAdapter",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "priceGuard",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "maxSlippageBps",
+                                                "type": "uint16",
+                                                "internalType": "uint16"
+                                            },
+                                            {
+                                                "name": "routeData",
+                                                "type": "bytes",
+                                                "internalType": "bytes"
+                                            },
+                                            {
+                                                "name": "approvalProof",
+                                                "type": "bytes32[]",
+                                                "internalType": "bytes32[]"
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "basketERC4626Vaults",
+                        "type": "address[]",
+                        "internalType": "address[]"
+                    },
+                    {
+                        "name": "bands",
+                        "type": "tuple",
+                        "internalType": "struct BandsLaunchConfig",
+                        "components": [
+                            {
+                                "name": "quoteAsset",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "marketCapGuard",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "positionAdapter",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "twapWindow",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "quoteUsdOracle",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "confirmationPeriod",
+                                "type": "uint48",
+                                "internalType": "uint48"
+                            },
+                            {
+                                "name": "maximumObservationAge",
+                                "type": "uint48",
+                                "internalType": "uint48"
+                            },
+                            {
+                                "name": "integrationApprovalProof",
+                                "type": "bytes32[]",
+                                "internalType": "bytes32[]"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "raffle",
+                        "type": "tuple",
+                        "internalType": "struct RaffleTypes.Config",
+                        "components": [
+                            {
+                                "name": "creator",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "attestor",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "randomness",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "prizeAsset",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "protocolFeeRecipient",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "taxRecipient",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "tokensPerTicket",
+                                "type": "uint128",
+                                "internalType": "uint128"
+                            },
+                            {
+                                "name": "maxTicketsPerHolder",
+                                "type": "uint128",
+                                "internalType": "uint128"
+                            },
+                            {
+                                "name": "minPrize",
+                                "type": "uint128",
+                                "internalType": "uint128"
+                            },
+                            {
+                                "name": "maxPrize",
+                                "type": "uint128",
+                                "internalType": "uint128"
+                            },
+                            {
+                                "name": "prizeBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "recipientTaxBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "recycleTaxBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "minConfirmations",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "winnersPerRound",
+                                "type": "uint8",
+                                "internalType": "uint8"
+                            },
+                            {
+                                "name": "minRoundInterval",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "weightWindowBlocks",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "randomnessTimeout",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "claimWindow",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "basis",
+                                "type": "uint8",
+                                "internalType": "enum RaffleTypes.TicketBasis"
+                            },
+                            {
+                                "name": "exclusions",
+                                "type": "address[]",
+                                "internalType": "address[]"
+                            },
+                            {
+                                "name": "stockRewards",
+                                "type": "tuple[]",
+                                "internalType": "struct RaffleTypes.StockReward[]",
+                                "components": [
+                                    {
+                                        "name": "asset",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "swapAdapter",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "priceGuard",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "routeData",
+                                        "type": "bytes",
+                                        "internalType": "bytes"
+                                    },
+                                    {
+                                        "name": "guardData",
+                                        "type": "bytes",
+                                        "internalType": "bytes"
+                                    },
+                                    {
+                                        "name": "approvalProof",
+                                        "type": "bytes32[]",
+                                        "internalType": "bytes32[]"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "launchProfile",
+                        "type": "tuple",
+                        "internalType": "struct LaunchProfileConfig",
+                        "components": [
+                            {
+                                "name": "canonicalPool",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "additionalCustodyExclusions",
+                                "type": "address[]",
+                                "internalType": "address[]"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "metadataURI",
+                        "type": "string",
+                        "internalType": "string"
+                    }
+                ]
+            },
+            {
+                "name": "subject",
+                "type": "address",
+                "internalType": "address"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "",
+                "type": "address[]",
+                "internalType": "address[]"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "validateExistingTokenLaunchConfig",
+        "inputs": [
+            {
+                "name": "config",
+                "type": "tuple",
+                "internalType": "struct ProjectLaunchConfig",
+                "components": [
+                    {
+                        "name": "creator",
+                        "type": "address",
+                        "internalType": "address"
+                    },
+                    {
+                        "name": "name",
+                        "type": "string",
+                        "internalType": "string"
+                    },
+                    {
+                        "name": "symbol",
+                        "type": "string",
+                        "internalType": "string"
+                    },
+                    {
+                        "name": "totalSupply",
+                        "type": "uint256",
+                        "internalType": "uint256"
+                    },
+                    {
+                        "name": "salt",
+                        "type": "bytes32",
+                        "internalType": "bytes32"
+                    },
+                    {
+                        "name": "governanceMode",
+                        "type": "uint8",
+                        "internalType": "enum LaunchGovernanceMode"
+                    },
+                    {
+                        "name": "voteSource",
+                        "type": "uint8",
+                        "internalType": "enum LaunchVoteSource"
+                    },
+                    {
+                        "name": "modules",
+                        "type": "tuple",
+                        "internalType": "struct ModuleSelection",
+                        "components": [
+                            {
+                                "name": "treasury",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "router",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "staking",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "airdrop",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "basket",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "fundingBands",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "raffle",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "liquidity",
+                                "type": "bool",
+                                "internalType": "bool"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "tokenAllocations",
+                        "type": "tuple[]",
+                        "internalType": "struct LaunchTokenAllocation[]",
+                        "components": [
+                            {
+                                "name": "recipient",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "amount",
+                                "type": "uint256",
+                                "internalType": "uint256"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "governance",
+                        "type": "tuple",
+                        "internalType": "struct GovernanceLaunchConfig",
+                        "components": [
+                            {
+                                "name": "multisigSigners",
+                                "type": "address[3]",
+                                "internalType": "address[3]"
+                            },
+                            {
+                                "name": "tokenGovernance",
+                                "type": "tuple",
+                                "internalType": "struct TokenGovernanceConfig",
+                                "components": [
+                                    {
+                                        "name": "votingDelay",
+                                        "type": "uint48",
+                                        "internalType": "uint48"
+                                    },
+                                    {
+                                        "name": "votingPeriod",
+                                        "type": "uint32",
+                                        "internalType": "uint32"
+                                    },
+                                    {
+                                        "name": "proposalThresholdBps",
+                                        "type": "uint16",
+                                        "internalType": "uint16"
+                                    },
+                                    {
+                                        "name": "quorumBps",
+                                        "type": "uint16",
+                                        "internalType": "uint16"
+                                    },
+                                    {
+                                        "name": "timelockDelay",
+                                        "type": "uint48",
+                                        "internalType": "uint48"
+                                    },
+                                    {
+                                        "name": "referenceSupply",
+                                        "type": "uint256",
+                                        "internalType": "uint256"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "staking",
+                        "type": "tuple",
+                        "internalType": "struct StakingLaunchConfig",
+                        "components": [
+                            {
+                                "name": "guardian",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "lockDuration",
+                                "type": "uint64",
+                                "internalType": "uint64"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "airdrop",
+                        "type": "tuple",
+                        "internalType": "struct AirdropLaunchConfig",
+                        "components": [
+                            {
+                                "name": "attestor",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "eligibilityMode",
+                                "type": "uint8",
+                                "internalType": "enum AirdropEligibilityMode"
+                            },
+                            {
+                                "name": "additionalExclusions",
+                                "type": "address[]",
+                                "internalType": "address[]"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "treasury",
+                        "type": "tuple",
+                        "internalType": "struct TreasuryLaunchConfig",
+                        "components": [
+                            {
+                                "name": "basketAllocationBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "basketRouteAssets",
+                                "type": "address[]",
+                                "internalType": "address[]"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "routerRoutes",
+                        "type": "tuple[]",
+                        "internalType": "struct RouterRouteInput[]",
+                        "components": [
+                            {
+                                "name": "inputAsset",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "actions",
+                                "type": "tuple[]",
+                                "internalType": "struct RouterAction[]",
+                                "components": [
+                                    {
+                                        "name": "actionType",
+                                        "type": "uint8",
+                                        "internalType": "enum RouterActionType"
+                                    },
+                                    {
+                                        "name": "allocationBps",
+                                        "type": "uint16",
+                                        "internalType": "uint16"
+                                    },
+                                    {
+                                        "name": "recipient",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "adapter",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "priceGuard",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "actionConfig",
+                                        "type": "bytes",
+                                        "internalType": "bytes"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "basket",
+                        "type": "tuple",
+                        "internalType": "struct BasketConfig",
+                        "components": [
+                            {
+                                "name": "cadence",
+                                "type": "uint8",
+                                "internalType": "enum BasketHarvestCadence"
+                            },
+                            {
+                                "name": "eligibilityMode",
+                                "type": "uint8",
+                                "internalType": "enum BasketEligibilityMode"
+                            },
+                            {
+                                "name": "governanceUpdatesEnabled",
+                                "type": "bool",
+                                "internalType": "bool"
+                            },
+                            {
+                                "name": "burnTaxBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "burnTaxDestination",
+                                "type": "uint8",
+                                "internalType": "enum BasketBurnTaxDestination"
+                            },
+                            {
+                                "name": "burnPriceSubject",
+                                "type": "uint256",
+                                "internalType": "uint256"
+                            },
+                            {
+                                "name": "airdropAccountConfig",
+                                "type": "bytes",
+                                "internalType": "bytes"
+                            },
+                            {
+                                "name": "allocation",
+                                "type": "tuple",
+                                "internalType": "struct BasketAllocationConfig",
+                                "components": [
+                                    {
+                                        "name": "inputAssets",
+                                        "type": "address[]",
+                                        "internalType": "address[]"
+                                    },
+                                    {
+                                        "name": "targets",
+                                        "type": "tuple[]",
+                                        "internalType": "struct BasketTarget[]",
+                                        "components": [
+                                            {
+                                                "name": "depositAsset",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "yieldAdapter",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "targetWeightBps",
+                                                "type": "uint16",
+                                                "internalType": "uint16"
+                                            },
+                                            {
+                                                "name": "rewardAssets",
+                                                "type": "address[]",
+                                                "internalType": "address[]"
+                                            },
+                                            {
+                                                "name": "yieldApprovalProof",
+                                                "type": "bytes32[]",
+                                                "internalType": "bytes32[]"
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "name": "swapLegs",
+                                        "type": "tuple[]",
+                                        "internalType": "struct BasketSwapLeg[]",
+                                        "components": [
+                                            {
+                                                "name": "inputAsset",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "targetIndex",
+                                                "type": "uint8",
+                                                "internalType": "uint8"
+                                            },
+                                            {
+                                                "name": "swapAdapter",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "priceGuard",
+                                                "type": "address",
+                                                "internalType": "address"
+                                            },
+                                            {
+                                                "name": "maxSlippageBps",
+                                                "type": "uint16",
+                                                "internalType": "uint16"
+                                            },
+                                            {
+                                                "name": "routeData",
+                                                "type": "bytes",
+                                                "internalType": "bytes"
+                                            },
+                                            {
+                                                "name": "approvalProof",
+                                                "type": "bytes32[]",
+                                                "internalType": "bytes32[]"
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "basketERC4626Vaults",
+                        "type": "address[]",
+                        "internalType": "address[]"
+                    },
+                    {
+                        "name": "bands",
+                        "type": "tuple",
+                        "internalType": "struct BandsLaunchConfig",
+                        "components": [
+                            {
+                                "name": "quoteAsset",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "marketCapGuard",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "positionAdapter",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "twapWindow",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "quoteUsdOracle",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "confirmationPeriod",
+                                "type": "uint48",
+                                "internalType": "uint48"
+                            },
+                            {
+                                "name": "maximumObservationAge",
+                                "type": "uint48",
+                                "internalType": "uint48"
+                            },
+                            {
+                                "name": "integrationApprovalProof",
+                                "type": "bytes32[]",
+                                "internalType": "bytes32[]"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "raffle",
+                        "type": "tuple",
+                        "internalType": "struct RaffleTypes.Config",
+                        "components": [
+                            {
+                                "name": "creator",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "attestor",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "randomness",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "prizeAsset",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "protocolFeeRecipient",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "taxRecipient",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "tokensPerTicket",
+                                "type": "uint128",
+                                "internalType": "uint128"
+                            },
+                            {
+                                "name": "maxTicketsPerHolder",
+                                "type": "uint128",
+                                "internalType": "uint128"
+                            },
+                            {
+                                "name": "minPrize",
+                                "type": "uint128",
+                                "internalType": "uint128"
+                            },
+                            {
+                                "name": "maxPrize",
+                                "type": "uint128",
+                                "internalType": "uint128"
+                            },
+                            {
+                                "name": "prizeBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "recipientTaxBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "recycleTaxBps",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "minConfirmations",
+                                "type": "uint16",
+                                "internalType": "uint16"
+                            },
+                            {
+                                "name": "winnersPerRound",
+                                "type": "uint8",
+                                "internalType": "uint8"
+                            },
+                            {
+                                "name": "minRoundInterval",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "weightWindowBlocks",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "randomnessTimeout",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "claimWindow",
+                                "type": "uint32",
+                                "internalType": "uint32"
+                            },
+                            {
+                                "name": "basis",
+                                "type": "uint8",
+                                "internalType": "enum RaffleTypes.TicketBasis"
+                            },
+                            {
+                                "name": "exclusions",
+                                "type": "address[]",
+                                "internalType": "address[]"
+                            },
+                            {
+                                "name": "stockRewards",
+                                "type": "tuple[]",
+                                "internalType": "struct RaffleTypes.StockReward[]",
+                                "components": [
+                                    {
+                                        "name": "asset",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "swapAdapter",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "priceGuard",
+                                        "type": "address",
+                                        "internalType": "address"
+                                    },
+                                    {
+                                        "name": "routeData",
+                                        "type": "bytes",
+                                        "internalType": "bytes"
+                                    },
+                                    {
+                                        "name": "guardData",
+                                        "type": "bytes",
+                                        "internalType": "bytes"
+                                    },
+                                    {
+                                        "name": "approvalProof",
+                                        "type": "bytes32[]",
+                                        "internalType": "bytes32[]"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "launchProfile",
+                        "type": "tuple",
+                        "internalType": "struct LaunchProfileConfig",
+                        "components": [
+                            {
+                                "name": "canonicalPool",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "additionalCustodyExclusions",
+                                "type": "address[]",
+                                "internalType": "address[]"
+                            }
+                        ]
+                    },
+                    {
+                        "name": "metadataURI",
+                        "type": "string",
+                        "internalType": "string"
+                    }
+                ]
+            },
+            {
+                "name": "subject",
+                "type": "address",
+                "internalType": "address"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "preview",
+                "type": "tuple",
+                "internalType": "struct ProjectLaunchPreview",
+                "components": [
+                    {
+                        "name": "launchConfigHash",
+                        "type": "bytes32",
+                        "internalType": "bytes32"
+                    },
+                    {
+                        "name": "projectId",
+                        "type": "bytes32",
+                        "internalType": "bytes32"
+                    },
+                    {
+                        "name": "enabledModules",
+                        "type": "uint256",
+                        "internalType": "uint256"
+                    },
+                    {
+                        "name": "addresses",
+                        "type": "tuple",
+                        "internalType": "struct ProjectLaunchAddresses",
+                        "components": [
+                            {
+                                "name": "subject",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "controller",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "multisigAccount",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "tokenGovernor",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "tokenTimelock",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "voteSource",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "treasury",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "router",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "stakingPool",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "posNft",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "airdrop",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "raffle",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "liquidityManager",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "fundingBands",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "fundingBandMarketCapGuard",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "fundingBandPositionAdapter",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "basketManager",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "primaryBasketVault",
+                                "type": "address",
+                                "internalType": "address"
+                            },
+                            {
+                                "name": "basketYieldAdapters",
+                                "type": "address[]",
+                                "internalType": "address[]"
+                            },
+                            {
+                                "name": "primaryBasketId",
+                                "type": "uint256",
+                                "internalType": "uint256"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
         "name": "validateLaunchConfig",
         "inputs": [
             {
@@ -3126,6 +6677,19 @@ export const projectLauncherV2Abi = [
         "stateMutability": "view"
     },
     {
+        "type": "function",
+        "name": "validator",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "address",
+                "internalType": "contract ProjectLaunchValidatorV2"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
         "type": "event",
         "name": "ProjectLaunchCompleted",
         "inputs": [
@@ -3219,6 +6783,11 @@ export const projectLauncherV2Abi = [
     },
     {
         "type": "error",
+        "name": "ExternalTokenAllocationsForbidden",
+        "inputs": []
+    },
+    {
+        "type": "error",
         "name": "InvalidAirdropConfiguration",
         "inputs": []
     },
@@ -3245,8 +6814,35 @@ export const projectLauncherV2Abi = [
     },
     {
         "type": "error",
+        "name": "InvalidExternalSubject",
+        "inputs": [
+            {
+                "name": "subject",
+                "type": "address",
+                "internalType": "address"
+            }
+        ]
+    },
+    {
+        "type": "error",
         "name": "InvalidGovernanceConfiguration",
         "inputs": []
+    },
+    {
+        "type": "error",
+        "name": "InvalidLaunchpadAdapter",
+        "inputs": [
+            {
+                "name": "adapter",
+                "type": "address",
+                "internalType": "address"
+            },
+            {
+                "name": "factory",
+                "type": "address",
+                "internalType": "address"
+            }
+        ]
     },
     {
         "type": "error",
@@ -3345,6 +6941,17 @@ export const projectLauncherV2Abi = [
     },
     {
         "type": "error",
+        "name": "LaunchpadNotApproved",
+        "inputs": [
+            {
+                "name": "approvalLeaf",
+                "type": "bytes32",
+                "internalType": "bytes32"
+            }
+        ]
+    },
+    {
+        "type": "error",
         "name": "ModuleDeploymentMismatch",
         "inputs": [
             {
@@ -3363,6 +6970,17 @@ export const projectLauncherV2Abi = [
         "type": "error",
         "name": "ReentrancyGuardReentrantCall",
         "inputs": []
+    },
+    {
+        "type": "error",
+        "name": "RequiredVotingExclusionMissing",
+        "inputs": [
+            {
+                "name": "account",
+                "type": "address",
+                "internalType": "address"
+            }
+        ]
     }
 ];
 export const projectRegistryV2Abi = [
@@ -5698,11 +9316,6 @@ export const projectVotesTokenAbi = [
                 "internalType": "address"
             }
         ]
-    },
-    {
-        "type": "error",
-        "name": "NoEligibleVotingSupply",
-        "inputs": []
     },
     {
         "type": "error",
