@@ -184,10 +184,12 @@ contract LaunchGovTestCanonical is Script {
     address private constant PONS_DEPLOYER = 0xa0bc05240f1cD1f3Df7FEfA35e48C19ffF4c6ACe;
     address private constant PONS_HOOK = 0xE9Ec0Ffc7d5bEF33f815D7b0cDd15A7c5Dc1e044;
     address private constant PONS_ESCROW = 0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e;
-    address private constant PONS_ADAPTER_FACTORY = 0x96e2de90c66d7fD55a18dDbE6B75073A2115844D;
-    address private constant PROJECT_LAUNCHER = 0x4C10aDE88e7865345Dcf2aE1AA2ba17B618c3aE9;
-    address private constant PROJECT_REGISTRY = 0x729Ee6B1AB170b63F6D369AaBa5591edEE709e22;
-    address private constant PROJECT_TOKEN_FACTORY = 0x464f4ec338FdB944bae6A7C3087a26c13b51Bc4e;
+    address private constant LEGACY_PONS_ADAPTER_FACTORY =
+        0x96e2de90c66d7fD55a18dDbE6B75073A2115844D;
+    address private constant LEGACY_PROJECT_LAUNCHER = 0x4C10aDE88e7865345Dcf2aE1AA2ba17B618c3aE9;
+    address private constant LEGACY_PROJECT_REGISTRY = 0x729Ee6B1AB170b63F6D369AaBa5591edEE709e22;
+    address private constant LEGACY_PROJECT_TOKEN_FACTORY =
+        0x464f4ec338FdB944bae6A7C3087a26c13b51Bc4e;
     address private constant WETH = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
 
     bytes32 private constant TOKEN_SALT = keccak256("SINJOH_GOVTEST_CANONICAL_2026_08_24");
@@ -199,15 +201,28 @@ contract LaunchGovTestCanonical is Script {
     {
         require(block.chainid == 4_663, "WRONG_CHAIN");
         address creator = vm.envAddress("DEPLOYER_ADDRESS");
+        address ponsAdapterFactory =
+            vm.envOr("PONS_PROJECT_ADAPTER_FACTORY", LEGACY_PONS_ADAPTER_FACTORY);
+        address projectLauncher = vm.envOr("PROJECT_LAUNCHER", LEGACY_PROJECT_LAUNCHER);
+        address projectRegistry = vm.envOr("PROJECT_REGISTRY", LEGACY_PROJECT_REGISTRY);
+        address projectTokenFactory =
+            vm.envOr("PROJECT_TOKEN_FACTORY", LEGACY_PROJECT_TOKEN_FACTORY);
         IPonsFactory factory = IPonsFactory(PONS_FACTORY);
-        IPonsProjectAdapterFactory adapterFactory = IPonsProjectAdapterFactory(PONS_ADAPTER_FACTORY);
-        ProjectLauncherV2 launcher = ProjectLauncherV2(PROJECT_LAUNCHER);
+        IPonsProjectAdapterFactory adapterFactory = IPonsProjectAdapterFactory(ponsAdapterFactory);
+        ProjectLauncherV2 launcher = ProjectLauncherV2(projectLauncher);
 
         address predictedAdapter = adapterFactory.predictProjectAddress(creator, USER_SALT);
         PonsLaunchConfig memory launchConfig = factory.getLaunchConfig(0);
         PonsTokenParams memory tokenParams = _tokenParams(factory, predictedAdapter);
-        (address predictedToken, address predictedCurve) =
-            _predictPons(creator, predictedAdapter, tokenParams, launchConfig);
+        (address predictedToken, address predictedCurve) = _predictPons(
+            creator,
+            predictedAdapter,
+            tokenParams,
+            launchConfig,
+            projectTokenFactory,
+            projectRegistry,
+            projectLauncher
+        );
         ProjectLaunchConfig memory config =
             _projectConfig(creator, predictedAdapter, predictedCurve, launchConfig.supply);
         project = launcher.predictExistingTokenLaunch(config, predictedToken);
@@ -232,7 +247,7 @@ contract LaunchGovTestCanonical is Script {
 
         require(token == predictedToken && curve == predictedCurve, "PONS_PREDICTION_MISMATCH");
         ProjectRegistryV2.ProjectRecord memory record =
-            ProjectRegistryV2(PROJECT_REGISTRY).projectBySubject(token);
+            ProjectRegistryV2(projectRegistry).projectBySubject(token);
         require(record.subject == token, "REGISTRY_SUBJECT_MISMATCH");
         require(record.voteSource == token, "VOTE_SOURCE_MISMATCH");
         require(record.tokenGovernor == project.addresses.tokenGovernor, "GOVERNOR_MISMATCH");
@@ -275,36 +290,38 @@ contract LaunchGovTestCanonical is Script {
         address creator,
         address adapter,
         PonsTokenParams memory tokenParams,
-        PonsLaunchConfig memory launchConfig
+        PonsLaunchConfig memory launchConfig,
+        address projectTokenFactory,
+        address projectRegistry,
+        address projectLauncher
     ) private view returns (address token, address curve) {
-        PonsLaunchDeployment memory deployment =
-            PonsLaunchDeployment({
-                pairToken: address(0),
-                creatorFeeRecipient: adapter,
-                originalDeployer: creator,
-                feePolicy: PONS_HOOK,
-                policy: IPonsPolicyView(PONS_HOOK).currentFeePolicy(),
-                feeEscrow: PONS_ESCROW,
-                buybackVault: IPonsFactoryDependencies(PONS_FACTORY).buybackVault(),
-                phantomQuote: launchConfig.phantomQuote,
-                curveFeeBps: launchConfig.curveFeeBps,
-                creatorTaxBps: tokenParams.creatorTaxBps,
-                buybackEnabled: false,
-                graduationThreshold: launchConfig.graduationThreshold,
-                supply: launchConfig.supply,
-                salt: tokenParams.salt,
-                name: tokenParams.name,
-                symbol: tokenParams.symbol,
-                logo: "",
-                description: "",
-                socials: tokenParams.socials
-            });
+        PonsLaunchDeployment memory deployment = PonsLaunchDeployment({
+            pairToken: address(0),
+            creatorFeeRecipient: adapter,
+            originalDeployer: creator,
+            feePolicy: PONS_HOOK,
+            policy: IPonsPolicyView(PONS_HOOK).currentFeePolicy(),
+            feeEscrow: PONS_ESCROW,
+            buybackVault: IPonsFactoryDependencies(PONS_FACTORY).buybackVault(),
+            phantomQuote: launchConfig.phantomQuote,
+            curveFeeBps: launchConfig.curveFeeBps,
+            creatorTaxBps: tokenParams.creatorTaxBps,
+            buybackEnabled: false,
+            graduationThreshold: launchConfig.graduationThreshold,
+            supply: launchConfig.supply,
+            salt: tokenParams.salt,
+            name: tokenParams.name,
+            symbol: tokenParams.symbol,
+            logo: "",
+            description: "",
+            socials: tokenParams.socials
+        });
         address[] memory noInitialExclusions = new address[](0);
         bytes memory projectData = abi.encode(
             PonsProjectTokenDeploymentData({
-                tokenFactory: PROJECT_TOKEN_FACTORY,
-                registry: PROJECT_REGISTRY,
-                votingExclusionConfigurator: PROJECT_LAUNCHER,
+                tokenFactory: projectTokenFactory,
+                registry: projectRegistry,
+                votingExclusionConfigurator: projectLauncher,
                 votingExclusions: noInitialExclusions
             })
         );
@@ -407,10 +424,19 @@ contract LaunchGovTestCanonical is Script {
         config.metadataURI = "";
     }
 
-    function _ponsProof() private pure returns (bytes32[] memory proof) {
+    function _ponsProof() private view returns (bytes32[] memory proof) {
         proof = new bytes32[](3);
-        proof[0] = 0xb7a77e0a6608e721decda928cf80a8c51660c48c1eb9bcdcb1e5bb42f67cfb5e;
-        proof[1] = 0x5cc4289cea5c7894b9623364fed5576be0e06f6c7ab1aa8376b6f30d92e865cf;
-        proof[2] = 0xca5e1d78fef9151139c84f59126922cb5a679c7ffb67e6db672a0b106c17f7e3;
+        proof[0] = vm.envOr(
+            "PONS_APPROVAL_PROOF_0",
+            bytes32(0xb7a77e0a6608e721decda928cf80a8c51660c48c1eb9bcdcb1e5bb42f67cfb5e)
+        );
+        proof[1] = vm.envOr(
+            "PONS_APPROVAL_PROOF_1",
+            bytes32(0x5cc4289cea5c7894b9623364fed5576be0e06f6c7ab1aa8376b6f30d92e865cf)
+        );
+        proof[2] = vm.envOr(
+            "PONS_APPROVAL_PROOF_2",
+            bytes32(0xca5e1d78fef9151139c84f59126922cb5a679c7ffb67e6db672a0b106c17f7e3)
+        );
     }
 }
