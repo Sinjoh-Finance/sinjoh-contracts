@@ -53,14 +53,24 @@ required_environment=(
   V3_FACTORY V3_FACTORY_RUNTIME_HASH V3_POSITION_MANAGER V3_POSITION_MANAGER_RUNTIME_HASH
   V4_POSITION_MANAGER V4_POSITION_MANAGER_RUNTIME_HASH V4_STATE_VIEW V4_STATE_VIEW_RUNTIME_HASH
   PERMIT2 PERMIT2_RUNTIME_HASH
-  PONS_PROJECT_ADAPTER_FACTORY PONS_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH
-  POOLS_INSTANT_PROJECT_ADAPTER_FACTORY POOLS_INSTANT_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH
-  POOLS_INSTANT_NO_FEE_PROJECT_ADAPTER_FACTORY POOLS_INSTANT_NO_FEE_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH
-  POOLS_LBP_PROJECT_ADAPTER_FACTORY POOLS_LBP_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH
-  PONS_PROJECT_ADAPTER_IMPLEMENTATION PONS_PROJECT_ADAPTER_IMPLEMENTATION_RUNTIME_HASH
-  POOLS_PROJECT_REGISTRATION_HELPER POOLS_PROJECT_REGISTRATION_HELPER_RUNTIME_HASH
   PONS_LAUNCH_FACTORY PONS_LAUNCH_FACTORY_RUNTIME_HASH
 )
+fresh_launchpad_factories="${DEPLOY_FRESH_LAUNCHPAD_FACTORIES:-0}"
+if [[ "$fresh_launchpad_factories" != "0" && "$fresh_launchpad_factories" != "1" ]]; then
+  fail "DEPLOY_FRESH_LAUNCHPAD_FACTORIES must be 0 or 1"
+fi
+if [[ "$fresh_launchpad_factories" == "1" ]]; then
+  required_environment+=(PONS_FEE_ESCROW PONS_FEE_ESCROW_RUNTIME_HASH)
+else
+  required_environment+=(
+    PONS_PROJECT_ADAPTER_FACTORY PONS_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH
+    POOLS_INSTANT_PROJECT_ADAPTER_FACTORY POOLS_INSTANT_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH
+    POOLS_INSTANT_NO_FEE_PROJECT_ADAPTER_FACTORY POOLS_INSTANT_NO_FEE_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH
+    POOLS_LBP_PROJECT_ADAPTER_FACTORY POOLS_LBP_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH
+    PONS_PROJECT_ADAPTER_IMPLEMENTATION PONS_PROJECT_ADAPTER_IMPLEMENTATION_RUNTIME_HASH
+    POOLS_PROJECT_REGISTRATION_HELPER POOLS_PROJECT_REGISTRATION_HELPER_RUNTIME_HASH
+  )
+fi
 for environment_name in "${required_environment[@]}"; do
   require_environment "$environment_name"
 done
@@ -69,10 +79,17 @@ simulate_only="${SIMULATE_ONLY:-0}"
 if [[ "$simulate_only" != "0" && "$simulate_only" != "1" ]]; then
   fail "SIMULATE_ONLY must be 0 or 1"
 fi
+unlocked_deployment="${UNLOCKED_DEPLOYMENT:-0}"
+if [[ "$unlocked_deployment" != "0" && "$unlocked_deployment" != "1" ]]; then
+  fail "UNLOCKED_DEPLOYMENT must be 0 or 1"
+fi
+if [[ "$fresh_launchpad_factories" == "1" && "$simulate_only" == "1" ]]; then
+  fail "fresh launchpad factories require a stateful fork rehearsal or broadcast"
+fi
 if [[ "$simulate_only" == "0" ]]; then
-  for environment_name in FOUNDRY_ACCOUNT; do
-    require_environment "$environment_name"
-  done
+  if [[ "$unlocked_deployment" == "0" ]]; then
+    require_environment FOUNDRY_ACCOUNT
+  fi
 fi
 
 actual_chain_id="$(cast chain-id --rpc-url "$RPC_URL")"
@@ -89,14 +106,20 @@ runtime_pairs=(
   "V4_POSITION_MANAGER:V4_POSITION_MANAGER_RUNTIME_HASH"
   "V4_STATE_VIEW:V4_STATE_VIEW_RUNTIME_HASH"
   "PERMIT2:PERMIT2_RUNTIME_HASH"
-  "PONS_PROJECT_ADAPTER_FACTORY:PONS_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH"
-  "POOLS_INSTANT_PROJECT_ADAPTER_FACTORY:POOLS_INSTANT_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH"
-  "POOLS_INSTANT_NO_FEE_PROJECT_ADAPTER_FACTORY:POOLS_INSTANT_NO_FEE_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH"
-  "POOLS_LBP_PROJECT_ADAPTER_FACTORY:POOLS_LBP_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH"
-  "PONS_PROJECT_ADAPTER_IMPLEMENTATION:PONS_PROJECT_ADAPTER_IMPLEMENTATION_RUNTIME_HASH"
-  "POOLS_PROJECT_REGISTRATION_HELPER:POOLS_PROJECT_REGISTRATION_HELPER_RUNTIME_HASH"
   "PONS_LAUNCH_FACTORY:PONS_LAUNCH_FACTORY_RUNTIME_HASH"
 )
+if [[ "$fresh_launchpad_factories" == "1" ]]; then
+  runtime_pairs+=("PONS_FEE_ESCROW:PONS_FEE_ESCROW_RUNTIME_HASH")
+else
+  runtime_pairs+=(
+    "PONS_PROJECT_ADAPTER_FACTORY:PONS_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH"
+    "POOLS_INSTANT_PROJECT_ADAPTER_FACTORY:POOLS_INSTANT_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH"
+    "POOLS_INSTANT_NO_FEE_PROJECT_ADAPTER_FACTORY:POOLS_INSTANT_NO_FEE_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH"
+    "POOLS_LBP_PROJECT_ADAPTER_FACTORY:POOLS_LBP_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH"
+    "PONS_PROJECT_ADAPTER_IMPLEMENTATION:PONS_PROJECT_ADAPTER_IMPLEMENTATION_RUNTIME_HASH"
+    "POOLS_PROJECT_REGISTRATION_HELPER:POOLS_PROJECT_REGISTRATION_HELPER_RUNTIME_HASH"
+  )
+fi
 for pair in "${runtime_pairs[@]}"; do
   address_name="${pair%%:*}"
   hash_name="${pair##*:}"
@@ -147,16 +170,63 @@ build_material="$(
 )"
 export RELEASE_BUILD_HASH="$(printf '%s' "$build_material" | sha256)"
 
+signer_args=()
+if [[ "$simulate_only" == "0" ]]; then
+  if [[ "$unlocked_deployment" == "1" ]]; then
+    signer_args+=(--unlocked)
+  else
+    signer_args+=(--account "$FOUNDRY_ACCOUNT")
+  fi
+fi
+
+compute_create_address() {
+  local nonce="$1"
+  cast compute-address --nonce "$nonce" "$DEPLOYER_ADDRESS" | awk '{print $NF}'
+}
+
+if [[ "$fresh_launchpad_factories" == "1" ]]; then
+  launchpad_dir="$repo_dir/sinjoh-launchpad-adapters"
+  initial_nonce="$(cast nonce "$DEPLOYER_ADDRESS" --rpc-url "$RPC_URL")"
+  export PONS_PROJECT_ADAPTER_FACTORY="$(compute_create_address "$initial_nonce")"
+  export PONS_PROJECT_ADAPTER_IMPLEMENTATION="$(compute_create_address "$((initial_nonce + 1))")"
+  export POOLS_INSTANT_PROJECT_ADAPTER_FACTORY="$(compute_create_address "$((initial_nonce + 2))")"
+  export POOLS_INSTANT_NO_FEE_PROJECT_ADAPTER_FACTORY="$(compute_create_address "$((initial_nonce + 3))")"
+  export POOLS_LBP_PROJECT_ADAPTER_FACTORY="$(compute_create_address "$((initial_nonce + 4))")"
+  export POOLS_PROJECT_REGISTRATION_HELPER="$(compute_create_address "$((initial_nonce + 5))")"
+
+  (
+    cd "$launchpad_dir"
+    forge script script/DeployPonsV2AdapterFactory.s.sol:DeployPonsV2AdapterFactory \
+      --rpc-url "$RPC_URL" --sender "$DEPLOYER_ADDRESS" "${signer_args[@]}" --broadcast
+  )
+  nonce_after_pons="$(cast nonce "$DEPLOYER_ADDRESS" --rpc-url "$RPC_URL")"
+  [[ "$nonce_after_pons" == "$((initial_nonce + 2))" ]] \
+    || fail "Pons factory deployment advanced nonce to $nonce_after_pons, expected $((initial_nonce + 2))"
+
+  (
+    cd "$launchpad_dir"
+    forge script script/DeployPoolsTradeAdapterFactories.s.sol:DeployPoolsTradeAdapterFactories \
+      --rpc-url "$RPC_URL" --sender "$DEPLOYER_ADDRESS" "${signer_args[@]}" --broadcast
+  )
+  nonce_after_pools="$(cast nonce "$DEPLOYER_ADDRESS" --rpc-url "$RPC_URL")"
+  [[ "$nonce_after_pools" == "$((initial_nonce + 6))" ]] \
+    || fail "Pools factory deployment advanced nonce to $nonce_after_pools, expected $((initial_nonce + 6))"
+
+  export PONS_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH="$(cast keccak "$(cast code "$PONS_PROJECT_ADAPTER_FACTORY" --rpc-url "$RPC_URL")")"
+  export PONS_PROJECT_ADAPTER_IMPLEMENTATION_RUNTIME_HASH="$(cast keccak "$(cast code "$PONS_PROJECT_ADAPTER_IMPLEMENTATION" --rpc-url "$RPC_URL")")"
+  export POOLS_INSTANT_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH="$(cast keccak "$(cast code "$POOLS_INSTANT_PROJECT_ADAPTER_FACTORY" --rpc-url "$RPC_URL")")"
+  export POOLS_INSTANT_NO_FEE_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH="$(cast keccak "$(cast code "$POOLS_INSTANT_NO_FEE_PROJECT_ADAPTER_FACTORY" --rpc-url "$RPC_URL")")"
+  export POOLS_LBP_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH="$(cast keccak "$(cast code "$POOLS_LBP_PROJECT_ADAPTER_FACTORY" --rpc-url "$RPC_URL")")"
+  export POOLS_PROJECT_REGISTRATION_HELPER_RUNTIME_HASH="$(cast keccak "$(cast code "$POOLS_PROJECT_REGISTRATION_HELPER" --rpc-url "$RPC_URL")")"
+fi
+
 forge_args=(
   script script/DeployProjectLauncherV2.s.sol:DeployProjectLauncherV2
   --rpc-url "$RPC_URL"
   --sender "$DEPLOYER_ADDRESS"
 )
 if [[ "$simulate_only" == "0" ]]; then
-  forge_args+=(
-    --account "$FOUNDRY_ACCOUNT"
-    --broadcast
-  )
+  forge_args+=("${signer_args[@]}" --broadcast)
 fi
 forge "${forge_args[@]}"
 

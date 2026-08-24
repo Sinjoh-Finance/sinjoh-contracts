@@ -35,6 +35,16 @@ Required environment variables:
 - one corresponding `*_RUNTIME_HASH` for every external address above;
 - `VERIFIER`, `VERIFIER_URL`, and `VERIFIER_API_KEY` for source publication.
 
+For a successor immutable release, set `DEPLOY_FRESH_LAUNCHPAD_FACTORIES=1` and provide
+`PONS_FEE_ESCROW` plus `PONS_FEE_ESCROW_RUNTIME_HASH`. The wrapper then deploys new Pons and
+Pools adapter factories from the reviewed adapter package, verifies the deployer nonce after each
+stage, derives every new address and runtime hash, and binds those unbound factories to the new
+Launcher. In this mode, do not provide the six old factory, implementation, and helper variables
+listed above; they are replaced by the newly deployed addresses. `SIMULATE_ONLY=1` cannot model
+this stateful multi-package sequence. Rehearse it against an Anvil mainnet fork with
+`UNLOCKED_DEPLOYMENT=1`, then run the same wrapper against mainnet with the configured
+`FOUNDRY_ACCOUNT` and `UNLOCKED_DEPLOYMENT=0`.
+
 The deployment derives the eight-leaf integration-approval root and every Merkle proof from the
 three deployed fee-tier guards, the Funding Bands integration factory, the Pons project adapter
 factory, both approved Pools Instant project adapter factories, and the Pools LBP project adapter
