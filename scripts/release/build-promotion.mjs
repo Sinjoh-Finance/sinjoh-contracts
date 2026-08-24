@@ -4,9 +4,12 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadReleaseBundle } from "./release-bundle.mjs";
+import {
+  collectPromotionContracts,
+  resolvePromotionConsumers
+} from "./promotion-model.mjs";
 
 const repoRoot = resolve(import.meta.dirname, "../..");
-const addressPattern = /^0x[0-9a-fA-F]{40}$/;
 const hashPattern = /^0x[0-9a-fA-F]{64}$/;
 
 function argument(name) {
@@ -20,72 +23,6 @@ function git(args) {
 
 function sha256(contents) {
   return createHash("sha256").update(contents).digest("hex");
-}
-
-function collect(value, prefix, contracts) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return;
-  for (const [key, nested] of Object.entries(value)) {
-    if (["bindings", "operations", "supersedes", "verified"].includes(key)) continue;
-    const path = prefix ? `${prefix}.${key}` : key;
-    if (typeof nested === "string" && addressPattern.test(nested)) {
-      const runtimeCodeHash = value[`${key}RuntimeCodeHash`];
-      if (typeof runtimeCodeHash !== "string" || !hashPattern.test(runtimeCodeHash)) continue;
-      const entry = { address: nested };
-      const deploymentBlock = value[`${key}DeploymentBlock`];
-      entry.runtimeCodeHash = runtimeCodeHash.toLowerCase();
-      if (Number.isInteger(deploymentBlock)) entry.deploymentBlock = deploymentBlock;
-      contracts[path] = entry;
-      continue;
-    }
-    if (!nested || typeof nested !== "object" || Array.isArray(nested)) continue;
-    if (typeof nested.address === "string" && addressPattern.test(nested.address)) {
-      const entry = { address: nested.address };
-      for (const field of [
-        "runtimeCodeHash",
-        "deploymentBlock",
-        "deploymentTransaction",
-        "implementation",
-        "implementationRuntimeCodeHash"
-      ]) {
-        if (nested[field] !== undefined) entry[field] = nested[field];
-      }
-      contracts[path] = entry;
-    } else {
-      collect(nested, path, contracts);
-    }
-  }
-}
-
-function resolveConsumers(bindings, contracts, chainId) {
-  const consumers = {};
-  for (const [consumerName, definition] of Object.entries(bindings)) {
-    if (consumerName === "schemaVersion") continue;
-    const consumer = {};
-    if (definition.contracts) {
-      consumer.contracts = {};
-      for (const [name, path] of Object.entries(definition.contracts)) {
-        const entry = contracts[path];
-        if (!entry) throw new Error(`${consumerName}.${name} references missing ${path}`);
-        consumer.contracts[name] = entry;
-      }
-    }
-    if (definition.environment) {
-      consumer.environment = {};
-      for (const [name, binding] of Object.entries(definition.environment)) {
-        if (binding.value !== undefined) {
-          consumer.environment[name] = name.endsWith("CHAIN_ID") ? chainId : binding.value;
-          continue;
-        }
-        const entry = contracts[binding.path];
-        if (!entry || entry[binding.field] === undefined) {
-          throw new Error(`${consumerName}.${name} references missing ${binding.path}.${binding.field}`);
-        }
-        consumer.environment[name] = entry[binding.field];
-      }
-    }
-    consumers[consumerName] = consumer;
-  }
-  return consumers;
 }
 
 const releaseId = argument("--release-id");
@@ -135,12 +72,12 @@ const verifiedRelease = loadReleaseBundle(releaseBundle, {
 });
 const contracts = {};
 if (chainId === 4663) {
-  collect(manifest.currentInfrastructure ?? {}, "contracts", contracts);
-  collect(manifest.dependencies ?? {}, "dependencies", contracts);
-  collect(manifest.letscashDependencies ?? {}, "dependencies.letscash", contracts);
+  collectPromotionContracts(manifest.currentInfrastructure ?? {}, "contracts", contracts);
+  collectPromotionContracts(manifest.dependencies ?? {}, "dependencies", contracts);
+  collectPromotionContracts(manifest.letscashDependencies ?? {}, "dependencies.letscash", contracts);
 } else {
-  collect(manifest.contracts ?? {}, "contracts", contracts);
-  collect(manifest.dependencies ?? {}, "dependencies", contracts);
+  collectPromotionContracts(manifest.contracts ?? {}, "contracts", contracts);
+  collectPromotionContracts(manifest.dependencies ?? {}, "dependencies", contracts);
 }
 if (Object.keys(contracts).length === 0) throw new Error("promotion contains no contracts");
 for (const [path, contract] of Object.entries(contracts)) {
@@ -167,7 +104,7 @@ const promotion = {
   },
   generatedAt: new Date().toISOString(),
   contracts,
-  consumers: resolveConsumers(bindings, contracts, chainId)
+  consumers: resolvePromotionConsumers(bindings, contracts, chainId)
 };
 
 if (channel === "active") {

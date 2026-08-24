@@ -95,6 +95,12 @@ fi
 actual_chain_id="$(cast chain-id --rpc-url "$RPC_URL")"
 [[ "$actual_chain_id" == "$EXPECTED_CHAIN_ID" ]] \
   || fail "RPC chain $actual_chain_id does not match EXPECTED_CHAIN_ID $EXPECTED_CHAIN_ID"
+if [[ "$EXPECTED_CHAIN_ID" == "4663" ]]; then
+  require_environment RPC_VERIFICATION_URL
+  verification_chain_id="$(cast chain-id --rpc-url "$RPC_VERIFICATION_URL")"
+  [[ "$verification_chain_id" == "$EXPECTED_CHAIN_ID" ]] \
+    || fail "verification RPC chain $verification_chain_id does not match EXPECTED_CHAIN_ID $EXPECTED_CHAIN_ID"
+fi
 
 runtime_pairs=(
   "RANDOMNESS_ADAPTER:RANDOMNESS_ADAPTER_RUNTIME_HASH"
@@ -237,6 +243,9 @@ if [[ "$simulate_only" == "1" ]]; then
   echo "release deployment simulation completed from $RELEASE_GIT_COMMIT on chain $EXPECTED_CHAIN_ID"
 else
   node script/verify-deployed-release.mjs "$manifest_path"
+  if [[ -n "${RPC_VERIFICATION_URL:-}" ]]; then
+    RPC_URL="$RPC_VERIFICATION_URL" node script/verify-deployed-release.mjs "$manifest_path"
+  fi
   echo "release deployment completed from $RELEASE_GIT_COMMIT on chain $EXPECTED_CHAIN_ID"
   echo "source verification is separate: ./script/verify-release-sources.sh '$manifest_path'"
 fi
