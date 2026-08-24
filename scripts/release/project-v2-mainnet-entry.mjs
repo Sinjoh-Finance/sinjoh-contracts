@@ -24,10 +24,6 @@ export const projectV2DeploymentKeys = [
   "launcher"
 ];
 
-const receiptParent = {
-  ponsProjectAdapterImplementation: "ponsProjectAdapterFactory"
-};
-
 function successfulReceipt(receipt) {
   if (!receipt) return false;
   try {
@@ -56,23 +52,21 @@ export function buildProjectV2MainnetEntry(manifest, broadcasts) {
     throw new Error("Pons approval proof must contain exactly three bytes32 nodes");
   }
 
-  const receiptByHash = new Map();
-  const transactionByAddress = new Map();
+  const receiptByContractAddress = new Map();
   for (const broadcast of broadcasts) {
     if (broadcast?.chain !== 4663) throw new Error("broadcast chain mismatch");
     for (const receipt of broadcast.receipts ?? []) {
-      const hash = receipt.transactionHash?.toLowerCase();
-      if (hash) receiptByHash.set(hash, receipt);
-    }
-    for (const transaction of broadcast.transactions ?? []) {
-      const address = transaction.contractAddress?.toLowerCase();
-      const hash = transaction.hash?.toLowerCase();
-      if (!address || !hash) continue;
-      const receipt = receiptByHash.get(hash);
-      if (!successfulReceipt(receipt)) {
-        throw new Error(`deployment transaction ${transaction.hash} is missing a successful receipt`);
+      const address = receipt.contractAddress?.toLowerCase();
+      const hash = receipt.transactionHash;
+      if (!address) continue;
+      if (!addressPattern.test(address) || !bytes32Pattern.test(hash ?? "")) {
+        throw new Error("invalid deployment receipt identity");
       }
-      transactionByAddress.set(address, { transaction, receipt });
+      if (!successfulReceipt(receipt)) continue;
+      if (receiptByContractAddress.has(address)) {
+        throw new Error(`multiple successful deployment receipts found for ${address}`);
+      }
+      receiptByContractAddress.set(address, receipt);
     }
   }
 
@@ -84,8 +78,10 @@ export function buildProjectV2MainnetEntry(manifest, broadcasts) {
     if (!bytes32Pattern.test(runtimeCodeHash ?? "")) {
       throw new Error(`invalid release runtime hash ${key}RuntimeHash`);
     }
-    const parent = receiptParent[key];
-    const receiptSource = parent ? deploymentByKey.get(parent) : transactionByAddress.get(address.toLowerCase());
+    const receipt = receiptByContractAddress.get(address.toLowerCase());
+    const receiptSource = receipt
+      ? { transactionHash: receipt.transactionHash, receipt }
+      : undefined;
     if (!receiptSource) throw new Error(`no broadcast receipt found for ${key} at ${address}`);
     deploymentByKey.set(key, receiptSource);
   }
@@ -98,10 +94,10 @@ export function buildProjectV2MainnetEntry(manifest, broadcasts) {
     approvalProof2: manifest.ponsLaunchpadApprovalProof[2]
   };
   for (const key of projectV2DeploymentKeys) {
-    const { transaction, receipt } = deploymentByKey.get(key);
+    const { transactionHash, receipt } = deploymentByKey.get(key);
     entry[key] = {
       address: manifest[key],
-      deploymentTransaction: transaction.hash,
+      deploymentTransaction: transactionHash,
       deploymentBlock: deploymentBlock(receipt),
       runtimeCodeHash: manifest[`${key}RuntimeHash`].toLowerCase()
     };

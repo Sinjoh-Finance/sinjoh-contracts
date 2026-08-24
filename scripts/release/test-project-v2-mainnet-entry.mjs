@@ -23,10 +23,14 @@ for (const [index, key] of projectV2DeploymentKeys.entries()) {
   const address = `0x${(index + 1).toString(16).padStart(40, "0")}`;
   manifest[key] = address;
   manifest[`${key}RuntimeHash`] = `0x${(index + 1).toString(16).padStart(64, "0")}`;
-  if (key === "ponsProjectAdapterImplementation") continue;
   const hash = `0x${(index + 101).toString(16).padStart(64, "0")}`;
   transactions.push({ hash, contractAddress: address });
-  receipts.push({ transactionHash: hash, blockNumber: `0x${block.toString(16)}`, status: "0x1" });
+  receipts.push({
+    transactionHash: hash,
+    contractAddress: address,
+    blockNumber: `0x${block.toString(16)}`,
+    status: "0x1"
+  });
   block += 1;
 }
 
@@ -37,11 +41,31 @@ assert.equal(entry.launcher.address, manifest.launcher);
 assert.equal(entry.launcher.deploymentBlock, block - 1);
 assert.equal(
   entry.ponsProjectAdapterImplementation.deploymentTransaction,
+  receipts.find((receipt) => receipt.contractAddress === manifest.ponsProjectAdapterImplementation)
+    .transactionHash
+);
+assert.notEqual(
+  entry.ponsProjectAdapterImplementation.deploymentTransaction,
   entry.ponsProjectAdapterFactory.deploymentTransaction
 );
 assert.throws(
   () => buildProjectV2MainnetEntry(manifest, [{ chain: 4663, transactions, receipts: [] }]),
-  /missing a successful receipt/
+  /no broadcast receipt found/
+);
+
+// Foundry has emitted transaction rows whose `hash` belongs to another nonce. Receipt
+// contractAddress is the authoritative deployment identity and must win over that association.
+const scrambledTransactions = transactions.map((transaction, index) => ({
+  ...transaction,
+  hash: transactions[(index + 1) % transactions.length].hash
+}));
+const scrambledEntry = buildProjectV2MainnetEntry(
+  manifest,
+  [{ chain: 4663, transactions: scrambledTransactions, receipts }]
+);
+assert.equal(
+  scrambledEntry.launcher.deploymentTransaction,
+  receipts.find((receipt) => receipt.contractAddress === manifest.launcher).transactionHash
 );
 
 console.log("Project V2 mainnet entry tests passed");
