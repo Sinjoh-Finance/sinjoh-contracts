@@ -26,14 +26,23 @@ Required environment variables:
 - `FUNDING_BAND_QUOTE_ASSET`, `FUNDING_BAND_QUOTE_USD_AGGREGATOR`, and their runtime hashes;
 - `RANDOMNESS_ADAPTER` and its approved `RANDOMNESS_ADAPTER_RUNTIME_HASH`;
 - `V3_FACTORY`, `V3_POSITION_MANAGER`, `V4_POSITION_MANAGER`, `V4_STATE_VIEW`, and `PERMIT2`;
+- `PONS_PROJECT_ADAPTER_FACTORY`, `PONS_PROJECT_ADAPTER_IMPLEMENTATION`, and
+  `PONS_LAUNCH_FACTORY`;
+- both Pools Instant project adapter factories,
+  `POOLS_INSTANT_PROJECT_ADAPTER_FACTORY` and
+  `POOLS_INSTANT_NO_FEE_PROJECT_ADAPTER_FACTORY`;
+- `POOLS_LBP_PROJECT_ADAPTER_FACTORY` and `POOLS_PROJECT_REGISTRATION_HELPER`;
 - one corresponding `*_RUNTIME_HASH` for every external address above;
 - `VERIFIER`, `VERIFIER_URL`, and `VERIFIER_API_KEY` for source publication.
 
-The deployment derives the four-leaf integration-approval root and every Merkle proof from the
-three deployed fee-tier guards and the Funding Bands integration factory; operators do not supply
-or approve a root manually. The wrapper derives the immutable git commit, package tree hash, and a
-bytecode build hash covering every production contract embedded in or deployed by the release. The
-manifest schema is
+The deployment derives the eight-leaf integration-approval root and every Merkle proof from the
+three deployed fee-tier guards, the Funding Bands integration factory, the Pons project adapter
+factory, both approved Pools Instant project adapter factories, and the Pools LBP project adapter
+factory; operators do not supply or approve a root manually. In the same broadcast it binds those
+factories to the immutable Project Launcher and Registry, pins the canonical token factories, and
+connects the Pons launch forwarder. The wrapper derives the immutable git commit, package tree
+hash, and a bytecode build hash covering every production contract embedded in or deployed by the
+release. The manifest schema is
 [`release-manifest.schema.json`](./release-manifest.schema.json).
 Implementation and factory addresses are paired with runtime hashes, including the Raffle,
 randomness, and Funding Bands V3 integration factory. Basket and ERC-4626 fields are explicitly
