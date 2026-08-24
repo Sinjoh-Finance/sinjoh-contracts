@@ -13,7 +13,6 @@ import { MockRouter } from "./mocks/PonsV2Mocks.sol";
 
 interface IERC20Like {
     function balanceOf(address account) external view returns (uint256);
-    function approve(address spender, uint256 amount) external returns (bool);
     function decimals() external view returns (uint8);
 }
 
@@ -33,8 +32,8 @@ interface IPonsV2CurveSnipeViews {
     function creatorTaxBalance() external view returns (uint256);
 }
 
-/// @notice Runs the adapter against the real pons v2 deployment on Robinhood
-/// Chain mainnet.
+/// @notice Runs the adapter against the current Pons v2 deployment on Robinhood
+/// Chain mainnet through an explicitly supplied managed RPC.
 ///
 /// The unit suite only proves the adapter behaves as I modelled pons. This
 /// suite proves the model is right: every signature here was transcribed from
@@ -42,30 +41,27 @@ interface IPonsV2CurveSnipeViews {
 /// transcription error would pass the mocks and fail in production.
 ///
 /// Requires network access. Run with:
-///   forge test --match-path 'test/PonsV2Mainnet.fork.t.sol'
+///   SINJOH_RPC_PRIMARY=<managed-chainstack-url> forge test \
+///     --match-path 'test/PonsV2Mainnet.fork.t.sol'
 contract PonsV2MainnetForkTest is TestBase {
-    // The 2026-08 redeployment. The original v2 factory at 0x7E1EAbd5… was
-    // paused at block 24672804 and superseded; the first launch through this
-    // factory that Sinjoh verified end-to-end is
-    // 0xf985da537a04c35fc720fcd9539e2ba12ffb7d59d6cd86c68a1072181c07c13c.
-    address constant LAUNCH_FACTORY = 0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e;
+    address constant LAUNCH_FACTORY = 0x7DCeEaB0A53684b001A4900768a52eAcDb27294e;
     address constant FEE_ESCROW = 0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e;
     address constant WETH = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
     address constant USDG = 0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168;
     uint256 constant CHAIN_ID = 4663;
     bytes32 constant USER_SALT = keccak256("sinjoh-v2-fork");
 
-    string constant DEFAULT_RPC = "https://rpc.mainnet.chain.robinhood.com";
-
     SinjohPonsV2AdapterFactory adapterFactory;
     MockRouter router;
     address creator = address(0xC4EA704);
     address keeper = address(0xBEEF);
 
-    address constant PONS_OWNER = 0xFdDE5a1E3cDF791Da71E49F817D70C7ceD72CC36;
+    address constant PONS_OWNER = 0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49;
 
     function setUp() public {
-        vm.createSelectFork(vm.envOr("ROBINHOOD_RPC_URL", DEFAULT_RPC));
+        string memory rpcUrl = vm.envOr("SINJOH_RPC_PRIMARY", string(""));
+        require(bytes(rpcUrl).length != 0, "SINJOH_RPC_PRIMARY is required");
+        vm.createSelectFork(rpcUrl);
         adapterFactory = new SinjohPonsV2AdapterFactory(LAUNCH_FACTORY, FEE_ESCROW, WETH, CHAIN_ID);
         router = new MockRouter();
         vm.deal(creator, 100 ether);
@@ -128,17 +124,6 @@ contract PonsV2MainnetForkTest is TestBase {
         return IPonsV2LaunchFactory(LAUNCH_FACTORY).previewLaunchEconomics(0, pairToken);
     }
 
-    function _dealToken(address token, address to, uint256 amount) internal {
-        for (uint256 slot; slot < 16; ++slot) {
-            bytes32 key = keccak256(abi.encode(to, slot));
-            bytes32 previous = vm.load(token, key);
-            vm.store(token, key, bytes32(amount));
-            if (IERC20Like(token).balanceOf(to) == amount) return;
-            vm.store(token, key, previous);
-        }
-        revert("balance slot not found");
-    }
-
     /// @dev The pinned dependency graph must agree with itself on chain. If
     /// pons repointed its escrow, the adapter constructor is where we find out.
     /// `launchEnabled` is deliberately not asserted here — setUp normalises it,
@@ -156,9 +141,8 @@ contract PonsV2MainnetForkTest is TestBase {
     /// clone is a fresh address each time and can never be pre-whitelisted, so
     /// a persistent pause would require a singleton launcher instead. See
     /// PONS-V2-FINDINGS.md.
-    function test_whitelistIsPerCallerNotPerCreator() public view {
+    function test_freshAdapterCannotRelyOnWhitelist() public view {
         IPonsV2LaunchFactoryAdmin admin = IPonsV2LaunchFactoryAdmin(LAUNCH_FACTORY);
-        assertTrue(admin.whitelistedLaunchers(PONS_OWNER));
         // A clone address that has never launched is not, and cannot be,
         // whitelisted ahead of time.
         assertTrue(!admin.whitelistedLaunchers(adapterFactory.predictAddress(creator, USER_SALT)));
@@ -173,10 +157,8 @@ contract PonsV2MainnetForkTest is TestBase {
         );
     }
 
-    function test_usdgIsApprovedWithSixDecimals() public view {
-        assertTrue(IPonsV2LaunchFactory(LAUNCH_FACTORY).approvedPairTokens(USDG));
-        (,, uint8 decimals) = IPonsV2LaunchFactory(LAUNCH_FACTORY).pairTokenEconomics(USDG);
-        assertEq(uint256(decimals), 6);
+    function test_usdgIsNotApprovedByCurrentFactory() public view {
+        assertTrue(!IPonsV2LaunchFactory(LAUNCH_FACTORY).approvedPairTokens(USDG));
         assertEq(uint256(IERC20Like(USDG).decimals()), 6);
     }
 
@@ -252,49 +234,18 @@ contract PonsV2MainnetForkTest is TestBase {
         assertEq(IERC20Like(WETH).balanceOf(address(adapter)), 0);
     }
 
-    /// @dev The 81% case. A USDG launch must accrue, claim and forward in USDG
-    /// at 6 decimals without ever touching WETH.
-    function test_usdgPairedLaunchAccruesAndForwardsInUsdg() public {
+    /// @dev The current factory exposes no approved custom pair. The adapter
+    /// must reject a stale USDG choice before pulling funds or launching.
+    function test_unapprovedUsdgPairFailsClosed() public {
         SinjohPonsV2Adapter adapter = _deployAdapter();
         uint256 launchFee = IPonsV2LaunchFactory(LAUNCH_FACTORY).launchFee();
 
         IPonsV2LaunchFactory.TokenParams memory params = _params(address(adapter), _economics(USDG));
         vm.prank(creator);
-        (, address curve) = adapter.launch{ value: launchFee }(params, 0, USDG, 0, 0, _none());
-
-        assertEq(IPonsV2BondingCurve(curve).pairToken(), USDG);
-        assertTrue(!IPonsV2BondingCurve(curve).isNativeQuote());
-
-        address[] memory assets = adapter.intakeAssets();
-        assertEq(assets.length, 1);
-        assertEq(assets[0], USDG);
-
-        address trader = address(0xD00D);
-        uint256 quoteIn = 100e6;
-        _dealToken(USDG, trader, quoteIn);
-        _warpPastSnipeWindow();
-        vm.prank(trader);
-        IERC20Like(USDG).approve(curve, quoteIn);
-        vm.prank(trader);
-        IPonsV2BondingCurve(curve).buy(quoteIn, 1, trader);
-
-        assertTrue(IPonsV2BondingCurve(curve).quoteFeeBalance() > 0);
-        assertEq(IPonsV2FeeEscrow(FEE_ESCROW).balanceOfToken(address(adapter), USDG), 0);
-
-        vm.prank(keeper);
-        uint256[] memory amounts = adapter.collect();
-        assertTrue(amounts[0] > 0);
-        assertEq(IPonsV2BondingCurve(curve).quoteFeeBalance(), 0);
-        assertEq(IERC20Like(USDG).balanceOf(address(adapter)), amounts[0]);
-
-        vm.prank(keeper);
-        assertEq(adapter.forward(USDG), amounts[0]);
-        assertEq(IERC20Like(USDG).balanceOf(address(router)), amounts[0]);
-        assertEq(IERC20Like(USDG).balanceOf(address(adapter)), 0);
-
-        // A USDG launch must never be able to forward WETH.
-        vm.expectRevert(abi.encodeWithSelector(SinjohPonsV2Adapter.UnsupportedAsset.selector, WETH));
-        adapter.forward(WETH);
+        vm.expectRevert(
+            abi.encodeWithSelector(SinjohPonsV2Adapter.PairTokenNotApproved.selector, USDG)
+        );
+        adapter.launch{ value: launchFee }(params, 0, USDG, 0, 0, _none());
     }
 
     /// @dev The end state of every successful launch. A buy that crosses the
@@ -333,6 +284,47 @@ contract PonsV2MainnetForkTest is TestBase {
         vm.prank(keeper);
         assertEq(adapter.forward(WETH), nativeAmount);
         assertEq(IERC20Like(WETH).balanceOf(address(router)), nativeAmount);
+    }
+
+    /// @dev Proves the current live deployment's full two-phase graduation:
+    /// the curve sweep leaves a retryable `Swept` record, then any account can
+    /// create the V4 pool without replacing the launched token.
+    function test_currentFactoryCompletesTwoPhaseGraduationWithSameToken() public {
+        SinjohPonsV2Adapter adapter = _deployAdapter();
+        uint256 launchFee = IPonsV2LaunchFactory(LAUNCH_FACTORY).launchFee();
+        IPonsV2LaunchFactory.TokenParams memory params =
+            _params(address(adapter), _economics(address(0)));
+
+        vm.prank(creator);
+        (address token, address curve) =
+            adapter.launch{ value: launchFee }(params, 0, address(0), 0, 0, _none());
+
+        address whale = address(0xDECAFBAD);
+        vm.deal(whale, 100 ether);
+        _warpPastSnipeWindow();
+        vm.prank(whale);
+        IPonsV2BondingCurve(curve).buy{ value: 10 ether }(10 ether, 1, whale);
+
+        IPonsV2LaunchFactory.LaunchedToken memory swept =
+            IPonsV2LaunchFactory(LAUNCH_FACTORY).getLaunchedToken(token);
+        assertEq(uint256(swept.phase), 1);
+        assertEq(swept.token, token);
+        assertEq(swept.curve, curve);
+        assertEq(IPonsV2BondingCurve(curve).token(), token);
+        assertTrue(swept.sweptQuote > 0);
+        assertTrue(swept.sweptTokens > 0);
+
+        vm.prank(keeper);
+        uint256 positionId = IPonsV2LaunchFactory(LAUNCH_FACTORY).createGraduatedPool(token);
+        assertTrue(positionId != 0);
+
+        IPonsV2LaunchFactory.LaunchedToken memory graduated =
+            IPonsV2LaunchFactory(LAUNCH_FACTORY).getLaunchedToken(token);
+        assertEq(uint256(graduated.phase), 2);
+        assertEq(graduated.token, token);
+        assertEq(graduated.curve, curve);
+        assertEq(graduated.sweptQuote, 0);
+        assertEq(graduated.sweptTokens, 0);
     }
 
     function test_collectOnIdleLaunchIsNoOpOnChain() public {
