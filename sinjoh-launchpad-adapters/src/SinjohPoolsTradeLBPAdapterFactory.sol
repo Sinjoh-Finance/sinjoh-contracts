@@ -3,6 +3,18 @@ pragma solidity 0.8.28;
 
 import { Clones } from "./libraries/Clones.sol";
 import { SinjohPoolsTradeLBPAdapter } from "./SinjohPoolsTradeLBPAdapter.sol";
+import { ProjectVotesToken } from "@sinjoh-v2/token/ProjectVotesToken.sol";
+import {
+    LaunchpadProjectVotesTokenFactoryV2
+} from "@sinjoh-v2/token/LaunchpadProjectVotesTokenFactoryV2.sol";
+
+interface ILBPAdapterIdentity {
+    function creator() external view returns (address);
+}
+
+interface ILBPProjectLauncherBinding {
+    function registry() external view returns (address);
+}
 
 /// @notice Deploys per-launch pools.trade LBP adapters as EIP-1167 clones and
 /// keeps the subject registry the buyback route resolves pool keys through.
@@ -19,6 +31,8 @@ contract SinjohPoolsTradeLBPAdapterFactory {
     error ConfigMismatch();
     error Unauthorized();
     error SubjectAlreadyRegistered(address subject);
+    error InvalidAddress();
+    error AlreadyBound();
 
     event AdapterDeployed(
         address indexed adapter,
@@ -40,6 +54,11 @@ contract SinjohPoolsTradeLBPAdapterFactory {
     address public immutable merkleClaimFactory;
     address public immutable weth;
     uint256 public immutable deploymentChainId;
+    address public immutable binder;
+    address public projectLauncher;
+    address public projectRegistry;
+    address public projectTokenFactory;
+    address public projectRegistrationHelper;
 
     /// @notice Clones this factory deployed; the only addresses allowed to
     /// register a subject.
@@ -75,6 +94,76 @@ contract SinjohPoolsTradeLBPAdapterFactory {
         merkleClaimFactory = merkleClaimFactory_;
         weth = weth_;
         deploymentChainId = chainId_;
+        binder = msg.sender;
+    }
+
+    function bindProjectV2(
+        address projectLauncher_,
+        address registry_,
+        address tokenFactory_,
+        address registrationHelper_
+    ) external {
+        if (msg.sender != binder) revert Unauthorized();
+        if (projectLauncher != address(0)) revert AlreadyBound();
+        if (
+            projectLauncher_.code.length == 0 || registry_.code.length == 0
+                || tokenFactory_.code.length == 0 || registrationHelper_.code.length == 0
+                || ILBPProjectLauncherBinding(projectLauncher_).registry() != registry_
+        ) revert InvalidAddress();
+        projectLauncher = projectLauncher_;
+        projectRegistry = registry_;
+        projectTokenFactory = tokenFactory_;
+        projectRegistrationHelper = registrationHelper_;
+    }
+
+    function deployProjectToken(
+        address creator,
+        string calldata name,
+        string calldata symbol,
+        uint128 totalSupply,
+        bytes32 salt
+    ) external returns (address token) {
+        if (!isAdapter[msg.sender] || ILBPAdapterIdentity(msg.sender).creator() != creator) {
+            revert Unauthorized();
+        }
+        return LaunchpadProjectVotesTokenFactoryV2(projectTokenFactory)
+            .deploy(_projectTokenDeployment(creator, name, symbol, totalSupply, salt));
+    }
+
+    function predictProjectToken(
+        address creator,
+        string calldata name,
+        string calldata symbol,
+        uint128 totalSupply,
+        bytes32 salt
+    ) external view returns (address) {
+        return LaunchpadProjectVotesTokenFactoryV2(projectTokenFactory)
+            .predict(
+                _projectTokenDeployment(creator, name, symbol, totalSupply, salt), address(this)
+            );
+    }
+
+    function _projectTokenDeployment(
+        address creator,
+        string calldata name,
+        string calldata symbol,
+        uint128 totalSupply,
+        bytes32 salt
+    ) private view returns (LaunchpadProjectVotesTokenFactoryV2.TokenDeployment memory deployment) {
+        ProjectVotesToken.TokenAllocation[] memory allocations =
+            new ProjectVotesToken.TokenAllocation[](1);
+        allocations[0] =
+            ProjectVotesToken.TokenAllocation({ recipient: launcher, amount: totalSupply });
+        deployment = LaunchpadProjectVotesTokenFactoryV2.TokenDeployment({
+            name: name,
+            symbol: symbol,
+            registry: projectRegistry,
+            creator: creator,
+            allocations: allocations,
+            votingExclusions: new address[](0),
+            votingExclusionConfigurator: projectLauncher,
+            salt: salt
+        });
     }
 
     /// @notice Deploys the adapter for one launch. Idempotent: a second call

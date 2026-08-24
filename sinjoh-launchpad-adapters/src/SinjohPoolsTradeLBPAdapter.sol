@@ -21,6 +21,7 @@ import {
     PTTokenMetadata
 } from "./interfaces/IPoolsTrade.sol";
 import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
+import { PoolsProjectRegistrationHelper } from "./PoolsProjectRegistrationHelper.sol";
 
 interface ISinjohFeeRouterLBP {
     function launchpadAdapter() external view returns (address);
@@ -29,6 +30,24 @@ interface ISinjohFeeRouterLBP {
 
 interface ISinjohPoolsTradeLBPAdapterFactory {
     function registerSubject(address subject) external;
+    function projectLauncher() external view returns (address);
+    function projectRegistry() external view returns (address);
+    function projectTokenFactory() external view returns (address);
+    function projectRegistrationHelper() external view returns (address);
+    function deployProjectToken(
+        address creator,
+        string calldata name,
+        string calldata symbol,
+        uint128 totalSupply,
+        bytes32 salt
+    ) external returns (address token);
+    function predictProjectToken(
+        address creator,
+        string calldata name,
+        string calldata symbol,
+        uint128 totalSupply,
+        bytes32 salt
+    ) external view returns (address token);
 }
 
 /// @notice Launches on pools.trade's LBPStrategy — a continuous clearing
@@ -81,6 +100,7 @@ contract SinjohPoolsTradeLBPAdapter is ISinjohLaunchpadAdapter {
     error PositionPoolMismatch(uint256 tokenId);
     error TooManyPositions();
     error UnexpectedBalanceDelta(address asset, uint256 expected, uint256 actual);
+    error ProjectRegistrationFailed(bytes reason);
 
     event Initialized(address indexed router, address indexed creator);
     event Launched(
@@ -248,7 +268,7 @@ contract SinjohPoolsTradeLBPAdapter is ISinjohLaunchpadAdapter {
         if (initialized) revert AlreadyInitialized();
         initialized = true;
         if (
-            router_.code.length == 0 || creator_ == address(0) || router_ == address(this)
+            router_ == address(0) || creator_ == address(0) || router_ == address(this)
                 || creator_ == address(this) || router_ == creator_
         ) {
             revert InvalidAddress();
@@ -276,6 +296,16 @@ contract SinjohPoolsTradeLBPAdapter is ISinjohLaunchpadAdapter {
                 launcher,
                 IPTLiquidityLauncher(launcher).getGraffiti(address(this))
             );
+    }
+
+    function predictProjectSubject(
+        string calldata name,
+        string calldata symbol,
+        uint128 totalSupply,
+        bytes32 salt
+    ) external view returns (address) {
+        return ISinjohPoolsTradeLBPAdapterFactory(factory)
+            .predictProjectToken(creator, name, symbol, totalSupply, salt);
     }
 
     /// @notice Creates the token, starts its auction, and (optionally) splits
@@ -309,7 +339,7 @@ contract SinjohPoolsTradeLBPAdapter is ISinjohLaunchpadAdapter {
         (PTMigratorParameters memory migratorParams, bytes memory auctionParams) =
             _buildDistributionParams(params, predicted);
 
-        token = _launchViaLauncher(params, predicted, migratorParams, auctionParams);
+        token = _launchViaLauncher(params, predicted, migratorParams, auctionParams, true);
 
         auction = _verifyInitializer(params, token, migratorParams, auctionParams);
 
@@ -323,6 +353,36 @@ contract SinjohPoolsTradeLBPAdapter is ISinjohLaunchpadAdapter {
 
         ISinjohPoolsTradeLBPAdapterFactory(factory).registerSubject(token);
         ISinjohFeeRouterLBP(router_).bind(token);
+    }
+
+    function launchProjectV2(
+        LBPLaunchParams calldata params,
+        bytes32 projectSalt,
+        bytes calldata projectLaunchData
+    ) external nonReentrant returns (address token, address auction) {
+        _assertChain();
+        if (msg.sender != creator) revert Unauthorized();
+        if (launched) revert AlreadyLaunched();
+        launched = true;
+        _validateLaunchParams(params);
+        token = ISinjohPoolsTradeLBPAdapterFactory(factory)
+            .deployProjectToken(
+                creator, params.name, params.symbol, params.totalSupply, projectSalt
+            );
+        (PTMigratorParameters memory migratorParams, bytes memory auctionParams) =
+            _buildDistributionParams(params, token);
+        token = _launchViaLauncher(params, token, migratorParams, auctionParams, false);
+        auction = _verifyInitializer(params, token, migratorParams, auctionParams);
+
+        subject = token;
+        currency = params.currency;
+        initializer = auction;
+        committedPool = PTPoolParameters({
+            fee: params.poolFee, tickSpacing: params.poolTickSpacing, hook: params.poolHook
+        });
+        ISinjohPoolsTradeLBPAdapterFactory(factory).registerSubject(token);
+        _registerProject(token, auction, projectSalt, projectLaunchData);
+        emit Launched(token, auction, params.currency, params.migrationBlock);
     }
 
     function _validateLaunchParams(LBPLaunchParams calldata params) private view {
@@ -408,24 +468,29 @@ contract SinjohPoolsTradeLBPAdapter is ISinjohLaunchpadAdapter {
         LBPLaunchParams calldata params,
         address predicted,
         PTMigratorParameters memory migratorParams,
-        bytes memory auctionParams
+        bytes memory auctionParams,
+        bool createToken
     ) private returns (address token) {
         bool hasSplits = params.splits.length != 0;
         uint256 merkleCount = params.merkleLegs.length;
-        bytes[] memory calls = new bytes[]((hasSplits ? 3 : 2) + merkleCount);
-        calls[0] = abi.encodeCall(
-            IPTLiquidityLauncher.createToken,
-            (
-                tokenFactory,
-                params.name,
-                params.symbol,
-                18,
-                params.totalSupply,
-                launcher,
-                abi.encode(params.metadata)
-            )
-        );
-        calls[1] = abi.encodeCall(
+        bytes[] memory calls =
+            new bytes[]((hasSplits ? 2 : 1) + merkleCount + (createToken ? 1 : 0));
+        uint256 next;
+        if (createToken) {
+            calls[next++] = abi.encodeCall(
+                IPTLiquidityLauncher.createToken,
+                (
+                    tokenFactory,
+                    params.name,
+                    params.symbol,
+                    18,
+                    params.totalSupply,
+                    launcher,
+                    abi.encode(params.metadata)
+                )
+            );
+        }
+        calls[next++] = abi.encodeCall(
             IPTLiquidityLauncher.distributeToken,
             (
                 predicted,
@@ -437,7 +502,6 @@ contract SinjohPoolsTradeLBPAdapter is ISinjohLaunchpadAdapter {
                 params.distributionSalt
             )
         );
-        uint256 next = 2;
         if (hasSplits) {
             uint256 splitTotal;
             for (uint256 i = 0; i < params.splits.length; i++) {
@@ -478,9 +542,45 @@ contract SinjohPoolsTradeLBPAdapter is ISinjohLaunchpadAdapter {
             );
         }
         bytes[] memory results = IPTLiquidityLauncher(launcher).multicall(calls);
-        token = abi.decode(results[0], (address));
+        token = createToken ? abi.decode(results[0], (address)) : predicted;
         if (token != predicted || token.code.length == 0) {
             revert LaunchReturnedWrongToken(predicted, token);
+        }
+    }
+
+    function _registerProject(
+        address token,
+        address auction,
+        bytes32 projectSalt,
+        bytes calldata projectLaunchData
+    ) private {
+        ISinjohPoolsTradeLBPAdapterFactory projectFactory =
+            ISinjohPoolsTradeLBPAdapterFactory(factory);
+        address[] memory custody = new address[](5);
+        custody[0] = address(this);
+        custody[1] = launcher;
+        custody[2] = lbpStrategy;
+        custody[3] = poolManager;
+        custody[4] = auction;
+        (bool success, bytes memory reason) = projectFactory.projectRegistrationHelper()
+            .delegatecall(
+                abi.encodeCall(
+                    PoolsProjectRegistrationHelper.registerEncoded,
+                    (
+                        projectFactory.projectLauncher(),
+                        token,
+                        router,
+                        custody,
+                        projectSalt,
+                        projectLaunchData
+                    )
+                )
+            );
+        if (!success) {
+            if (reason.length == 0) revert ProjectRegistrationFailed(reason);
+            assembly {
+                revert(add(reason, 0x20), mload(reason))
+            }
         }
     }
 
