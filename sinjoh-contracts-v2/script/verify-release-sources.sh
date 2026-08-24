@@ -85,6 +85,10 @@ done
 
 verify registry src/core/ProjectRegistryV2.sol:ProjectRegistryV2
 verify deploymentEngine src/core/ProjectLaunchDeployerV2.sol:ProjectLaunchDeployerV2
+verify launchValidator src/core/ProjectLaunchValidatorV2.sol:ProjectLaunchValidatorV2
 verify launcher src/core/ProjectLauncherV2.sol:ProjectLauncherV2
+verify ponsProjectTokenFactory src/token/ProjectVotesTokenFactoryV2.sol:ProjectVotesTokenFactoryV2
+verify launchpadProjectTokenFactory \
+  src/token/LaunchpadProjectVotesTokenFactoryV2.sol:LaunchpadProjectVotesTokenFactoryV2
 
 echo "verified all release sources from $manifest_path"

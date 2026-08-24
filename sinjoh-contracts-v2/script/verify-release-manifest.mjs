@@ -16,7 +16,10 @@ const required = [
   "chainId", "protocolVersion", "gitCommit", "sourceTreeHash", "buildHash", "compiler",
   "evmVersion", "optimizerEnabled", "optimizerRuns", "viaIr",
   "broadcaster", "protocolFeeRecipient",
-  "registry", "deploymentEngine", "launcher", "raffleImplementation",
+  "registry", "deploymentEngine", "launchValidator", "launcher",
+  "ponsProjectTokenFactory", "launchpadProjectTokenFactory", "raffleImplementation",
+  "launchValidatorRuntimeHash", "ponsProjectTokenFactoryRuntimeHash",
+  "launchpadProjectTokenFactoryRuntimeHash",
   "raffleImplementationRuntimeHash",
   "randomnessAdapter", "randomnessAdapterRuntimeHash",
   "basketEnabled",
@@ -38,6 +41,12 @@ const required = [
   "projectV3PriceGuard10000RuntimeHash", "swapApprovalLeaf500", "swapApprovalLeaf3000",
   "swapApprovalLeaf10000", "fundingBandIntegrationLeaf", "swapApprovalProof500",
   "swapApprovalProof3000", "swapApprovalProof10000", "fundingBandIntegrationProof",
+  "ponsProjectAdapterFactory", "ponsProjectAdapterFactoryRuntimeHash",
+  "poolsInstantProjectAdapterFactory", "poolsInstantProjectAdapterFactoryRuntimeHash",
+  "poolsLbpProjectAdapterFactory", "poolsLbpProjectAdapterFactoryRuntimeHash",
+  "ponsLaunchpadApprovalLeaf", "poolsInstantLaunchpadApprovalLeaf",
+  "poolsLbpLaunchpadApprovalLeaf", "ponsLaunchpadApprovalProof",
+  "poolsInstantLaunchpadApprovalProof", "poolsLbpLaunchpadApprovalProof",
   "registryRuntimeHash", "deploymentEngineRuntimeHash", "launcherRuntimeHash",
   "tokenCreationCodeHash", "multisigCreationCodeHash", "timelockCreationCodeHash",
   "stakingCreationCodeHash", "treasuryCreationCodeHash", "airdropCreationCodeHash",
@@ -93,6 +102,12 @@ const approvedReleaseValues = {
   v4StateViewRuntimeHash: "V4_STATE_VIEW_RUNTIME_HASH",
   permit2: "PERMIT2",
   permit2RuntimeHash: "PERMIT2_RUNTIME_HASH",
+  ponsProjectAdapterFactory: "PONS_PROJECT_ADAPTER_FACTORY",
+  ponsProjectAdapterFactoryRuntimeHash: "PONS_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH",
+  poolsInstantProjectAdapterFactory: "POOLS_INSTANT_PROJECT_ADAPTER_FACTORY",
+  poolsInstantProjectAdapterFactoryRuntimeHash: "POOLS_INSTANT_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH",
+  poolsLbpProjectAdapterFactory: "POOLS_LBP_PROJECT_ADAPTER_FACTORY",
+  poolsLbpProjectAdapterFactoryRuntimeHash: "POOLS_LBP_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH",
 };
 for (const [key, environmentKey] of Object.entries(approvedReleaseValues)) {
   if (manifest[key].toLowerCase() !== process.env[environmentKey].toLowerCase()) {
@@ -102,13 +117,15 @@ for (const [key, environmentKey] of Object.entries(approvedReleaseValues)) {
 if (manifest.integrationApprovalRoot === zeroBytes32) {
   throw new Error("release manifest integrationApprovalRoot must be nonzero");
 }
-for (const key of [
-  "swapApprovalProof500", "swapApprovalProof3000", "swapApprovalProof10000",
-  "fundingBandIntegrationProof",
+for (const [key, expectedLength] of [
+  ["swapApprovalProof500", 3], ["swapApprovalProof3000", 3],
+  ["swapApprovalProof10000", 3], ["fundingBandIntegrationProof", 3],
+  ["ponsLaunchpadApprovalProof", 3], ["poolsInstantLaunchpadApprovalProof", 3],
+  ["poolsLbpLaunchpadApprovalProof", 2],
 ]) {
-  if (!Array.isArray(manifest[key]) || manifest[key].length !== 2
+  if (!Array.isArray(manifest[key]) || manifest[key].length !== expectedLength
       || manifest[key].some((value) => !bytes32Pattern.test(value))) {
-    throw new Error(`release manifest '${key}' must contain exactly two bytes32 nodes`);
+    throw new Error(`release manifest '${key}' must contain exactly ${expectedLength} bytes32 nodes`);
   }
 }
 
@@ -119,6 +136,9 @@ const doubleHash = (types, values) => keccak256(keccak256(encodeAbiParameters(ty
 const swapDomain = keccak256(stringToHex("SINJOH_V2_SWAP_INTEGRATION_APPROVAL"));
 const fundingBandFactoryDomain = keccak256(
   stringToHex("SINJOH_V2_FUNDING_BAND_FACTORY_INTEGRATION"),
+);
+const launchpadFactoryDomain = keccak256(
+  stringToHex("SINJOH_V2_LAUNCHPAD_FACTORY_APPROVAL"),
 );
 const swapLeaf = (guard, guardRuntimeHash) => doubleHash(
   [bytes32Type, uint256Type, addressType, bytes32Type, addressType, bytes32Type],
@@ -162,13 +182,28 @@ const computedLeaves = {
       manifest.fundingBandQuoteUsdOracleRuntimeHash,
     ],
   ),
+  ponsLaunchpadApprovalLeaf: doubleHash(
+    [bytes32Type, uint256Type, addressType, bytes32Type],
+    [launchpadFactoryDomain, BigInt(manifest.chainId), manifest.ponsProjectAdapterFactory,
+      manifest.ponsProjectAdapterFactoryRuntimeHash],
+  ),
+  poolsInstantLaunchpadApprovalLeaf: doubleHash(
+    [bytes32Type, uint256Type, addressType, bytes32Type],
+    [launchpadFactoryDomain, BigInt(manifest.chainId), manifest.poolsInstantProjectAdapterFactory,
+      manifest.poolsInstantProjectAdapterFactoryRuntimeHash],
+  ),
+  poolsLbpLaunchpadApprovalLeaf: doubleHash(
+    [bytes32Type, uint256Type, addressType, bytes32Type],
+    [launchpadFactoryDomain, BigInt(manifest.chainId), manifest.poolsLbpProjectAdapterFactory,
+      manifest.poolsLbpProjectAdapterFactoryRuntimeHash],
+  ),
 };
 for (const [key, computed] of Object.entries(computedLeaves)) {
   if (manifest[key].toLowerCase() !== computed.toLowerCase()) {
     throw new Error(`release manifest '${key}' does not match its exact approved integration`);
   }
 }
-if (new Set(Object.values(computedLeaves).map((value) => value.toLowerCase())).size !== 4) {
+if (new Set(Object.values(computedLeaves).map((value) => value.toLowerCase())).size !== 7) {
   throw new Error("release manifest integration approval leaves must be unique");
 }
 const processProof = (leaf, proof) => proof.reduce((hash, sibling) => {
@@ -180,6 +215,9 @@ const proofFields = {
   swapApprovalLeaf3000: "swapApprovalProof3000",
   swapApprovalLeaf10000: "swapApprovalProof10000",
   fundingBandIntegrationLeaf: "fundingBandIntegrationProof",
+  ponsLaunchpadApprovalLeaf: "ponsLaunchpadApprovalProof",
+  poolsInstantLaunchpadApprovalLeaf: "poolsInstantLaunchpadApprovalProof",
+  poolsLbpLaunchpadApprovalLeaf: "poolsLbpLaunchpadApprovalProof",
 };
 for (const [leafField, proofField] of Object.entries(proofFields)) {
   const computedRoot = processProof(manifest[leafField], manifest[proofField]);
@@ -196,7 +234,8 @@ for (const [key, value] of Object.entries(manifest)) {
     key.endsWith("Factory") || key.endsWith("Manager") || key.endsWith("Implementation")
       || key.endsWith("Adapter") || key.endsWith("Guard") || key.endsWith("Oracle")
       || key.endsWith("Aggregator") || key.endsWith("Asset")
-      || ["broadcaster", "protocolFeeRecipient", "registry", "deploymentEngine", "launcher",
+      || ["broadcaster", "protocolFeeRecipient", "registry", "deploymentEngine",
+        "launchValidator", "launcher", "ponsProjectTokenFactory", "launchpadProjectTokenFactory",
         "randomnessAdapter", "v3Factory", "v4StateView", "permit2"].includes(key)
   ) {
     if (

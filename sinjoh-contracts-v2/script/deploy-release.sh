@@ -53,6 +53,9 @@ required_environment=(
   V3_FACTORY V3_FACTORY_RUNTIME_HASH V3_POSITION_MANAGER V3_POSITION_MANAGER_RUNTIME_HASH
   V4_POSITION_MANAGER V4_POSITION_MANAGER_RUNTIME_HASH V4_STATE_VIEW V4_STATE_VIEW_RUNTIME_HASH
   PERMIT2 PERMIT2_RUNTIME_HASH
+  PONS_PROJECT_ADAPTER_FACTORY PONS_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH
+  POOLS_INSTANT_PROJECT_ADAPTER_FACTORY POOLS_INSTANT_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH
+  POOLS_LBP_PROJECT_ADAPTER_FACTORY POOLS_LBP_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH
 )
 for environment_name in "${required_environment[@]}"; do
   require_environment "$environment_name"
@@ -82,6 +85,9 @@ runtime_pairs=(
   "V4_POSITION_MANAGER:V4_POSITION_MANAGER_RUNTIME_HASH"
   "V4_STATE_VIEW:V4_STATE_VIEW_RUNTIME_HASH"
   "PERMIT2:PERMIT2_RUNTIME_HASH"
+  "PONS_PROJECT_ADAPTER_FACTORY:PONS_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH"
+  "POOLS_INSTANT_PROJECT_ADAPTER_FACTORY:POOLS_INSTANT_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH"
+  "POOLS_LBP_PROJECT_ADAPTER_FACTORY:POOLS_LBP_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH"
 )
 for pair in "${runtime_pairs[@]}"; do
   address_name="${pair%%:*}"
@@ -112,7 +118,8 @@ release_contracts=(
   UniswapV3FundingBandMarketCapGuard UniswapV3FundingBandPositionAdapter
   FundingBandV3IntegrationFactory FundingBandQuoteUsdOracleAdapter ProjectV3TwapPriceGuard
   CreationCodeStoreV2 ProjectRegistryV2
-  ProjectLaunchDeployerV2 ProjectLauncherV2
+  ProjectLaunchDeployerV2 ProjectLaunchValidatorV2 ProjectLauncherV2
+  ProjectVotesTokenFactoryV2 LaunchpadProjectVotesTokenFactoryV2
 )
 
 # Foundry's global --sizes gate also includes deliberately oversized test harnesses. Enforce the

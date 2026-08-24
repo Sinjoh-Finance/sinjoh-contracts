@@ -20,6 +20,7 @@ import { ProjectTimelockV2 } from "../src/governance/ProjectTimelockV2.sol";
 import { ProjectLiquidityManagerV2 } from "../src/liquidity/ProjectLiquidityManagerV2.sol";
 import { ProjectV3TwapPriceGuard } from "../src/integrations/ProjectV3TwapPriceGuard.sol";
 import { IntegrationApproval } from "../src/libraries/IntegrationApproval.sol";
+import { LaunchpadApproval } from "../src/libraries/LaunchpadApproval.sol";
 import { ProjectMultisigAccountV2 } from "../src/multisig/ProjectMultisigAccountV2.sol";
 import { ProjectRaffleV2 } from "../src/raffle/ProjectRaffleV2.sol";
 import { ProjectRouterV2 } from "../src/router/ProjectRouterV2.sol";
@@ -32,6 +33,10 @@ import { ProjectLaunchValidatorV2 } from "../src/core/ProjectLaunchValidatorV2.s
 import { ProjectLauncherV2 } from "../src/core/ProjectLauncherV2.sol";
 import { CreationCodeBinding, LauncherReleaseConfig } from "../src/core/ProjectLauncherTypes.sol";
 import { ProjectRegistryV2 } from "../src/core/ProjectRegistryV2.sol";
+import {
+    LaunchpadProjectVotesTokenFactoryV2
+} from "../src/token/LaunchpadProjectVotesTokenFactoryV2.sol";
+import { ProjectVotesTokenFactoryV2 } from "../src/token/ProjectVotesTokenFactoryV2.sol";
 
 /// @notice Deploys one immutable v2 release from environment-supplied infrastructure addresses.
 /// @dev Registry, engine, and Launcher are deployed in a verified nonce sequence. Project creators
@@ -52,6 +57,12 @@ contract DeployProjectLauncherV2 is Script {
         bytes32 swapLeaf3000;
         bytes32 swapLeaf10000;
         bytes32 fundingBandLeaf;
+        address ponsAdapterFactory;
+        address poolsInstantAdapterFactory;
+        address poolsLbpAdapterFactory;
+        bytes32 ponsLaunchpadLeaf;
+        bytes32 poolsInstantLaunchpadLeaf;
+        bytes32 poolsLbpLaunchpadLeaf;
         bytes32 approvalRoot;
     }
 
@@ -77,6 +88,9 @@ contract DeployProjectLauncherV2 is Script {
             address(fundingBandV3IntegrationFactory), v3Factory, v3PositionManager
         );
         CreationCodeBinding[] memory bindings = _deployCreationCodeStores();
+        ProjectVotesTokenFactoryV2 ponsTokenFactory = new ProjectVotesTokenFactoryV2();
+        LaunchpadProjectVotesTokenFactoryV2 launchpadTokenFactory =
+            new LaunchpadProjectVotesTokenFactoryV2();
 
         LauncherReleaseConfig memory release = LauncherReleaseConfig({
             protocolFeeRecipient: vm.envAddress("PROTOCOL_FEE_RECIPIENT"),
@@ -113,12 +127,22 @@ contract DeployProjectLauncherV2 is Script {
         require(address(validator) == predictedValidator, "VALIDATOR_ADDRESS_MISMATCH");
         require(address(launcher) == predictedLauncher, "LAUNCHER_ADDRESS_MISMATCH");
         _verifyRelease(launcher, registry, deployer, integrations);
-        string memory manifestPath =
-            _writeManifest(launcher, registry, deployer, broadcaster, integrations);
+        string memory manifestPath = _writeManifest(
+            launcher,
+            registry,
+            deployer,
+            validator,
+            ponsTokenFactory,
+            launchpadTokenFactory,
+            broadcaster,
+            integrations
+        );
         console2.log("ProjectRegistryV2", address(registry));
         console2.log("ProjectLaunchDeployerV2", address(deployer));
         console2.log("ProjectLaunchValidatorV2", address(validator));
         console2.log("ProjectLauncherV2", address(launcher));
+        console2.log("ProjectVotesTokenFactoryV2", address(ponsTokenFactory));
+        console2.log("LaunchpadProjectVotesTokenFactoryV2", address(launchpadTokenFactory));
         console2.log("Deployment manifest", manifestPath);
     }
 
@@ -154,10 +178,79 @@ contract DeployProjectLauncherV2 is Script {
             quoteAsset,
             address(integrations.quoteUsdOracle)
         );
-        bytes32 left = integrations.swapLeaf500.commutativeKeccak256(integrations.swapLeaf3000);
-        bytes32 right =
-            integrations.swapLeaf10000.commutativeKeccak256(integrations.fundingBandLeaf);
-        integrations.approvalRoot = left.commutativeKeccak256(right);
+        integrations.ponsAdapterFactory = vm.envAddress("PONS_PROJECT_ADAPTER_FACTORY");
+        integrations.poolsInstantAdapterFactory =
+            vm.envAddress("POOLS_INSTANT_PROJECT_ADAPTER_FACTORY");
+        integrations.poolsLbpAdapterFactory = vm.envAddress("POOLS_LBP_PROJECT_ADAPTER_FACTORY");
+        _verifyExternalRuntime(
+            integrations.ponsAdapterFactory, "PONS_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH"
+        );
+        _verifyExternalRuntime(
+            integrations.poolsInstantAdapterFactory,
+            "POOLS_INSTANT_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH"
+        );
+        _verifyExternalRuntime(
+            integrations.poolsLbpAdapterFactory, "POOLS_LBP_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH"
+        );
+        integrations.ponsLaunchpadLeaf =
+            LaunchpadApproval.factoryLeaf(integrations.ponsAdapterFactory);
+        integrations.poolsInstantLaunchpadLeaf =
+            LaunchpadApproval.factoryLeaf(integrations.poolsInstantAdapterFactory);
+        integrations.poolsLbpLaunchpadLeaf =
+            LaunchpadApproval.factoryLeaf(integrations.poolsLbpAdapterFactory);
+        integrations.approvalRoot = _approvalRoot(integrations);
+    }
+
+    function _approvalLeaves(ReleaseIntegrations memory integrations)
+        private
+        pure
+        returns (bytes32[] memory leaves)
+    {
+        leaves = new bytes32[](7);
+        leaves[0] = integrations.swapLeaf500;
+        leaves[1] = integrations.swapLeaf3000;
+        leaves[2] = integrations.swapLeaf10000;
+        leaves[3] = integrations.fundingBandLeaf;
+        leaves[4] = integrations.ponsLaunchpadLeaf;
+        leaves[5] = integrations.poolsInstantLaunchpadLeaf;
+        leaves[6] = integrations.poolsLbpLaunchpadLeaf;
+    }
+
+    function _approvalRoot(ReleaseIntegrations memory integrations) private pure returns (bytes32) {
+        bytes32[] memory leaves = _approvalLeaves(integrations);
+        bytes32 node01 = leaves[0].commutativeKeccak256(leaves[1]);
+        bytes32 node23 = leaves[2].commutativeKeccak256(leaves[3]);
+        bytes32 node45 = leaves[4].commutativeKeccak256(leaves[5]);
+        bytes32 node456 = node45.commutativeKeccak256(leaves[6]);
+        return node01.commutativeKeccak256(node23).commutativeKeccak256(node456);
+    }
+
+    function _approvalProof(ReleaseIntegrations memory integrations, uint256 index)
+        private
+        pure
+        returns (bytes32[] memory proof)
+    {
+        bytes32[] memory leaves = _approvalLeaves(integrations);
+        bytes32 node01 = leaves[0].commutativeKeccak256(leaves[1]);
+        bytes32 node23 = leaves[2].commutativeKeccak256(leaves[3]);
+        bytes32 node45 = leaves[4].commutativeKeccak256(leaves[5]);
+        bytes32 node0123 = node01.commutativeKeccak256(node23);
+        bytes32 node456 = node45.commutativeKeccak256(leaves[6]);
+        if (index < 4) {
+            proof = new bytes32[](3);
+            proof[0] = leaves[index ^ 1];
+            proof[1] = index < 2 ? node23 : node01;
+            proof[2] = node456;
+        } else if (index < 6) {
+            proof = new bytes32[](3);
+            proof[0] = leaves[index ^ 1];
+            proof[1] = leaves[6];
+            proof[2] = node0123;
+        } else {
+            proof = new bytes32[](2);
+            proof[0] = node45;
+            proof[1] = node0123;
+        }
     }
 
     function _deployGuard(address v3Factory, uint24 poolFee)
@@ -346,6 +439,9 @@ contract DeployProjectLauncherV2 is Script {
         ProjectLauncherV2 launcher,
         ProjectRegistryV2 registry,
         ProjectLaunchDeployerV2 deployer,
+        ProjectLaunchValidatorV2 validator,
+        ProjectVotesTokenFactoryV2 ponsTokenFactory,
+        LaunchpadProjectVotesTokenFactoryV2 launchpadTokenFactory,
         address broadcaster,
         ReleaseIntegrations memory integrations
     ) private returns (string memory path) {
@@ -406,28 +502,59 @@ contract DeployProjectLauncherV2 is Script {
         vm.serializeBytes32(object, "swapApprovalLeaf3000", integrations.swapLeaf3000);
         vm.serializeBytes32(object, "swapApprovalLeaf10000", integrations.swapLeaf10000);
         vm.serializeBytes32(object, "fundingBandIntegrationLeaf", integrations.fundingBandLeaf);
-        bytes32 left = integrations.swapLeaf500.commutativeKeccak256(integrations.swapLeaf3000);
-        bytes32 right =
-            integrations.swapLeaf10000.commutativeKeccak256(integrations.fundingBandLeaf);
-        bytes32[] memory proof500 = new bytes32[](2);
-        proof500[0] = integrations.swapLeaf3000;
-        proof500[1] = right;
-        bytes32[] memory proof3000 = new bytes32[](2);
-        proof3000[0] = integrations.swapLeaf500;
-        proof3000[1] = right;
-        bytes32[] memory proof10000 = new bytes32[](2);
-        proof10000[0] = integrations.fundingBandLeaf;
-        proof10000[1] = left;
-        bytes32[] memory fundingBandProof = new bytes32[](2);
-        fundingBandProof[0] = integrations.swapLeaf10000;
-        fundingBandProof[1] = left;
-        vm.serializeBytes32(object, "swapApprovalProof500", proof500);
-        vm.serializeBytes32(object, "swapApprovalProof3000", proof3000);
-        vm.serializeBytes32(object, "swapApprovalProof10000", proof10000);
-        vm.serializeBytes32(object, "fundingBandIntegrationProof", fundingBandProof);
+        vm.serializeAddress(object, "ponsProjectAdapterFactory", integrations.ponsAdapterFactory);
+        vm.serializeBytes32(
+            object, "ponsProjectAdapterFactoryRuntimeHash", integrations.ponsAdapterFactory.codehash
+        );
+        vm.serializeAddress(
+            object, "poolsInstantProjectAdapterFactory", integrations.poolsInstantAdapterFactory
+        );
+        vm.serializeBytes32(
+            object,
+            "poolsInstantProjectAdapterFactoryRuntimeHash",
+            integrations.poolsInstantAdapterFactory.codehash
+        );
+        vm.serializeAddress(
+            object, "poolsLbpProjectAdapterFactory", integrations.poolsLbpAdapterFactory
+        );
+        vm.serializeBytes32(
+            object,
+            "poolsLbpProjectAdapterFactoryRuntimeHash",
+            integrations.poolsLbpAdapterFactory.codehash
+        );
+        vm.serializeBytes32(object, "ponsLaunchpadApprovalLeaf", integrations.ponsLaunchpadLeaf);
+        vm.serializeBytes32(
+            object, "poolsInstantLaunchpadApprovalLeaf", integrations.poolsInstantLaunchpadLeaf
+        );
+        vm.serializeBytes32(
+            object, "poolsLbpLaunchpadApprovalLeaf", integrations.poolsLbpLaunchpadLeaf
+        );
+        vm.serializeBytes32(object, "swapApprovalProof500", _approvalProof(integrations, 0));
+        vm.serializeBytes32(object, "swapApprovalProof3000", _approvalProof(integrations, 1));
+        vm.serializeBytes32(object, "swapApprovalProof10000", _approvalProof(integrations, 2));
+        vm.serializeBytes32(object, "fundingBandIntegrationProof", _approvalProof(integrations, 3));
+        vm.serializeBytes32(object, "ponsLaunchpadApprovalProof", _approvalProof(integrations, 4));
+        vm.serializeBytes32(
+            object, "poolsInstantLaunchpadApprovalProof", _approvalProof(integrations, 5)
+        );
+        vm.serializeBytes32(
+            object, "poolsLbpLaunchpadApprovalProof", _approvalProof(integrations, 6)
+        );
         vm.serializeAddress(object, "registry", address(registry));
         vm.serializeAddress(object, "deploymentEngine", address(deployer));
+        vm.serializeAddress(object, "launchValidator", address(validator));
+        vm.serializeBytes32(object, "launchValidatorRuntimeHash", address(validator).codehash);
         vm.serializeAddress(object, "launcher", address(launcher));
+        vm.serializeAddress(object, "ponsProjectTokenFactory", address(ponsTokenFactory));
+        vm.serializeBytes32(
+            object, "ponsProjectTokenFactoryRuntimeHash", address(ponsTokenFactory).codehash
+        );
+        vm.serializeAddress(object, "launchpadProjectTokenFactory", address(launchpadTokenFactory));
+        vm.serializeBytes32(
+            object,
+            "launchpadProjectTokenFactoryRuntimeHash",
+            address(launchpadTokenFactory).codehash
+        );
         vm.serializeAddress(object, "raffleImplementation", deployer.raffleImplementation());
         vm.serializeBytes32(
             object, "raffleImplementationRuntimeHash", deployer.raffleImplementation().codehash

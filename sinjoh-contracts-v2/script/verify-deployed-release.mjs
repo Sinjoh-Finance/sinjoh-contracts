@@ -50,6 +50,11 @@ const launcherAbi = parseAbi([
   "function PROTOCOL_VERSION() view returns (uint32)",
   "function registry() view returns (address)",
   "function deployer() view returns (address)",
+  "function validator() view returns (address)",
+]);
+const validatorAbi = parseAbi([
+  "function registry() view returns (address)",
+  "function deployer() view returns (address)",
 ]);
 const registryAbi = parseAbi([
   "function PROTOCOL_VERSION() view returns (uint32)",
@@ -116,7 +121,13 @@ assertEqual("chain id", await client.getChainId(), manifest.chainId);
 const runtimeBindings = [
   ["registry", "registry", "registryRuntimeHash"],
   ["deployment engine", "deploymentEngine", "deploymentEngineRuntimeHash"],
+  ["launch validator", "launchValidator", "launchValidatorRuntimeHash"],
   ["launcher", "launcher", "launcherRuntimeHash"],
+  ["Pons project token factory", "ponsProjectTokenFactory", "ponsProjectTokenFactoryRuntimeHash"],
+  ["launchpad project token factory", "launchpadProjectTokenFactory", "launchpadProjectTokenFactoryRuntimeHash"],
+  ["Pons project adapter factory", "ponsProjectAdapterFactory", "ponsProjectAdapterFactoryRuntimeHash"],
+  ["Pools Instant project adapter factory", "poolsInstantProjectAdapterFactory", "poolsInstantProjectAdapterFactoryRuntimeHash"],
+  ["Pools LBP project adapter factory", "poolsLbpProjectAdapterFactory", "poolsLbpProjectAdapterFactoryRuntimeHash"],
   ["raffle implementation", "raffleImplementation", "raffleImplementationRuntimeHash"],
   ["randomness adapter", "randomnessAdapter", "randomnessAdapterRuntimeHash"],
   ["project swap adapter", "projectSwapAdapter", "projectSwapAdapterRuntimeHash"],
@@ -139,6 +150,9 @@ await Promise.all(runtimeBindings.map(([label, addressKey, hashKey]) =>
 assertEqual("launcher protocol version", await read(manifest.launcher, launcherAbi, "PROTOCOL_VERSION"), manifest.protocolVersion);
 assertEqual("launcher registry", await read(manifest.launcher, launcherAbi, "registry"), manifest.registry);
 assertEqual("launcher deployment engine", await read(manifest.launcher, launcherAbi, "deployer"), manifest.deploymentEngine);
+assertEqual("launcher validator", await read(manifest.launcher, launcherAbi, "validator"), manifest.launchValidator);
+assertEqual("validator registry", await read(manifest.launchValidator, validatorAbi, "registry"), manifest.registry);
+assertEqual("validator deployment engine", await read(manifest.launchValidator, validatorAbi, "deployer"), manifest.deploymentEngine);
 assertEqual("registry protocol version", await read(manifest.registry, registryAbi, "PROTOCOL_VERSION"), manifest.protocolVersion);
 assertEqual("registry launcher", await read(manifest.registry, registryAbi, "launcher"), manifest.launcher);
 
