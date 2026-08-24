@@ -13,6 +13,33 @@ command -v jq >/dev/null 2>&1 || fail "jq is required"
 command -v cast >/dev/null 2>&1 || fail "cast is required"
 [[ -f "$baseline_manifest" ]] || fail "baseline release manifest not found: $baseline_manifest"
 
+[[ -n "${RPC_URL:-}" ]] \
+  || fail "RPC_URL must be the authenticated production Chainstack endpoint; public RPC fallbacks are forbidden"
+[[ -n "${RPC_VERIFICATION_URL:-}" ]] \
+  || fail "RPC_VERIFICATION_URL must be the authenticated production QuickNode endpoint"
+[[ "$RPC_URL" == https://* ]] \
+  || fail "RPC_URL must use HTTPS for the production Chainstack endpoint"
+[[ "$RPC_VERIFICATION_URL" == https://* ]] \
+  || fail "RPC_VERIFICATION_URL must use HTTPS for the production QuickNode endpoint"
+
+rpc_host() {
+  local without_scheme="${1#*://}"
+  printf '%s' "${without_scheme%%/*}" | tr '[:upper:]' '[:lower:]'
+}
+
+primary_rpc_host="$(rpc_host "$RPC_URL")"
+verification_rpc_host="$(rpc_host "$RPC_VERIFICATION_URL")"
+case "$primary_rpc_host" in
+  *.core.chainstack.com|*.p2pify.com) ;;
+  *) fail "RPC_URL host must be the production Chainstack endpoint, got $primary_rpc_host" ;;
+esac
+case "$verification_rpc_host" in
+  *.quiknode.pro) ;;
+  *) fail "RPC_VERIFICATION_URL host must be the production QuickNode endpoint, got $verification_rpc_host" ;;
+esac
+[[ "$RPC_URL" != "$RPC_VERIFICATION_URL" ]] \
+  || fail "RPC_URL and RPC_VERIFICATION_URL must be independent endpoints"
+
 manifest_value() {
   local key="$1"
   local value
@@ -22,8 +49,25 @@ manifest_value() {
   printf '%s' "$value"
 }
 
-export RPC_URL="${RPC_URL:-https://rpc.mainnet.chain.robinhood.com}"
 export EXPECTED_CHAIN_ID=4663
+primary_chain_id="$(cast chain-id --rpc-url "$RPC_URL")" \
+  || fail "could not read the Chainstack production chain ID"
+verification_chain_id="$(cast chain-id --rpc-url "$RPC_VERIFICATION_URL")" \
+  || fail "could not read the QuickNode production chain ID"
+[[ "$primary_chain_id" == "$EXPECTED_CHAIN_ID" ]] \
+  || fail "Chainstack RPC chain $primary_chain_id does not match $EXPECTED_CHAIN_ID"
+[[ "$verification_chain_id" == "$EXPECTED_CHAIN_ID" ]] \
+  || fail "QuickNode RPC chain $verification_chain_id does not match $EXPECTED_CHAIN_ID"
+
+primary_block="$(cast block-number --rpc-url "$RPC_URL")" \
+  || fail "could not read the Chainstack production head"
+verification_block="$(cast block-number --rpc-url "$RPC_VERIFICATION_URL")" \
+  || fail "could not read the QuickNode production head"
+block_delta=$((primary_block - verification_block))
+(( block_delta < 0 )) && block_delta=$((-block_delta))
+(( block_delta <= 20 )) \
+  || fail "production RPC heads disagree by $block_delta blocks (Chainstack $primary_block, QuickNode $verification_block)"
+
 expected_deployer=0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49
 requested_deployer="${DEPLOYER_ADDRESS:-$expected_deployer}"
 requested_deployer_lower="$(printf '%s' "$requested_deployer" | tr '[:upper:]' '[:lower:]')"
@@ -31,9 +75,20 @@ expected_deployer_lower="$(printf '%s' "$expected_deployer" | tr '[:upper:]' '[:
 [[ "$requested_deployer_lower" == "$expected_deployer_lower" ]] \
   || fail "DEPLOYER_ADDRESS must be the authorized deployer $expected_deployer"
 export DEPLOYER_ADDRESS="$expected_deployer"
-[[ -n "${FOUNDRY_ACCOUNT:-}" ]] \
-  || fail "FOUNDRY_ACCOUNT must name the local Foundry keystore for $expected_deployer"
-export FOUNDRY_ACCOUNT
+primary_nonce="$(cast nonce "$DEPLOYER_ADDRESS" --rpc-url "$RPC_URL")" \
+  || fail "could not read the authorized deployer nonce through Chainstack"
+verification_nonce="$(cast nonce "$DEPLOYER_ADDRESS" --rpc-url "$RPC_VERIFICATION_URL")" \
+  || fail "could not read the authorized deployer nonce through QuickNode"
+[[ "$primary_nonce" == "$verification_nonce" ]] \
+  || fail "production RPC deployer nonces disagree (Chainstack $primary_nonce, QuickNode $verification_nonce)"
+simulate_only="${SIMULATE_ONLY:-0}"
+[[ "$simulate_only" == "0" || "$simulate_only" == "1" ]] \
+  || fail "SIMULATE_ONLY must be 0 or 1"
+if [[ "$simulate_only" == "0" ]]; then
+  [[ -n "${FOUNDRY_ACCOUNT:-}" ]] \
+    || fail "FOUNDRY_ACCOUNT must name the local Foundry keystore for $expected_deployer"
+  export FOUNDRY_ACCOUNT
+fi
 export PROTOCOL_FEE_RECIPIENT="$(manifest_value protocolFeeRecipient)"
 export RANDOMNESS_ADAPTER="$(manifest_value randomnessAdapter)"
 export RANDOMNESS_ADAPTER_RUNTIME_HASH="$(manifest_value randomnessAdapterRuntimeHash)"
@@ -56,10 +111,15 @@ export PERMIT2_RUNTIME_HASH="$(manifest_value permit2RuntimeHash)"
 export PONS_LAUNCH_FACTORY="$(manifest_value ponsLaunchFactory)"
 export PONS_LAUNCH_FACTORY_RUNTIME_HASH="$(manifest_value ponsLaunchFactoryRuntimeHash)"
 pons_owner="$(cast call "$PONS_LAUNCH_FACTORY" 'owner()(address)' --rpc-url "$RPC_URL")" \
-  || fail "could not read the Pons launch factory owner"
+  || fail "could not read the Pons launch factory owner through Chainstack"
+pons_owner_verification="$(cast call "$PONS_LAUNCH_FACTORY" 'owner()(address)' --rpc-url "$RPC_VERIFICATION_URL")" \
+  || fail "could not read the Pons launch factory owner through QuickNode"
 pons_owner_lower="$(printf '%s' "$pons_owner" | tr '[:upper:]' '[:lower:]')"
+pons_owner_verification_lower="$(printf '%s' "$pons_owner_verification" | tr '[:upper:]' '[:lower:]')"
 [[ "$pons_owner_lower" == "$expected_deployer_lower" ]] \
   || fail "Pons launch factory $PONS_LAUNCH_FACTORY is controlled by $pons_owner, not $expected_deployer; complete the explicit ownership handoff before release (no transaction was sent)"
+[[ "$pons_owner_verification_lower" == "$expected_deployer_lower" ]] \
+  || fail "QuickNode reports Pons launch factory owner $pons_owner_verification, not $expected_deployer (no transaction was sent)"
 
 # These successor factories were successfully deployed from the authorized deployer on
 # 2026-08-24. Reuse them so a resumed release cannot redeploy the same generation or spend gas
@@ -78,7 +138,7 @@ export POOLS_PROJECT_REGISTRATION_HELPER=0x570CFbE42720d96bcEaa592D2D110EF7211E7
 export POOLS_PROJECT_REGISTRATION_HELPER_RUNTIME_HASH=0xde1b2a2c36ea4734ffca677dbb588ede4fc96b1e243b07632e9f1efbb56e7f49
 export DEPLOY_FRESH_LAUNCHPAD_FACTORIES=0
 export UNLOCKED_DEPLOYMENT=0
-export SIMULATE_ONLY=0
+export SIMULATE_ONLY="$simulate_only"
 export DEPLOYMENT_MANIFEST_PATH="${DEPLOYMENT_MANIFEST_PATH:-deployments/project-launcher-v2-4663.json}"
 
 exec "$package_dir/script/deploy-release.sh"

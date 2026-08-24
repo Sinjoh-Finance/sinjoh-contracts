@@ -46,8 +46,12 @@ this stateful multi-package sequence. Rehearse it against an Anvil mainnet fork 
 `FOUNDRY_ACCOUNT` and `UNLOCKED_DEPLOYMENT=0`.
 
 For the canonical Robinhood Chain successor, use
-`./script/deploy-successor-mainnet.sh`. It pins chain ID 4663 and the authorized deployer, derives
-all reusable public addresses and runtime hashes from the last canonical manifest, and writes the
+`./script/deploy-successor-mainnet.sh`. It requires the authenticated production Chainstack URL in
+`RPC_URL` and the independently operated authenticated QuickNode URL in
+`RPC_VERIFICATION_URL`; the wrapper rejects public RPC, non-HTTPS URLs, and other provider hosts.
+It pins chain ID 4663, requires both providers to agree on the Pons owner and deployer nonce, and
+pins that nonce for the Forge transaction sequence so CREATE address predictions cannot silently
+drift. It derives all reusable public addresses and runtime hashes from the last canonical manifest, and writes the
 new canonical manifest to `deployments/project-launcher-v2-4663.json`. The operator must set
 `FOUNDRY_ACCOUNT` to the name of an existing local Foundry keystore; the wrapper does not invent or
 create an account alias. It never accepts a raw private key. The operator's only secret input is the
@@ -58,7 +62,8 @@ factory cannot be replaced without abandoning the launch records needed for exis
 to graduate. Complete its explicit two-step ownership handoff first when the current owner differs.
 The wrapper reuses the already-deployed, unbound successor adapter factories and checks their
 runtime hashes before binding them, so resuming the release does not redeploy them or spend that gas
-again.
+again. Run the same command with `SIMULATE_ONLY=1` first to execute the complete build, test, runtime
+hash, and Forge transaction simulation without loading a signer or broadcasting.
 
 The deployment derives the eight-leaf integration-approval root and every Merkle proof from the
 three deployed fee-tier guards, the Funding Bands integration factory, the Pons project adapter
