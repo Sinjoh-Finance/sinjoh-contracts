@@ -52,7 +52,13 @@ new canonical manifest to `deployments/project-launcher-v2-4663.json`. The opera
 `FOUNDRY_ACCOUNT` to the name of an existing local Foundry keystore; the wrapper does not invent or
 create an account alias. It never accepts a raw private key. The operator's only secret input is the
 keystore password requested by Foundry at signing time. The successor wrapper rejects any
-`DEPLOYER_ADDRESS` other than `0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49`.
+`DEPLOYER_ADDRESS` other than `0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49` and verifies that
+the existing Pons launch factory is controlled by that same address before any transaction. The
+factory cannot be replaced without abandoning the launch records needed for existing Pons tokens
+to graduate. Complete its explicit two-step ownership handoff first when the current owner differs.
+The wrapper reuses the already-deployed, unbound successor adapter factories and checks their
+runtime hashes before binding them, so resuming the release does not redeploy them or spend that gas
+again.
 
 The deployment derives the eight-leaf integration-approval root and every Merkle proof from the
 three deployed fee-tier guards, the Funding Bands integration factory, the Pons project adapter

@@ -39,6 +39,7 @@ jobs:
       - run: |
           node scripts/release/test-promotion-model.mjs
           node scripts/release/test-project-v2-mainnet-entry.mjs
+          bash sinjoh-contracts-v2/script/test-deploy-successor-mainnet.sh
           node scripts/release/validate-config.mjs
 
   foundry:

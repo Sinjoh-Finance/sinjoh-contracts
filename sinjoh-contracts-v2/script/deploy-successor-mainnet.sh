@@ -10,6 +10,7 @@ fail() {
 }
 
 command -v jq >/dev/null 2>&1 || fail "jq is required"
+command -v cast >/dev/null 2>&1 || fail "cast is required"
 [[ -f "$baseline_manifest" ]] || fail "baseline release manifest not found: $baseline_manifest"
 
 manifest_value() {
@@ -54,9 +55,28 @@ export PERMIT2="$(manifest_value permit2)"
 export PERMIT2_RUNTIME_HASH="$(manifest_value permit2RuntimeHash)"
 export PONS_LAUNCH_FACTORY="$(manifest_value ponsLaunchFactory)"
 export PONS_LAUNCH_FACTORY_RUNTIME_HASH="$(manifest_value ponsLaunchFactoryRuntimeHash)"
-export PONS_FEE_ESCROW=0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e
-export PONS_FEE_ESCROW_RUNTIME_HASH=0xf25f75cfbc1637ba068dc34f69098fa4e8a80f8ee8fe7bf7820594e0b3fed2f1
-export DEPLOY_FRESH_LAUNCHPAD_FACTORIES=1
+pons_owner="$(cast call "$PONS_LAUNCH_FACTORY" 'owner()(address)' --rpc-url "$RPC_URL")" \
+  || fail "could not read the Pons launch factory owner"
+pons_owner_lower="$(printf '%s' "$pons_owner" | tr '[:upper:]' '[:lower:]')"
+[[ "$pons_owner_lower" == "$expected_deployer_lower" ]] \
+  || fail "Pons launch factory $PONS_LAUNCH_FACTORY is controlled by $pons_owner, not $expected_deployer; complete the explicit ownership handoff before release (no transaction was sent)"
+
+# These successor factories were successfully deployed from the authorized deployer on
+# 2026-08-24. Reuse them so a resumed release cannot redeploy the same generation or spend gas
+# twice. deploy-release.sh verifies every runtime hash before the core broadcast.
+export PONS_PROJECT_ADAPTER_FACTORY=0xAc299024C0f4E561D6e99CEFABB9b7212de729b6
+export PONS_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH=0x964762b1cdb587f7dc7d27f796e0ed403e0066e00a7ed0d015c90b1df32c5ec5
+export PONS_PROJECT_ADAPTER_IMPLEMENTATION=0x3943b7f46b201CFe5033367Ae2E102555e0ea50F
+export PONS_PROJECT_ADAPTER_IMPLEMENTATION_RUNTIME_HASH=0xd61178a140dc8f8df8a0ae4987dc93b7063334496591c10e81aee660d1d916e6
+export POOLS_INSTANT_PROJECT_ADAPTER_FACTORY=0xc13238cdF673eE82704255C14C6224fC7AfA9C36
+export POOLS_INSTANT_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH=0xccaf8d43bf0d0da6d4a7dd2e539c7d0f2d71c470546c0dc8b1df6e3f96e25428
+export POOLS_INSTANT_NO_FEE_PROJECT_ADAPTER_FACTORY=0x990A008705c115eF1cb779B73D20F2BcA865f03A
+export POOLS_INSTANT_NO_FEE_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH=0x81e78639a3c06cb115f800feceba601a5eb06e756ef2fec48abfb2376251579c
+export POOLS_LBP_PROJECT_ADAPTER_FACTORY=0x00ed429B6810281784372B6Bf610541670815A60
+export POOLS_LBP_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH=0x33329edabc21310bac6d6b90c462ba63c139f9937ad9cec6f8bdacda0d86b30b
+export POOLS_PROJECT_REGISTRATION_HELPER=0x570CFbE42720d96bcEaa592D2D110EF7211E7FA9
+export POOLS_PROJECT_REGISTRATION_HELPER_RUNTIME_HASH=0xde1b2a2c36ea4734ffca677dbb588ede4fc96b1e243b07632e9f1efbb56e7f49
+export DEPLOY_FRESH_LAUNCHPAD_FACTORIES=0
 export UNLOCKED_DEPLOYMENT=0
 export SIMULATE_ONLY=0
 export DEPLOYMENT_MANIFEST_PATH="${DEPLOYMENT_MANIFEST_PATH:-deployments/project-launcher-v2-4663.json}"
