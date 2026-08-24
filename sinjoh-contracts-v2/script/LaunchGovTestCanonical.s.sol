@@ -123,6 +123,10 @@ struct PonsLaunchDeployment {
 interface IPonsFactory {
     function launchFee() external view returns (uint256);
 
+    function locker() external view returns (address);
+
+    function poolManager() external view returns (address);
+
     function previewLaunchEconomics(uint256 launchConfigId, address pairToken)
         external
         view
@@ -332,7 +336,7 @@ contract LaunchGovTestCanonical is Script {
 
     function _projectConfig(address creator, address adapter, address curve, uint256 supply)
         private
-        pure
+        view
         returns (ProjectLaunchConfig memory config)
     {
         config.creator = creator;
@@ -410,18 +414,28 @@ contract LaunchGovTestCanonical is Script {
         });
         config.raffle.exclusions = new address[](0);
         config.raffle.stockRewards = new RaffleTypes.StockReward[](0);
-        address[] memory custody = new address[](2);
-        if (uint160(adapter) < uint160(curve)) {
-            custody[0] = adapter;
-            custody[1] = curve;
-        } else {
-            custody[0] = curve;
-            custody[1] = adapter;
-        }
+        address[] memory custody = new address[](4);
+        custody[0] = adapter;
+        custody[1] = curve;
+        custody[2] = IPonsFactory(PONS_FACTORY).locker();
+        custody[3] = IPonsFactory(PONS_FACTORY).poolManager();
+        _sortAddresses(custody);
         config.launchProfile = LaunchProfileConfig({
             canonicalPool: address(0), additionalCustodyExclusions: custody
         });
         config.metadataURI = "";
+    }
+
+    function _sortAddresses(address[] memory values) private pure {
+        for (uint256 i = 1; i < values.length; ++i) {
+            address current = values[i];
+            uint256 j = i;
+            while (j > 0 && uint160(values[j - 1]) > uint160(current)) {
+                values[j] = values[j - 1];
+                --j;
+            }
+            values[j] = current;
+        }
     }
 
     function _ponsProof() private view returns (bytes32[] memory proof) {
