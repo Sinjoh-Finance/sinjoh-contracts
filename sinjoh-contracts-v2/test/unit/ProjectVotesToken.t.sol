@@ -258,16 +258,33 @@ contract ProjectVotesTokenTest is TestBase {
         );
     }
 
-    function testConstructorRejectsAllSupplyAllocatedToExcludedCustody() public {
-        vm.expectRevert(ProjectVotesToken.NoEligibleVotingSupply.selector);
-        new ProjectVotesToken(
+    function testAllSupplyMayStartInExcludedLaunchCustodyAndGainVotesOnDistribution() public {
+        ProjectVotesToken custodyToken = new ProjectVotesToken(
             "Project",
             "PRJ",
             address(registry),
             CREATOR,
-            _oneAllocation(EXCLUDED_ONE, 1),
+            _oneAllocation(EXCLUDED_ONE, SUPPLY),
             _defaultExclusions()
         );
+
+        assertEq(custodyToken.totalSupply(), SUPPLY);
+        assertEq(custodyToken.balanceOf(EXCLUDED_ONE), SUPPLY);
+        assertEq(custodyToken.eligibleVotingSupply(), 0);
+        assertEq(custodyToken.getVotes(EXCLUDED_ONE), 0);
+
+        vm.warp(1_100);
+        vm.prank(EXCLUDED_ONE);
+        assertTrue(custodyToken.transfer(alice, 125e18));
+
+        assertEq(custodyToken.getVotes(alice), 125e18);
+        assertEq(custodyToken.eligibleVotingSupply(), 125e18);
+
+        vm.warp(1_101);
+        assertEq(custodyToken.getPastVotes(alice, 1_099), 0);
+        assertEq(custodyToken.getPastVotes(alice, 1_100), 125e18);
+        assertEq(custodyToken.getPastTotalSupply(1_099), 0);
+        assertEq(custodyToken.getPastTotalSupply(1_100), 125e18);
     }
 
     function _deployDefault() private returns (ProjectVotesToken deployed) {

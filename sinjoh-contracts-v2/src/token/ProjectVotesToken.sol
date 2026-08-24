@@ -55,7 +55,6 @@ contract ProjectVotesToken is
     error InvalidVotingExclusion(uint256 index, address account);
     error UnsortedVotingExclusions(uint256 index, address previous, address current);
     error ReservedVotingExclusion(address account);
-    error NoEligibleVotingSupply();
     error DelegationUnsupported();
     error FutureLookup(uint256 timepoint, uint48 currentClock);
 
@@ -91,7 +90,6 @@ contract ProjectVotesToken is
         _configureAdditionalVotingExclusions(additionalVotingExclusions_);
 
         uint256 supply = _mintAllocations(allocations_);
-        if (_eligibleVotingSupply == 0) revert NoEligibleVotingSupply();
         initialSupply = supply;
 
         emit ProjectVotesTokenCreated(projectId, registry_, creator_, supply);
