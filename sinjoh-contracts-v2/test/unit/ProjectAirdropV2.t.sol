@@ -34,6 +34,7 @@ contract ProjectAirdropV2Test is AirdropTestBase {
         assertTrue(airdrop.isExcluded(address(token)));
         assertTrue(airdrop.isExcluded(airdrop.BURN_ADDRESS()));
         assertTrue(airdrop.isExcluded(airdrop.PONS_LOCKER()));
+        assertTrue(airdrop.isExcluded(airdrop.PONS_POOL_MANAGER()));
         assertTrue(airdrop.isExcluded(address(treasury)));
         assertFalse(airdrop.isExcluded(CREATOR));
         assertNotEq(airdrop.exclusionHash(), bytes32(0));

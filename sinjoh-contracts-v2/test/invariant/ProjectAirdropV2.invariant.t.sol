@@ -151,6 +151,7 @@ contract ProjectAirdropV2InvariantTest is AirdropTestBase {
         assertEq(airdrop.exclusionCount(), immutableExclusionCount);
         assertTrue(airdrop.isExcluded(airdrop.BURN_ADDRESS()));
         assertTrue(airdrop.isExcluded(airdrop.PONS_LOCKER()));
+        assertTrue(airdrop.isExcluded(airdrop.PONS_POOL_MANAGER()));
         assertEq(airdrop.eligibilitySource(), address(token));
     }
 }

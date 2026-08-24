@@ -258,6 +258,19 @@ contract SinjohPonsV2ProjectAdapter is ISinjohLaunchpadAdapter {
         if (!_contains(config.launchProfile.additionalCustodyExclusions, curve_)) {
             revert MissingProjectCustodyExclusion(curve_);
         }
+        IPonsV2LaunchFactory factory = IPonsV2LaunchFactory(launchFactory);
+        address graduationLocker = factory.locker();
+        address poolManager = factory.poolManager();
+        if (
+            graduationLocker.code.length == 0 || poolManager.code.length == 0
+                || graduationLocker == poolManager
+        ) revert InvalidProjectV2Configuration();
+        if (!_contains(config.launchProfile.additionalCustodyExclusions, graduationLocker)) {
+            revert MissingProjectCustodyExclusion(graduationLocker);
+        }
+        if (!_contains(config.launchProfile.additionalCustodyExclusions, poolManager)) {
+            revert MissingProjectCustodyExclusion(poolManager);
+        }
         IProjectLauncherV2AdapterTarget launcher = IProjectLauncherV2AdapterTarget(
             IPonsV2ProjectAdapterFactoryView(adapterFactory).projectLauncher()
         );

@@ -263,6 +263,7 @@ contract MockLaunchFactory {
     /// requires both to be live contracts.
     address public memeHook;
     address public poolManager;
+    address public locker;
     address public launchForwarder;
     uint256 public constant PROJECT_SUPPLY = 1_000_000_000e18;
 
@@ -284,6 +285,11 @@ contract MockLaunchFactory {
 
     function setGraduationInfrastructure(address memeHook_, address poolManager_) external {
         memeHook = memeHook_;
+        poolManager = poolManager_;
+    }
+
+    function setProjectGraduationCustody(address locker_, address poolManager_) external {
+        locker = locker_;
         poolManager = poolManager_;
     }
 

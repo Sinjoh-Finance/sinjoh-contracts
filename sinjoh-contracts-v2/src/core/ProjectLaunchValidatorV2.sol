@@ -28,7 +28,8 @@ import {
 /// every state-changing launch calls this contract before the deployment engine or Registry.
 contract ProjectLaunchValidatorV2 {
     address public constant BURN_ADDRESS = SinjohV2Constants.BURN_ADDRESS;
-    address public constant PONS_LOCKER = 0x736D76699C26D0d966744cAe304C000d471f7F35;
+    address public constant PONS_LOCKER = 0x1006fA85294A9c38AA4214d52c86CC970Ddc5647;
+    address public constant PONS_POOL_MANAGER = 0x8366a39CC670B4001A1121B8F6A443A643e40951;
 
     address public immutable registry;
     ProjectLaunchDeployerV2 public immutable deployer;
@@ -339,6 +340,7 @@ contract ProjectLaunchValidatorV2 {
                     || recipient == config.launchProfile.canonicalPool
                     || recipient == a.fundingBandMarketCapGuard
                     || recipient == a.fundingBandPositionAdapter || recipient == PONS_LOCKER
+                    || recipient == PONS_POOL_MANAGER
                     || _contains(config.launchProfile.additionalCustodyExclusions, recipient)
             ) revert AllocationToCustody(recipient);
             for (uint256 j; j < config.basket.allocation.targets.length; ++j) {

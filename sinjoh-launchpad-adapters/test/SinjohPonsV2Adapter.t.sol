@@ -97,6 +97,8 @@ contract SinjohPonsV2AdapterTest is TestBase {
     MockLaunchFactory launchFactory;
     MockWETH weth;
     MockERC20 usdg;
+    MockProjectRegistry graduationLocker;
+    MockProjectRegistry graduationPoolManager;
     SinjohPonsV2AdapterFactory adapterFactory;
     MockRouter router;
 
@@ -108,6 +110,11 @@ contract SinjohPonsV2AdapterTest is TestBase {
         vm.chainId(CHAIN_ID);
         escrow = new MockFeeEscrow();
         launchFactory = new MockLaunchFactory(address(escrow));
+        graduationLocker = new MockProjectRegistry();
+        graduationPoolManager = new MockProjectRegistry();
+        launchFactory.setProjectGraduationCustody(
+            address(graduationLocker), address(graduationPoolManager)
+        );
         weth = new MockWETH();
         usdg = new MockERC20("Global Dollar", "USDG", 6);
         launchFactory.approvePair(address(usdg), 6);
@@ -371,6 +378,8 @@ contract SinjohPonsV2AdapterTest is TestBase {
         assertTrue(subject.votingExclusionsFinalized());
         assertTrue(subject.isVotingExcluded(curve));
         assertTrue(subject.isVotingExcluded(address(adapter)));
+        assertTrue(subject.isVotingExcluded(address(graduationLocker)));
+        assertTrue(subject.isVotingExcluded(address(graduationPoolManager)));
         assertEq(subject.balanceOf(curve), config.totalSupply);
         assertTrue(!projectRouter.bound());
     }
@@ -438,14 +447,48 @@ contract SinjohPonsV2AdapterTest is TestBase {
         config.totalSupply = launchFactory.PROJECT_SUPPLY();
         config.salt = USER_SALT;
         config.modules.router = true;
-        config.launchProfile.additionalCustodyExclusions = new address[](2);
-        if (address(adapter) < predictedCurve) {
-            config.launchProfile.additionalCustodyExclusions[0] = address(adapter);
-            config.launchProfile.additionalCustodyExclusions[1] = predictedCurve;
-        } else {
-            config.launchProfile.additionalCustodyExclusions[0] = predictedCurve;
-            config.launchProfile.additionalCustodyExclusions[1] = address(adapter);
+        address[] memory custody = new address[](4);
+        custody[0] = address(adapter);
+        custody[1] = predictedCurve;
+        custody[2] = address(graduationLocker);
+        custody[3] = address(graduationPoolManager);
+        config.launchProfile.additionalCustodyExclusions = _sort(custody);
+    }
+
+    function test_projectV2LaunchRejectsMissingGraduatedPoolCustody() public {
+        SinjohPonsV2ProjectAdapter adapter;
+        ProjectLaunchConfig memory config;
+        (adapter,,, config,) = _projectFixture(false);
+        address[] memory incomplete = new address[](3);
+        uint256 offset;
+        for (uint256 i; i < config.launchProfile.additionalCustodyExclusions.length; ++i) {
+            address candidate = config.launchProfile.additionalCustodyExclusions[i];
+            if (candidate != address(graduationPoolManager)) incomplete[offset++] = candidate;
         }
+        config.launchProfile.additionalCustodyExclusions = incomplete;
+        SinjohPonsV2ProjectAdapter.LaunchRequest memory request = _projectRequest(adapter, config);
+
+        vm.prank(creator);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                SinjohPonsV2ProjectAdapter.MissingProjectCustodyExclusion.selector,
+                address(graduationPoolManager)
+            )
+        );
+        adapter.launch{ value: LAUNCH_FEE }(request);
+    }
+
+    function _sort(address[] memory values) private pure returns (address[] memory) {
+        for (uint256 i = 1; i < values.length; ++i) {
+            address value = values[i];
+            uint256 j = i;
+            while (j != 0 && values[j - 1] > value) {
+                values[j] = values[j - 1];
+                --j;
+            }
+            values[j] = value;
+        }
+        return values;
     }
 
     function _projectRequest(SinjohPonsV2ProjectAdapter adapter, ProjectLaunchConfig memory config)

@@ -35,7 +35,8 @@ import { ProjectRegistryV2 } from "./ProjectRegistryV2.sol";
 contract ProjectLauncherV2 is ReentrancyGuard {
     uint32 public constant PROTOCOL_VERSION = 2;
     address public constant BURN_ADDRESS = SinjohV2Constants.BURN_ADDRESS;
-    address public constant PONS_LOCKER = 0x736D76699C26D0d966744cAe304C000d471f7F35;
+    address public constant PONS_LOCKER = 0x1006fA85294A9c38AA4214d52c86CC970Ddc5647;
+    address public constant PONS_POOL_MANAGER = 0x8366a39CC670B4001A1121B8F6A443A643e40951;
 
     bytes32 public constant TOKEN = keccak256("TOKEN");
     bytes32 public constant MULTISIG = keccak256("MULTISIG");

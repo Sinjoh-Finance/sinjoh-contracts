@@ -31,7 +31,8 @@ import {
 contract ProjectLaunchDeployerV2 {
     uint32 private constant PROTOCOL_VERSION = 2;
     address private constant BURN_ADDRESS = SinjohV2Constants.BURN_ADDRESS;
-    address private constant PONS_LOCKER = 0x736D76699C26D0d966744cAe304C000d471f7F35;
+    address private constant PONS_LOCKER = 0x1006fA85294A9c38AA4214d52c86CC970Ddc5647;
+    address private constant PONS_POOL_MANAGER = 0x8366a39CC670B4001A1121B8F6A443A643e40951;
     uint256 private constant REQUIRED_CODE_STORES = 10;
     uint256 private constant REQUIRED_CODE_STORES_WITHOUT_BASKET = 9;
 
@@ -501,7 +502,7 @@ contract ProjectLaunchDeployerV2 {
     {
         uint256 extra = config.launchProfile.additionalCustodyExclusions.length;
         uint256 adapterCount = config.basket.allocation.targets.length;
-        address[] memory candidates = new address[](14 + adapterCount + extra);
+        address[] memory candidates = new address[](15 + adapterCount + extra);
         candidates[0] = a.controller;
         candidates[1] = a.treasury;
         candidates[2] = a.router;
@@ -514,13 +515,14 @@ contract ProjectLaunchDeployerV2 {
         candidates[9] = a.primaryBasketVault;
         candidates[10] = config.launchProfile.canonicalPool;
         candidates[11] = PONS_LOCKER;
-        candidates[12] = a.fundingBandMarketCapGuard;
-        candidates[13] = a.fundingBandPositionAdapter;
+        candidates[12] = PONS_POOL_MANAGER;
+        candidates[13] = a.fundingBandMarketCapGuard;
+        candidates[14] = a.fundingBandPositionAdapter;
         for (uint256 i; i < adapterCount; ++i) {
-            candidates[14 + i] = _basketAdapter(config, a, i);
+            candidates[15 + i] = _basketAdapter(config, a, i);
         }
         for (uint256 i; i < extra; ++i) {
-            candidates[14 + adapterCount + i] = config.launchProfile.additionalCustodyExclusions[i];
+            candidates[15 + adapterCount + i] = config.launchProfile.additionalCustodyExclusions[i];
         }
         address[] memory forbidden = new address[](4);
         forbidden[0] = address(0);
@@ -561,15 +563,16 @@ contract ProjectLaunchDeployerV2 {
         for (uint256 i; i < config.launchProfile.additionalCustodyExclusions.length; ++i) {
             candidates[offset++] = config.launchProfile.additionalCustodyExclusions[i];
         }
-        address[] memory forbidden = new address[](8);
+        address[] memory forbidden = new address[](9);
         forbidden[0] = address(0);
         forbidden[1] = BURN_ADDRESS;
         forbidden[2] = a.subject;
         forbidden[3] = a.airdrop;
         forbidden[4] = PONS_LOCKER;
-        forbidden[5] = a.treasury;
-        forbidden[6] = source;
-        forbidden[7] = config.creator;
+        forbidden[5] = PONS_POOL_MANAGER;
+        forbidden[6] = a.treasury;
+        forbidden[7] = source;
+        forbidden[8] = config.creator;
         address[] memory result = _sortedUnique(candidates, forbidden);
         if (result.length > 61) revert TooManyExclusions(result.length, 61);
         return result;
@@ -587,7 +590,7 @@ contract ProjectLaunchDeployerV2 {
         uint256 adapterCount = config.basket.allocation.targets.length;
         uint256 extras = config.raffle.exclusions.length
             + config.launchProfile.additionalCustodyExclusions.length + adapterCount;
-        address[] memory candidates = new address[](11 + extras);
+        address[] memory candidates = new address[](12 + extras);
         candidates[0] = a.controller;
         candidates[1] = a.treasury;
         candidates[2] = a.router;
@@ -599,7 +602,8 @@ contract ProjectLaunchDeployerV2 {
         candidates[8] = a.primaryBasketVault;
         candidates[9] = config.launchProfile.canonicalPool;
         candidates[10] = PONS_LOCKER;
-        uint256 offset = 11;
+        candidates[11] = PONS_POOL_MANAGER;
+        uint256 offset = 12;
         for (uint256 i; i < adapterCount; ++i) {
             candidates[offset++] = _basketAdapter(config, a, i);
         }
