@@ -4,6 +4,10 @@ pragma solidity 0.8.28;
 import { Clones } from "./libraries/Clones.sol";
 import { SinjohPoolsTradeInstantAdapter } from "./SinjohPoolsTradeInstantAdapter.sol";
 
+interface IPoolsProjectLauncherBinding {
+    function registry() external view returns (address);
+}
+
 /// @notice Deploys per-launch pools.trade instant-launch adapters as EIP-1167
 /// clones.
 ///
@@ -22,6 +26,8 @@ contract SinjohPoolsTradeInstantAdapterFactory {
     error AdapterMismatch(address expected, address actual);
     error ConfigMismatch();
     error Unauthorized();
+    error InvalidAddress();
+    error AlreadyBound();
 
     event AdapterDeployed(
         address indexed adapter,
@@ -40,6 +46,11 @@ contract SinjohPoolsTradeInstantAdapterFactory {
     address public immutable strategy;
     address public immutable weth;
     uint256 public immutable deploymentChainId;
+    address public immutable binder;
+    address public projectLauncher;
+    address public projectRegistry;
+    address public projectTokenFactory;
+    mapping(address adapter => bool approved) public isAdapter;
 
     constructor(
         address launcher_,
@@ -56,6 +67,22 @@ contract SinjohPoolsTradeInstantAdapterFactory {
         strategy = strategy_;
         weth = weth_;
         deploymentChainId = chainId_;
+        binder = msg.sender;
+    }
+
+    function bindProjectV2(address projectLauncher_, address registry_, address tokenFactory_)
+        external
+    {
+        if (msg.sender != binder) revert Unauthorized();
+        if (projectLauncher != address(0)) revert AlreadyBound();
+        if (
+            projectLauncher_.code.length == 0 || registry_.code.length == 0
+                || tokenFactory_.code.length == 0
+                || IPoolsProjectLauncherBinding(projectLauncher_).registry() != registry_
+        ) revert InvalidAddress();
+        projectLauncher = projectLauncher_;
+        projectRegistry = registry_;
+        projectTokenFactory = tokenFactory_;
     }
 
     /// @notice Deploys the adapter for one launch. Idempotent: a second call
@@ -89,6 +116,7 @@ contract SinjohPoolsTradeInstantAdapterFactory {
                 revert InitializationFailed(reason);
             }
             created = true;
+            isAdapter[adapter] = true;
         } else {
             SinjohPoolsTradeInstantAdapter existing =
                 SinjohPoolsTradeInstantAdapter(payable(adapter));

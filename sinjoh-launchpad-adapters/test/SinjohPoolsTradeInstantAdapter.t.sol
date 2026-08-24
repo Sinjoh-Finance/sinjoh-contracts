@@ -7,6 +7,14 @@ import {
     SinjohPoolsTradeInstantAdapterFactory
 } from "../src/SinjohPoolsTradeInstantAdapterFactory.sol";
 import { PTTokenMetadata } from "../src/interfaces/IPoolsTrade.sol";
+import {
+    ProjectLaunchConfig,
+    ProjectLaunchPreview
+} from "@sinjoh-v2/core/ProjectLauncherTypes.sol";
+import { LaunchpadProjectVotesToken } from "@sinjoh-v2/token/LaunchpadProjectVotesToken.sol";
+import {
+    LaunchpadProjectVotesTokenFactoryV2
+} from "@sinjoh-v2/token/LaunchpadProjectVotesTokenFactoryV2.sol";
 import { MockPoolManager, MockRouter, MockWETH } from "./mocks/PonsV2Mocks.sol";
 import {
     MockPTBeneficiaryVault,
@@ -17,6 +25,42 @@ import {
     MockPTTokenFactory,
     MockUERC20
 } from "./mocks/PoolsTradeMocks.sol";
+
+contract MockPoolsProjectRegistry { }
+
+contract MockPoolsProjectLauncher {
+    address public immutable registry;
+    address public immutable expectedRouter;
+    address public registeredSubject;
+
+    constructor(address registry_, address expectedRouter_) {
+        registry = registry_;
+        expectedRouter = expectedRouter_;
+    }
+
+    function predictExistingTokenLaunch(ProjectLaunchConfig calldata config, address subject)
+        public
+        view
+        returns (ProjectLaunchPreview memory preview)
+    {
+        preview.launchConfigHash = keccak256(abi.encode(config, subject));
+        preview.projectId = LaunchpadProjectVotesToken(subject).projectId();
+        preview.addresses.subject = subject;
+        preview.addresses.voteSource = subject;
+        preview.addresses.router = expectedRouter;
+    }
+
+    function launchExistingToken(
+        ProjectLaunchConfig calldata config,
+        address subject,
+        bytes32[] calldata
+    ) external returns (ProjectLaunchPreview memory) {
+        LaunchpadProjectVotesToken(subject)
+            .finalizeVotingExclusions(config.launchProfile.additionalCustodyExclusions);
+        registeredSubject = subject;
+        return predictExistingTokenLaunch(config, subject);
+    }
+}
 
 contract SinjohPoolsTradeInstantAdapterTest is TestBase {
     uint256 constant CHAIN_ID = 4663;
@@ -185,6 +229,74 @@ contract SinjohPoolsTradeInstantAdapterTest is TestBase {
         address[] memory assets = adapter.intakeAssets();
         assertEq(assets.length, 1);
         assertEq(assets[0], address(weth));
+    }
+
+    function test_projectV2DistributesAndRegistersOneCanonicalPoolsToken() public {
+        MockRouter projectRouter = new MockRouter();
+        MockPoolsProjectRegistry registry = new MockPoolsProjectRegistry();
+        MockPoolsProjectLauncher projectLauncher =
+            new MockPoolsProjectLauncher(address(registry), address(projectRouter));
+        LaunchpadProjectVotesTokenFactoryV2 projectTokenFactory =
+            new LaunchpadProjectVotesTokenFactoryV2();
+        adapterFactory.bindProjectV2(
+            address(projectLauncher), address(registry), address(projectTokenFactory)
+        );
+
+        vm.prank(creator);
+        SinjohPoolsTradeInstantAdapter adapter = SinjohPoolsTradeInstantAdapter(
+            payable(adapterFactory.deploy(creator, address(projectRouter), USER_SALT))
+        );
+        assertTrue(adapterFactory.isAdapter(address(adapter)));
+
+        ProjectLaunchConfig memory config;
+        config.creator = creator;
+        config.name = "Pools Project";
+        config.symbol = "POOL";
+        config.totalSupply = strategy.TOTAL_SUPPLY();
+        config.salt = USER_SALT;
+        config.modules.router = true;
+        address[] memory custody = new address[](4);
+        custody[0] = address(adapter);
+        custody[1] = address(launcher);
+        custody[2] = address(strategy);
+        custody[3] = address(poolManager);
+        config.launchProfile.additionalCustodyExclusions = _sort(custody);
+
+        address predicted = adapter.predictProjectSubject(config.name, config.symbol, config.salt);
+        SinjohPoolsTradeInstantAdapter.ProjectV2LaunchRequest memory request;
+        request.name = config.name;
+        request.symbol = config.symbol;
+        request.distributionSalt = DISTRIBUTION_SALT;
+        request.project = config;
+        request.launchpadApprovalProof = new bytes32[](0);
+        vm.prank(creator);
+        (address token, uint256 tokenId) = adapter.launchProjectV2(request);
+
+        assertEq(token, predicted);
+        assertEq(token, adapter.subject());
+        assertEq(token, projectLauncher.registeredSubject());
+        assertEq(positionManager.ownerOf(tokenId), address(feeSplitter));
+        LaunchpadProjectVotesToken subject = LaunchpadProjectVotesToken(token);
+        assertEq(subject.registry(), address(registry));
+        assertEq(subject.creator(), creator);
+        assertEq(subject.totalSupply(), config.totalSupply);
+        assertTrue(subject.votingExclusionsFinalized());
+        assertTrue(subject.isVotingExcluded(address(strategy)));
+        assertTrue(subject.isVotingExcluded(address(poolManager)));
+        assertTrue(!projectRouter.bound());
+    }
+
+    function _sort(address[] memory values) private pure returns (address[] memory) {
+        for (uint256 i = 1; i < values.length; ++i) {
+            address value = values[i];
+            uint256 j = i;
+            while (j != 0 && values[j - 1] > value) {
+                values[j] = values[j - 1];
+                --j;
+            }
+            values[j] = value;
+        }
+        return values;
     }
 
     function test_launchDistributionSaltIsNamespacedByAdapter() public {

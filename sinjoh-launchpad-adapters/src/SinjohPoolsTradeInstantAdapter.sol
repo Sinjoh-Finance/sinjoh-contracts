@@ -16,6 +16,32 @@ import {
     PTTokenMetadata
 } from "./interfaces/IPoolsTrade.sol";
 import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
+import {
+    ProjectLaunchConfig,
+    ProjectLaunchPreview
+} from "@sinjoh-v2/core/ProjectLauncherTypes.sol";
+import { ProjectVotesToken } from "@sinjoh-v2/token/ProjectVotesToken.sol";
+import {
+    LaunchpadProjectVotesTokenFactoryV2
+} from "@sinjoh-v2/token/LaunchpadProjectVotesTokenFactoryV2.sol";
+
+interface IPoolsProjectLauncherV2 {
+    function predictExistingTokenLaunch(ProjectLaunchConfig calldata config, address subject)
+        external
+        view
+        returns (ProjectLaunchPreview memory);
+    function launchExistingToken(
+        ProjectLaunchConfig calldata config,
+        address subject,
+        bytes32[] calldata proof
+    ) external returns (ProjectLaunchPreview memory);
+}
+
+interface IPoolsInstantAdapterFactoryV2 {
+    function projectLauncher() external view returns (address);
+    function projectRegistry() external view returns (address);
+    function projectTokenFactory() external view returns (address);
+}
 
 interface ISinjohFeeRouter {
     function launchpadAdapter() external view returns (address);
@@ -62,6 +88,20 @@ contract SinjohPoolsTradeInstantAdapter is ISinjohLaunchpadAdapter {
     error InvalidSwapDelta();
     error InsufficientOutput(uint256 minimum, uint256 actual);
     error UnexpectedBalanceDelta(address asset, uint256 expected, uint256 actual);
+    error InvalidProjectV2Configuration();
+    error MissingProjectCustodyExclusion(address account);
+    error ProjectRouterMismatch(address expected, address actual);
+    error ProjectLaunchMismatch(address expected, address actual);
+
+    struct ProjectV2LaunchRequest {
+        string name;
+        string symbol;
+        bytes32 distributionSalt;
+        uint256 developerBuy;
+        uint256 minTokensOut;
+        ProjectLaunchConfig project;
+        bytes32[] launchpadApprovalProof;
+    }
 
     event Initialized(address indexed router, address indexed creator);
     event Launched(address indexed subject, uint256 indexed positionTokenId, bool creatorFees);
@@ -90,6 +130,7 @@ contract SinjohPoolsTradeInstantAdapter is ISinjohLaunchpadAdapter {
     address public immutable poolManager;
     address public immutable weth;
     uint256 public immutable deploymentChainId;
+    address public immutable adapterFactory;
     /// @dev The strategy accepts exactly this supply on every launch.
     uint128 public immutable launchSupply;
     /// @dev Static pool parameters of every launch pool this strategy creates;
@@ -169,6 +210,7 @@ contract SinjohPoolsTradeInstantAdapter is ISinjohLaunchpadAdapter {
         launchSupply = uint128(totalSupply_);
         lpFee = strat.LP_FEE();
         poolTickSpacing = strat.TICK_SPACING();
+        adapterFactory = msg.sender;
         initialized = true;
     }
 
@@ -186,9 +228,10 @@ contract SinjohPoolsTradeInstantAdapter is ISinjohLaunchpadAdapter {
 
     function initialize(address router_, address creator_) external {
         if (initialized) revert AlreadyInitialized();
+        if (msg.sender != adapterFactory) revert Unauthorized();
         initialized = true;
         if (
-            router_.code.length == 0 || creator_ == address(0) || router_ == address(this)
+            router_ == address(0) || creator_ == address(0) || router_ == address(this)
                 || creator_ == address(this) || router_ == creator_
         ) {
             revert InvalidAddress();
@@ -196,6 +239,64 @@ contract SinjohPoolsTradeInstantAdapter is ISinjohLaunchpadAdapter {
         router = router_;
         creator = creator_;
         emit Initialized(router_, creator_);
+    }
+
+    function predictProjectSubject(string calldata name, string calldata symbol, bytes32 salt)
+        external
+        view
+        returns (address)
+    {
+        LaunchpadProjectVotesTokenFactoryV2.TokenDeployment memory deployment =
+            _projectTokenDeployment(name, symbol, salt);
+        return LaunchpadProjectVotesTokenFactoryV2(
+                IPoolsInstantAdapterFactoryV2(adapterFactory).projectTokenFactory()
+            ).predict(deployment, address(this));
+    }
+
+    /// @notice Distributes one canonical Project token through Pools and registers that same token.
+    function launchProjectV2(ProjectV2LaunchRequest calldata request)
+        external
+        payable
+        nonReentrant
+        returns (address token, uint256 tokenId)
+    {
+        _assertChain();
+        if (msg.sender != creator) revert Unauthorized();
+        if (launched) revert AlreadyLaunched();
+        if (request.developerBuy != 0 && request.minTokensOut == 0) {
+            revert InvalidDeveloperBuy();
+        }
+        if (msg.value != request.developerBuy) {
+            revert NativeValueMismatch(request.developerBuy, msg.value);
+        }
+        _validateProjectConfig(request);
+        launched = true;
+
+        tokenId = IPTPositionManager(positionManager).nextTokenId();
+        LaunchpadProjectVotesTokenFactoryV2.TokenDeployment memory deployment =
+            _projectTokenDeployment(request.name, request.symbol, request.project.salt);
+        token = LaunchpadProjectVotesTokenFactoryV2(
+                IPoolsInstantAdapterFactoryV2(adapterFactory).projectTokenFactory()
+            ).deploy(deployment);
+        IPTLiquidityLauncher(launcher)
+            .distributeToken(
+                token,
+                PTDistribution({
+                strategy: strategy,
+                amount: launchSupply,
+                configData: abi.encode(PTInstantLaunchConfig({ feeBeneficiary: address(this) }))
+            }),
+                request.distributionSalt
+            );
+
+        _verifyPosition(tokenId);
+        subject = token;
+        positionTokenId = tokenId;
+        _registerProject(token, request.project, request.launchpadApprovalProof);
+        emit Launched(token, tokenId, beneficiaryVault != address(0));
+        if (request.developerBuy != 0) {
+            _developerBuy(token, request.developerBuy, request.minTokensOut);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -317,6 +418,84 @@ contract SinjohPoolsTradeInstantAdapter is ISinjohLaunchpadAdapter {
         if (token != predicted || token.code.length == 0) {
             revert LaunchReturnedWrongToken(predicted, token);
         }
+    }
+
+    function _projectTokenDeployment(string calldata name, string calldata symbol, bytes32 salt)
+        private
+        view
+        returns (LaunchpadProjectVotesTokenFactoryV2.TokenDeployment memory deployment)
+    {
+        ProjectVotesToken.TokenAllocation[] memory
+            allocations = new ProjectVotesToken.TokenAllocation[](1);
+        allocations[0] =
+            ProjectVotesToken.TokenAllocation({ recipient: launcher, amount: launchSupply });
+        IPoolsInstantAdapterFactoryV2 projectFactory = IPoolsInstantAdapterFactoryV2(adapterFactory);
+        deployment = LaunchpadProjectVotesTokenFactoryV2.TokenDeployment({
+            name: name,
+            symbol: symbol,
+            registry: projectFactory.projectRegistry(),
+            creator: creator,
+            allocations: allocations,
+            votingExclusions: new address[](0),
+            votingExclusionConfigurator: projectFactory.projectLauncher(),
+            salt: salt
+        });
+    }
+
+    function _validateProjectConfig(ProjectV2LaunchRequest calldata request) private view {
+        ProjectLaunchConfig calldata config = request.project;
+        if (
+            config.creator != creator
+                || keccak256(bytes(config.name)) != keccak256(bytes(request.name))
+                || keccak256(bytes(config.symbol)) != keccak256(bytes(request.symbol))
+                || config.totalSupply != launchSupply || !config.modules.router
+        ) revert InvalidProjectV2Configuration();
+        IPoolsInstantAdapterFactoryV2 projectFactory = IPoolsInstantAdapterFactoryV2(adapterFactory);
+        if (
+            projectFactory.projectLauncher().code.length == 0
+                || projectFactory.projectRegistry().code.length == 0
+                || projectFactory.projectTokenFactory().code.length == 0
+        ) revert InvalidProjectV2Configuration();
+        _requireCustody(config.launchProfile.additionalCustodyExclusions, address(this));
+        _requireCustody(config.launchProfile.additionalCustodyExclusions, launcher);
+        _requireCustody(config.launchProfile.additionalCustodyExclusions, strategy);
+        _requireCustody(config.launchProfile.additionalCustodyExclusions, poolManager);
+    }
+
+    function _verifyPosition(uint256 tokenId) private view {
+        address owner = IPTPositionManager(positionManager).ownerOf(tokenId);
+        if (owner != feeSplitter) revert PositionNotLocked(tokenId, owner);
+        if (beneficiaryVault != address(0)) {
+            address beneficiary = IPTBeneficiaryVault(beneficiaryVault).ownerOf(tokenId);
+            if (beneficiary != address(this)) revert BeneficiaryNotAdapter(tokenId, beneficiary);
+        }
+    }
+
+    function _registerProject(
+        address token,
+        ProjectLaunchConfig calldata config,
+        bytes32[] calldata proof
+    ) private {
+        IPoolsProjectLauncherV2 projectLauncher =
+            IPoolsProjectLauncherV2(IPoolsInstantAdapterFactoryV2(adapterFactory).projectLauncher());
+        ProjectLaunchPreview memory predicted =
+            projectLauncher.predictExistingTokenLaunch(config, token);
+        if (predicted.addresses.router != router) {
+            revert ProjectRouterMismatch(router, predicted.addresses.router);
+        }
+        ProjectLaunchPreview memory result =
+            projectLauncher.launchExistingToken(config, token, proof);
+        if (
+            result.addresses.subject != token || result.addresses.router != router
+                || result.projectId != predicted.projectId
+        ) revert ProjectLaunchMismatch(token, result.addresses.subject);
+    }
+
+    function _requireCustody(address[] calldata values, address required) private pure {
+        for (uint256 i; i < values.length; ++i) {
+            if (values[i] == required) return;
+        }
+        revert MissingProjectCustodyExclusion(required);
     }
 
     /// @dev Buys the subject from its launch pool with the native value the
