@@ -180,6 +180,21 @@ contract ProjectLaunchDeployerV2 {
         _deployRouterBasketAndBands(config, preview);
     }
 
+    /// @notice Deploys only Project V2 modules for a canonical token created by an approved
+    /// launchpad integration. The Launcher validates the external subject before calling here.
+    function deployProjectModules(
+        ProjectLaunchConfig calldata config,
+        ProjectLaunchPreview calldata preview
+    ) external {
+        if (msg.sender != launcher) {
+            revert OnlyLauncher(msg.sender);
+        }
+        _deployControllerAndStaking(config, preview);
+        _deployTreasury(config, preview);
+        _deployIndependentSinks(config, preview);
+        _deployRouterBasketAndBands(config, preview);
+    }
+
     function predictModuleAddress(address creator, bytes32 userSalt, bytes32 moduleKey)
         external
         view
@@ -209,7 +224,7 @@ contract ProjectLaunchDeployerV2 {
                 registry,
                 config.creator,
                 allocations,
-                _tokenExclusions(config, preview.addresses)
+                tokenExclusions(config, preview.addresses)
             )
         );
         _requireExpected(TOKEN, preview.addresses.subject, deployed);
@@ -263,7 +278,7 @@ contract ProjectLaunchDeployerV2 {
                 a.controller,
                 config.staking.guardian,
                 config.staking.lockDuration,
-                _tokenExclusions(config, a)
+                tokenExclusions(config, a)
             )
         );
         _requireExpected(STAKING, a.stakingPool, deployed);
@@ -479,8 +494,8 @@ contract ProjectLaunchDeployerV2 {
         return keccak256(abi.encode(creator, projectSalt, PROTOCOL_VERSION, BASKET, index));
     }
 
-    function _tokenExclusions(ProjectLaunchConfig calldata config, ProjectLaunchAddresses memory a)
-        private
+    function tokenExclusions(ProjectLaunchConfig calldata config, ProjectLaunchAddresses memory a)
+        public
         pure
         returns (address[] memory)
     {

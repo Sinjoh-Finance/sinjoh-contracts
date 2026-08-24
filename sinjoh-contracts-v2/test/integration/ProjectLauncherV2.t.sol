@@ -54,6 +54,7 @@ import { Create3V2 } from "../../src/libraries/Create3V2.sol";
 import { ProjectIds } from "../../src/libraries/ProjectIds.sol";
 import { CreationCodeStoreV2 } from "../../src/core/CreationCodeStoreV2.sol";
 import { ProjectLaunchDeployerV2 } from "../../src/core/ProjectLaunchDeployerV2.sol";
+import { ProjectLaunchValidatorV2 } from "../../src/core/ProjectLaunchValidatorV2.sol";
 import { ProjectLauncherV2 } from "../../src/core/ProjectLauncherV2.sol";
 import {
     CreationCodeBinding,
@@ -90,6 +91,38 @@ import {
     MockFundingBandQuoteUsdOracle,
     MockV3BandPool
 } from "../mocks/MockUniswapV3BandPosition.sol";
+
+contract MockProjectLaunchAdapterFactory {
+    mapping(address adapter => bool approved) public isAdapter;
+
+    function deploy(address creator, address subject)
+        external
+        returns (MockProjectLaunchAdapter adapter)
+    {
+        adapter = new MockProjectLaunchAdapter(address(this), creator, subject);
+        isAdapter[address(adapter)] = true;
+    }
+}
+
+contract MockProjectLaunchAdapter {
+    address public immutable adapterFactory;
+    address public immutable creator;
+    address public immutable subject;
+
+    constructor(address adapterFactory_, address creator_, address subject_) {
+        adapterFactory = adapterFactory_;
+        creator = creator_;
+        subject = subject_;
+    }
+
+    function finalize(
+        ProjectLauncherV2 launcher,
+        ProjectLaunchConfig calldata config,
+        bytes32[] calldata proof
+    ) external returns (ProjectLaunchPreview memory) {
+        return launcher.launchExistingToken(config, subject, proof);
+    }
+}
 
 contract ProjectLauncherV2Test is Test {
     address internal constant CREATOR = address(0xA11CE);
@@ -160,15 +193,19 @@ contract ProjectLauncherV2Test is Test {
         uint64 nonce = vm.getNonce(address(this));
         address predictedRegistry = vm.computeCreateAddress(address(this), nonce);
         address predictedDeployer = vm.computeCreateAddress(address(this), nonce + 1);
-        address predictedLauncher = vm.computeCreateAddress(address(this), nonce + 2);
+        address predictedValidator = vm.computeCreateAddress(address(this), nonce + 2);
+        address predictedLauncher = vm.computeCreateAddress(address(this), nonce + 3);
 
         registry = new ProjectRegistryV2(predictedLauncher);
         ProjectLaunchDeployerV2 deployer =
             new ProjectLaunchDeployerV2(predictedLauncher, predictedRegistry, release, bindings);
-        launcher = new ProjectLauncherV2(predictedRegistry, predictedDeployer);
+        ProjectLaunchValidatorV2 validator =
+            new ProjectLaunchValidatorV2(predictedRegistry, predictedDeployer);
+        launcher = new ProjectLauncherV2(predictedRegistry, predictedDeployer, predictedValidator);
 
         assertEq(address(registry), predictedRegistry);
         assertEq(address(deployer), predictedDeployer);
+        assertEq(address(validator), predictedValidator);
         assertEq(address(launcher), predictedLauncher);
     }
 
@@ -219,6 +256,101 @@ contract ProjectLauncherV2Test is Test {
         assertEq(token.getVotes(token.BURN_ADDRESS()), 0);
         assertTrue(token.isVotingExcluded(launched.addresses.controller));
         assertTrue(token.isVotingExcluded(launched.addresses.treasury));
+    }
+
+    function testApprovedLaunchpadRegistersItsCanonicalTokenAsLiquidGovernanceSubject() public {
+        MockProjectLaunchAdapterFactory adapterFactory = new MockProjectLaunchAdapterFactory();
+        bytes32 approvalLeaf = _launchpadFactoryLeaf(address(adapterFactory));
+        _installLauncher(approvalLeaf, true);
+
+        ProjectLaunchConfig memory config = _baseTokenGovernanceConfig();
+        config.salt = keccak256("EXTERNAL_PONS_GOVERNANCE");
+        config.tokenAllocations = new LaunchTokenAllocation[](0);
+
+        address predictedSubject =
+            vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
+        MockProjectLaunchAdapter adapter = adapterFactory.deploy(CREATOR, predictedSubject);
+        config.launchProfile.additionalCustodyExclusions = new address[](1);
+        config.launchProfile.additionalCustodyExclusions[0] = address(adapter);
+
+        address[] memory exclusions = launcher.requiredVotingExclusions(config, predictedSubject);
+        ProjectVotesToken.TokenAllocation[] memory allocations =
+            new ProjectVotesToken.TokenAllocation[](1);
+        allocations[0] = ProjectVotesToken.TokenAllocation({
+            recipient: address(adapter), amount: config.totalSupply
+        });
+        ProjectVotesToken subject = new ProjectVotesToken(
+            config.name, config.symbol, address(registry), CREATOR, allocations, exclusions
+        );
+        assertEq(address(subject), predictedSubject);
+
+        ProjectLaunchPreview memory predicted =
+            launcher.predictExistingTokenLaunch(config, address(subject));
+        ProjectLaunchPreview memory launched = adapter.finalize(launcher, config, new bytes32[](0));
+
+        assertEq(launched.addresses.subject, address(subject));
+        assertEq(launched.addresses.subject, predicted.addresses.subject);
+        assertEq(launched.addresses.voteSource, address(subject));
+        assertEq(launched.projectId, subject.projectId());
+        assertEq(subject.balanceOf(address(adapter)), config.totalSupply);
+        assertEq(subject.eligibleVotingSupply(), 0);
+        assertEq(
+            address(ProjectGovernorV2(payable(launched.addresses.tokenGovernor)).token()),
+            address(subject)
+        );
+
+        ProjectRegistryV2.ProjectRecord memory record = registry.project(launched.projectId);
+        assertEq(record.subject, address(subject));
+        assertEq(record.voteSource, address(subject));
+        assertEq(record.creator, CREATOR);
+        assertEq(record.referenceSupply, config.totalSupply);
+    }
+
+    function testExistingTokenLaunchRejectsUnapprovedAdapterFactory() public {
+        MockProjectLaunchAdapterFactory approvedFactory = new MockProjectLaunchAdapterFactory();
+        _installLauncher(_launchpadFactoryLeaf(address(approvedFactory)), true);
+        MockProjectLaunchAdapterFactory unapprovedFactory = new MockProjectLaunchAdapterFactory();
+
+        ProjectLaunchConfig memory config = _baseTokenGovernanceConfig();
+        config.tokenAllocations = new LaunchTokenAllocation[](0);
+        address predictedSubject =
+            vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
+        MockProjectLaunchAdapter adapter = unapprovedFactory.deploy(CREATOR, predictedSubject);
+
+        ProjectVotesToken.TokenAllocation[] memory allocations =
+            new ProjectVotesToken.TokenAllocation[](1);
+        allocations[0] =
+            ProjectVotesToken.TokenAllocation({ recipient: CREATOR, amount: config.totalSupply });
+        ProjectVotesToken subject = new ProjectVotesToken(
+            config.name, config.symbol, address(registry), CREATOR, allocations, new address[](0)
+        );
+        assertEq(address(subject), predictedSubject);
+
+        vm.expectPartialRevert(ProjectLauncherV2.LaunchpadNotApproved.selector);
+        adapter.finalize(launcher, config, new bytes32[](0));
+    }
+
+    function testExistingTokenLaunchRejectsMissingRequiredVotingExclusion() public {
+        MockProjectLaunchAdapterFactory adapterFactory = new MockProjectLaunchAdapterFactory();
+        _installLauncher(_launchpadFactoryLeaf(address(adapterFactory)), true);
+
+        ProjectLaunchConfig memory config = _baseTokenGovernanceConfig();
+        config.tokenAllocations = new LaunchTokenAllocation[](0);
+        address predictedSubject =
+            vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
+        MockProjectLaunchAdapter adapter = adapterFactory.deploy(CREATOR, predictedSubject);
+
+        ProjectVotesToken.TokenAllocation[] memory allocations =
+            new ProjectVotesToken.TokenAllocation[](1);
+        allocations[0] =
+            ProjectVotesToken.TokenAllocation({ recipient: CREATOR, amount: config.totalSupply });
+        ProjectVotesToken subject = new ProjectVotesToken(
+            config.name, config.symbol, address(registry), CREATOR, allocations, new address[](0)
+        );
+        assertEq(address(subject), predictedSubject);
+
+        vm.expectPartialRevert(ProjectLauncherV2.RequiredVotingExclusionMissing.selector);
+        adapter.finalize(launcher, config, new bytes32[](0));
     }
 
     function testCanonicalPoolCannotBeRecordedWithoutFundingBands() public {
@@ -1125,6 +1257,18 @@ contract ProjectLauncherV2Test is Test {
                 adapter.codehash,
                 guard,
                 guard.codehash
+            )
+        );
+        return keccak256(bytes.concat(inner));
+    }
+
+    function _launchpadFactoryLeaf(address factory) private view returns (bytes32) {
+        bytes32 inner = keccak256(
+            abi.encode(
+                keccak256("SINJOH_V2_LAUNCHPAD_FACTORY_APPROVAL"),
+                block.chainid,
+                factory,
+                factory.codehash
             )
         );
         return keccak256(bytes.concat(inner));

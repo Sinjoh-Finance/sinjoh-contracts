@@ -28,6 +28,7 @@ import { ProjectVotesToken } from "../src/token/ProjectVotesToken.sol";
 import { ProjectTreasuryVaultV2 } from "../src/treasury/ProjectTreasuryVaultV2.sol";
 import { CreationCodeStoreV2 } from "../src/core/CreationCodeStoreV2.sol";
 import { ProjectLaunchDeployerV2 } from "../src/core/ProjectLaunchDeployerV2.sol";
+import { ProjectLaunchValidatorV2 } from "../src/core/ProjectLaunchValidatorV2.sol";
 import { ProjectLauncherV2 } from "../src/core/ProjectLauncherV2.sol";
 import { CreationCodeBinding, LauncherReleaseConfig } from "../src/core/ProjectLauncherTypes.sol";
 import { ProjectRegistryV2 } from "../src/core/ProjectRegistryV2.sol";
@@ -96,22 +97,27 @@ contract DeployProjectLauncherV2 is Script {
         uint64 nonce = vm.getNonce(broadcaster);
         address predictedRegistry = vm.computeCreateAddress(broadcaster, nonce);
         address predictedDeployer = vm.computeCreateAddress(broadcaster, nonce + 1);
-        address predictedLauncher = vm.computeCreateAddress(broadcaster, nonce + 2);
+        address predictedValidator = vm.computeCreateAddress(broadcaster, nonce + 2);
+        address predictedLauncher = vm.computeCreateAddress(broadcaster, nonce + 3);
 
         registry = new ProjectRegistryV2(predictedLauncher);
         deployer =
             new ProjectLaunchDeployerV2(predictedLauncher, predictedRegistry, release, bindings);
-        launcher = new ProjectLauncherV2(predictedRegistry, predictedDeployer);
+        ProjectLaunchValidatorV2 validator =
+            new ProjectLaunchValidatorV2(predictedRegistry, predictedDeployer);
+        launcher = new ProjectLauncherV2(predictedRegistry, predictedDeployer, predictedValidator);
         vm.stopBroadcast();
 
         require(address(registry) == predictedRegistry, "REGISTRY_ADDRESS_MISMATCH");
         require(address(deployer) == predictedDeployer, "DEPLOYER_ADDRESS_MISMATCH");
+        require(address(validator) == predictedValidator, "VALIDATOR_ADDRESS_MISMATCH");
         require(address(launcher) == predictedLauncher, "LAUNCHER_ADDRESS_MISMATCH");
         _verifyRelease(launcher, registry, deployer, integrations);
         string memory manifestPath =
             _writeManifest(launcher, registry, deployer, broadcaster, integrations);
         console2.log("ProjectRegistryV2", address(registry));
         console2.log("ProjectLaunchDeployerV2", address(deployer));
+        console2.log("ProjectLaunchValidatorV2", address(validator));
         console2.log("ProjectLauncherV2", address(launcher));
         console2.log("Deployment manifest", manifestPath);
     }
@@ -217,6 +223,11 @@ contract DeployProjectLauncherV2 is Script {
     ) private view {
         require(address(launcher.registry()) == address(registry), "LAUNCHER_REGISTRY_MISMATCH");
         require(address(launcher.deployer()) == address(deployer), "LAUNCHER_ENGINE_MISMATCH");
+        require(
+            address(launcher.validator().deployer()) == address(deployer)
+                && launcher.validator().registry() == address(registry),
+            "LAUNCHER_VALIDATOR_MISMATCH"
+        );
         require(registry.launcher() == address(launcher), "REGISTRY_LAUNCHER_MISMATCH");
         require(deployer.launcher() == address(launcher), "ENGINE_LAUNCHER_MISMATCH");
         require(deployer.registry() == address(registry), "ENGINE_REGISTRY_MISMATCH");
