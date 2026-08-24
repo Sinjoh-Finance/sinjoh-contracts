@@ -47,12 +47,11 @@ this stateful multi-package sequence. Rehearse it against an Anvil mainnet fork 
 
 For the canonical Robinhood Chain successor, use
 `./script/deploy-successor-mainnet.sh`. It pins chain ID 4663 and the authorized deployer, derives
-all reusable public addresses and runtime hashes from the last canonical manifest, selects the
-encrypted `sinjoh-v2-production-owner` keystore by default, and writes the new canonical manifest
-to `deployments/project-launcher-v2-4663.json`. The script never accepts a raw private key. The
-operator's only secret input is the keystore password requested by Foundry at signing time.
-Import the production owner once with
-`cast wallet import sinjoh-v2-production-owner --interactive`. The successor wrapper rejects any
+all reusable public addresses and runtime hashes from the last canonical manifest, and writes the
+new canonical manifest to `deployments/project-launcher-v2-4663.json`. The operator must set
+`FOUNDRY_ACCOUNT` to the name of an existing local Foundry keystore; the wrapper does not invent or
+create an account alias. It never accepts a raw private key. The operator's only secret input is the
+keystore password requested by Foundry at signing time. The successor wrapper rejects any
 `DEPLOYER_ADDRESS` other than `0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49`.
 
 The deployment derives the eight-leaf integration-approval root and every Merkle proof from the

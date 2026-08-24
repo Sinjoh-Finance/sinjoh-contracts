@@ -28,9 +28,11 @@ requested_deployer="${DEPLOYER_ADDRESS:-$expected_deployer}"
 requested_deployer_lower="$(printf '%s' "$requested_deployer" | tr '[:upper:]' '[:lower:]')"
 expected_deployer_lower="$(printf '%s' "$expected_deployer" | tr '[:upper:]' '[:lower:]')"
 [[ "$requested_deployer_lower" == "$expected_deployer_lower" ]] \
-  || fail "DEPLOYER_ADDRESS must be the reviewed production owner $expected_deployer"
+  || fail "DEPLOYER_ADDRESS must be the authorized deployer $expected_deployer"
 export DEPLOYER_ADDRESS="$expected_deployer"
-export FOUNDRY_ACCOUNT="${FOUNDRY_ACCOUNT:-sinjoh-v2-production-owner}"
+[[ -n "${FOUNDRY_ACCOUNT:-}" ]] \
+  || fail "FOUNDRY_ACCOUNT must name the local Foundry keystore for $expected_deployer"
+export FOUNDRY_ACCOUNT
 export PROTOCOL_FEE_RECIPIENT="$(manifest_value protocolFeeRecipient)"
 export RANDOMNESS_ADAPTER="$(manifest_value randomnessAdapter)"
 export RANDOMNESS_ADAPTER_RUNTIME_HASH="$(manifest_value randomnessAdapterRuntimeHash)"
