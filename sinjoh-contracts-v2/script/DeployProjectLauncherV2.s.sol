@@ -38,6 +38,41 @@ import {
 } from "../src/token/LaunchpadProjectVotesTokenFactoryV2.sol";
 import { ProjectVotesTokenFactoryV2 } from "../src/token/ProjectVotesTokenFactoryV2.sol";
 
+interface IPonsProjectAdapterFactoryRelease {
+    function bindProjectV2(
+        address launcher,
+        address registry,
+        address tokenFactory,
+        address implementation
+    ) external;
+    function projectLauncher() external view returns (address);
+    function projectRegistry() external view returns (address);
+    function projectTokenFactory() external view returns (address);
+    function projectImplementation() external view returns (address);
+    function launchFactory() external view returns (address);
+}
+
+interface IPonsLaunchForwarderRelease {
+    function setLaunchForwarder(address forwarder) external;
+    function launchForwarder() external view returns (address);
+}
+
+interface IPoolsInstantProjectAdapterFactoryRelease {
+    function bindProjectV2(address launcher, address registry, address tokenFactory) external;
+    function projectLauncher() external view returns (address);
+    function projectRegistry() external view returns (address);
+    function projectTokenFactory() external view returns (address);
+}
+
+interface IPoolsLbpProjectAdapterFactoryRelease {
+    function bindProjectV2(address launcher, address registry, address tokenFactory, address helper)
+        external;
+    function projectLauncher() external view returns (address);
+    function projectRegistry() external view returns (address);
+    function projectTokenFactory() external view returns (address);
+    function projectRegistrationHelper() external view returns (address);
+}
+
 /// @notice Deploys one immutable v2 release from environment-supplied infrastructure addresses.
 /// @dev Registry, engine, and Launcher are deployed in a verified nonce sequence. Project creators
 /// interact only with the resulting Launcher address.
@@ -60,6 +95,8 @@ contract DeployProjectLauncherV2 is Script {
         address ponsAdapterFactory;
         address poolsInstantAdapterFactory;
         address poolsLbpAdapterFactory;
+        address ponsProjectAdapterImplementation;
+        address poolsProjectRegistrationHelper;
         bytes32 ponsLaunchpadLeaf;
         bytes32 poolsInstantLaunchpadLeaf;
         bytes32 poolsLbpLaunchpadLeaf;
@@ -120,12 +157,42 @@ contract DeployProjectLauncherV2 is Script {
         ProjectLaunchValidatorV2 validator =
             new ProjectLaunchValidatorV2(predictedRegistry, predictedDeployer);
         launcher = new ProjectLauncherV2(predictedRegistry, predictedDeployer, predictedValidator);
+        IPonsProjectAdapterFactoryRelease(integrations.ponsAdapterFactory)
+            .bindProjectV2(
+                address(launcher),
+                address(registry),
+                address(ponsTokenFactory),
+                integrations.ponsProjectAdapterImplementation
+            );
+        address ponsLaunchFactory =
+            IPonsProjectAdapterFactoryRelease(integrations.ponsAdapterFactory).launchFactory();
+        IPonsLaunchForwarderRelease(ponsLaunchFactory)
+            .setLaunchForwarder(integrations.ponsAdapterFactory);
+        IPoolsInstantProjectAdapterFactoryRelease(integrations.poolsInstantAdapterFactory)
+            .bindProjectV2(address(launcher), address(registry), address(launchpadTokenFactory));
+        IPoolsLbpProjectAdapterFactoryRelease(integrations.poolsLbpAdapterFactory)
+            .bindProjectV2(
+                address(launcher),
+                address(registry),
+                address(launchpadTokenFactory),
+                integrations.poolsProjectRegistrationHelper
+            );
         vm.stopBroadcast();
 
         require(address(registry) == predictedRegistry, "REGISTRY_ADDRESS_MISMATCH");
         require(address(deployer) == predictedDeployer, "DEPLOYER_ADDRESS_MISMATCH");
         require(address(validator) == predictedValidator, "VALIDATOR_ADDRESS_MISMATCH");
         require(address(launcher) == predictedLauncher, "LAUNCHER_ADDRESS_MISMATCH");
+        require(
+            IPonsProjectAdapterFactoryRelease(integrations.ponsAdapterFactory).projectTokenFactory()
+                    == address(ponsTokenFactory)
+                && IPoolsInstantProjectAdapterFactoryRelease(
+                        integrations.poolsInstantAdapterFactory
+                    ).projectTokenFactory() == address(launchpadTokenFactory)
+                && IPoolsLbpProjectAdapterFactoryRelease(integrations.poolsLbpAdapterFactory)
+                    .projectTokenFactory() == address(launchpadTokenFactory),
+            "LAUNCHPAD_TOKEN_FACTORY_BINDING_MISMATCH"
+        );
         _verifyRelease(launcher, registry, deployer, integrations);
         string memory manifestPath = _writeManifest(
             launcher,
@@ -182,6 +249,10 @@ contract DeployProjectLauncherV2 is Script {
         integrations.poolsInstantAdapterFactory =
             vm.envAddress("POOLS_INSTANT_PROJECT_ADAPTER_FACTORY");
         integrations.poolsLbpAdapterFactory = vm.envAddress("POOLS_LBP_PROJECT_ADAPTER_FACTORY");
+        integrations.ponsProjectAdapterImplementation =
+            vm.envAddress("PONS_PROJECT_ADAPTER_IMPLEMENTATION");
+        integrations.poolsProjectRegistrationHelper =
+            vm.envAddress("POOLS_PROJECT_REGISTRATION_HELPER");
         _verifyExternalRuntime(
             integrations.ponsAdapterFactory, "PONS_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH"
         );
@@ -191,6 +262,14 @@ contract DeployProjectLauncherV2 is Script {
         );
         _verifyExternalRuntime(
             integrations.poolsLbpAdapterFactory, "POOLS_LBP_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH"
+        );
+        _verifyExternalRuntime(
+            integrations.ponsProjectAdapterImplementation,
+            "PONS_PROJECT_ADAPTER_IMPLEMENTATION_RUNTIME_HASH"
+        );
+        _verifyExternalRuntime(
+            integrations.poolsProjectRegistrationHelper,
+            "POOLS_PROJECT_REGISTRATION_HELPER_RUNTIME_HASH"
         );
         integrations.ponsLaunchpadLeaf =
             LaunchpadApproval.factoryLeaf(integrations.ponsAdapterFactory);
@@ -328,6 +407,33 @@ contract DeployProjectLauncherV2 is Script {
             deployer.integrationApprovalRoot() == integrations.approvalRoot
                 && integrations.approvalRoot != bytes32(0),
             "INTEGRATION_APPROVAL_ROOT_MISMATCH"
+        );
+        IPonsProjectAdapterFactoryRelease ponsFactory =
+            IPonsProjectAdapterFactoryRelease(integrations.ponsAdapterFactory);
+        require(
+            ponsFactory.projectLauncher() == address(launcher)
+                && ponsFactory.projectRegistry() == address(registry)
+                && ponsFactory.projectImplementation()
+                    == integrations.ponsProjectAdapterImplementation
+                && IPonsLaunchForwarderRelease(ponsFactory.launchFactory()).launchForwarder()
+                    == integrations.ponsAdapterFactory,
+            "PONS_PROJECT_BINDING_MISMATCH"
+        );
+        IPoolsInstantProjectAdapterFactoryRelease instantFactory =
+            IPoolsInstantProjectAdapterFactoryRelease(integrations.poolsInstantAdapterFactory);
+        require(
+            instantFactory.projectLauncher() == address(launcher)
+                && instantFactory.projectRegistry() == address(registry),
+            "POOLS_INSTANT_PROJECT_BINDING_MISMATCH"
+        );
+        IPoolsLbpProjectAdapterFactoryRelease lbpFactory =
+            IPoolsLbpProjectAdapterFactoryRelease(integrations.poolsLbpAdapterFactory);
+        require(
+            lbpFactory.projectLauncher() == address(launcher)
+                && lbpFactory.projectRegistry() == address(registry)
+                && lbpFactory.projectRegistrationHelper()
+                    == integrations.poolsProjectRegistrationHelper,
+            "POOLS_LBP_PROJECT_BINDING_MISMATCH"
         );
         require(
             deployer.raffleImplementation().codehash
@@ -521,6 +627,36 @@ contract DeployProjectLauncherV2 is Script {
             object,
             "poolsLbpProjectAdapterFactoryRuntimeHash",
             integrations.poolsLbpAdapterFactory.codehash
+        );
+        vm.serializeAddress(
+            object,
+            "ponsProjectAdapterImplementation",
+            integrations.ponsProjectAdapterImplementation
+        );
+        vm.serializeBytes32(
+            object,
+            "ponsProjectAdapterImplementationRuntimeHash",
+            integrations.ponsProjectAdapterImplementation.codehash
+        );
+        vm.serializeAddress(
+            object, "poolsProjectRegistrationHelper", integrations.poolsProjectRegistrationHelper
+        );
+        vm.serializeBytes32(
+            object,
+            "poolsProjectRegistrationHelperRuntimeHash",
+            integrations.poolsProjectRegistrationHelper.codehash
+        );
+        vm.serializeAddress(
+            object,
+            "ponsLaunchFactory",
+            IPonsProjectAdapterFactoryRelease(integrations.ponsAdapterFactory).launchFactory()
+        );
+        vm.serializeBytes32(
+            object,
+            "ponsLaunchFactoryRuntimeHash",
+            IPonsProjectAdapterFactoryRelease(integrations.ponsAdapterFactory)
+            .launchFactory()
+            .codehash
         );
         vm.serializeBytes32(object, "ponsLaunchpadApprovalLeaf", integrations.ponsLaunchpadLeaf);
         vm.serializeBytes32(

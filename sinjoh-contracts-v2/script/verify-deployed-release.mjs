@@ -115,6 +115,25 @@ const codeStoreAbi = parseAbi([
   "function chunkAt(uint256) view returns (address)",
 ]);
 const raffleAbi = parseAbi(["function initialized() view returns (bool)"]);
+const ponsProjectFactoryAbi = parseAbi([
+  "function launchFactory() view returns (address)",
+  "function projectLauncher() view returns (address)",
+  "function projectRegistry() view returns (address)",
+  "function projectTokenFactory() view returns (address)",
+  "function projectImplementation() view returns (address)",
+]);
+const ponsLaunchFactoryAbi = parseAbi(["function launchForwarder() view returns (address)"]);
+const poolsProjectFactoryAbi = parseAbi([
+  "function projectLauncher() view returns (address)",
+  "function projectRegistry() view returns (address)",
+  "function projectTokenFactory() view returns (address)",
+]);
+const poolsLbpProjectFactoryAbi = parseAbi([
+  "function projectLauncher() view returns (address)",
+  "function projectRegistry() view returns (address)",
+  "function projectTokenFactory() view returns (address)",
+  "function projectRegistrationHelper() view returns (address)",
+]);
 
 assertEqual("chain id", await client.getChainId(), manifest.chainId);
 
@@ -128,6 +147,9 @@ const runtimeBindings = [
   ["Pons project adapter factory", "ponsProjectAdapterFactory", "ponsProjectAdapterFactoryRuntimeHash"],
   ["Pools Instant project adapter factory", "poolsInstantProjectAdapterFactory", "poolsInstantProjectAdapterFactoryRuntimeHash"],
   ["Pools LBP project adapter factory", "poolsLbpProjectAdapterFactory", "poolsLbpProjectAdapterFactoryRuntimeHash"],
+  ["Pons project adapter implementation", "ponsProjectAdapterImplementation", "ponsProjectAdapterImplementationRuntimeHash"],
+  ["Pools project registration helper", "poolsProjectRegistrationHelper", "poolsProjectRegistrationHelperRuntimeHash"],
+  ["Pons launch factory", "ponsLaunchFactory", "ponsLaunchFactoryRuntimeHash"],
   ["raffle implementation", "raffleImplementation", "raffleImplementationRuntimeHash"],
   ["randomness adapter", "randomnessAdapter", "randomnessAdapterRuntimeHash"],
   ["project swap adapter", "projectSwapAdapter", "projectSwapAdapterRuntimeHash"],
@@ -155,6 +177,36 @@ assertEqual("validator registry", await read(manifest.launchValidator, validator
 assertEqual("validator deployment engine", await read(manifest.launchValidator, validatorAbi, "deployer"), manifest.deploymentEngine);
 assertEqual("registry protocol version", await read(manifest.registry, registryAbi, "PROTOCOL_VERSION"), manifest.protocolVersion);
 assertEqual("registry launcher", await read(manifest.registry, registryAbi, "launcher"), manifest.launcher);
+
+for (const [label, address, abi, expectedTokenFactory] of [
+  ["Pons", manifest.ponsProjectAdapterFactory, ponsProjectFactoryAbi, manifest.ponsProjectTokenFactory],
+  ["Pools Instant", manifest.poolsInstantProjectAdapterFactory, poolsProjectFactoryAbi, manifest.launchpadProjectTokenFactory],
+  ["Pools LBP", manifest.poolsLbpProjectAdapterFactory, poolsLbpProjectFactoryAbi, manifest.launchpadProjectTokenFactory],
+]) {
+  assertEqual(`${label} project launcher binding`, await read(address, abi, "projectLauncher"), manifest.launcher);
+  assertEqual(`${label} project registry binding`, await read(address, abi, "projectRegistry"), manifest.registry);
+  assertEqual(`${label} project token factory binding`, await read(address, abi, "projectTokenFactory"), expectedTokenFactory);
+}
+assertEqual(
+  "Pons project implementation binding",
+  await read(manifest.ponsProjectAdapterFactory, ponsProjectFactoryAbi, "projectImplementation"),
+  manifest.ponsProjectAdapterImplementation,
+);
+assertEqual(
+  "Pons launch factory binding",
+  await read(manifest.ponsProjectAdapterFactory, ponsProjectFactoryAbi, "launchFactory"),
+  manifest.ponsLaunchFactory,
+);
+assertEqual(
+  "Pons launch forwarder",
+  await read(manifest.ponsLaunchFactory, ponsLaunchFactoryAbi, "launchForwarder"),
+  manifest.ponsProjectAdapterFactory,
+);
+assertEqual(
+  "Pools LBP registration helper binding",
+  await read(manifest.poolsLbpProjectAdapterFactory, poolsLbpProjectFactoryAbi, "projectRegistrationHelper"),
+  manifest.poolsProjectRegistrationHelper,
+);
 
 const engineChecks = [
   ["engine launcher", "launcher", manifest.launcher],

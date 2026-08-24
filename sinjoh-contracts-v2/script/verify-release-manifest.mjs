@@ -44,6 +44,9 @@ const required = [
   "ponsProjectAdapterFactory", "ponsProjectAdapterFactoryRuntimeHash",
   "poolsInstantProjectAdapterFactory", "poolsInstantProjectAdapterFactoryRuntimeHash",
   "poolsLbpProjectAdapterFactory", "poolsLbpProjectAdapterFactoryRuntimeHash",
+  "ponsProjectAdapterImplementation", "ponsProjectAdapterImplementationRuntimeHash",
+  "poolsProjectRegistrationHelper", "poolsProjectRegistrationHelperRuntimeHash",
+  "ponsLaunchFactory", "ponsLaunchFactoryRuntimeHash",
   "ponsLaunchpadApprovalLeaf", "poolsInstantLaunchpadApprovalLeaf",
   "poolsLbpLaunchpadApprovalLeaf", "ponsLaunchpadApprovalProof",
   "poolsInstantLaunchpadApprovalProof", "poolsLbpLaunchpadApprovalProof",
@@ -108,6 +111,12 @@ const approvedReleaseValues = {
   poolsInstantProjectAdapterFactoryRuntimeHash: "POOLS_INSTANT_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH",
   poolsLbpProjectAdapterFactory: "POOLS_LBP_PROJECT_ADAPTER_FACTORY",
   poolsLbpProjectAdapterFactoryRuntimeHash: "POOLS_LBP_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH",
+  ponsProjectAdapterImplementation: "PONS_PROJECT_ADAPTER_IMPLEMENTATION",
+  ponsProjectAdapterImplementationRuntimeHash: "PONS_PROJECT_ADAPTER_IMPLEMENTATION_RUNTIME_HASH",
+  poolsProjectRegistrationHelper: "POOLS_PROJECT_REGISTRATION_HELPER",
+  poolsProjectRegistrationHelperRuntimeHash: "POOLS_PROJECT_REGISTRATION_HELPER_RUNTIME_HASH",
+  ponsLaunchFactory: "PONS_LAUNCH_FACTORY",
+  ponsLaunchFactoryRuntimeHash: "PONS_LAUNCH_FACTORY_RUNTIME_HASH",
 };
 for (const [key, environmentKey] of Object.entries(approvedReleaseValues)) {
   if (manifest[key].toLowerCase() !== process.env[environmentKey].toLowerCase()) {
@@ -236,6 +245,7 @@ for (const [key, value] of Object.entries(manifest)) {
       || key.endsWith("Aggregator") || key.endsWith("Asset")
       || ["broadcaster", "protocolFeeRecipient", "registry", "deploymentEngine",
         "launchValidator", "launcher", "ponsProjectTokenFactory", "launchpadProjectTokenFactory",
+        "ponsLaunchFactory", "poolsProjectRegistrationHelper",
         "randomnessAdapter", "v3Factory", "v4StateView", "permit2"].includes(key)
   ) {
     if (
