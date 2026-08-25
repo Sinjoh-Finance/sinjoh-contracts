@@ -5,6 +5,10 @@ repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 launchpad_dir="$repo_dir/sinjoh-launchpad-adapters"
 contracts_dir="$repo_dir/sinjoh-contracts-v2"
 account="${FOUNDRY_ACCOUNT:-sinjoh-deployer}"
+password_args=()
+if [[ -n "${FOUNDRY_PASSWORD_FILE:-}" ]]; then
+  password_args+=(--password-file "$FOUNDRY_PASSWORD_FILE")
+fi
 expected_factory=0x7DCeEaB0A53684b001A4900768a52eAcDb27294e
 expected_quote_signer=0xd89fB916dD031Da9b0A32e820307c2d41a7dDe09
 
@@ -37,6 +41,7 @@ cd "$launchpad_dir"
 FOUNDRY_ETH_RPC_URL="$primary_rpc" forge script \
   script/DeployPonsV2PairBuybackInfrastructure.s.sol:DeployPonsV2PairBuybackInfrastructure \
   --account "$account" \
+  "${password_args[@]}" \
   --broadcast \
   --slow \
   -vv

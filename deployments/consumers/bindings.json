@@ -100,6 +100,7 @@
       "NEXT_PUBLIC_PROJECT_V2_PONS_APPROVAL_PROOF_0": { "path": "contracts.projectV2.launcher", "field": "approvalProof0" },
       "NEXT_PUBLIC_PROJECT_V2_PONS_APPROVAL_PROOF_1": { "path": "contracts.projectV2.launcher", "field": "approvalProof1" },
       "NEXT_PUBLIC_PROJECT_V2_PONS_APPROVAL_PROOF_2": { "path": "contracts.projectV2.launcher", "field": "approvalProof2" },
+      "NEXT_PUBLIC_PROJECT_V2_PONS_APPROVAL_PROOF_3": { "path": "contracts.projectV2.launcher", "field": "approvalProof3" },
       "NEXT_PUBLIC_LETSCASH_ADAPTER_FACTORY": { "path": "contracts.letscashAdapterFactory", "field": "address" },
       "NEXT_PUBLIC_LETSCASH_ADAPTER_FACTORY_CODEHASH": { "path": "contracts.letscashAdapterFactory", "field": "runtimeCodeHash" },
       "NEXT_PUBLIC_LETSCASH_ADAPTER_IMPLEMENTATION": { "path": "contracts.letscashAdapterImplementation", "field": "address" },

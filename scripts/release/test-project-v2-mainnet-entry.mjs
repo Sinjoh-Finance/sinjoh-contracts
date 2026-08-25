@@ -13,8 +13,18 @@ const manifest = {
   ponsLaunchpadApprovalProof: [
     `0x${"33".repeat(32)}`,
     `0x${"44".repeat(32)}`,
-    `0x${"55".repeat(32)}`
-  ]
+    `0x${"55".repeat(32)}`,
+    `0x${"66".repeat(32)}`
+  ],
+  integrationApprovalRoot: `0x${"77".repeat(32)}`,
+  swapApprovalProof500: [],
+  swapApprovalProof3000: [],
+  swapApprovalProof10000: [],
+  wethUnwrapApprovalProof: [],
+  ponsV2PairBuybackApprovalProof: [],
+  flapBuybackApprovalProof: [],
+  flapPayoutApprovalProof: [],
+  fundingBandIntegrationProof: []
 };
 const transactions = [];
 const receipts = [];
@@ -37,6 +47,7 @@ for (const [index, key] of projectV2DeploymentKeys.entries()) {
 const entry = buildProjectV2MainnetEntry(manifest, [{ chain: 4663, transactions, receipts }]);
 assert.equal(entry.sourceCommit, manifest.gitCommit);
 assert.equal(entry.approvalProof2, manifest.ponsLaunchpadApprovalProof[2]);
+assert.equal(entry.approvalProof3, manifest.ponsLaunchpadApprovalProof[3]);
 assert.equal(entry.launcher.address, manifest.launcher);
 assert.equal(entry.launcher.deploymentBlock, block - 1);
 assert.equal(

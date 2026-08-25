@@ -6,7 +6,8 @@ const inheritedAttestationFields = [
   "buildHash",
   "approvalProof0",
   "approvalProof1",
-  "approvalProof2"
+  "approvalProof2",
+  "approvalProof3"
 ];
 
 export function collectPromotionContracts(value, prefix, contracts, inheritedAttestation = {}) {

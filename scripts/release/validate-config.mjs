@@ -304,6 +304,7 @@ function validateConsumerBindings() {
             "approvalProof0",
             "approvalProof1",
             "approvalProof2",
+            "approvalProof3",
           ].includes(binding.field),
           `${path}: ${consumerName}.${variableName} has invalid field`,
         );

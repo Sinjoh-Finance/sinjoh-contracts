@@ -10,6 +10,9 @@ export const projectV2DeploymentKeys = [
   "projectV3PriceGuard500",
   "projectV3PriceGuard3000",
   "projectV3PriceGuard10000",
+  "projectWethUnwrapPriceGuard",
+  "ponsV2PairBuybackAdapter",
+  "ponsV2PairBuybackPriceGuard",
   "ponsProjectAdapterFactory",
   "ponsProjectAdapterImplementation",
   "poolsInstantProjectAdapterFactory",
@@ -47,9 +50,9 @@ export function buildProjectV2MainnetEntry(manifest, broadcasts) {
   if (!commitPattern.test(manifest.gitCommit ?? "")) throw new Error("invalid release gitCommit");
   if (!buildPattern.test(manifest.buildHash ?? "")) throw new Error("invalid release buildHash");
   if (!Array.isArray(manifest.ponsLaunchpadApprovalProof)
-      || manifest.ponsLaunchpadApprovalProof.length !== 3
+      || manifest.ponsLaunchpadApprovalProof.length !== 4
       || manifest.ponsLaunchpadApprovalProof.some((node) => !bytes32Pattern.test(node))) {
-    throw new Error("Pons approval proof must contain exactly three bytes32 nodes");
+    throw new Error("Pons approval proof must contain exactly four bytes32 nodes");
   }
 
   const receiptByContractAddress = new Map();
@@ -91,7 +94,17 @@ export function buildProjectV2MainnetEntry(manifest, broadcasts) {
     buildHash: manifest.buildHash,
     approvalProof0: manifest.ponsLaunchpadApprovalProof[0],
     approvalProof1: manifest.ponsLaunchpadApprovalProof[1],
-    approvalProof2: manifest.ponsLaunchpadApprovalProof[2]
+    approvalProof2: manifest.ponsLaunchpadApprovalProof[2],
+    approvalProof3: manifest.ponsLaunchpadApprovalProof[3],
+    integrationApprovalRoot: manifest.integrationApprovalRoot,
+    swapApprovalProof500: manifest.swapApprovalProof500,
+    swapApprovalProof3000: manifest.swapApprovalProof3000,
+    swapApprovalProof10000: manifest.swapApprovalProof10000,
+    wethUnwrapApprovalProof: manifest.wethUnwrapApprovalProof,
+    ponsV2PairBuybackApprovalProof: manifest.ponsV2PairBuybackApprovalProof,
+    flapBuybackApprovalProof: manifest.flapBuybackApprovalProof,
+    flapPayoutApprovalProof: manifest.flapPayoutApprovalProof,
+    fundingBandIntegrationProof: manifest.fundingBandIntegrationProof
   };
   for (const key of projectV2DeploymentKeys) {
     const { transactionHash, receipt } = deploymentByKey.get(key);
