@@ -56,7 +56,7 @@ deployment_value() {
   local field="$2"
   local value
   value="$(jq -er --arg deployment "$deployment" --arg field "$field" \
-    '.currentInfrastructure[$deployment][$field]' "$mainnet_deployments")" \
+    '(.currentInfrastructure.projectV2[$deployment] // .currentInfrastructure[$deployment])[$field]' "$mainnet_deployments")" \
     || fail "mainnet deployments is missing $deployment.$field"
   [[ "$value" != "null" && -n "$value" ]] \
     || fail "mainnet deployments has no value for $deployment.$field"

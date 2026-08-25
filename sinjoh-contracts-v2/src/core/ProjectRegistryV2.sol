@@ -98,12 +98,10 @@ contract ProjectRegistryV2 {
     address public immutable launcher;
 
     mapping(bytes32 projectId => ProjectRecord record) private _projects;
-    mapping(address subject => bytes32 projectId) public projectIdBySubject;
     mapping(bytes32 projectId => bytes32 configHash) public launchConfigHash;
     mapping(bytes32 projectId => string uri) private _metadataURI;
-    mapping(bytes32 projectId => bytes32 hash) public metadataHash;
-    mapping(bytes32 projectId => uint64 version) public metadataVersion;
-    mapping(bytes32 projectId => mapping(address module => uint256 bits)) public moduleBits;
+    mapping(bytes32 projectId => bytes32 hash) private _metadataHash;
+    mapping(bytes32 projectId => uint64 version) private _metadataVersion;
     bytes32[] private _projectIds;
 
     error OnlyLauncher(address caller);
@@ -169,24 +167,43 @@ contract ProjectRegistryV2 {
         bytes32 configHash,
         string calldata initialMetadataURI
     ) external onlyLauncher returns (bytes32 projectId) {
-        _validateMetadataLength(initialMetadataURI);
         projectId = _validateRegistration(registration);
+        _registerProject(projectId, registration, configHash, initialMetadataURI);
+    }
+
+    /// @notice Gas-bounded registration for the immutable Launcher, which has already deployed
+    /// and verified every supplied module in the same transaction.
+    function registerVerifiedProject(
+        ProjectRegistration calldata registration,
+        bytes32 configHash,
+        string calldata initialMetadataURI
+    ) external onlyLauncher returns (bytes32 projectId) {
+        projectId = _validateLauncherRegistration(registration);
+        _registerProject(projectId, registration, configHash, initialMetadataURI);
+    }
+
+    function _registerProject(
+        bytes32 projectId,
+        ProjectRegistration calldata registration,
+        bytes32 configHash,
+        string calldata initialMetadataURI
+    ) private {
+        _validateMetadataLength(initialMetadataURI);
         if (_projects[projectId].subject != address(0)) {
             revert ProjectAlreadyRegistered(projectId, registration.subject);
         }
-        bytes32 existing = projectIdBySubject[registration.subject];
+        bytes32 existing = projectIdBySubject(registration.subject);
         if (existing != bytes32(0)) {
             revert SubjectAlreadyRegistered(registration.subject, existing);
         }
 
         _writeRecord(projectId, registration);
-        projectIdBySubject[registration.subject] = projectId;
         launchConfigHash[projectId] = configHash;
         _metadataURI[projectId] = initialMetadataURI;
-        metadataHash[projectId] = keccak256(bytes(initialMetadataURI));
-        metadataVersion[projectId] = 1;
+        if (bytes(initialMetadataURI).length != 0) {
+            _metadataHash[projectId] = keccak256(bytes(initialMetadataURI));
+        }
         _projectIds.push(projectId);
-        _indexModules(projectId, registration);
 
         emit ProjectLaunched(
             projectId,
@@ -209,7 +226,7 @@ contract ProjectRegistryV2 {
             registration.basketManager,
             registration.primaryBasketId
         );
-        emit ProjectMetadataUpdated(projectId, metadataHash[projectId]);
+        emit ProjectMetadataUpdated(projectId, keccak256(bytes(initialMetadataURI)));
     }
 
     function updateMetadataURI(bytes32 projectId, string calldata newMetadataURI) external {
@@ -220,23 +237,32 @@ contract ProjectRegistryV2 {
         }
         _validateMetadataLength(newMetadataURI);
         bytes32 newHash = keccak256(bytes(newMetadataURI));
-        if (newHash == metadataHash[projectId]) revert MetadataUnchanged(newHash);
+        if (newHash == metadataHash(projectId)) revert MetadataUnchanged(newHash);
         _metadataURI[projectId] = newMetadataURI;
-        metadataHash[projectId] = newHash;
-        metadataVersion[projectId] += 1;
+        _metadataHash[projectId] = newHash;
+        _metadataVersion[projectId] = metadataVersion(projectId) + 1;
         emit ProjectMetadataUpdated(projectId, newHash);
     }
 
     function project(bytes32 projectId) external view returns (ProjectRecord memory) {
         ProjectRecord memory record = _projects[projectId];
         if (record.subject == address(0)) revert UnknownProject(projectId);
+        _hydrateRecord(record, projectId);
         return record;
     }
 
     function projectBySubject(address subject) external view returns (ProjectRecord memory) {
-        bytes32 projectId = projectIdBySubject[subject];
+        bytes32 projectId = projectIdBySubject(subject);
         if (projectId == bytes32(0)) revert UnknownProject(projectId);
-        return _projects[projectId];
+        ProjectRecord memory record = _projects[projectId];
+        _hydrateRecord(record, projectId);
+        return record;
+    }
+
+    function projectIdBySubject(address subject) public view returns (bytes32 projectId) {
+        if (subject == address(0)) return bytes32(0);
+        projectId = ProjectIds.derive(block.chainid, address(this), subject);
+        if (_projects[projectId].subject != subject) return bytes32(0);
     }
 
     function metadataURI(bytes32 projectId) external view returns (string memory) {
@@ -253,11 +279,41 @@ contract ProjectRegistryV2 {
     }
 
     function isProjectModule(bytes32 projectId, address candidate) external view returns (bool) {
-        return moduleBits[projectId][candidate] != 0;
+        return moduleBits(projectId, candidate) != 0;
+    }
+
+    function metadataHash(bytes32 projectId) public view returns (bytes32) {
+        bytes32 hash = _metadataHash[projectId];
+        if (hash == bytes32(0) && _projects[projectId].subject != address(0)) {
+            return keccak256("");
+        }
+        return hash;
+    }
+
+    function metadataVersion(bytes32 projectId) public view returns (uint64) {
+        uint64 version = _metadataVersion[projectId];
+        if (version == 0 && _projects[projectId].subject != address(0)) return 1;
+        return version;
+    }
+
+    function moduleBits(bytes32 projectId, address candidate) public view returns (uint256 bits) {
+        if (candidate == address(0)) return 0;
+        ProjectRecord storage record = _projects[projectId];
+        if (candidate == record.treasury) bits |= ProjectModuleBits.TREASURY;
+        if (candidate == record.router) bits |= ProjectModuleBits.ROUTER;
+        if (candidate == record.stakingPool || candidate == record.posNft) {
+            bits |= ProjectModuleBits.STAKING;
+        }
+        if (candidate == record.airdrop) bits |= ProjectModuleBits.AIRDROP;
+        if (candidate == record.basketManager) bits |= ProjectModuleBits.BASKET;
+        if (candidate == record.fundingBands) bits |= ProjectModuleBits.FUNDING_BANDS;
+        if (candidate == record.raffle) bits |= ProjectModuleBits.RAFFLE;
+        if (candidate == record.liquidityManager) bits |= ProjectModuleBits.LIQUIDITY;
     }
 
     function hasModule(bytes32 projectId, uint256 moduleBit) external view returns (bool) {
-        return _projects[projectId].enabledModules & moduleBit != 0;
+        ProjectRecord memory record = _projects[projectId];
+        return _recordEnabledModules(record) & moduleBit != 0;
     }
 
     function _validateRegistration(ProjectRegistration calldata registration)
@@ -282,8 +338,9 @@ contract ProjectRegistryV2 {
             revert InvalidReferenceSupply(actualSupply, registration.referenceSupply);
         }
 
-        _validateGovernance(registration, projectId);
         _validateDependencies(registration.enabledModules);
+        _validateModuleSelection(registration);
+        _validateGovernance(registration, projectId);
         _validateModule(registration.treasury, ProjectModuleBits.TREASURY, registration, true);
         _validateModule(registration.router, ProjectModuleBits.ROUTER, registration, true);
         _validateModule(registration.stakingPool, ProjectModuleBits.STAKING, registration, true);
@@ -299,16 +356,30 @@ contract ProjectRegistryV2 {
         _validateStakingAndBasket(registration, projectId);
     }
 
+    function _validateLauncherRegistration(ProjectRegistration calldata registration)
+        private
+        view
+        returns (bytes32 projectId)
+    {
+        if (registration.creator == address(0) || registration.creator == BURN_ADDRESS) {
+            revert InvalidCreator(registration.creator);
+        }
+        if (registration.enabledModules & ~ProjectModuleBits.ALL != 0) {
+            revert InvalidEnabledModules(registration.enabledModules);
+        }
+        projectId = ProjectIds.derive(block.chainid, address(this), registration.subject);
+        _validateDependencies(registration.enabledModules);
+        _validateModuleSelection(registration);
+    }
+
     function _writeRecord(bytes32 projectId, ProjectRegistration calldata registration) private {
         ProjectRecord storage record = _projects[projectId];
-        record.projectId = projectId;
         record.subject = registration.subject;
         record.creator = registration.creator;
         record.governanceMode = registration.governanceMode;
         record.controller = registration.controller;
         record.multisigAccount = registration.multisigAccount;
         record.tokenGovernor = registration.tokenGovernor;
-        record.tokenTimelock = registration.tokenTimelock;
         record.voteSource = registration.voteSource;
         record.treasury = registration.treasury;
         record.router = registration.router;
@@ -321,10 +392,34 @@ contract ProjectRegistryV2 {
         record.basketManager = registration.basketManager;
         record.primaryBasketId = registration.primaryBasketId;
         record.canonicalPool = registration.canonicalPool;
-        record.referenceSupply = registration.referenceSupply;
         record.launchedAt = uint64(block.timestamp);
         record.protocolVersion = PROTOCOL_VERSION;
-        record.enabledModules = registration.enabledModules;
+    }
+
+    function _hydrateRecord(ProjectRecord memory record, bytes32 projectId) private view {
+        record.projectId = projectId;
+        if (record.governanceMode == GovernanceMode.TOKEN_HOLDER) {
+            record.tokenTimelock = record.controller;
+        }
+        record.referenceSupply = IProjectReferenceSupply(record.subject).initialSupply();
+        record.enabledModules = _recordEnabledModules(record);
+    }
+
+    function _recordEnabledModules(ProjectRecord memory record)
+        private
+        pure
+        returns (uint256 bits)
+    {
+        if (record.treasury != address(0)) {
+            bits |= ProjectModuleBits.TREASURY;
+        }
+        if (record.router != address(0)) bits |= ProjectModuleBits.ROUTER;
+        if (record.stakingPool != address(0)) bits |= ProjectModuleBits.STAKING;
+        if (record.airdrop != address(0)) bits |= ProjectModuleBits.AIRDROP;
+        if (record.basketManager != address(0)) bits |= ProjectModuleBits.BASKET;
+        if (record.fundingBands != address(0)) bits |= ProjectModuleBits.FUNDING_BANDS;
+        if (record.raffle != address(0)) bits |= ProjectModuleBits.RAFFLE;
+        if (record.liquidityManager != address(0)) bits |= ProjectModuleBits.LIQUIDITY;
     }
 
     function _validateGovernance(ProjectRegistration calldata registration, bytes32 projectId)
@@ -445,20 +540,45 @@ contract ProjectRegistryV2 {
         ) revert InvalidController(candidate);
     }
 
-    function _indexModules(bytes32 projectId, ProjectRegistration calldata registration) private {
-        _index(projectId, registration.treasury, ProjectModuleBits.TREASURY);
-        _index(projectId, registration.router, ProjectModuleBits.ROUTER);
-        _index(projectId, registration.stakingPool, ProjectModuleBits.STAKING);
-        _index(projectId, registration.posNft, ProjectModuleBits.STAKING);
-        _index(projectId, registration.airdrop, ProjectModuleBits.AIRDROP);
-        _index(projectId, registration.basketManager, ProjectModuleBits.BASKET);
-        _index(projectId, registration.fundingBands, ProjectModuleBits.FUNDING_BANDS);
-        _index(projectId, registration.raffle, ProjectModuleBits.RAFFLE);
-        _index(projectId, registration.liquidityManager, ProjectModuleBits.LIQUIDITY);
+    function _validateModuleSelection(ProjectRegistration calldata registration) private pure {
+        _validateSelected(
+            registration.treasury, ProjectModuleBits.TREASURY, registration.enabledModules
+        );
+        _validateSelected(
+            registration.router, ProjectModuleBits.ROUTER, registration.enabledModules
+        );
+        _validateSelected(
+            registration.stakingPool, ProjectModuleBits.STAKING, registration.enabledModules
+        );
+        _validateSelected(
+            registration.airdrop, ProjectModuleBits.AIRDROP, registration.enabledModules
+        );
+        _validateSelected(
+            registration.basketManager, ProjectModuleBits.BASKET, registration.enabledModules
+        );
+        _validateSelected(
+            registration.fundingBands, ProjectModuleBits.FUNDING_BANDS, registration.enabledModules
+        );
+        _validateSelected(
+            registration.raffle, ProjectModuleBits.RAFFLE, registration.enabledModules
+        );
+        _validateSelected(
+            registration.liquidityManager, ProjectModuleBits.LIQUIDITY, registration.enabledModules
+        );
+        bool staking = registration.enabledModules & ProjectModuleBits.STAKING != 0;
+        if (staking != (registration.posNft != address(0))) {
+            revert ModuleSelectionMismatch(ProjectModuleBits.STAKING, registration.posNft);
+        }
+        bool basket = registration.enabledModules & ProjectModuleBits.BASKET != 0;
+        if (basket != (registration.primaryBasketId != 0)) {
+            revert InvalidPrimaryBasket(registration.primaryBasketId);
+        }
     }
 
-    function _index(bytes32 projectId, address module, uint256 bit) private {
-        if (module != address(0)) moduleBits[projectId][module] |= bit;
+    function _validateSelected(address module, uint256 bit, uint256 enabledModules) private pure {
+        if ((enabledModules & bit != 0) != (module != address(0))) {
+            revert ModuleSelectionMismatch(bit, module);
+        }
     }
 
     function _validateMetadataLength(string calldata uri) private pure {

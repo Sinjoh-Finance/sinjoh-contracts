@@ -7256,7 +7256,7 @@ export const projectRegistryV2Abi = [
         ],
         "outputs": [
             {
-                "name": "hash",
+                "name": "",
                 "type": "bytes32",
                 "internalType": "bytes32"
             }
@@ -7294,7 +7294,7 @@ export const projectRegistryV2Abi = [
         ],
         "outputs": [
             {
-                "name": "version",
+                "name": "",
                 "type": "uint64",
                 "internalType": "uint64"
             }
@@ -7311,7 +7311,7 @@ export const projectRegistryV2Abi = [
                 "internalType": "bytes32"
             },
             {
-                "name": "module",
+                "name": "candidate",
                 "type": "address",
                 "internalType": "address"
             }
@@ -7661,6 +7661,142 @@ export const projectRegistryV2Abi = [
     {
         "type": "function",
         "name": "registerProject",
+        "inputs": [
+            {
+                "name": "registration",
+                "type": "tuple",
+                "internalType": "struct ProjectRegistryV2.ProjectRegistration",
+                "components": [
+                    {
+                        "name": "subject",
+                        "type": "address",
+                        "internalType": "address"
+                    },
+                    {
+                        "name": "creator",
+                        "type": "address",
+                        "internalType": "address"
+                    },
+                    {
+                        "name": "governanceMode",
+                        "type": "uint8",
+                        "internalType": "enum ProjectRegistryV2.GovernanceMode"
+                    },
+                    {
+                        "name": "controller",
+                        "type": "address",
+                        "internalType": "address"
+                    },
+                    {
+                        "name": "multisigAccount",
+                        "type": "address",
+                        "internalType": "address"
+                    },
+                    {
+                        "name": "tokenGovernor",
+                        "type": "address",
+                        "internalType": "address"
+                    },
+                    {
+                        "name": "tokenTimelock",
+                        "type": "address",
+                        "internalType": "address"
+                    },
+                    {
+                        "name": "voteSource",
+                        "type": "address",
+                        "internalType": "address"
+                    },
+                    {
+                        "name": "treasury",
+                        "type": "address",
+                        "internalType": "address"
+                    },
+                    {
+                        "name": "router",
+                        "type": "address",
+                        "internalType": "address"
+                    },
+                    {
+                        "name": "stakingPool",
+                        "type": "address",
+                        "internalType": "address"
+                    },
+                    {
+                        "name": "posNft",
+                        "type": "address",
+                        "internalType": "address"
+                    },
+                    {
+                        "name": "airdrop",
+                        "type": "address",
+                        "internalType": "address"
+                    },
+                    {
+                        "name": "raffle",
+                        "type": "address",
+                        "internalType": "address"
+                    },
+                    {
+                        "name": "liquidityManager",
+                        "type": "address",
+                        "internalType": "address"
+                    },
+                    {
+                        "name": "fundingBands",
+                        "type": "address",
+                        "internalType": "address"
+                    },
+                    {
+                        "name": "basketManager",
+                        "type": "address",
+                        "internalType": "address"
+                    },
+                    {
+                        "name": "primaryBasketId",
+                        "type": "uint256",
+                        "internalType": "uint256"
+                    },
+                    {
+                        "name": "canonicalPool",
+                        "type": "address",
+                        "internalType": "address"
+                    },
+                    {
+                        "name": "referenceSupply",
+                        "type": "uint256",
+                        "internalType": "uint256"
+                    },
+                    {
+                        "name": "enabledModules",
+                        "type": "uint256",
+                        "internalType": "uint256"
+                    }
+                ]
+            },
+            {
+                "name": "configHash",
+                "type": "bytes32",
+                "internalType": "bytes32"
+            },
+            {
+                "name": "initialMetadataURI",
+                "type": "string",
+                "internalType": "string"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "projectId",
+                "type": "bytes32",
+                "internalType": "bytes32"
+            }
+        ],
+        "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
+        "name": "registerVerifiedProject",
         "inputs": [
             {
                 "name": "registration",

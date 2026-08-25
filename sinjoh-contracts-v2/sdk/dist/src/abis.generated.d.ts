@@ -5655,7 +5655,7 @@ export declare const projectRegistryV2Abi: readonly [{
         readonly internalType: "bytes32";
     }];
     readonly outputs: readonly [{
-        readonly name: "hash";
+        readonly name: "";
         readonly type: "bytes32";
         readonly internalType: "bytes32";
     }];
@@ -5683,7 +5683,7 @@ export declare const projectRegistryV2Abi: readonly [{
         readonly internalType: "bytes32";
     }];
     readonly outputs: readonly [{
-        readonly name: "version";
+        readonly name: "";
         readonly type: "uint64";
         readonly internalType: "uint64";
     }];
@@ -5696,7 +5696,7 @@ export declare const projectRegistryV2Abi: readonly [{
         readonly type: "bytes32";
         readonly internalType: "bytes32";
     }, {
-        readonly name: "module";
+        readonly name: "candidate";
         readonly type: "address";
         readonly internalType: "address";
     }];
@@ -5969,6 +5969,113 @@ export declare const projectRegistryV2Abi: readonly [{
 }, {
     readonly type: "function";
     readonly name: "registerProject";
+    readonly inputs: readonly [{
+        readonly name: "registration";
+        readonly type: "tuple";
+        readonly internalType: "struct ProjectRegistryV2.ProjectRegistration";
+        readonly components: readonly [{
+            readonly name: "subject";
+            readonly type: "address";
+            readonly internalType: "address";
+        }, {
+            readonly name: "creator";
+            readonly type: "address";
+            readonly internalType: "address";
+        }, {
+            readonly name: "governanceMode";
+            readonly type: "uint8";
+            readonly internalType: "enum ProjectRegistryV2.GovernanceMode";
+        }, {
+            readonly name: "controller";
+            readonly type: "address";
+            readonly internalType: "address";
+        }, {
+            readonly name: "multisigAccount";
+            readonly type: "address";
+            readonly internalType: "address";
+        }, {
+            readonly name: "tokenGovernor";
+            readonly type: "address";
+            readonly internalType: "address";
+        }, {
+            readonly name: "tokenTimelock";
+            readonly type: "address";
+            readonly internalType: "address";
+        }, {
+            readonly name: "voteSource";
+            readonly type: "address";
+            readonly internalType: "address";
+        }, {
+            readonly name: "treasury";
+            readonly type: "address";
+            readonly internalType: "address";
+        }, {
+            readonly name: "router";
+            readonly type: "address";
+            readonly internalType: "address";
+        }, {
+            readonly name: "stakingPool";
+            readonly type: "address";
+            readonly internalType: "address";
+        }, {
+            readonly name: "posNft";
+            readonly type: "address";
+            readonly internalType: "address";
+        }, {
+            readonly name: "airdrop";
+            readonly type: "address";
+            readonly internalType: "address";
+        }, {
+            readonly name: "raffle";
+            readonly type: "address";
+            readonly internalType: "address";
+        }, {
+            readonly name: "liquidityManager";
+            readonly type: "address";
+            readonly internalType: "address";
+        }, {
+            readonly name: "fundingBands";
+            readonly type: "address";
+            readonly internalType: "address";
+        }, {
+            readonly name: "basketManager";
+            readonly type: "address";
+            readonly internalType: "address";
+        }, {
+            readonly name: "primaryBasketId";
+            readonly type: "uint256";
+            readonly internalType: "uint256";
+        }, {
+            readonly name: "canonicalPool";
+            readonly type: "address";
+            readonly internalType: "address";
+        }, {
+            readonly name: "referenceSupply";
+            readonly type: "uint256";
+            readonly internalType: "uint256";
+        }, {
+            readonly name: "enabledModules";
+            readonly type: "uint256";
+            readonly internalType: "uint256";
+        }];
+    }, {
+        readonly name: "configHash";
+        readonly type: "bytes32";
+        readonly internalType: "bytes32";
+    }, {
+        readonly name: "initialMetadataURI";
+        readonly type: "string";
+        readonly internalType: "string";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "projectId";
+        readonly type: "bytes32";
+        readonly internalType: "bytes32";
+    }];
+    readonly stateMutability: "nonpayable";
+}, {
+    readonly type: "function";
+    readonly name: "registerVerifiedProject";
     readonly inputs: readonly [{
         readonly name: "registration";
         readonly type: "tuple";
