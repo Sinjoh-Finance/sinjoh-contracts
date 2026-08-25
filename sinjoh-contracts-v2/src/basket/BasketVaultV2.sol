@@ -633,7 +633,7 @@ contract BasketVaultV2 is ReentrancyGuard {
         address outputAsset = _targets[targetIndex].depositAsset;
         bytes32 routeHash = keccak256(leg.routeData);
         (uint256 minimum, uint48 validUntil) = IProjectPriceGuard(leg.priceGuard)
-            .minimumOutput(inputAsset, outputAsset, amountIn, routeHash, "");
+            .minimumOutput(subject, inputAsset, outputAsset, amountIn, routeHash, "");
         if (minimum == 0) revert InvalidGuardMinimum(minimum);
         uint48 currentTime = Time.timestamp();
         if (validUntil < currentTime) {

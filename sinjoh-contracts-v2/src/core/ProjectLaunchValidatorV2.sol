@@ -309,6 +309,15 @@ contract ProjectLaunchValidatorV2 {
                 } else if (actionType == RouterActionType.FUND_TREASURY) {
                     placeholder = true;
                     selected = config.modules.treasury;
+                } else if (actionType == RouterActionType.SWAP_AND_FUND_TREASURY) {
+                    placeholder = true;
+                    selected = config.modules.treasury;
+                } else if (actionType == RouterActionType.SWAP_AND_FUND_AIRDROP) {
+                    placeholder = true;
+                    selected = config.modules.airdrop;
+                } else if (actionType == RouterActionType.SWAP_AND_FUND_RAFFLE) {
+                    placeholder = true;
+                    selected = config.modules.raffle;
                 }
                 if (placeholder && (supplied != address(0) || !selected)) {
                     revert InvalidRouterPlaceholder(i, j, supplied);

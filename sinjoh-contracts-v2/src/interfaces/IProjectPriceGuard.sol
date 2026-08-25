@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 /// @notice Price-safety boundary for one project swap.
 interface IProjectPriceGuard {
     function minimumOutput(
+        address subject,
         address assetIn,
         address assetOut,
         uint256 amountIn,

@@ -9,7 +9,10 @@ enum RouterActionType {
     FUND_AIRDROP,
     FUND_RAFFLE,
     FUND_TREASURY,
-    FUND_PROJECT_SINK
+    FUND_PROJECT_SINK,
+    SWAP_AND_FUND_TREASURY,
+    SWAP_AND_FUND_AIRDROP,
+    SWAP_AND_FUND_RAFFLE
 }
 
 struct RouterAction {
@@ -30,4 +33,11 @@ struct RouterSwapConfig {
     address outputAsset;
     bytes routeData;
     bytes32[] approvalProof;
+}
+
+struct RouterSwapAndFundConfig {
+    address outputAsset;
+    bytes routeData;
+    bytes32[] approvalProof;
+    bytes fundingConfig;
 }

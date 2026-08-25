@@ -380,6 +380,12 @@ contract ProjectLauncherV2 is ReentrancyGuard {
                     routes[i].actions[j].recipient = a.raffle;
                 } else if (actionType == RouterActionType.FUND_TREASURY) {
                     routes[i].actions[j].recipient = a.treasury;
+                } else if (actionType == RouterActionType.SWAP_AND_FUND_TREASURY) {
+                    routes[i].actions[j].recipient = a.treasury;
+                } else if (actionType == RouterActionType.SWAP_AND_FUND_AIRDROP) {
+                    routes[i].actions[j].recipient = a.airdrop;
+                } else if (actionType == RouterActionType.SWAP_AND_FUND_RAFFLE) {
+                    routes[i].actions[j].recipient = a.raffle;
                 }
             }
         }

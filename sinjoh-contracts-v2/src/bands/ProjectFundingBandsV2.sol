@@ -1003,7 +1003,7 @@ contract ProjectFundingBandsV2 is
         _validateSwapConfig(swapConfig);
         bytes32 routeHash = keccak256(swapConfig.routeData);
         (uint256 minimum, uint48 validUntil) = IProjectPriceGuard(swapConfig.priceGuard)
-            .minimumOutput(quoteAsset, subject, amountIn, routeHash, swapConfig.guardData);
+            .minimumOutput(subject, quoteAsset, subject, amountIn, routeHash, swapConfig.guardData);
         if (minimum == 0) revert InvalidGuardMinimum(minimum);
         uint48 currentTime = Time.timestamp();
         if (validUntil < currentTime) revert GuardQuoteExpired(validUntil, currentTime);

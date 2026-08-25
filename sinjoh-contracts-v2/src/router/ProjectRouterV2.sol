@@ -23,7 +23,8 @@ import {
     RouterAction,
     RouterActionType,
     RouterRouteInput,
-    RouterSwapConfig
+    RouterSwapConfig,
+    RouterSwapAndFundConfig
 } from "./RouterTypes.sol";
 
 interface IProjectBurnableToken is IERC20 {
@@ -510,6 +511,27 @@ contract ProjectRouterV2 is IProjectModule, IProjectControlled, IProjectFundable
             if (burned != amountOut) revert InexactBurn(amountOut, burned);
             return (subject, amountOut);
         }
+        if (
+            actionType == RouterActionType.SWAP_AND_FUND_TREASURY
+                || actionType == RouterActionType.SWAP_AND_FUND_AIRDROP
+                || actionType == RouterActionType.SWAP_AND_FUND_RAFFLE
+        ) {
+            RouterSwapAndFundConfig memory config =
+                abi.decode(action.actionConfig, (RouterSwapAndFundConfig));
+            RouterSwapConfig memory swapConfig = RouterSwapConfig({
+                outputAsset: config.outputAsset,
+                routeData: config.routeData,
+                approvalProof: config.approvalProof
+            });
+            amountOut = _swap(action, asset, amount, callerMinOut, guardData, swapConfig);
+            if (actionType == RouterActionType.SWAP_AND_FUND_TREASURY) {
+                bool routeToBasket = abi.decode(config.fundingConfig, (bool));
+                _fundTreasury(config.outputAsset, amountOut, routeToBasket);
+            } else {
+                _fundSink(action.recipient, config.outputAsset, amountOut, config.fundingConfig);
+            }
+            return (config.outputAsset, amountOut);
+        }
         if (actionType == RouterActionType.FUND_TREASURY) {
             bool routeToBasket = abi.decode(action.actionConfig, (bool));
             _fundTreasury(asset, amount, routeToBasket);
@@ -729,6 +751,38 @@ contract ProjectRouterV2 is IProjectModule, IProjectControlled, IProjectFundable
             return;
         }
         if (
+            actionType == RouterActionType.SWAP_AND_FUND_TREASURY
+                || actionType == RouterActionType.SWAP_AND_FUND_AIRDROP
+                || actionType == RouterActionType.SWAP_AND_FUND_RAFFLE
+        ) {
+            address expectedRecipient;
+            if (actionType == RouterActionType.SWAP_AND_FUND_TREASURY) {
+                expectedRecipient = treasury;
+            } else if (actionType == RouterActionType.SWAP_AND_FUND_AIRDROP) {
+                expectedRecipient = airdrop;
+            } else {
+                expectedRecipient = raffle;
+            }
+            if (expectedRecipient == address(0) || action.recipient != expectedRecipient) {
+                revert InvalidRecipient(index, action.recipient);
+            }
+            if (action.adapter.code.length == 0 || action.priceGuard.code.length == 0) {
+                revert InvalidIntegration(index, action.adapter, action.priceGuard);
+            }
+            RouterSwapAndFundConfig memory config =
+                abi.decode(action.actionConfig, (RouterSwapAndFundConfig));
+            RouterSwapConfig memory swapConfig = RouterSwapConfig({
+                outputAsset: config.outputAsset,
+                routeData: config.routeData,
+                approvalProof: config.approvalProof
+            });
+            _validateSwapConfig(inputAsset, index, action, false, swapConfig);
+            if (actionType == RouterActionType.SWAP_AND_FUND_TREASURY) {
+                abi.decode(config.fundingConfig, (bool));
+            }
+            return;
+        }
+        if (
             action.adapter != address(0) || action.priceGuard != address(0)
                 || action.recipient.code.length == 0
         ) revert InvalidAction(index, actionType);
@@ -774,6 +828,16 @@ contract ProjectRouterV2 is IProjectModule, IProjectControlled, IProjectFundable
             revert InvalidIntegration(index, action.adapter, action.priceGuard);
         }
         RouterSwapConfig memory swapConfig = abi.decode(action.actionConfig, (RouterSwapConfig));
+        _validateSwapConfig(inputAsset, index, action, burn, swapConfig);
+    }
+
+    function _validateSwapConfig(
+        address inputAsset,
+        uint256 index,
+        RouterAction memory action,
+        bool burn,
+        RouterSwapConfig memory swapConfig
+    ) private view {
         _validateAsset(swapConfig.outputAsset);
         if (swapConfig.outputAsset == inputAsset || (burn && swapConfig.outputAsset != subject)) {
             revert InvalidAction(index, action.actionType);
@@ -835,7 +899,7 @@ contract ProjectRouterV2 is IProjectModule, IProjectControlled, IProjectFundable
     ) private returns (uint256 amountOut) {
         bytes32 routeHash = keccak256(swapConfig.routeData);
         (uint256 guardMinOut, uint48 validUntil) = IProjectPriceGuard(action.priceGuard)
-            .minimumOutput(assetIn, swapConfig.outputAsset, amountIn, routeHash, guardData);
+            .minimumOutput(subject, assetIn, swapConfig.outputAsset, amountIn, routeHash, guardData);
         if (guardMinOut == 0) revert InvalidGuardMinimum(guardMinOut);
         uint48 currentTime = Time.timestamp();
         if (validUntil < currentTime) revert GuardQuoteExpired(validUntil, currentTime);
