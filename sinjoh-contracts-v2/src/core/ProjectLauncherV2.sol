@@ -396,25 +396,6 @@ contract ProjectLauncherV2 is ReentrancyGuard {
         ProjectLaunchPreview memory preview
     ) private view {
         ProjectLaunchAddresses memory a = preview.addresses;
-        address[8] memory modules = [
-            a.treasury,
-            a.router,
-            a.stakingPool,
-            a.airdrop,
-            a.basketManager,
-            a.fundingBands,
-            a.raffle,
-            a.liquidityManager
-        ];
-        for (uint256 i; i < modules.length; ++i) {
-            address module = modules[i];
-            if (module == address(0)) continue;
-            if (
-                module.code.length == 0 || IProjectModule(module).registry() != address(registry)
-                    || IProjectModule(module).subject() != a.subject
-                    || IProjectModule(module).projectId() != preview.projectId
-            ) revert ModuleDeploymentMismatch(bytes32(i), module);
-        }
         for (uint256 i; i < a.basketYieldAdapters.length; ++i) {
             address adapter = a.basketYieldAdapters[i];
             if (
@@ -437,7 +418,7 @@ contract ProjectLauncherV2 is ReentrancyGuard {
         private
     {
         ProjectLaunchAddresses memory a = preview.addresses;
-        registry.registerProject(
+        registry.registerVerifiedProject(
             ProjectRegistryV2.ProjectRegistration({
                 subject: a.subject,
                 creator: config.creator,
