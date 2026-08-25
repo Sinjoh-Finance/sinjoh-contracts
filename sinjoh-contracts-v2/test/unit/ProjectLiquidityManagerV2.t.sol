@@ -5,6 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { SqrtPriceMath } from "@uniswap/v4-core/src/libraries/SqrtPriceMath.sol";
 import { TickMath } from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import { IProjectFundable } from "../../src/interfaces/IProjectFundable.sol";
+import { ProjectIds } from "../../src/libraries/ProjectIds.sol";
 import { SinjohV2Constants } from "../../src/libraries/SinjohV2Constants.sol";
 import { ProjectLiquidityManagerV2 } from "../../src/liquidity/ProjectLiquidityManagerV2.sol";
 import { MockProjectToken } from "../mocks/MockProjectToken.sol";
@@ -23,6 +24,14 @@ import {
 
 interface IMintableLiquidityAsset {
     function mint(address recipient, uint256 amount) external;
+}
+
+contract PartialProjectIdentityLiquidityAsset is MockERC20 {
+    address public immutable registry;
+
+    constructor(address registry_) MockERC20("Partial Identity", "PARTIAL") {
+        registry = registry_;
+    }
 }
 
 contract ProjectLiquidityManagerV2Test is Test {
@@ -78,6 +87,67 @@ contract ProjectLiquidityManagerV2Test is Test {
         assertEq(manager.subject(), address(subject));
         assertEq(manager.projectId(), subject.projectId());
         assertEq(ProjectLiquidityManagerV2.fund.selector, IProjectFundable.fund.selector);
+    }
+
+    function testAcceptsOrdinaryExternalErc20SubjectWithoutProjectIdentitySelectors() public {
+        MockERC20 externalSubject = new MockERC20("Ordinary Pons", "PONS");
+        externalSubject.mint(address(this), 1_000_000e18);
+
+        ProjectLiquidityManagerV2 externalManager = new ProjectLiquidityManagerV2(
+            address(registry),
+            address(externalSubject),
+            address(v3Factory),
+            address(v3PositionManager),
+            address(v4PositionManager),
+            address(v4StateView),
+            address(permit2),
+            PROTOCOL_RECIPIENT,
+            _swapApprovalLeaf()
+        );
+
+        assertEq(externalManager.subject(), address(externalSubject));
+        assertEq(
+            externalManager.projectId(),
+            ProjectIds.derive(block.chainid, address(registry), address(externalSubject))
+        );
+    }
+
+    function testRejectsExternalSubjectThatPartiallyDeclaresProjectIdentity() public {
+        PartialProjectIdentityLiquidityAsset partialAsset =
+            new PartialProjectIdentityLiquidityAsset(address(registry));
+        partialAsset.mint(address(this), 1_000_000e18);
+
+        vm.expectPartialRevert(ProjectLiquidityManagerV2.InvalidSubject.selector);
+        new ProjectLiquidityManagerV2(
+            address(registry),
+            address(partialAsset),
+            address(v3Factory),
+            address(v3PositionManager),
+            address(v4PositionManager),
+            address(v4StateView),
+            address(permit2),
+            PROTOCOL_RECIPIENT,
+            _swapApprovalLeaf()
+        );
+    }
+
+    function testRejectsSubjectThatDeclaresWrongProjectIdentity() public {
+        MockRegistry otherRegistry = new MockRegistry();
+        MockProjectToken wrongSubject =
+            new MockProjectToken(address(otherRegistry), address(this), 1_000_000e18);
+
+        vm.expectPartialRevert(ProjectLiquidityManagerV2.InvalidSubject.selector);
+        new ProjectLiquidityManagerV2(
+            address(registry),
+            address(wrongSubject),
+            address(v3Factory),
+            address(v3PositionManager),
+            address(v4PositionManager),
+            address(v4StateView),
+            address(permit2),
+            PROTOCOL_RECIPIENT,
+            _swapApprovalLeaf()
+        );
     }
 
     function testFundingRejectsWrongProjectOrSubjectBeforeTransfer() public {

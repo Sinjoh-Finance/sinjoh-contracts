@@ -361,8 +361,12 @@ contract ProjectRegistryV2 {
         view
         returns (bytes32 projectId)
     {
+        if (registration.subject.code.length == 0) revert InvalidSubject(registration.subject);
         if (registration.creator == address(0) || registration.creator == BURN_ADDRESS) {
             revert InvalidCreator(registration.creator);
+        }
+        if (registration.referenceSupply == 0) {
+            revert InvalidReferenceSupply(0, registration.referenceSupply);
         }
         if (registration.enabledModules & ~ProjectModuleBits.ALL != 0) {
             revert InvalidEnabledModules(registration.enabledModules);
@@ -392,16 +396,16 @@ contract ProjectRegistryV2 {
         record.basketManager = registration.basketManager;
         record.primaryBasketId = registration.primaryBasketId;
         record.canonicalPool = registration.canonicalPool;
+        record.referenceSupply = registration.referenceSupply;
         record.launchedAt = uint64(block.timestamp);
         record.protocolVersion = PROTOCOL_VERSION;
     }
 
-    function _hydrateRecord(ProjectRecord memory record, bytes32 projectId) private view {
+    function _hydrateRecord(ProjectRecord memory record, bytes32 projectId) private pure {
         record.projectId = projectId;
         if (record.governanceMode == GovernanceMode.TOKEN_HOLDER) {
             record.tokenTimelock = record.controller;
         }
-        record.referenceSupply = IProjectReferenceSupply(record.subject).initialSupply();
         record.enabledModules = _recordEnabledModules(record);
     }
 
@@ -451,12 +455,14 @@ contract ProjectRegistryV2 {
         ) revert InvalidGovernanceConfiguration(registration.governanceMode);
         if (registration.voteSource == registration.subject) return;
         if (
-            registration.enabledModules & ProjectModuleBits.STAKING == 0
-                || registration.voteSource != registration.stakingPool
-                || IProjectTokenIdentity(registration.voteSource).registry() != address(this)
+            IProjectTokenIdentity(registration.voteSource).registry() != address(this)
                 || IProjectTokenIdentity(registration.voteSource).projectId() != projectId
                 || address(IProjectStakedVoteSource(registration.voteSource).subject())
                     != registration.subject
+        ) revert InvalidVoteSource(registration.voteSource);
+        if (
+            registration.voteSource == registration.stakingPool
+                && registration.enabledModules & ProjectModuleBits.STAKING == 0
         ) revert InvalidVoteSource(registration.voteSource);
     }
 

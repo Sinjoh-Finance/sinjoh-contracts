@@ -81,6 +81,24 @@ contract ProjectAirdropV2Test is AirdropTestBase {
         assertEq(airdrop.totalLiability(address(reward)), 15_000);
     }
 
+    function testAgnosticRouterFundingOverloadUsesImmutableProjectIdentity() public {
+        AirdropAccountConfig memory config = _defaultConfig();
+        reward.mint(FUNDER, 10_000);
+        vm.startPrank(FUNDER);
+        reward.approve(address(airdrop), 10_000);
+        assertEq(airdrop.fund(address(token), address(reward), 10_000, abi.encode(config)), 10_000);
+        vm.stopPrank();
+
+        bytes32 id = airdrop.accountId(FUNDER, address(reward));
+        (ProjectAirdropV2.AccountState memory account,,) = airdrop.accountStatus(id);
+        assertEq(account.uncommittedFunding, 9_900);
+        assertEq(airdrop.protocolOwed(address(reward)), 100);
+
+        vm.prank(FUNDER);
+        vm.expectPartialRevert(ProjectAirdropV2.InvalidFundingIdentity.selector);
+        airdrop.fund(BOB, address(reward), 1, "");
+    }
+
     function testCumulativeFeeCannotBeReducedBySplittingFunding() public {
         AirdropAccountConfig memory config = _defaultConfig();
         reward.mint(FUNDER, 100);

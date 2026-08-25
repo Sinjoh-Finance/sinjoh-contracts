@@ -82,7 +82,7 @@ contract ProjectRegistryV2Test is RegistryTestBase {
         ProjectTimelockV2 timelock = ProjectTimelockV2(
             payable(vm.deployCode(
                     "ProjectTimelockV2.sol:ProjectTimelockV2",
-                    abi.encode(address(registry), address(token), address(token), config)
+                    abi.encode(address(registry), address(token), address(token), false, config)
                 ))
         );
         ProjectRegistryV2.ProjectRegistration memory registration = _multisigRegistration();
@@ -127,7 +127,7 @@ contract ProjectRegistryV2Test is RegistryTestBase {
         ProjectTimelockV2 timelock = ProjectTimelockV2(
             payable(vm.deployCode(
                     "ProjectTimelockV2.sol:ProjectTimelockV2",
-                    abi.encode(address(registry), address(token), address(staking), config)
+                    abi.encode(address(registry), address(token), address(staking), true, config)
                 ))
         );
         ProjectRegistryV2.ProjectRegistration memory registration = _multisigRegistration();

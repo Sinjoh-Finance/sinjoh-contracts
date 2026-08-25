@@ -26,6 +26,7 @@ import { ProjectMultisigAccountV2 } from "../src/multisig/ProjectMultisigAccount
 import { ProjectRaffleV2 } from "../src/raffle/ProjectRaffleV2.sol";
 import { ProjectRouterV2 } from "../src/router/ProjectRouterV2.sol";
 import { ProjectStakingPoolV2 } from "../src/staking/ProjectStakingPoolV2.sol";
+import { ProjectLiquidVotesWrapperV2 } from "../src/token/ProjectLiquidVotesWrapperV2.sol";
 import { ProjectVotesToken } from "../src/token/ProjectVotesToken.sol";
 import { ProjectTreasuryVaultV2 } from "../src/treasury/ProjectTreasuryVaultV2.sol";
 import { CreationCodeStoreV2 } from "../src/core/CreationCodeStoreV2.sol";
@@ -51,11 +52,6 @@ interface IPonsProjectAdapterFactoryRelease {
     function projectTokenFactory() external view returns (address);
     function projectImplementation() external view returns (address);
     function launchFactory() external view returns (address);
-}
-
-interface IPonsLaunchForwarderRelease {
-    function setLaunchForwarder(address forwarder) external;
-    function launchForwarder() external view returns (address);
 }
 
 interface IPoolsInstantProjectAdapterFactoryRelease {
@@ -182,10 +178,6 @@ contract DeployProjectLauncherV2 is Script {
                 address(ponsTokenFactory),
                 integrations.ponsProjectAdapterImplementation
             );
-        address ponsLaunchFactory =
-            IPonsProjectAdapterFactoryRelease(integrations.ponsAdapterFactory).launchFactory();
-        IPonsLaunchForwarderRelease(ponsLaunchFactory)
-            .setLaunchForwarder(integrations.ponsAdapterFactory);
         IPoolsInstantProjectAdapterFactoryRelease(integrations.poolsInstantAdapterFactory)
             .bindProjectV2(address(launcher), address(registry), address(launchpadTokenFactory));
         IPoolsInstantProjectAdapterFactoryRelease(integrations.poolsInstantNoFeeAdapterFactory)
@@ -430,16 +422,18 @@ contract DeployProjectLauncherV2 is Script {
     }
 
     function _deployCreationCodeStores() private returns (CreationCodeBinding[] memory bindings) {
-        bindings = new CreationCodeBinding[](9);
+        bindings = new CreationCodeBinding[](10);
         bindings[0] = _binding(keccak256("TOKEN"), type(ProjectVotesToken).creationCode);
         bindings[1] = _binding(keccak256("MULTISIG"), type(ProjectMultisigAccountV2).creationCode);
         bindings[2] = _binding(keccak256("TIMELOCK"), type(ProjectTimelockV2).creationCode);
-        bindings[3] = _binding(keccak256("STAKING"), type(ProjectStakingPoolV2).creationCode);
-        bindings[4] = _binding(keccak256("TREASURY"), type(ProjectTreasuryVaultV2).creationCode);
-        bindings[5] = _binding(keccak256("AIRDROP"), type(ProjectAirdropV2).creationCode);
-        bindings[6] = _routerBinding();
-        bindings[7] = _binding(keccak256("BANDS"), type(ProjectFundingBandsV2).creationCode);
-        bindings[8] = _binding(keccak256("LIQUIDITY"), type(ProjectLiquidityManagerV2).creationCode);
+        bindings[3] =
+            _binding(keccak256("LIQUID_VOTES"), type(ProjectLiquidVotesWrapperV2).creationCode);
+        bindings[4] = _binding(keccak256("STAKING"), type(ProjectStakingPoolV2).creationCode);
+        bindings[5] = _binding(keccak256("TREASURY"), type(ProjectTreasuryVaultV2).creationCode);
+        bindings[6] = _binding(keccak256("AIRDROP"), type(ProjectAirdropV2).creationCode);
+        bindings[7] = _routerBinding();
+        bindings[8] = _binding(keccak256("BANDS"), type(ProjectFundingBandsV2).creationCode);
+        bindings[9] = _binding(keccak256("LIQUIDITY"), type(ProjectLiquidityManagerV2).creationCode);
     }
 
     function _routerBinding() private returns (CreationCodeBinding memory) {
@@ -482,9 +476,7 @@ contract DeployProjectLauncherV2 is Script {
             ponsFactory.projectLauncher() == address(launcher)
                 && ponsFactory.projectRegistry() == address(registry)
                 && ponsFactory.projectImplementation()
-                    == integrations.ponsProjectAdapterImplementation
-                && IPonsLaunchForwarderRelease(ponsFactory.launchFactory()).launchForwarder()
-                    == integrations.ponsAdapterFactory,
+                    == integrations.ponsProjectAdapterImplementation,
             "PONS_PROJECT_BINDING_MISMATCH"
         );
         IPoolsInstantProjectAdapterFactoryRelease instantFactory =
@@ -578,6 +570,9 @@ contract DeployProjectLauncherV2 is Script {
             deployer, keccak256("MULTISIG"), type(ProjectMultisigAccountV2).creationCode
         );
         _verifyCreationCode(deployer, keccak256("TIMELOCK"), type(ProjectTimelockV2).creationCode);
+        _verifyCreationCode(
+            deployer, keccak256("LIQUID_VOTES"), type(ProjectLiquidVotesWrapperV2).creationCode
+        );
         _verifyCreationCode(deployer, keccak256("STAKING"), type(ProjectStakingPoolV2).creationCode);
         _verifyCreationCode(
             deployer, keccak256("TREASURY"), type(ProjectTreasuryVaultV2).creationCode
@@ -914,6 +909,11 @@ contract DeployProjectLauncherV2 is Script {
         );
         vm.serializeBytes32(
             object, "timelockCreationCodeHash", deployer.creationCodeHash(keccak256("TIMELOCK"))
+        );
+        vm.serializeBytes32(
+            object,
+            "liquidVotesCreationCodeHash",
+            deployer.creationCodeHash(keccak256("LIQUID_VOTES"))
         );
         vm.serializeBytes32(
             object, "stakingCreationCodeHash", deployer.creationCodeHash(keccak256("STAKING"))

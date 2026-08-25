@@ -164,13 +164,12 @@ contract ProjectTreasuryVaultV2 is
         }
 
         bytes32 expectedProjectId = ProjectIds.derive(block.chainid, registry_, subject_);
-        bytes32 subjectProjectId = IProjectTokenIdentity(subject_).projectId();
+        (bool declaresIdentity, address subjectRegistry, bytes32 subjectProjectId) =
+            ProjectIds.declaredIdentity(subject_);
         if (
-            IProjectTokenIdentity(subject_).registry() != registry_
-                || subjectProjectId != expectedProjectId
-        ) {
-            revert ProjectIdentityMismatch(expectedProjectId, subjectProjectId);
-        }
+            declaresIdentity
+                && (subjectRegistry != registry_ || subjectProjectId != expectedProjectId)
+        ) revert ProjectIdentityMismatch(expectedProjectId, subjectProjectId);
 
         bytes32 controllerProjectId;
         address controllerSelf;

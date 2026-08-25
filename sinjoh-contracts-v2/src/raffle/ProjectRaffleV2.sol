@@ -272,9 +272,11 @@ contract ProjectRaffleV2 is IProjectModule, IProjectFundable {
         if (registry_.code.length == 0) revert InvalidRegistry(registry_);
         if (subject_.code.length == 0) revert InvalidSubject(subject_);
         bytes32 expectedProjectId = ProjectIds.derive(block.chainid, registry_, subject_);
+        (bool declaresIdentity, address subjectRegistry, bytes32 subjectProjectId) =
+            ProjectIds.declaredIdentity(subject_);
         if (
-            IProjectTokenIdentity(subject_).registry() != registry_
-                || IProjectTokenIdentity(subject_).projectId() != expectedProjectId
+            declaresIdentity
+                && (subjectRegistry != registry_ || subjectProjectId != expectedProjectId)
         ) revert InvalidSubject(subject_);
         if (integrationApprovalRoot_ == bytes32(0)) revert InvalidConfiguration();
         _validate(config, integrationApprovalRoot_);
@@ -357,6 +359,26 @@ contract ProjectRaffleV2 is IProjectModule, IProjectFundable {
         uint256 amount,
         bytes calldata configData
     ) external payable override nonReentrant returns (uint256 received) {
+        return _fund(projectId_, subject_, asset, amount, configData);
+    }
+
+    /// @notice Agnostic fee-router sink compatibility for this immutable Project raffle.
+    function fund(address subject_, address asset, uint256 amount, bytes calldata configData)
+        external
+        payable
+        nonReentrant
+        returns (uint256 received)
+    {
+        return _fund(projectId, subject_, asset, amount, configData);
+    }
+
+    function _fund(
+        bytes32 projectId_,
+        address subject_,
+        address asset,
+        uint256 amount,
+        bytes calldata configData
+    ) private returns (uint256 received) {
         address boundSubject = subject;
         if (boundSubject == address(0)) revert SubjectNotBound();
         if (projectId_ != projectId || subject_ != boundSubject) {

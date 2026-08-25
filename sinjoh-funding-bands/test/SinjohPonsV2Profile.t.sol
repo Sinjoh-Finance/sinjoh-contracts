@@ -74,7 +74,11 @@ contract SinjohPonsV2ProfileTest is TestBase {
         subject = new MockPonsV2Token(CREATOR, address(factory), address(curve));
         subject.mint(CREATOR, SUPPLY);
         verifier = new SinjohPonsV2LaunchVerifier(
-            address(factory), address(hook), address(weth), keccak256("trusted-adapter-runtime")
+            address(factory),
+            address(hook),
+            address(weth),
+            keccak256("trusted-adapter-runtime"),
+            keccak256("trusted-project-adapter-runtime")
         );
         guard = new MockBandPriceGuard();
         MockV3Pool v3Pool = new MockV3Pool();
@@ -151,7 +155,11 @@ contract SinjohPonsV2ProfileTest is TestBase {
             })
         );
         SinjohPonsV2LaunchVerifier adapterVerifier = new SinjohPonsV2LaunchVerifier(
-            address(factory), address(hook), address(weth), address(adapter).codehash
+            address(factory),
+            address(hook),
+            address(weth),
+            address(adapter).codehash,
+            address(adapter).codehash
         );
         ISinjohLaunchVerifier.VerifiedLaunch memory launch =
             adapterVerifier.verify(address(adapterSubject), "");
@@ -186,7 +194,11 @@ contract SinjohPonsV2ProfileTest is TestBase {
             })
         );
         SinjohPonsV2LaunchVerifier adapterVerifier = new SinjohPonsV2LaunchVerifier(
-            address(factory), address(hook), address(weth), address(adapter).codehash
+            address(factory),
+            address(hook),
+            address(weth),
+            address(adapter).codehash,
+            address(adapter).codehash
         );
         ISinjohPrelaunchVerifier.VerifiedPreparation memory preparation =
             adapterVerifier.verifyPreparation(address(adapterSubject), address(adapter), "");
@@ -198,17 +210,66 @@ contract SinjohPonsV2ProfileTest is TestBase {
         adapterVerifier.verifyPreparation(address(adapterSubject), OTHER, "");
     }
 
+    function testVerifierAcceptsOnlyPinnedOrdinaryAndProjectAdapterCodehashes() public {
+        MockSinjohPonsV2Adapter ordinaryAdapter =
+            new MockSinjohPonsV2Adapter(CREATOR, address(factory), address(curve));
+        MockSinjohPonsV2Adapter projectAdapter =
+            new MockSinjohPonsV2Adapter(OTHER, address(factory), address(curve));
+        MockSinjohPonsV2Adapter untrustedAdapter =
+            new MockSinjohPonsV2Adapter(address(0xBAD), address(factory), address(curve));
+        SinjohPonsV2LaunchVerifier dualVerifier = new SinjohPonsV2LaunchVerifier(
+            address(factory),
+            address(hook),
+            address(weth),
+            address(ordinaryAdapter).codehash,
+            address(projectAdapter).codehash
+        );
+
+        MockPonsV2Token projectSubject =
+            new MockPonsV2Token(address(projectAdapter), address(factory), address(curve));
+        projectAdapter.setSubject(address(projectSubject));
+        projectSubject.mint(OTHER, SUPPLY);
+        _setAdapterLaunch(
+            address(projectSubject),
+            address(projectAdapter),
+            IPonsV2LaunchFactory.GraduationPhase.NotGraduated
+        );
+        ISinjohPrelaunchVerifier.VerifiedPreparation memory preparation =
+            dualVerifier.verifyPreparation(address(projectSubject), address(projectAdapter), "");
+        assertEq(preparation.creatorAtLaunch, OTHER);
+
+        MockPonsV2Token untrustedSubject =
+            new MockPonsV2Token(address(untrustedAdapter), address(factory), address(curve));
+        untrustedAdapter.setSubject(address(untrustedSubject));
+        untrustedSubject.mint(address(0xBAD), SUPPLY);
+        _setAdapterLaunch(
+            address(untrustedSubject),
+            address(untrustedAdapter),
+            IPonsV2LaunchFactory.GraduationPhase.NotGraduated
+        );
+        vm.expectRevert(SinjohPonsV2LaunchVerifier.InvalidLaunch.selector);
+        dualVerifier.verifyPreparation(address(untrustedSubject), address(untrustedAdapter), "");
+    }
+
     function testVerifierRejectsFactoryInfrastructureMismatch() public {
         factory.setInfrastructure(address(curve), address(v4PoolManager));
         vm.expectRevert(SinjohPonsV2LaunchVerifier.InvalidAddress.selector);
         new SinjohPonsV2LaunchVerifier(
-            address(factory), address(hook), address(weth), keccak256("trusted-adapter-runtime")
+            address(factory),
+            address(hook),
+            address(weth),
+            keccak256("trusted-adapter-runtime"),
+            keccak256("trusted-project-adapter-runtime")
         );
 
         MockV4PoolManager otherPoolManager = new MockV4PoolManager();
         factory.setInfrastructure(address(hook), address(otherPoolManager));
         SinjohPonsV2LaunchVerifier pinnedVerifier = new SinjohPonsV2LaunchVerifier(
-            address(factory), address(hook), address(weth), keccak256("trusted-adapter-runtime")
+            address(factory),
+            address(hook),
+            address(weth),
+            keccak256("trusted-adapter-runtime"),
+            keccak256("trusted-project-adapter-runtime")
         );
         assertEq(pinnedVerifier.poolManager(), address(otherPoolManager));
     }
@@ -513,6 +574,33 @@ contract SinjohPonsV2ProfileTest is TestBase {
                 sweptQuote: 4.2e18,
                 sweptTokens: 200_000_000e18,
                 sweptAt: block.timestamp,
+                exists: true
+            })
+        );
+    }
+
+    function _setAdapterLaunch(
+        address token,
+        address adapter,
+        IPonsV2LaunchFactory.GraduationPhase phase
+    ) private {
+        factory.setLaunch(
+            token,
+            IPonsV2LaunchFactory.LaunchedToken({
+                token: token,
+                curve: address(curve),
+                deployer: adapter,
+                creatorFeeRecipient: adapter,
+                pairToken: address(0),
+                graduationThreshold: 4.2e18,
+                poolFee: 0,
+                tickSpacing: 60,
+                creatorTaxBps: 100,
+                buybackEnabled: false,
+                phase: phase,
+                sweptQuote: 0,
+                sweptTokens: 0,
+                sweptAt: 0,
                 exists: true
             })
         );

@@ -135,14 +135,13 @@ contract ProjectStakingPoolV2 is
             revert InvalidLockDuration(lockDuration_);
         }
 
-        bytes32 expectedProjectId = ProjectIds.derive(block.chainid, registry_, subject_);
-        bytes32 actualProjectId = IProjectTokenIdentity(subject_).projectId();
+        bytes32 actualProjectId = ProjectIds.derive(block.chainid, registry_, subject_);
+        (bool declaresIdentity, address subjectRegistry, bytes32 subjectProjectId) =
+            ProjectIds.declaredIdentity(subject_);
         if (
-            IProjectTokenIdentity(subject_).registry() != registry_
-                || actualProjectId != expectedProjectId
-        ) {
-            revert ProjectIdentityMismatch(expectedProjectId, actualProjectId);
-        }
+            declaresIdentity
+                && (subjectRegistry != registry_ || subjectProjectId != actualProjectId)
+        ) revert ProjectIdentityMismatch(actualProjectId, subjectProjectId);
 
         registry = registry_;
         subject = IERC20(subject_);
