@@ -434,28 +434,48 @@
       }
     },
     "ponsV2PairBuybackAdapter": {
-      "address": "0xfAB57a5fE409B4503A1a09fD7DC80e6ffB85Abb8",
-      "deploymentTransaction": "0x52b095758edc3d998dbff2c6a23b01d3e3e593c1c8f79334c9040d8c71e8a2de",
-      "deploymentBlock": 28126079,
-      "runtimeCodeHash": "0x37fedab733793c3b192b44be34c45048b99915534b9e2a256cf9b518a7417a07",
-      "purpose": "Pair-capable pons v2 buyback route: WETH into any launch's market — native or custom pair — via the pinned v3 hop, the bonding curve, or the graduated v4 pool. Supersedes ponsV2BuybackAdapter for new routes.",
+      "address": "0x1BE0E8F04221329FDfea34f41a1832a80c2c147c",
+      "deploymentTransaction": "0x0a45abf50c63bae215062879061e05abd85e7f101e8e4e53ff0f875ade24cc26",
+      "deploymentBlock": 45666464,
+      "runtimeCodeHash": "0xba0a98c865c548ca90799cac47b7978380d52b8db6e7c66d4149d3010f77b6e3",
+      "purpose": "Current pair-capable Pons v2 buyback route for launches created by the active Pons v2 factory: WETH into any native- or custom-pair market through the pinned v3 hop, bonding curve, or graduated v4 pool.",
       "verified": {
-        "launchFactory": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+        "launchFactory": "0x7DCeEaB0A53684b001A4900768a52eAcDb27294e",
         "poolManager": "0x8366a39CC670B4001A1121B8F6A443A643e40951",
         "v3SwapRouter": "0xCaf681a66D020601342297493863E78C959E5cb2",
         "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
-        "memeHook": "0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044"
+        "memeHook": "0xE9Ec0Ffc7d5bEF33f815D7b0cDd15A7c5Dc1e044"
       }
     },
     "ponsV2PairBuybackPriceGuard": {
-      "address": "0x69768f0b41A5A51aB23b23ccfbE9e3122Ac0DA8b",
-      "deploymentTransaction": "0x17579811baa9eb290ebe1a2a73534fecd1e93909edcf170a261418682ce5ec75",
-      "deploymentBlock": 28126079,
-      "runtimeCodeHash": "0x27a8a84e173e127965717c020a07bb304ab0eb7e3396d0b6e3fc720f536cea21",
-      "purpose": "Signed-floor guard for the pair-capable pons v2 buyback route.",
+      "address": "0x902A6Fa8Ca273aAB186633FF27879Cd3703F6AED",
+      "deploymentTransaction": "0x371953095fae116a61de3ae970795c119430433bf286a33a329d9b941680a6c2",
+      "deploymentBlock": 45666468,
+      "runtimeCodeHash": "0xa03b64312803b10d3fe9bf511d0ba80cfc9ebd40931c64dc37481b49e9413e02",
+      "purpose": "Signed-floor guard for the current-factory pair-capable Pons v2 buyback route.",
       "verified": {
-        "launchFactory": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+        "launchFactory": "0x7DCeEaB0A53684b001A4900768a52eAcDb27294e",
         "quoteSigner": "0xd89fB916dD031Da9b0A32e820307c2d41a7dDe09"
+      }
+    },
+    "ponsV2PairBuybackHistoricalGenerations": {
+      "indexedLegacyFactory": {
+        "launchFactory": {
+          "address": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+          "runtimeCodeHash": "0x89a27da6f703e0a7cdd4f233e7cb57604ff75b164530962d3ff7cf8483a67d84"
+        },
+        "adapter": {
+          "address": "0xfAB57a5fE409B4503A1a09fD7DC80e6ffB85Abb8",
+          "deploymentTransaction": "0x52b095758edc3d998dbff2c6a23b01d3e3e593c1c8f79334c9040d8c71e8a2de",
+          "deploymentBlock": 28126079,
+          "runtimeCodeHash": "0x37fedab733793c3b192b44be34c45048b99915534b9e2a256cf9b518a7417a07"
+        },
+        "priceGuard": {
+          "address": "0x69768f0b41A5A51aB23b23ccfbE9e3122Ac0DA8b",
+          "deploymentTransaction": "0x17579811baa9eb290ebe1a2a73534fecd1e93909edcf170a261418682ce5ec75",
+          "deploymentBlock": 28126079,
+          "runtimeCodeHash": "0x27a8a84e173e127965717c020a07bb304ab0eb7e3396d0b6e3fc720f536cea21"
+        }
       }
     },
     "poolsTradeMerkleClaimFactory": {
