@@ -12,6 +12,7 @@ const repoRoot = resolve(import.meta.dirname, "../..");
 const manifestPath = resolve(repoRoot, argument("--release-manifest") ?? "");
 const outputPath = resolve(repoRoot, argument("--output") ?? "");
 const broadcastPaths = [
+  "sinjoh-launchpad-adapters/broadcast/DeployPonsV2PairBuybackInfrastructure.s.sol/4663/run-latest.json",
   "sinjoh-launchpad-adapters/broadcast/DeployPonsV2AdapterFactory.s.sol/4663/run-latest.json",
   "sinjoh-launchpad-adapters/broadcast/DeployPoolsTradeAdapterFactories.s.sol/4663/run-latest.json",
   "sinjoh-contracts-v2/broadcast/DeployProjectLauncherV2.s.sol/4663/run-latest.json"

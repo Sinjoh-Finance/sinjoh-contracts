@@ -194,6 +194,9 @@ if [[ "$simulate_only" == "0" ]]; then
     signer_args+=(--unlocked)
   else
     signer_args+=(--account "$FOUNDRY_ACCOUNT")
+    if [[ -n "${FOUNDRY_PASSWORD_FILE:-}" ]]; then
+      signer_args+=(--password-file "$FOUNDRY_PASSWORD_FILE")
+    fi
   fi
 fi
 
