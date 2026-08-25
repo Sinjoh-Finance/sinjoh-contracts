@@ -9,6 +9,7 @@ const contracts = [
   ["projectLauncherV2Abi", "ProjectLauncherV2"],
   ["projectRegistryV2Abi", "ProjectRegistryV2"],
   ["projectVotesTokenAbi", "ProjectVotesToken"],
+  ["projectLiquidVotesWrapperV2Abi", "ProjectLiquidVotesWrapperV2"],
   ["projectMultisigAccountV2Abi", "ProjectMultisigAccountV2"],
   ["projectGovernorV2Abi", "ProjectGovernorV2"],
   ["projectTimelockV2Abi", "ProjectTimelockV2"],

@@ -157,6 +157,7 @@ cd "$package_dir"
 forge fmt --check
 forge build
 forge test
+npm ci --prefix sdk
 npm test --prefix sdk
 
 release_contracts=(
