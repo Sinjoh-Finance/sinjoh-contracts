@@ -41,6 +41,13 @@ const required = [
   "projectV3PriceGuard10000RuntimeHash", "swapApprovalLeaf500", "swapApprovalLeaf3000",
   "swapApprovalLeaf10000", "fundingBandIntegrationLeaf", "swapApprovalProof500",
   "swapApprovalProof3000", "swapApprovalProof10000", "fundingBandIntegrationProof",
+  "ponsV2PairBuybackAdapter", "ponsV2PairBuybackAdapterRuntimeHash",
+  "ponsV2PairBuybackPriceGuard", "ponsV2PairBuybackPriceGuardRuntimeHash",
+  "flapBuybackAdapter", "flapBuybackAdapterRuntimeHash",
+  "flapBuybackPriceGuard", "flapBuybackPriceGuardRuntimeHash",
+  "flapPayoutPriceGuard", "flapPayoutPriceGuardRuntimeHash",
+  "ponsV2PairBuybackApprovalLeaf", "flapBuybackApprovalLeaf", "flapPayoutApprovalLeaf",
+  "ponsV2PairBuybackApprovalProof", "flapBuybackApprovalProof", "flapPayoutApprovalProof",
   "ponsProjectAdapterFactory", "ponsProjectAdapterFactoryRuntimeHash",
   "poolsInstantProjectAdapterFactory", "poolsInstantProjectAdapterFactoryRuntimeHash",
   "poolsInstantNoFeeProjectAdapterFactory", "poolsInstantNoFeeProjectAdapterFactoryRuntimeHash",
@@ -121,6 +128,16 @@ const approvedReleaseValues = {
   poolsProjectRegistrationHelperRuntimeHash: "POOLS_PROJECT_REGISTRATION_HELPER_RUNTIME_HASH",
   ponsLaunchFactory: "PONS_LAUNCH_FACTORY",
   ponsLaunchFactoryRuntimeHash: "PONS_LAUNCH_FACTORY_RUNTIME_HASH",
+  ponsV2PairBuybackAdapter: "PONS_V2_PAIR_BUYBACK_ADAPTER",
+  ponsV2PairBuybackAdapterRuntimeHash: "PONS_V2_PAIR_BUYBACK_ADAPTER_RUNTIME_HASH",
+  ponsV2PairBuybackPriceGuard: "PONS_V2_PAIR_BUYBACK_PRICE_GUARD",
+  ponsV2PairBuybackPriceGuardRuntimeHash: "PONS_V2_PAIR_BUYBACK_PRICE_GUARD_RUNTIME_HASH",
+  flapBuybackAdapter: "FLAP_BUYBACK_ADAPTER",
+  flapBuybackAdapterRuntimeHash: "FLAP_BUYBACK_ADAPTER_RUNTIME_HASH",
+  flapBuybackPriceGuard: "FLAP_BUYBACK_PRICE_GUARD",
+  flapBuybackPriceGuardRuntimeHash: "FLAP_BUYBACK_PRICE_GUARD_RUNTIME_HASH",
+  flapPayoutPriceGuard: "FLAP_PAYOUT_PRICE_GUARD",
+  flapPayoutPriceGuardRuntimeHash: "FLAP_PAYOUT_PRICE_GUARD_RUNTIME_HASH",
 };
 for (const [key, environmentKey] of Object.entries(approvedReleaseValues)) {
   if (manifest[key].toLowerCase() !== process.env[environmentKey].toLowerCase()) {
@@ -131,10 +148,12 @@ if (manifest.integrationApprovalRoot === zeroBytes32) {
   throw new Error("release manifest integrationApprovalRoot must be nonzero");
 }
 for (const [key, expectedLength] of [
-  ["swapApprovalProof500", 3], ["swapApprovalProof3000", 3],
-  ["swapApprovalProof10000", 3], ["fundingBandIntegrationProof", 3],
-  ["ponsLaunchpadApprovalProof", 3], ["poolsInstantLaunchpadApprovalProof", 3],
-  ["poolsInstantNoFeeLaunchpadApprovalProof", 3], ["poolsLbpLaunchpadApprovalProof", 3],
+  ["swapApprovalProof500", 4], ["swapApprovalProof3000", 4],
+  ["swapApprovalProof10000", 4], ["fundingBandIntegrationProof", 4],
+  ["ponsLaunchpadApprovalProof", 4], ["poolsInstantLaunchpadApprovalProof", 4],
+  ["poolsInstantNoFeeLaunchpadApprovalProof", 4], ["poolsLbpLaunchpadApprovalProof", 4],
+  ["ponsV2PairBuybackApprovalProof", 4], ["flapBuybackApprovalProof", 4],
+  ["flapPayoutApprovalProof", 4],
 ]) {
   if (!Array.isArray(manifest[key]) || manifest[key].length !== expectedLength
       || manifest[key].some((value) => !bytes32Pattern.test(value))) {
@@ -163,6 +182,10 @@ const swapLeaf = (guard, guardRuntimeHash) => doubleHash(
     guard,
     guardRuntimeHash,
   ],
+);
+const explicitSwapLeaf = (adapter, adapterRuntimeHash, guard, guardRuntimeHash) => doubleHash(
+  [bytes32Type, uint256Type, addressType, bytes32Type, addressType, bytes32Type],
+  [swapDomain, BigInt(manifest.chainId), adapter, adapterRuntimeHash, guard, guardRuntimeHash],
 );
 const computedLeaves = {
   swapApprovalLeaf500: swapLeaf(
@@ -215,13 +238,31 @@ const computedLeaves = {
     [launchpadFactoryDomain, BigInt(manifest.chainId), manifest.poolsLbpProjectAdapterFactory,
       manifest.poolsLbpProjectAdapterFactoryRuntimeHash],
   ),
+  ponsV2PairBuybackApprovalLeaf: explicitSwapLeaf(
+    manifest.ponsV2PairBuybackAdapter,
+    manifest.ponsV2PairBuybackAdapterRuntimeHash,
+    manifest.ponsV2PairBuybackPriceGuard,
+    manifest.ponsV2PairBuybackPriceGuardRuntimeHash,
+  ),
+  flapBuybackApprovalLeaf: explicitSwapLeaf(
+    manifest.flapBuybackAdapter,
+    manifest.flapBuybackAdapterRuntimeHash,
+    manifest.flapBuybackPriceGuard,
+    manifest.flapBuybackPriceGuardRuntimeHash,
+  ),
+  flapPayoutApprovalLeaf: explicitSwapLeaf(
+    manifest.flapBuybackAdapter,
+    manifest.flapBuybackAdapterRuntimeHash,
+    manifest.flapPayoutPriceGuard,
+    manifest.flapPayoutPriceGuardRuntimeHash,
+  ),
 };
 for (const [key, computed] of Object.entries(computedLeaves)) {
   if (manifest[key].toLowerCase() !== computed.toLowerCase()) {
     throw new Error(`release manifest '${key}' does not match its exact approved integration`);
   }
 }
-if (new Set(Object.values(computedLeaves).map((value) => value.toLowerCase())).size !== 8) {
+if (new Set(Object.values(computedLeaves).map((value) => value.toLowerCase())).size !== 11) {
   throw new Error("release manifest integration approval leaves must be unique");
 }
 const processProof = (leaf, proof) => proof.reduce((hash, sibling) => {
@@ -237,6 +278,9 @@ const proofFields = {
   poolsInstantLaunchpadApprovalLeaf: "poolsInstantLaunchpadApprovalProof",
   poolsInstantNoFeeLaunchpadApprovalLeaf: "poolsInstantNoFeeLaunchpadApprovalProof",
   poolsLbpLaunchpadApprovalLeaf: "poolsLbpLaunchpadApprovalProof",
+  ponsV2PairBuybackApprovalLeaf: "ponsV2PairBuybackApprovalProof",
+  flapBuybackApprovalLeaf: "flapBuybackApprovalProof",
+  flapPayoutApprovalLeaf: "flapPayoutApprovalProof",
 };
 for (const [leafField, proofField] of Object.entries(proofFields)) {
   const computedRoot = processProof(manifest[leafField], manifest[proofField]);

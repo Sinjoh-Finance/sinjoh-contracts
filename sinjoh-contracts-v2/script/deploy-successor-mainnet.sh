@@ -3,6 +3,7 @@ set -euo pipefail
 
 package_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 baseline_manifest="${BASELINE_RELEASE_MANIFEST:-$package_dir/deployments/project-launcher-v2-4663-e7bed3c-canonical.json}"
+mainnet_deployments="${MAINNET_DEPLOYMENTS:-$package_dir/../mainnet-deployments.json}"
 
 fail() {
   echo "mainnet successor preflight failed: $*" >&2
@@ -12,6 +13,7 @@ fail() {
 command -v jq >/dev/null 2>&1 || fail "jq is required"
 command -v cast >/dev/null 2>&1 || fail "cast is required"
 [[ -f "$baseline_manifest" ]] || fail "baseline release manifest not found: $baseline_manifest"
+[[ -f "$mainnet_deployments" ]] || fail "mainnet deployments not found: $mainnet_deployments"
 
 [[ -n "${RPC_URL:-}" ]] \
   || fail "RPC_URL must be the authenticated production Chainstack endpoint; public RPC fallbacks are forbidden"
@@ -46,6 +48,18 @@ manifest_value() {
   value="$(jq -er --arg key "$key" '.[$key]' "$baseline_manifest")" \
     || fail "baseline manifest is missing $key"
   [[ "$value" != "null" && -n "$value" ]] || fail "baseline manifest has no value for $key"
+  printf '%s' "$value"
+}
+
+deployment_value() {
+  local deployment="$1"
+  local field="$2"
+  local value
+  value="$(jq -er --arg deployment "$deployment" --arg field "$field" \
+    '.currentInfrastructure[$deployment][$field]' "$mainnet_deployments")" \
+    || fail "mainnet deployments is missing $deployment.$field"
+  [[ "$value" != "null" && -n "$value" ]] \
+    || fail "mainnet deployments has no value for $deployment.$field"
   printf '%s' "$value"
 }
 
@@ -94,6 +108,16 @@ export RANDOMNESS_ADAPTER="$(manifest_value randomnessAdapter)"
 export RANDOMNESS_ADAPTER_RUNTIME_HASH="$(manifest_value randomnessAdapterRuntimeHash)"
 export PROJECT_SWAP_ADAPTER="$(manifest_value projectSwapAdapter)"
 export PROJECT_SWAP_ADAPTER_RUNTIME_HASH="$(manifest_value projectSwapAdapterRuntimeHash)"
+export PONS_V2_PAIR_BUYBACK_ADAPTER="$(deployment_value ponsV2PairBuybackAdapter address)"
+export PONS_V2_PAIR_BUYBACK_ADAPTER_RUNTIME_HASH="$(deployment_value ponsV2PairBuybackAdapter runtimeCodeHash)"
+export PONS_V2_PAIR_BUYBACK_PRICE_GUARD="$(deployment_value ponsV2PairBuybackPriceGuard address)"
+export PONS_V2_PAIR_BUYBACK_PRICE_GUARD_RUNTIME_HASH="$(deployment_value ponsV2PairBuybackPriceGuard runtimeCodeHash)"
+export FLAP_BUYBACK_ADAPTER="$(deployment_value flapBuybackAdapter address)"
+export FLAP_BUYBACK_ADAPTER_RUNTIME_HASH="$(deployment_value flapBuybackAdapter runtimeCodeHash)"
+export FLAP_BUYBACK_PRICE_GUARD="$(deployment_value flapBuybackPriceGuard address)"
+export FLAP_BUYBACK_PRICE_GUARD_RUNTIME_HASH="$(deployment_value flapBuybackPriceGuard runtimeCodeHash)"
+export FLAP_PAYOUT_PRICE_GUARD="$(deployment_value flapPayoutPriceGuard address)"
+export FLAP_PAYOUT_PRICE_GUARD_RUNTIME_HASH="$(deployment_value flapPayoutPriceGuard runtimeCodeHash)"
 export FUNDING_BAND_QUOTE_ASSET="$(manifest_value fundingBandQuoteAsset)"
 export FUNDING_BAND_QUOTE_ASSET_RUNTIME_HASH="$(manifest_value fundingBandQuoteAssetRuntimeHash)"
 export FUNDING_BAND_QUOTE_USD_AGGREGATOR="$(manifest_value fundingBandQuoteUsdAggregator)"
