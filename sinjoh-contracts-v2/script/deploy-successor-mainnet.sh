@@ -98,7 +98,19 @@ verification_nonce="$(cast nonce "$DEPLOYER_ADDRESS" --rpc-url "$RPC_VERIFICATIO
 simulate_only="${SIMULATE_ONLY:-0}"
 [[ "$simulate_only" == "0" || "$simulate_only" == "1" ]] \
   || fail "SIMULATE_ONLY must be 0 or 1"
-if [[ "$simulate_only" == "0" ]]; then
+stateful_fork_rpc_url="${STATEFUL_FORK_RPC_URL:-}"
+if [[ -n "$stateful_fork_rpc_url" ]]; then
+  [[ "$simulate_only" == "0" ]] \
+    || fail "STATEFUL_FORK_RPC_URL requires SIMULATE_ONLY=0"
+  fork_chain_id="$(cast chain-id --rpc-url "$stateful_fork_rpc_url")" \
+    || fail "could not read the stateful fork chain ID"
+  [[ "$fork_chain_id" == "$EXPECTED_CHAIN_ID" ]] \
+    || fail "stateful fork chain $fork_chain_id does not match $EXPECTED_CHAIN_ID"
+  fork_nonce="$(cast nonce "$DEPLOYER_ADDRESS" --rpc-url "$stateful_fork_rpc_url")" \
+    || fail "could not read the authorized deployer nonce from the stateful fork"
+  [[ "$fork_nonce" == "$primary_nonce" ]] \
+    || fail "stateful fork deployer nonce $fork_nonce does not match production nonce $primary_nonce"
+elif [[ "$simulate_only" == "0" ]]; then
   [[ -n "${FOUNDRY_ACCOUNT:-}" ]] \
     || fail "FOUNDRY_ACCOUNT must name the local Foundry keystore for $expected_deployer"
   export FOUNDRY_ACCOUNT
@@ -154,7 +166,13 @@ export PONS_FEE_ESCROW_RUNTIME_HASH="$(
   jq -er '.dependencies.ponsV2FeeEscrow.runtimeCodeHash' "$mainnet_deployments"
 )"
 export DEPLOY_FRESH_LAUNCHPAD_FACTORIES=1
-export UNLOCKED_DEPLOYMENT=0
+if [[ -n "$stateful_fork_rpc_url" ]]; then
+  export RPC_URL="$stateful_fork_rpc_url"
+  export RPC_VERIFICATION_URL="$stateful_fork_rpc_url"
+  export UNLOCKED_DEPLOYMENT=1
+else
+  export UNLOCKED_DEPLOYMENT=0
+fi
 export SIMULATE_ONLY="$simulate_only"
 export DEPLOYMENT_MANIFEST_PATH="${DEPLOYMENT_MANIFEST_PATH:-deployments/project-launcher-v2-4663.json}"
 
