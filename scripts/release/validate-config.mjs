@@ -288,7 +288,11 @@ function validateConsumerBindings() {
       requireValue(/^[A-Z][A-Z0-9_]*$/.test(variableName), `${path}: invalid environment name ${variableName}`);
       const hasValue = binding && Object.hasOwn(binding, "value");
       const hasPath = typeof binding?.path === "string";
-      requireValue(hasValue !== hasPath, `${path}: ${consumerName}.${variableName} must use value or path`);
+      const hasManifestPath = typeof binding?.manifestPath === "string";
+      requireValue(
+        Number(hasValue) + Number(hasPath) + Number(hasManifestPath) === 1,
+        `${path}: ${consumerName}.${variableName} must use exactly one of value, path, or manifestPath`,
+      );
       if (hasPath) {
         requireValue(
           /^(contracts|dependencies)\./.test(binding.path),
@@ -307,6 +311,21 @@ function validateConsumerBindings() {
             "approvalProof3",
           ].includes(binding.field),
           `${path}: ${consumerName}.${variableName} has invalid field`,
+        );
+      }
+      if (hasManifestPath) {
+        requireValue(
+          /^currentInfrastructure\.[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)+$/.test(binding.manifestPath),
+          `${path}: ${consumerName}.${variableName} has invalid manifest path`,
+        );
+        requireValue(
+          binding.format === "nonzero-address",
+          `${path}: ${consumerName}.${variableName} manifest binding must validate as nonzero-address`,
+        );
+      } else {
+        requireValue(
+          binding?.format === undefined,
+          `${path}: ${consumerName}.${variableName} format is only valid for manifest bindings`,
         );
       }
     }

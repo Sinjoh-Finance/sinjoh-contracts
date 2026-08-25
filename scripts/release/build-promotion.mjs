@@ -104,7 +104,7 @@ const promotion = {
   },
   generatedAt: new Date().toISOString(),
   contracts,
-  consumers: resolvePromotionConsumers(bindings, contracts, chainId)
+  consumers: resolvePromotionConsumers(bindings, contracts, chainId, manifest)
 };
 
 if (channel === "active") {

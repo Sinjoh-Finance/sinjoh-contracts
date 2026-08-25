@@ -1,5 +1,6 @@
 const addressPattern = /^0x[0-9a-fA-F]{40}$/;
 const hashPattern = /^0x[0-9a-fA-F]{64}$/;
+const zeroAddress = "0x0000000000000000000000000000000000000000";
 
 const inheritedAttestationFields = [
   "sourceCommit",
@@ -49,7 +50,29 @@ export function collectPromotionContracts(value, prefix, contracts, inheritedAtt
   }
 }
 
-export function resolvePromotionConsumers(bindings, contracts, chainId) {
+function resolveManifestValue(manifest, path) {
+  let value = manifest;
+  for (const segment of path.split(".")) {
+    if (!value || typeof value !== "object" || Array.isArray(value) || !Object.hasOwn(value, segment)) {
+      throw new Error(`manifest binding references missing ${path}`);
+    }
+    value = value[segment];
+  }
+  return value;
+}
+
+function validateBoundValue(value, format, label) {
+  if (format === undefined) return;
+  if (format === "nonzero-address") {
+    if (typeof value !== "string" || !addressPattern.test(value) || value.toLowerCase() === zeroAddress) {
+      throw new Error(`${label} must resolve to a complete non-zero address`);
+    }
+    return;
+  }
+  throw new Error(`${label} uses unsupported format ${format}`);
+}
+
+export function resolvePromotionConsumers(bindings, contracts, chainId, manifest = {}) {
   const consumers = {};
   for (const [consumerName, definition] of Object.entries(bindings)) {
     if (consumerName === "schemaVersion") continue;
@@ -67,6 +90,12 @@ export function resolvePromotionConsumers(bindings, contracts, chainId) {
       for (const [name, binding] of Object.entries(definition.environment)) {
         if (binding.value !== undefined) {
           consumer.environment[name] = name.endsWith("CHAIN_ID") ? chainId : binding.value;
+          continue;
+        }
+        if (binding.manifestPath !== undefined) {
+          const value = resolveManifestValue(manifest, binding.manifestPath);
+          validateBoundValue(value, binding.format, `${consumerName}.${name}`);
+          consumer.environment[name] = value;
           continue;
         }
         const entry = contracts[binding.path];
