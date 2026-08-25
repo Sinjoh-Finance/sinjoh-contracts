@@ -24,23 +24,23 @@ interface VmPonsV2PairBuybackInfrastructure {
 contract DeployPonsV2PairBuybackInfrastructure {
     uint256 internal constant ROBINHOOD_MAINNET_CHAIN_ID = 4_663;
 
-    // The 2026-08 pons v2 redeployment, same pins as the native buyback
-    // deploy, plus the pons v3 DEX router the custom-pair hop executes on —
-    // the same router the shared SinjohSimpleSwapAdapter is pinned to.
-    address internal constant PONS_V2_FACTORY = 0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e;
+    // The current Pons v2 production deployment, plus the Pons v3 DEX router
+    // the custom-pair hop executes on — the same router the shared
+    // SinjohSimpleSwapAdapter is pinned to.
+    address internal constant PONS_V2_FACTORY = 0x7DCeEaB0A53684b001A4900768a52eAcDb27294e;
     address internal constant POOL_MANAGER = 0x8366a39CC670B4001A1121B8F6A443A643e40951;
-    address internal constant MEME_HOOK = 0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044;
+    address internal constant MEME_HOOK = 0xE9Ec0Ffc7d5bEF33f815D7b0cDd15A7c5Dc1e044;
     address internal constant WETH = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
     address internal constant V3_SWAP_ROUTER = 0xCaf681a66D020601342297493863E78C959E5cb2;
     /// @dev The keeper's floor-signing identity, shared with the Flap guards.
     address internal constant QUOTE_SIGNER = 0xd89fB916dD031Da9b0A32e820307c2d41a7dDe09;
 
     bytes32 internal constant PONS_V2_FACTORY_HASH =
-        0x89a27da6f703e0a7cdd4f233e7cb57604ff75b164530962d3ff7cf8483a67d84;
+        0x3392f4e9040deec97e49bf05fc3a696f295b79806ef83910d84943d431d05e83;
     bytes32 internal constant POOL_MANAGER_HASH =
         0xbd3881180b547f5fe817545743cfb4343e96b1bc6640dcd70c106b0066e95626;
     bytes32 internal constant MEME_HOOK_HASH =
-        0xc21b1e6c1b45403e81a581f22ed6d9c747997af1cfdac1b1dc9f4b1d346a10db;
+        0x5f3bc01971cffe8dea490d70f123c25c01ae2c3579b68d40109c3ac68e1461eb;
     bytes32 internal constant WETH_HASH =
         0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353;
     bytes32 internal constant V3_SWAP_ROUTER_HASH =
