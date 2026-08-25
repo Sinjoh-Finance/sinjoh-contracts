@@ -141,5 +141,25 @@ assert.equal(
   generatedConsumers.ui.environment.NEXT_PUBLIC_PROJECT_V2_RAFFLE_ATTESTOR,
   mainnetManifest.currentInfrastructure.raffleOperations.attestor
 );
+assert.equal(
+  generatedConsumers.ui.contracts.ponsV2PairBuybackAdapter.address,
+  "0x1BE0E8F04221329FDfea34f41a1832a80c2c147c"
+);
+assert.equal(
+  generatedConsumers.ui.contracts.ponsV2PairBuybackPriceGuard.address,
+  "0x902A6Fa8Ca273aAB186633FF27879Cd3703F6AED"
+);
+assert.equal(
+  releaseContracts[
+    "contracts.ponsV2PairBuybackHistoricalGenerations.indexedLegacyFactory.adapter"
+  ].address,
+  "0xfAB57a5fE409B4503A1a09fD7DC80e6ffB85Abb8"
+);
+assert.equal(
+  releaseContracts[
+    "contracts.ponsV2PairBuybackHistoricalGenerations.indexedLegacyFactory.priceGuard"
+  ].address,
+  "0x69768f0b41A5A51aB23b23ccfbE9e3122Ac0DA8b"
+);
 
 console.log("promotion model tests passed");
