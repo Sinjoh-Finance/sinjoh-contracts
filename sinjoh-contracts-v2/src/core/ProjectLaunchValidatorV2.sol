@@ -12,7 +12,7 @@ import { IProjectVotesSubject } from "../interfaces/IProjectVotesSubject.sol";
 import { LaunchpadApproval } from "../libraries/LaunchpadApproval.sol";
 import { ProjectIds } from "../libraries/ProjectIds.sol";
 import { SinjohV2Constants } from "../libraries/SinjohV2Constants.sol";
-import { RouterActionType } from "../router/RouterTypes.sol";
+import { RouterActionType, RouterSwapAndFundConfig } from "../router/RouterTypes.sol";
 import { ProjectLaunchDeployerV2 } from "./ProjectLaunchDeployerV2.sol";
 import {
     LaunchGovernanceMode,
@@ -51,6 +51,9 @@ contract ProjectLaunchValidatorV2 {
     error InvalidBasketConfiguration();
     error InvalidBandsConfiguration();
     error InvalidRaffleConfiguration();
+    error InvalidRaffleRouteAsset(
+        uint256 routeIndex, uint256 actionIndex, address expected, address supplied
+    );
     error InvalidRouterPlaceholder(uint256 routeIndex, uint256 actionIndex, address supplied);
     error CreatorExcluded(address creator);
     error InvalidExternalSubject(address subject);
@@ -321,6 +324,24 @@ contract ProjectLaunchValidatorV2 {
                 }
                 if (placeholder && (supplied != address(0) || !selected)) {
                     revert InvalidRouterPlaceholder(i, j, supplied);
+                }
+                if (
+                    actionType == RouterActionType.FUND_RAFFLE && selected
+                        && config.routerRoutes[i].inputAsset != config.raffle.prizeAsset
+                ) {
+                    revert InvalidRaffleRouteAsset(
+                        i, j, config.raffle.prizeAsset, config.routerRoutes[i].inputAsset
+                    );
+                }
+                if (actionType == RouterActionType.SWAP_AND_FUND_RAFFLE && selected) {
+                    RouterSwapAndFundConfig memory swapConfig = abi.decode(
+                        config.routerRoutes[i].actions[j].actionConfig, (RouterSwapAndFundConfig)
+                    );
+                    if (swapConfig.outputAsset != config.raffle.prizeAsset) {
+                        revert InvalidRaffleRouteAsset(
+                            i, j, config.raffle.prizeAsset, swapConfig.outputAsset
+                        );
+                    }
                 }
             }
         }

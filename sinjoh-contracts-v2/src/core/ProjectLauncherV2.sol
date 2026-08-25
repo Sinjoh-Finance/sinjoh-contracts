@@ -72,6 +72,9 @@ contract ProjectLauncherV2 is ReentrancyGuard {
     error InvalidBasketConfiguration();
     error InvalidBandsConfiguration();
     error InvalidRaffleConfiguration();
+    error InvalidRaffleRouteAsset(
+        uint256 routeIndex, uint256 actionIndex, address expected, address supplied
+    );
     error InvalidRouterPlaceholder(uint256 routeIndex, uint256 actionIndex, address supplied);
     error CreatorExcluded(address creator);
     error InvalidExternalSubject(address subject);
