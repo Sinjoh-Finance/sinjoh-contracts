@@ -160,9 +160,9 @@ forge test
 npm test --prefix sdk
 
 release_contracts=(
-  ProjectVotesToken ProjectMultisigAccountV2 ProjectTimelockV2 ProjectStakingPoolV2
+  ProjectVotesToken ProjectLiquidVotesWrapperV2 ProjectMultisigAccountV2 ProjectTimelockV2 ProjectStakingPoolV2
   ProjectTreasuryVaultV2 ProjectAirdropV2 ProjectRouterV2 ProjectFundingBandsV2
-  ProjectRaffleV2 ProjectLiquidityManagerV2
+  ProjectRaffleV2 ProjectLiquidityManagerV2 BasketManagerV2
   UniswapV3FundingBandMarketCapGuard UniswapV3FundingBandPositionAdapter
   FundingBandV3IntegrationFactory FundingBandQuoteUsdOracleAdapter ProjectV3TwapPriceGuard
   ProjectWethUnwrapPriceGuard
