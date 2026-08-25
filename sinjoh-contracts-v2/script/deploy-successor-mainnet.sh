@@ -2,7 +2,10 @@
 set -euo pipefail
 
 package_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-baseline_manifest="${BASELINE_RELEASE_MANIFEST:-$package_dir/deployments/project-launcher-v2-4663-e7bed3c-canonical.json}"
+# This baseline carries the complete, independently verified integration set used by the
+# public-Pons generation. The Pons factory itself is selected explicitly below because the
+# historical manifest was produced during the short-lived unindexed-factory promotion.
+baseline_manifest="${BASELINE_RELEASE_MANIFEST:-$package_dir/deployments/project-launcher-v2-4663-superseded-0xE1f63d3c2D8416315448b220395a0502d1C0F2fB.json}"
 mainnet_deployments="${MAINNET_DEPLOYMENTS:-$package_dir/../mainnet-deployments.json}"
 
 fail() {
@@ -121,10 +124,22 @@ export RANDOMNESS_ADAPTER_RUNTIME_HASH="$(manifest_value randomnessAdapterRuntim
 export PROJECT_SWAP_ADAPTER="$(manifest_value projectSwapAdapter)"
 export PROJECT_SWAP_ADAPTER_RUNTIME_HASH="$(manifest_value projectSwapAdapterRuntimeHash)"
 export WETH="$(jq -er '.letscashDependencies.weth.address' "$mainnet_deployments")"
-export PONS_V2_PAIR_BUYBACK_ADAPTER="${PONS_V2_PAIR_BUYBACK_ADAPTER:-$(deployment_value ponsV2PairBuybackAdapter address)}"
-export PONS_V2_PAIR_BUYBACK_ADAPTER_RUNTIME_HASH="${PONS_V2_PAIR_BUYBACK_ADAPTER_RUNTIME_HASH:-$(deployment_value ponsV2PairBuybackAdapter runtimeCodeHash)}"
-export PONS_V2_PAIR_BUYBACK_PRICE_GUARD="${PONS_V2_PAIR_BUYBACK_PRICE_GUARD:-$(deployment_value ponsV2PairBuybackPriceGuard address)}"
-export PONS_V2_PAIR_BUYBACK_PRICE_GUARD_RUNTIME_HASH="${PONS_V2_PAIR_BUYBACK_PRICE_GUARD_RUNTIME_HASH:-$(deployment_value ponsV2PairBuybackPriceGuard runtimeCodeHash)}"
+export PONS_V2_PAIR_BUYBACK_ADAPTER="$({
+  jq -er '.currentInfrastructure.ponsV2PairBuybackHistoricalGenerations.indexedLegacyFactory.adapter.address' \
+    "$mainnet_deployments"
+})"
+export PONS_V2_PAIR_BUYBACK_ADAPTER_RUNTIME_HASH="$({
+  jq -er '.currentInfrastructure.ponsV2PairBuybackHistoricalGenerations.indexedLegacyFactory.adapter.runtimeCodeHash' \
+    "$mainnet_deployments"
+})"
+export PONS_V2_PAIR_BUYBACK_PRICE_GUARD="$({
+  jq -er '.currentInfrastructure.ponsV2PairBuybackHistoricalGenerations.indexedLegacyFactory.priceGuard.address' \
+    "$mainnet_deployments"
+})"
+export PONS_V2_PAIR_BUYBACK_PRICE_GUARD_RUNTIME_HASH="$({
+  jq -er '.currentInfrastructure.ponsV2PairBuybackHistoricalGenerations.indexedLegacyFactory.priceGuard.runtimeCodeHash' \
+    "$mainnet_deployments"
+})"
 export FLAP_BUYBACK_ADAPTER="$(deployment_value flapBuybackAdapter address)"
 export FLAP_BUYBACK_ADAPTER_RUNTIME_HASH="$(deployment_value flapBuybackAdapter runtimeCodeHash)"
 export FLAP_BUYBACK_PRICE_GUARD="$(deployment_value flapBuybackPriceGuard address)"
@@ -145,18 +160,78 @@ export V4_STATE_VIEW="$(manifest_value v4StateView)"
 export V4_STATE_VIEW_RUNTIME_HASH="$(manifest_value v4StateViewRuntimeHash)"
 export PERMIT2="$(manifest_value permit2)"
 export PERMIT2_RUNTIME_HASH="$(manifest_value permit2RuntimeHash)"
-export PONS_LAUNCH_FACTORY="$(manifest_value ponsLaunchFactory)"
-export PONS_LAUNCH_FACTORY_RUNTIME_HASH="$(manifest_value ponsLaunchFactoryRuntimeHash)"
-pons_owner="$(cast call "$PONS_LAUNCH_FACTORY" 'owner()(address)' --rpc-url "$RPC_URL")" \
-  || fail "could not read the Pons launch factory owner through Chainstack"
-pons_owner_verification="$(cast call "$PONS_LAUNCH_FACTORY" 'owner()(address)' --rpc-url "$RPC_VERIFICATION_URL")" \
-  || fail "could not read the Pons launch factory owner through QuickNode"
-pons_owner_lower="$(printf '%s' "$pons_owner" | tr '[:upper:]' '[:lower:]')"
-pons_owner_verification_lower="$(printf '%s' "$pons_owner_verification" | tr '[:upper:]' '[:lower:]')"
-[[ "$pons_owner_lower" == "$expected_deployer_lower" ]] \
-  || fail "Pons launch factory $PONS_LAUNCH_FACTORY is controlled by $pons_owner, not $expected_deployer; complete the explicit ownership handoff before release (no transaction was sent)"
-[[ "$pons_owner_verification_lower" == "$expected_deployer_lower" ]] \
-  || fail "QuickNode reports Pons launch factory owner $pons_owner_verification, not $expected_deployer (no transaction was sent)"
+export PONS_LAUNCH_FACTORY="${PONS_LAUNCH_FACTORY:-0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e}"
+export PONS_LAUNCH_FACTORY_RUNTIME_HASH="${PONS_LAUNCH_FACTORY_RUNTIME_HASH:-0x89a27da6f703e0a7cdd4f233e7cb57604ff75b164530962d3ff7cf8483a67d84}"
+
+public_pons_factory=0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e
+public_pons_factory_lower="$(printf '%s' "$public_pons_factory" | tr '[:upper:]' '[:lower:]')"
+pons_factory_lower="$(printf '%s' "$PONS_LAUNCH_FACTORY" | tr '[:upper:]' '[:lower:]')"
+[[ "$pons_factory_lower" == "$public_pons_factory_lower" ]] \
+  || fail "PONS_LAUNCH_FACTORY must be the public indexed Pons factory $public_pons_factory"
+
+expected_launch_config='[["1000000000000000000000000000",100,1680000000000000000,4200000000000000000,0,200,true]]'
+ui_pair_tokens=(
+  0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168
+  0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC
+  0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa
+  0x1b0E319c6A659F002271B69dB8A7df2F911c153E
+  0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9
+  0x322F0929c4625eD5bAd873c95208D54E1c003b2d
+  0x117cc2133c37B721F49dE2A7a74833232B3B4C0C
+)
+
+verify_pons_factory() {
+  local provider="$1"
+  local rpc_url="$2"
+  local enabled fee config pair approved
+  enabled="$(cast call "$PONS_LAUNCH_FACTORY" 'launchEnabled()(bool)' --rpc-url "$rpc_url")" \
+    || fail "could not read Pons launchEnabled through $provider"
+  [[ "$enabled" == "true" ]] \
+    || fail "$provider reports public Pons launches disabled (no transaction was sent)"
+  fee="$(cast call "$PONS_LAUNCH_FACTORY" 'launchFee()(uint256)' --rpc-url "$rpc_url" --json | jq -er '.[0]')" \
+    || fail "could not read the Pons launch fee through $provider"
+  [[ "$fee" == "500000000000000" ]] \
+    || fail "$provider reports unexpected public Pons launch fee $fee (no transaction was sent)"
+  config="$(cast call "$PONS_LAUNCH_FACTORY" \
+    'getLaunchConfig(uint256)((uint256,uint256,uint256,uint256,uint24,int24,bool))' 0 \
+    --rpc-url "$rpc_url" --json | jq -c '.')" \
+    || fail "could not read Pons launch config 0 through $provider"
+  [[ "$config" == "$expected_launch_config" ]] \
+    || fail "$provider reports unexpected public Pons launch config 0: $config (no transaction was sent)"
+  for pair in "${ui_pair_tokens[@]}"; do
+    approved="$(cast call "$PONS_LAUNCH_FACTORY" 'approvedPairTokens(address)(bool)' "$pair" --rpc-url "$rpc_url")" \
+      || fail "could not read Pons approval for $pair through $provider"
+    [[ "$approved" == "true" ]] \
+      || fail "$provider reports UI pair $pair is not approved by public Pons (no transaction was sent)"
+  done
+}
+
+verify_pons_factory Chainstack "$RPC_URL"
+verify_pons_factory QuickNode "$RPC_VERIFICATION_URL"
+
+manifest_generation_factory="$({
+  jq -er '.currentInfrastructure.ponsV2PairBuybackHistoricalGenerations.indexedLegacyFactory.launchFactory.address' \
+    "$mainnet_deployments"
+})"
+[[ "$(printf '%s' "$manifest_generation_factory" | tr '[:upper:]' '[:lower:]')" == "$pons_factory_lower" ]] \
+  || fail "selected Pons buyback generation targets $manifest_generation_factory, not $PONS_LAUNCH_FACTORY"
+
+verify_pons_buyback_binding() {
+  local provider="$1"
+  local rpc_url="$2"
+  local adapter_factory guard_factory
+  adapter_factory="$(cast call "$PONS_V2_PAIR_BUYBACK_ADAPTER" 'launchFactory()(address)' --rpc-url "$rpc_url")" \
+    || fail "could not read Pons buyback adapter launchFactory through $provider"
+  guard_factory="$(cast call "$PONS_V2_PAIR_BUYBACK_PRICE_GUARD" 'launchFactory()(address)' --rpc-url "$rpc_url")" \
+    || fail "could not read Pons buyback guard launchFactory through $provider"
+  [[ "$(printf '%s' "$adapter_factory" | tr '[:upper:]' '[:lower:]')" == "$pons_factory_lower" ]] \
+    || fail "$provider reports Pons buyback adapter $PONS_V2_PAIR_BUYBACK_ADAPTER targets $adapter_factory, not $PONS_LAUNCH_FACTORY"
+  [[ "$(printf '%s' "$guard_factory" | tr '[:upper:]' '[:lower:]')" == "$pons_factory_lower" ]] \
+    || fail "$provider reports Pons buyback guard $PONS_V2_PAIR_BUYBACK_PRICE_GUARD targets $guard_factory, not $PONS_LAUNCH_FACTORY"
+}
+
+verify_pons_buyback_binding Chainstack "$RPC_URL"
+verify_pons_buyback_binding QuickNode "$RPC_VERIFICATION_URL"
 
 # Project adapter factories bind to one immutable Project V2 launcher generation and reject any
 # later rebind. A successor release therefore requires fresh factories; reusing the prior release's
