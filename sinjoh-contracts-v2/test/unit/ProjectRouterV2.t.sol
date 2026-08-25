@@ -7,7 +7,8 @@ import {
     RouterAction,
     RouterActionType,
     RouterRouteInput,
-    RouterSwapConfig
+    RouterSwapConfig,
+    RouterSwapAndFundConfig
 } from "../../src/router/RouterTypes.sol";
 import { RouterTestBase } from "../RouterTestBase.sol";
 import { MockReentrantController } from "../mocks/MockRouterIntegrations.sol";
@@ -381,6 +382,62 @@ contract ProjectRouterV2Test is RouterTestBase {
         router.execute(address(assetA), type(uint256).max, minima, new bytes[](1));
         assertEq(assetB.balanceOf(RECIPIENT), 5_000);
         assertEq(assetA.allowance(address(router), address(adapter)), 0);
+    }
+
+    function testApprovedSwapCanFundTreasuryWithConvertedAsset() public {
+        bytes32 root = _swapLeaf(address(assetA), address(assetB));
+        RouterSwapAndFundConfig memory config = RouterSwapAndFundConfig({
+            outputAsset: address(assetB),
+            routeData: ROUTE_DATA,
+            approvalProof: new bytes32[](0),
+            fundingConfig: abi.encode(false)
+        });
+        RouterAction memory action = RouterAction({
+            actionType: RouterActionType.SWAP_AND_FUND_TREASURY,
+            allocationBps: 10_000,
+            recipient: address(treasury),
+            adapter: address(adapter),
+            priceGuard: address(priceGuard),
+            actionConfig: abi.encode(config)
+        });
+        ProjectRouterV2 router = _deployRouter(_singleRoute(address(assetA), action), root);
+        assetB.mint(address(adapter), 5_000);
+        adapter.configure(5_000, type(uint256).max, false);
+        priceGuard.setExpectedSubject(address(token));
+        priceGuard.setQuote(4_000, 2_000_000);
+        _fund(router, address(assetA), 10_000);
+        _execute(router, address(assetA), type(uint256).max);
+        assertEq(treasury.accountedBalance(address(assetB)), 5_000);
+        assertEq(assetA.allowance(address(router), address(adapter)), 0);
+        assertEq(assetB.allowance(address(router), address(treasury)), 0);
+    }
+
+    function testApprovedSwapCanFundAirdropWithConvertedAsset() public {
+        bytes32 root = _swapLeaf(address(assetA), address(assetB));
+        RouterSwapAndFundConfig memory config = RouterSwapAndFundConfig({
+            outputAsset: address(assetB),
+            routeData: ROUTE_DATA,
+            approvalProof: new bytes32[](0),
+            fundingConfig: hex"aabb"
+        });
+        RouterAction memory action = RouterAction({
+            actionType: RouterActionType.SWAP_AND_FUND_AIRDROP,
+            allocationBps: 10_000,
+            recipient: address(airdropSink),
+            adapter: address(adapter),
+            priceGuard: address(priceGuard),
+            actionConfig: abi.encode(config)
+        });
+        ProjectRouterV2 router = _deployRouter(_singleRoute(address(assetA), action), root);
+        assetB.mint(address(adapter), 7_000);
+        adapter.configure(7_000, type(uint256).max, false);
+        priceGuard.setExpectedSubject(address(token));
+        priceGuard.setQuote(6_000, 2_000_000);
+        _fund(router, address(assetA), 10_000);
+        _execute(router, address(assetA), type(uint256).max);
+        assertEq(airdropSink.funded(address(assetB)), 7_000);
+        assertEq(assetA.allowance(address(router), address(adapter)), 0);
+        assertEq(assetB.allowance(address(router), address(airdropSink)), 0);
     }
 
     function testUnderOutputSwapEscrowsInputInsteadOfLosingIt() public {
