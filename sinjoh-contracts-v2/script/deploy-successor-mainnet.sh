@@ -241,6 +241,10 @@ export PONS_FEE_ESCROW_RUNTIME_HASH="$(
   jq -er '.dependencies.ponsV2FeeEscrow.runtimeCodeHash' "$mainnet_deployments"
 )"
 export DEPLOY_FRESH_LAUNCHPAD_FACTORIES=1
+# The exact Issa/public-Pons fork gate is part of the release test suite and must always run
+# against the authenticated production source, even when the deployment target is a local
+# stateful fork.
+export SINJOH_RPC_PRIMARY="${SINJOH_RPC_PRIMARY:-$RPC_URL}"
 if [[ -n "$stateful_fork_rpc_url" ]]; then
   export RPC_URL="$stateful_fork_rpc_url"
   export RPC_VERIFICATION_URL="$stateful_fork_rpc_url"
