@@ -436,6 +436,44 @@ contract SinjohPonsV2AdapterTest is TestBase {
         assertEq(launchFactory.lastCurve(), address(0));
     }
 
+    function test_projectLaunchUsesPublicFactoryDirectlyWithoutReplacingLegacyForwarder() public {
+        SinjohPonsV2ProjectAdapter adapter;
+        ProjectLaunchConfig memory config;
+        (adapter,,, config,) = _projectFixture(false);
+        launchFactory.setLaunchForwarder(attacker);
+        SinjohPonsV2ProjectAdapter.LaunchRequest memory request = _projectRequest(adapter, config);
+
+        vm.prank(creator);
+        (address token,) = adapter.launch{ value: LAUNCH_FEE }(request);
+
+        assertEq(token, launchFactory.lastToken());
+        assertEq(launchFactory.launchForwarder(), attacker);
+    }
+
+    function test_projectBindingRejectsImplementationForDifferentPonsFactory() public {
+        MockFeeEscrow otherEscrow = new MockFeeEscrow();
+        MockLaunchFactory otherLaunchFactory = new MockLaunchFactory(address(otherEscrow));
+        SinjohPonsV2ProjectAdapter mismatchedImplementation = new SinjohPonsV2ProjectAdapter(
+            address(adapterFactory),
+            address(otherLaunchFactory),
+            address(otherEscrow),
+            address(weth),
+            CHAIN_ID
+        );
+        MockProjectRegistry projectRegistry = new MockProjectRegistry();
+        MockProjectLauncher projectLauncher =
+            new MockProjectLauncher(address(projectRegistry), address(router));
+        MockProjectRegistry projectTokenFactory = new MockProjectRegistry();
+
+        vm.expectRevert(SinjohPonsV2AdapterFactory.InvalidAddress.selector);
+        adapterFactory.bindProjectV2(
+            address(projectLauncher),
+            address(projectRegistry),
+            address(projectTokenFactory),
+            address(mismatchedImplementation)
+        );
+    }
+
     function _projectFixture(bool mismatch)
         private
         returns (
@@ -464,8 +502,6 @@ contract SinjohPonsV2AdapterTest is TestBase {
             address(projectTokenFactory),
             address(projectImplementation)
         );
-        launchFactory.setLaunchForwarder(address(adapterFactory));
-
         address predictedAdapter = adapterFactory.predictProjectAddress(creator, USER_SALT);
         projectRouter.setLaunchpadAdapter(predictedAdapter);
         if (!mismatch) adapterRouter.setLaunchpadAdapter(predictedAdapter);
