@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   collectPromotionContracts,
   resolvePromotionConsumers
@@ -65,5 +67,23 @@ assert.deepEqual(consumers.ui.environment, {
   NEXT_PUBLIC_PROJECT_V2_PONS_APPROVAL_PROOF_2: approvalProof2,
   NEXT_PUBLIC_CHAIN_ID: 4663
 });
+
+const repoRoot = resolve(import.meta.dirname, "../..");
+const productionBindings = JSON.parse(
+  readFileSync(resolve(repoRoot, "deployments/consumers/bindings.json"), "utf8")
+);
+const mainnet = JSON.parse(
+  readFileSync(resolve(repoRoot, "mainnet-deployments.json"), "utf8")
+);
+const operationalAttestor = mainnet.currentInfrastructure?.raffleOperations?.attestor;
+assert.match(operationalAttestor, /^0x[0-9a-fA-F]{40}$/);
+assert.equal(
+  productionBindings.ui.environment.NEXT_PUBLIC_PROJECT_V2_AIRDROP_ATTESTOR.value,
+  operationalAttestor
+);
+assert.equal(
+  productionBindings.ui.environment.NEXT_PUBLIC_PROJECT_V2_RAFFLE_ATTESTOR.value,
+  operationalAttestor
+);
 
 console.log("promotion model tests passed");
