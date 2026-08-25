@@ -41,6 +41,19 @@ contract ProjectV3TwapPriceGuardTest is Test {
         assertEq(validUntil, block.timestamp + 5 minutes);
     }
 
+    function testSubjectAwareRouterQuoteAllowsAnApprovedNonSubjectPayoutPair() public view {
+        (uint256 minimumOut, uint48 validUntil) = guard.minimumOutput(
+            address(0xBEEF),
+            address(tokenA),
+            address(tokenB),
+            1 ether,
+            keccak256(abi.encode(uint24(3_000))),
+            bytes("")
+        );
+        assertEq(minimumOut, 0.925 ether);
+        assertEq(validUntil, block.timestamp + 5 minutes);
+    }
+
     function testRejectsWrongRouteInsufficientHistoryAndSpotDeviation() public {
         bytes32 routeHash = guard.routeHash();
         vm.expectRevert(ProjectV3TwapPriceGuard.InvalidRoute.selector);

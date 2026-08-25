@@ -73,13 +73,11 @@ contract ProjectRouterV2FuzzTest is RouterTestBase {
         assertEq(projected[0] + projected[1] + projected[2], secondBatch);
         _execute(router, address(assetA), type(uint256).max);
 
-        ProjectRouterV2.RouteHeader memory header = router.routeHeader(address(assetA), 1);
-        assertEq(
-            router.allocatedToAction(address(assetA), 1, 0)
-                + router.allocatedToAction(address(assetA), 1, 1)
-                + router.allocatedToAction(address(assetA), 1, 2),
-            header.totalRouted
-        );
+        (ProjectRouterV2.RouteHeader memory header,) = router.activeRoute(address(assetA));
+        (,, uint256 allocated0,) = router.actionStatus(address(assetA), 1, 0);
+        (,, uint256 allocated1,) = router.actionStatus(address(assetA), 1, 1);
+        (,, uint256 allocated2,) = router.actionStatus(address(assetA), 1, 2);
+        assertEq(allocated0 + allocated1 + allocated2, header.totalRouted);
     }
 
     function testFuzzExactSendConservesNetAndFee(uint128 rawGross) public {

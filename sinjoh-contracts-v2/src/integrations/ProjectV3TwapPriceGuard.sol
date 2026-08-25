@@ -94,7 +94,10 @@ contract ProjectV3TwapPriceGuard is IProjectPriceGuard {
         return _minimumOutput(assetIn, assetOut, amountIn, suppliedRouteHash, guardData);
     }
 
-    /// @notice Subject-aware overload used by permanent liquidity and Raffle integrations.
+    /// @notice Subject-aware ABI used by permanent Project integrations.
+    /// @dev The subject authenticates the project context at the caller. Router payouts may
+    /// intentionally exchange two non-subject assets, so this generic V3 guard must not require
+    /// either side of the approved pair to equal the subject.
     function minimumOutput(
         address subject,
         address assetIn,
@@ -103,7 +106,7 @@ contract ProjectV3TwapPriceGuard is IProjectPriceGuard {
         bytes32 suppliedRouteHash,
         bytes calldata guardData
     ) external view returns (uint256 minimumOut, uint48 validUntil) {
-        _validateSubjectPair(subject, assetIn, assetOut);
+        if (subject == address(0)) revert InvalidRoute();
         return _minimumOutput(assetIn, assetOut, amountIn, suppliedRouteHash, guardData);
     }
 

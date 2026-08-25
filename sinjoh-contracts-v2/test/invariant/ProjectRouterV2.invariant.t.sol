@@ -117,10 +117,10 @@ contract ProjectRouterV2InvariantTest is RouterTestBase {
     }
 
     function invariantCumulativeAllocationsEqualEveryRoutedUnit() public view {
-        ProjectRouterV2.RouteHeader memory header = router.routeHeader(address(assetA), 1);
-        uint256 allocated = router.allocatedToAction(address(assetA), 1, 0)
-            + router.allocatedToAction(address(assetA), 1, 1);
-        assertEq(allocated, header.totalRouted);
+        (ProjectRouterV2.RouteHeader memory header,) = router.activeRoute(address(assetA));
+        (,, uint256 allocated0,) = router.actionStatus(address(assetA), 1, 0);
+        (,, uint256 allocated1,) = router.actionStatus(address(assetA), 1, 1);
+        assertEq(allocated0 + allocated1, header.totalRouted);
     }
 
     function invariantExternalAllowancesAreAlwaysCleared() public view {

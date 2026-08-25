@@ -697,7 +697,7 @@ contract ProjectLauncherV2Test is Test {
         vm.prank(CREATOR);
         ProjectLaunchPreview memory launched = launcher.launch(config);
         ProjectRouterV2 router = ProjectRouterV2(payable(launched.addresses.router));
-        RouterAction memory action = router.routeAction(address(0), 1, 0);
+        RouterAction memory action = _routerAction(router, address(0), 1, 0);
         assertEq(action.recipient, launched.addresses.raffle);
         assertEq(uint8(action.actionType), uint8(RouterActionType.FUND_RAFFLE));
 
@@ -745,6 +745,7 @@ contract ProjectLauncherV2Test is Test {
             actionConfig: abi.encode(
                 RouterSwapAndFundConfig({
                     outputAsset: address(payout),
+                    maxAmountInPerCall: type(uint128).max,
                     routeData: hex"01",
                     approvalProof: proof,
                     fundingConfig: abi.encode(false)
@@ -766,6 +767,7 @@ contract ProjectLauncherV2Test is Test {
             actionConfig: abi.encode(
                 RouterSwapAndFundConfig({
                     outputAsset: address(payout),
+                    maxAmountInPerCall: type(uint128).max,
                     routeData: hex"01",
                     approvalProof: proof,
                     fundingConfig: abi.encode(accountConfig)
@@ -781,8 +783,8 @@ contract ProjectLauncherV2Test is Test {
         assertEq(launched.addresses.airdrop, predicted.addresses.airdrop);
 
         ProjectRouterV2 router = ProjectRouterV2(payable(launched.addresses.router));
-        RouterAction memory treasuryAction = router.routeAction(address(quote), 1, 0);
-        RouterAction memory airdropAction = router.routeAction(address(quote), 1, 1);
+        RouterAction memory treasuryAction = _routerAction(router, address(quote), 1, 0);
+        RouterAction memory airdropAction = _routerAction(router, address(quote), 1, 1);
         assertEq(treasuryAction.recipient, launched.addresses.treasury);
         assertEq(airdropAction.recipient, launched.addresses.airdrop);
 
@@ -870,7 +872,7 @@ contract ProjectLauncherV2Test is Test {
         vm.prank(CREATOR);
         ProjectLaunchPreview memory launched = launcher.launch(config);
         ProjectRouterV2 router = ProjectRouterV2(payable(launched.addresses.router));
-        RouterAction memory action = router.routeAction(address(quote), 1, 0);
+        RouterAction memory action = _routerAction(router, address(quote), 1, 0);
         assertEq(action.recipient, launched.addresses.liquidityManager);
         ProjectLiquidityManagerV2.FundingConfig memory materializedLiquidity =
             abi.decode(action.actionConfig, (ProjectLiquidityManagerV2.FundingConfig));
@@ -1556,6 +1558,14 @@ contract ProjectLauncherV2Test is Test {
             timelockDelay: 1 days,
             referenceSupply: config.totalSupply
         });
+    }
+
+    function _routerAction(ProjectRouterV2 router, address asset, uint64 version, uint256 index)
+        private
+        view
+        returns (RouterAction memory action)
+    {
+        (action,,,) = router.actionStatus(asset, version, index);
     }
 
     function _deployCreationCodeStores(bool basketEnabled)

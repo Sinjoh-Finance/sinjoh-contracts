@@ -32,14 +32,17 @@ const required = [
   "v3Factory", "v3FactoryRuntimeHash", "v3PositionManager", "v3PositionManagerRuntimeHash",
   "v4PositionManager", "v4PositionManagerRuntimeHash", "v4StateView",
   "v4StateViewRuntimeHash", "permit2", "permit2RuntimeHash", "integrationApprovalRoot",
-  "projectSwapAdapter", "projectSwapAdapterRuntimeHash", "fundingBandQuoteUsdOracle",
+  "projectSwapAdapter", "projectSwapAdapterRuntimeHash", "weth", "wethRuntimeHash",
+  "fundingBandQuoteUsdOracle",
   "fundingBandQuoteUsdOracleRuntimeHash", "fundingBandQuoteAsset",
   "fundingBandQuoteAssetRuntimeHash", "fundingBandQuoteUsdAggregator",
   "fundingBandQuoteUsdAggregatorRuntimeHash", "projectV3PriceGuard500",
   "projectV3PriceGuard500RuntimeHash", "projectV3PriceGuard3000",
   "projectV3PriceGuard3000RuntimeHash", "projectV3PriceGuard10000",
   "projectV3PriceGuard10000RuntimeHash", "swapApprovalLeaf500", "swapApprovalLeaf3000",
-  "swapApprovalLeaf10000", "fundingBandIntegrationLeaf", "swapApprovalProof500",
+  "swapApprovalLeaf10000", "projectWethUnwrapPriceGuard",
+  "projectWethUnwrapPriceGuardRuntimeHash", "wethUnwrapApprovalLeaf",
+  "wethUnwrapApprovalProof", "fundingBandIntegrationLeaf", "swapApprovalProof500",
   "swapApprovalProof3000", "swapApprovalProof10000", "fundingBandIntegrationProof",
   "ponsV2PairBuybackAdapter", "ponsV2PairBuybackAdapterRuntimeHash",
   "ponsV2PairBuybackPriceGuard", "ponsV2PairBuybackPriceGuardRuntimeHash",
@@ -98,6 +101,7 @@ const approvedReleaseValues = {
   protocolFeeRecipient: "PROTOCOL_FEE_RECIPIENT",
   projectSwapAdapter: "PROJECT_SWAP_ADAPTER",
   projectSwapAdapterRuntimeHash: "PROJECT_SWAP_ADAPTER_RUNTIME_HASH",
+  weth: "WETH",
   fundingBandQuoteAsset: "FUNDING_BAND_QUOTE_ASSET",
   fundingBandQuoteAssetRuntimeHash: "FUNDING_BAND_QUOTE_ASSET_RUNTIME_HASH",
   fundingBandQuoteUsdAggregator: "FUNDING_BAND_QUOTE_USD_AGGREGATOR",
@@ -154,6 +158,7 @@ for (const [key, expectedLength] of [
   ["poolsInstantNoFeeLaunchpadApprovalProof", 4], ["poolsLbpLaunchpadApprovalProof", 4],
   ["ponsV2PairBuybackApprovalProof", 4], ["flapBuybackApprovalProof", 4],
   ["flapPayoutApprovalProof", 4],
+  ["wethUnwrapApprovalProof", 4],
 ]) {
   if (!Array.isArray(manifest[key]) || manifest[key].length !== expectedLength
       || manifest[key].some((value) => !bytes32Pattern.test(value))) {
@@ -256,13 +261,17 @@ const computedLeaves = {
     manifest.flapPayoutPriceGuard,
     manifest.flapPayoutPriceGuardRuntimeHash,
   ),
+  wethUnwrapApprovalLeaf: swapLeaf(
+    manifest.projectWethUnwrapPriceGuard,
+    manifest.projectWethUnwrapPriceGuardRuntimeHash,
+  ),
 };
 for (const [key, computed] of Object.entries(computedLeaves)) {
   if (manifest[key].toLowerCase() !== computed.toLowerCase()) {
     throw new Error(`release manifest '${key}' does not match its exact approved integration`);
   }
 }
-if (new Set(Object.values(computedLeaves).map((value) => value.toLowerCase())).size !== 11) {
+if (new Set(Object.values(computedLeaves).map((value) => value.toLowerCase())).size !== 12) {
   throw new Error("release manifest integration approval leaves must be unique");
 }
 const processProof = (leaf, proof) => proof.reduce((hash, sibling) => {
@@ -281,6 +290,7 @@ const proofFields = {
   ponsV2PairBuybackApprovalLeaf: "ponsV2PairBuybackApprovalProof",
   flapBuybackApprovalLeaf: "flapBuybackApprovalProof",
   flapPayoutApprovalLeaf: "flapPayoutApprovalProof",
+  wethUnwrapApprovalLeaf: "wethUnwrapApprovalProof",
 };
 for (const [leafField, proofField] of Object.entries(proofFields)) {
   const computedRoot = processProof(manifest[leafField], manifest[proofField]);

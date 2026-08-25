@@ -48,6 +48,7 @@ required_environment=(
   RPC_URL EXPECTED_CHAIN_ID DEPLOYER_ADDRESS PROTOCOL_FEE_RECIPIENT
   RANDOMNESS_ADAPTER RANDOMNESS_ADAPTER_RUNTIME_HASH
   PROJECT_SWAP_ADAPTER PROJECT_SWAP_ADAPTER_RUNTIME_HASH
+  WETH
   PONS_V2_PAIR_BUYBACK_ADAPTER PONS_V2_PAIR_BUYBACK_ADAPTER_RUNTIME_HASH
   PONS_V2_PAIR_BUYBACK_PRICE_GUARD PONS_V2_PAIR_BUYBACK_PRICE_GUARD_RUNTIME_HASH
   FLAP_BUYBACK_ADAPTER FLAP_BUYBACK_ADAPTER_RUNTIME_HASH
@@ -164,6 +165,7 @@ release_contracts=(
   ProjectRaffleV2 ProjectLiquidityManagerV2
   UniswapV3FundingBandMarketCapGuard UniswapV3FundingBandPositionAdapter
   FundingBandV3IntegrationFactory FundingBandQuoteUsdOracleAdapter ProjectV3TwapPriceGuard
+  ProjectWethUnwrapPriceGuard
   CreationCodeStoreV2 ProjectRegistryV2
   ProjectLaunchDeployerV2 ProjectLaunchValidatorV2 ProjectLauncherV2
   ProjectVotesTokenFactoryV2 LaunchpadProjectVotesTokenFactoryV2

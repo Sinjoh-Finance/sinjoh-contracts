@@ -19,6 +19,7 @@ import {
 import { ProjectTimelockV2 } from "../src/governance/ProjectTimelockV2.sol";
 import { ProjectLiquidityManagerV2 } from "../src/liquidity/ProjectLiquidityManagerV2.sol";
 import { ProjectV3TwapPriceGuard } from "../src/integrations/ProjectV3TwapPriceGuard.sol";
+import { ProjectWethUnwrapPriceGuard } from "../src/integrations/ProjectWethUnwrapPriceGuard.sol";
 import { IntegrationApproval } from "../src/libraries/IntegrationApproval.sol";
 import { LaunchpadApproval } from "../src/libraries/LaunchpadApproval.sol";
 import { ProjectMultisigAccountV2 } from "../src/multisig/ProjectMultisigAccountV2.sol";
@@ -73,6 +74,10 @@ interface IPoolsLbpProjectAdapterFactoryRelease {
     function projectRegistrationHelper() external view returns (address);
 }
 
+interface IWethBoundSwapAdapterRelease {
+    function weth() external view returns (address);
+}
+
 /// @notice Deploys one immutable v2 release from environment-supplied infrastructure addresses.
 /// @dev Registry, engine, and Launcher are deployed in a verified nonce sequence. Project creators
 /// interact only with the resulting Launcher address.
@@ -83,6 +88,7 @@ contract DeployProjectLauncherV2 is Script {
         keccak256("SINJOH_V2_FUNDING_BAND_FACTORY_INTEGRATION");
     bytes32 private constant UNUSED_APPROVAL_LEAF_DOMAIN =
         keccak256("SINJOH_V2_UNUSED_APPROVAL_LEAF");
+    ProjectWethUnwrapPriceGuard private _unwrapGuard;
 
     struct ReleaseIntegrations {
         address swapAdapter;
@@ -247,6 +253,7 @@ contract DeployProjectLauncherV2 is Script {
         integrations.guard500 = _deployGuard(v3Factory, 500);
         integrations.guard3000 = _deployGuard(v3Factory, 3_000);
         integrations.guard10000 = _deployGuard(v3Factory, 10_000);
+        _unwrapGuard = new ProjectWethUnwrapPriceGuard(vm.envAddress("WETH"));
         integrations.swapLeaf500 =
             IntegrationApproval.swapLeaf(integrations.swapAdapter, address(integrations.guard500));
         integrations.swapLeaf3000 = IntegrationApproval.swapLeaf(
@@ -335,7 +342,7 @@ contract DeployProjectLauncherV2 is Script {
 
     function _approvalLeaves(ReleaseIntegrations memory integrations)
         private
-        pure
+        view
         returns (bytes32[] memory leaves)
     {
         leaves = new bytes32[](16);
@@ -350,13 +357,14 @@ contract DeployProjectLauncherV2 is Script {
         leaves[8] = integrations.ponsV2PairBuybackLeaf;
         leaves[9] = integrations.flapBuybackLeaf;
         leaves[10] = integrations.flapPayoutLeaf;
-        for (uint256 i = 11; i < leaves.length; ++i) {
+        leaves[11] = IntegrationApproval.swapLeaf(integrations.swapAdapter, address(_unwrapGuard));
+        for (uint256 i = 12; i < leaves.length; ++i) {
             leaves[i] =
                 keccak256(bytes.concat(keccak256(abi.encode(UNUSED_APPROVAL_LEAF_DOMAIN, i))));
         }
     }
 
-    function _approvalRoot(ReleaseIntegrations memory integrations) private pure returns (bytes32) {
+    function _approvalRoot(ReleaseIntegrations memory integrations) private view returns (bytes32) {
         bytes32[] memory leaves = _approvalLeaves(integrations);
         while (leaves.length > 1) {
             bytes32[] memory parents = new bytes32[](leaves.length / 2);
@@ -370,7 +378,7 @@ contract DeployProjectLauncherV2 is Script {
 
     function _approvalProof(ReleaseIntegrations memory integrations, uint256 index)
         private
-        pure
+        view
         returns (bytes32[] memory proof)
     {
         bytes32[] memory leaves = _approvalLeaves(integrations);
@@ -429,9 +437,13 @@ contract DeployProjectLauncherV2 is Script {
         bindings[3] = _binding(keccak256("STAKING"), type(ProjectStakingPoolV2).creationCode);
         bindings[4] = _binding(keccak256("TREASURY"), type(ProjectTreasuryVaultV2).creationCode);
         bindings[5] = _binding(keccak256("AIRDROP"), type(ProjectAirdropV2).creationCode);
-        bindings[6] = _binding(keccak256("ROUTER"), type(ProjectRouterV2).creationCode);
+        bindings[6] = _routerBinding();
         bindings[7] = _binding(keccak256("BANDS"), type(ProjectFundingBandsV2).creationCode);
         bindings[8] = _binding(keccak256("LIQUIDITY"), type(ProjectLiquidityManagerV2).creationCode);
+    }
+
+    function _routerBinding() private returns (CreationCodeBinding memory) {
+        return _binding(keccak256("ROUTER"), type(ProjectRouterV2).creationCode);
     }
 
     function _binding(bytes32 key, bytes memory creationCode)
@@ -526,6 +538,12 @@ contract DeployProjectLauncherV2 is Script {
         _verifyGuard(integrations.guard500, deployer.v3Factory(), 500);
         _verifyGuard(integrations.guard3000, deployer.v3Factory(), 3_000);
         _verifyGuard(integrations.guard10000, deployer.v3Factory(), 10_000);
+        address weth = vm.envAddress("WETH");
+        require(
+            _unwrapGuard.weth() == weth && _unwrapGuard.wethCodehash() == weth.codehash
+                && IWethBoundSwapAdapterRelease(integrations.swapAdapter).weth() == weth,
+            "WETH_UNWRAP_BINDING_MISMATCH"
+        );
         require(
             integrations.swapLeaf500
                     == IntegrationApproval.swapLeaf(
@@ -604,6 +622,84 @@ contract DeployProjectLauncherV2 is Script {
         );
     }
 
+    function serializeWethUnwrapIntegration(
+        string calldata object,
+        address swapAdapter,
+        bytes32[] calldata approvalProof
+    ) external {
+        require(msg.sender == address(this), "ONLY_SELF");
+        address weth = _unwrapGuard.weth();
+        vm.serializeAddress(object, "weth", weth);
+        vm.serializeBytes32(object, "wethRuntimeHash", weth.codehash);
+        vm.serializeAddress(object, "projectWethUnwrapPriceGuard", address(_unwrapGuard));
+        vm.serializeBytes32(
+            object, "projectWethUnwrapPriceGuardRuntimeHash", address(_unwrapGuard).codehash
+        );
+        vm.serializeBytes32(
+            object,
+            "wethUnwrapApprovalLeaf",
+            IntegrationApproval.swapLeaf(swapAdapter, address(_unwrapGuard))
+        );
+        vm.serializeBytes32(object, "wethUnwrapApprovalProof", approvalProof);
+    }
+
+    function _serializeApprovedRoutes(string memory object, ReleaseIntegrations memory integrations)
+        private
+    {
+        vm.serializeAddress(
+            object, "ponsV2PairBuybackAdapter", integrations.ponsV2PairBuybackAdapter
+        );
+        vm.serializeBytes32(
+            object,
+            "ponsV2PairBuybackAdapterRuntimeHash",
+            integrations.ponsV2PairBuybackAdapter.codehash
+        );
+        vm.serializeAddress(
+            object, "ponsV2PairBuybackPriceGuard", integrations.ponsV2PairBuybackPriceGuard
+        );
+        vm.serializeBytes32(
+            object,
+            "ponsV2PairBuybackPriceGuardRuntimeHash",
+            integrations.ponsV2PairBuybackPriceGuard.codehash
+        );
+        vm.serializeAddress(object, "flapBuybackAdapter", integrations.flapBuybackAdapter);
+        vm.serializeBytes32(
+            object, "flapBuybackAdapterRuntimeHash", integrations.flapBuybackAdapter.codehash
+        );
+        vm.serializeAddress(object, "flapBuybackPriceGuard", integrations.flapBuybackPriceGuard);
+        vm.serializeBytes32(
+            object, "flapBuybackPriceGuardRuntimeHash", integrations.flapBuybackPriceGuard.codehash
+        );
+        vm.serializeAddress(object, "flapPayoutPriceGuard", integrations.flapPayoutPriceGuard);
+        vm.serializeBytes32(
+            object, "flapPayoutPriceGuardRuntimeHash", integrations.flapPayoutPriceGuard.codehash
+        );
+        vm.serializeBytes32(
+            object, "ponsV2PairBuybackApprovalLeaf", integrations.ponsV2PairBuybackLeaf
+        );
+        vm.serializeBytes32(object, "flapBuybackApprovalLeaf", integrations.flapBuybackLeaf);
+        vm.serializeBytes32(object, "flapPayoutApprovalLeaf", integrations.flapPayoutLeaf);
+        vm.serializeBytes32(object, "swapApprovalProof500", _approvalProof(integrations, 0));
+        vm.serializeBytes32(object, "swapApprovalProof3000", _approvalProof(integrations, 1));
+        vm.serializeBytes32(object, "swapApprovalProof10000", _approvalProof(integrations, 2));
+        vm.serializeBytes32(object, "fundingBandIntegrationProof", _approvalProof(integrations, 3));
+        vm.serializeBytes32(object, "ponsLaunchpadApprovalProof", _approvalProof(integrations, 4));
+        vm.serializeBytes32(
+            object, "poolsInstantLaunchpadApprovalProof", _approvalProof(integrations, 5)
+        );
+        vm.serializeBytes32(
+            object, "poolsInstantNoFeeLaunchpadApprovalProof", _approvalProof(integrations, 6)
+        );
+        vm.serializeBytes32(
+            object, "poolsLbpLaunchpadApprovalProof", _approvalProof(integrations, 7)
+        );
+        vm.serializeBytes32(
+            object, "ponsV2PairBuybackApprovalProof", _approvalProof(integrations, 8)
+        );
+        vm.serializeBytes32(object, "flapBuybackApprovalProof", _approvalProof(integrations, 9));
+        vm.serializeBytes32(object, "flapPayoutApprovalProof", _approvalProof(integrations, 10));
+    }
+
     function _writeManifest(
         ProjectLauncherV2 launcher,
         ProjectRegistryV2 registry,
@@ -666,6 +762,9 @@ contract DeployProjectLauncherV2 is Script {
         );
         vm.serializeBytes32(
             object, "projectV3PriceGuard10000RuntimeHash", address(integrations.guard10000).codehash
+        );
+        this.serializeWethUnwrapIntegration(
+            object, integrations.swapAdapter, _approvalProof(integrations, 11)
         );
         vm.serializeBytes32(object, "swapApprovalLeaf500", integrations.swapLeaf500);
         vm.serializeBytes32(object, "swapApprovalLeaf3000", integrations.swapLeaf3000);
@@ -743,58 +842,7 @@ contract DeployProjectLauncherV2 is Script {
         vm.serializeBytes32(
             object, "poolsLbpLaunchpadApprovalLeaf", integrations.poolsLbpLaunchpadLeaf
         );
-        vm.serializeAddress(
-            object, "ponsV2PairBuybackAdapter", integrations.ponsV2PairBuybackAdapter
-        );
-        vm.serializeBytes32(
-            object,
-            "ponsV2PairBuybackAdapterRuntimeHash",
-            integrations.ponsV2PairBuybackAdapter.codehash
-        );
-        vm.serializeAddress(
-            object, "ponsV2PairBuybackPriceGuard", integrations.ponsV2PairBuybackPriceGuard
-        );
-        vm.serializeBytes32(
-            object,
-            "ponsV2PairBuybackPriceGuardRuntimeHash",
-            integrations.ponsV2PairBuybackPriceGuard.codehash
-        );
-        vm.serializeAddress(object, "flapBuybackAdapter", integrations.flapBuybackAdapter);
-        vm.serializeBytes32(
-            object, "flapBuybackAdapterRuntimeHash", integrations.flapBuybackAdapter.codehash
-        );
-        vm.serializeAddress(object, "flapBuybackPriceGuard", integrations.flapBuybackPriceGuard);
-        vm.serializeBytes32(
-            object, "flapBuybackPriceGuardRuntimeHash", integrations.flapBuybackPriceGuard.codehash
-        );
-        vm.serializeAddress(object, "flapPayoutPriceGuard", integrations.flapPayoutPriceGuard);
-        vm.serializeBytes32(
-            object, "flapPayoutPriceGuardRuntimeHash", integrations.flapPayoutPriceGuard.codehash
-        );
-        vm.serializeBytes32(
-            object, "ponsV2PairBuybackApprovalLeaf", integrations.ponsV2PairBuybackLeaf
-        );
-        vm.serializeBytes32(object, "flapBuybackApprovalLeaf", integrations.flapBuybackLeaf);
-        vm.serializeBytes32(object, "flapPayoutApprovalLeaf", integrations.flapPayoutLeaf);
-        vm.serializeBytes32(object, "swapApprovalProof500", _approvalProof(integrations, 0));
-        vm.serializeBytes32(object, "swapApprovalProof3000", _approvalProof(integrations, 1));
-        vm.serializeBytes32(object, "swapApprovalProof10000", _approvalProof(integrations, 2));
-        vm.serializeBytes32(object, "fundingBandIntegrationProof", _approvalProof(integrations, 3));
-        vm.serializeBytes32(object, "ponsLaunchpadApprovalProof", _approvalProof(integrations, 4));
-        vm.serializeBytes32(
-            object, "poolsInstantLaunchpadApprovalProof", _approvalProof(integrations, 5)
-        );
-        vm.serializeBytes32(
-            object, "poolsInstantNoFeeLaunchpadApprovalProof", _approvalProof(integrations, 6)
-        );
-        vm.serializeBytes32(
-            object, "poolsLbpLaunchpadApprovalProof", _approvalProof(integrations, 7)
-        );
-        vm.serializeBytes32(
-            object, "ponsV2PairBuybackApprovalProof", _approvalProof(integrations, 8)
-        );
-        vm.serializeBytes32(object, "flapBuybackApprovalProof", _approvalProof(integrations, 9));
-        vm.serializeBytes32(object, "flapPayoutApprovalProof", _approvalProof(integrations, 10));
+        _serializeApprovedRoutes(object, integrations);
         vm.serializeAddress(object, "registry", address(registry));
         vm.serializeAddress(object, "deploymentEngine", address(deployer));
         vm.serializeAddress(object, "launchValidator", address(validator));
