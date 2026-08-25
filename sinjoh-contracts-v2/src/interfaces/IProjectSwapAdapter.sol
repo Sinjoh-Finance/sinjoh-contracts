@@ -11,5 +11,5 @@ interface IProjectSwapAdapter {
         uint256 amountIn,
         uint256 minimumOut,
         bytes calldata routeData
-    ) external payable returns (uint256 reportedAmountOut);
+    ) external payable;
 }

@@ -3,6 +3,7 @@ set -euo pipefail
 
 package_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 baseline_manifest="${BASELINE_RELEASE_MANIFEST:-$package_dir/deployments/project-launcher-v2-4663-e7bed3c-canonical.json}"
+mainnet_deployments="${MAINNET_DEPLOYMENTS:-$package_dir/../mainnet-deployments.json}"
 
 fail() {
   echo "mainnet successor preflight failed: $*" >&2
@@ -12,6 +13,7 @@ fail() {
 command -v jq >/dev/null 2>&1 || fail "jq is required"
 command -v cast >/dev/null 2>&1 || fail "cast is required"
 [[ -f "$baseline_manifest" ]] || fail "baseline release manifest not found: $baseline_manifest"
+[[ -f "$mainnet_deployments" ]] || fail "mainnet deployments not found: $mainnet_deployments"
 
 [[ -n "${RPC_URL:-}" ]] \
   || fail "RPC_URL must be the authenticated production Chainstack endpoint; public RPC fallbacks are forbidden"
@@ -46,6 +48,18 @@ manifest_value() {
   value="$(jq -er --arg key "$key" '.[$key]' "$baseline_manifest")" \
     || fail "baseline manifest is missing $key"
   [[ "$value" != "null" && -n "$value" ]] || fail "baseline manifest has no value for $key"
+  printf '%s' "$value"
+}
+
+deployment_value() {
+  local deployment="$1"
+  local field="$2"
+  local value
+  value="$(jq -er --arg deployment "$deployment" --arg field "$field" \
+    '.currentInfrastructure[$deployment][$field]' "$mainnet_deployments")" \
+    || fail "mainnet deployments is missing $deployment.$field"
+  [[ "$value" != "null" && -n "$value" ]] \
+    || fail "mainnet deployments has no value for $deployment.$field"
   printf '%s' "$value"
 }
 
@@ -84,7 +98,19 @@ verification_nonce="$(cast nonce "$DEPLOYER_ADDRESS" --rpc-url "$RPC_VERIFICATIO
 simulate_only="${SIMULATE_ONLY:-0}"
 [[ "$simulate_only" == "0" || "$simulate_only" == "1" ]] \
   || fail "SIMULATE_ONLY must be 0 or 1"
-if [[ "$simulate_only" == "0" ]]; then
+stateful_fork_rpc_url="${STATEFUL_FORK_RPC_URL:-}"
+if [[ -n "$stateful_fork_rpc_url" ]]; then
+  [[ "$simulate_only" == "0" ]] \
+    || fail "STATEFUL_FORK_RPC_URL requires SIMULATE_ONLY=0"
+  fork_chain_id="$(cast chain-id --rpc-url "$stateful_fork_rpc_url")" \
+    || fail "could not read the stateful fork chain ID"
+  [[ "$fork_chain_id" == "$EXPECTED_CHAIN_ID" ]] \
+    || fail "stateful fork chain $fork_chain_id does not match $EXPECTED_CHAIN_ID"
+  fork_nonce="$(cast nonce "$DEPLOYER_ADDRESS" --rpc-url "$stateful_fork_rpc_url")" \
+    || fail "could not read the authorized deployer nonce from the stateful fork"
+  [[ "$fork_nonce" == "$primary_nonce" ]] \
+    || fail "stateful fork deployer nonce $fork_nonce does not match production nonce $primary_nonce"
+elif [[ "$simulate_only" == "0" ]]; then
   [[ -n "${FOUNDRY_ACCOUNT:-}" ]] \
     || fail "FOUNDRY_ACCOUNT must name the local Foundry keystore for $expected_deployer"
   export FOUNDRY_ACCOUNT
@@ -94,6 +120,17 @@ export RANDOMNESS_ADAPTER="$(manifest_value randomnessAdapter)"
 export RANDOMNESS_ADAPTER_RUNTIME_HASH="$(manifest_value randomnessAdapterRuntimeHash)"
 export PROJECT_SWAP_ADAPTER="$(manifest_value projectSwapAdapter)"
 export PROJECT_SWAP_ADAPTER_RUNTIME_HASH="$(manifest_value projectSwapAdapterRuntimeHash)"
+export WETH="$(jq -er '.letscashDependencies.weth.address' "$mainnet_deployments")"
+export PONS_V2_PAIR_BUYBACK_ADAPTER="$(deployment_value ponsV2PairBuybackAdapter address)"
+export PONS_V2_PAIR_BUYBACK_ADAPTER_RUNTIME_HASH="$(deployment_value ponsV2PairBuybackAdapter runtimeCodeHash)"
+export PONS_V2_PAIR_BUYBACK_PRICE_GUARD="$(deployment_value ponsV2PairBuybackPriceGuard address)"
+export PONS_V2_PAIR_BUYBACK_PRICE_GUARD_RUNTIME_HASH="$(deployment_value ponsV2PairBuybackPriceGuard runtimeCodeHash)"
+export FLAP_BUYBACK_ADAPTER="$(deployment_value flapBuybackAdapter address)"
+export FLAP_BUYBACK_ADAPTER_RUNTIME_HASH="$(deployment_value flapBuybackAdapter runtimeCodeHash)"
+export FLAP_BUYBACK_PRICE_GUARD="$(deployment_value flapBuybackPriceGuard address)"
+export FLAP_BUYBACK_PRICE_GUARD_RUNTIME_HASH="$(deployment_value flapBuybackPriceGuard runtimeCodeHash)"
+export FLAP_PAYOUT_PRICE_GUARD="$(deployment_value flapPayoutPriceGuard address)"
+export FLAP_PAYOUT_PRICE_GUARD_RUNTIME_HASH="$(deployment_value flapPayoutPriceGuard runtimeCodeHash)"
 export FUNDING_BAND_QUOTE_ASSET="$(manifest_value fundingBandQuoteAsset)"
 export FUNDING_BAND_QUOTE_ASSET_RUNTIME_HASH="$(manifest_value fundingBandQuoteAssetRuntimeHash)"
 export FUNDING_BAND_QUOTE_USD_AGGREGATOR="$(manifest_value fundingBandQuoteUsdAggregator)"
@@ -121,23 +158,21 @@ pons_owner_verification_lower="$(printf '%s' "$pons_owner_verification" | tr '[:
 [[ "$pons_owner_verification_lower" == "$expected_deployer_lower" ]] \
   || fail "QuickNode reports Pons launch factory owner $pons_owner_verification, not $expected_deployer (no transaction was sent)"
 
-# These successor factories were successfully deployed from the authorized deployer on
-# 2026-08-24. Reuse them so a resumed release cannot redeploy the same generation or spend gas
-# twice. deploy-release.sh verifies every runtime hash before the core broadcast.
-export PONS_PROJECT_ADAPTER_FACTORY=0xAc299024C0f4E561D6e99CEFABB9b7212de729b6
-export PONS_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH=0x964762b1cdb587f7dc7d27f796e0ed403e0066e00a7ed0d015c90b1df32c5ec5
-export PONS_PROJECT_ADAPTER_IMPLEMENTATION=0x3943b7f46b201CFe5033367Ae2E102555e0ea50F
-export PONS_PROJECT_ADAPTER_IMPLEMENTATION_RUNTIME_HASH=0xd61178a140dc8f8df8a0ae4987dc93b7063334496591c10e81aee660d1d916e6
-export POOLS_INSTANT_PROJECT_ADAPTER_FACTORY=0xc13238cdF673eE82704255C14C6224fC7AfA9C36
-export POOLS_INSTANT_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH=0xccaf8d43bf0d0da6d4a7dd2e539c7d0f2d71c470546c0dc8b1df6e3f96e25428
-export POOLS_INSTANT_NO_FEE_PROJECT_ADAPTER_FACTORY=0x990A008705c115eF1cb779B73D20F2BcA865f03A
-export POOLS_INSTANT_NO_FEE_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH=0x81e78639a3c06cb115f800feceba601a5eb06e756ef2fec48abfb2376251579c
-export POOLS_LBP_PROJECT_ADAPTER_FACTORY=0x00ed429B6810281784372B6Bf610541670815A60
-export POOLS_LBP_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH=0x33329edabc21310bac6d6b90c462ba63c139f9937ad9cec6f8bdacda0d86b30b
-export POOLS_PROJECT_REGISTRATION_HELPER=0x570CFbE42720d96bcEaa592D2D110EF7211E7FA9
-export POOLS_PROJECT_REGISTRATION_HELPER_RUNTIME_HASH=0xde1b2a2c36ea4734ffca677dbb588ede4fc96b1e243b07632e9f1efbb56e7f49
-export DEPLOY_FRESH_LAUNCHPAD_FACTORIES=0
-export UNLOCKED_DEPLOYMENT=0
+# Project adapter factories bind to one immutable Project V2 launcher generation and reject any
+# later rebind. A successor release therefore requires fresh factories; reusing the prior release's
+# addresses would only fail after the core deployment had already consumed gas.
+export PONS_FEE_ESCROW="$(jq -er '.dependencies.ponsV2FeeEscrow.address' "$mainnet_deployments")"
+export PONS_FEE_ESCROW_RUNTIME_HASH="$(
+  jq -er '.dependencies.ponsV2FeeEscrow.runtimeCodeHash' "$mainnet_deployments"
+)"
+export DEPLOY_FRESH_LAUNCHPAD_FACTORIES=1
+if [[ -n "$stateful_fork_rpc_url" ]]; then
+  export RPC_URL="$stateful_fork_rpc_url"
+  export RPC_VERIFICATION_URL="$stateful_fork_rpc_url"
+  export UNLOCKED_DEPLOYMENT=1
+else
+  export UNLOCKED_DEPLOYMENT=0
+fi
 export SIMULATE_ONLY="$simulate_only"
 export DEPLOYMENT_MANIFEST_PATH="${DEPLOYMENT_MANIFEST_PATH:-deployments/project-launcher-v2-4663.json}"
 

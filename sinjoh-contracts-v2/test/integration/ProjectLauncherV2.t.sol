@@ -46,7 +46,12 @@ import { ProjectMultisigAccountV2 } from "../../src/multisig/ProjectMultisigAcco
 import { ProjectRaffleV2 } from "../../src/raffle/ProjectRaffleV2.sol";
 import { RaffleTypes } from "../../src/raffle/RaffleTypes.sol";
 import { ProjectRouterV2 } from "../../src/router/ProjectRouterV2.sol";
-import { RouterAction, RouterActionType, RouterRouteInput } from "../../src/router/RouterTypes.sol";
+import {
+    RouterAction,
+    RouterActionType,
+    RouterRouteInput,
+    RouterSwapAndFundConfig
+} from "../../src/router/RouterTypes.sol";
 import { ProjectStakingPoolV2 } from "../../src/staking/ProjectStakingPoolV2.sol";
 import { PonsProjectVotesToken } from "../../src/token/PonsProjectVotesToken.sol";
 import { ProjectVotesToken } from "../../src/token/ProjectVotesToken.sol";
@@ -93,6 +98,10 @@ import {
     MockFundingBandQuoteUsdOracle,
     MockV3BandPool
 } from "../mocks/MockUniswapV3BandPosition.sol";
+import {
+    MockProjectPriceGuard,
+    MockProjectSwapAdapter
+} from "../mocks/MockTreasuryIntegrations.sol";
 
 contract MockProjectLaunchAdapterFactory {
     mapping(address adapter => bool approved) public isAdapter;
@@ -688,7 +697,7 @@ contract ProjectLauncherV2Test is Test {
         vm.prank(CREATOR);
         ProjectLaunchPreview memory launched = launcher.launch(config);
         ProjectRouterV2 router = ProjectRouterV2(payable(launched.addresses.router));
-        RouterAction memory action = router.routeAction(address(0), 1, 0);
+        RouterAction memory action = _routerAction(router, address(0), 1, 0);
         assertEq(action.recipient, launched.addresses.raffle);
         assertEq(uint8(action.actionType), uint8(RouterActionType.FUND_RAFFLE));
 
@@ -706,6 +715,97 @@ contract ProjectLauncherV2Test is Test {
         assertTrue(raffle.isExcluded(launched.addresses.router));
         assertTrue(raffle.isExcluded(launched.addresses.controller));
         assertFalse(raffle.isExcluded(CREATOR));
+    }
+
+    function testLaunchRouterMaterializesAndExecutesConvertedTreasuryAndAirdropRoutes() public {
+        MockERC20 quote = new MockERC20("Quote", "QUOTE");
+        MockERC20 payout = new MockERC20("Payout", "PAYOUT");
+        MockProjectSwapAdapter swapAdapter = new MockProjectSwapAdapter();
+        MockProjectPriceGuard priceGuard = new MockProjectPriceGuard();
+        bytes32 approvalRoot = _swapIntegrationLeaf(address(swapAdapter), address(priceGuard));
+        _installLauncher(approvalRoot, true);
+
+        ProjectLaunchConfig memory config = _baseMultisigConfig();
+        config.salt = keccak256("CONVERTED_PROJECT_DESTINATIONS");
+        config.modules.router = true;
+        config.modules.treasury = true;
+        config.modules.airdrop = true;
+        config.airdrop.attestor = vm.addr(ATTESTOR_KEY);
+        config.routerRoutes = new RouterRouteInput[](1);
+        config.routerRoutes[0].inputAsset = address(quote);
+        config.routerRoutes[0].actions = new RouterAction[](2);
+
+        bytes32[] memory proof = new bytes32[](0);
+        config.routerRoutes[0].actions[0] = RouterAction({
+            actionType: RouterActionType.SWAP_AND_FUND_TREASURY,
+            allocationBps: 5_000,
+            recipient: address(0),
+            adapter: address(swapAdapter),
+            priceGuard: address(priceGuard),
+            actionConfig: abi.encode(
+                RouterSwapAndFundConfig({
+                    outputAsset: address(payout),
+                    maxAmountInPerCall: type(uint128).max,
+                    routeData: hex"01",
+                    approvalProof: proof,
+                    fundingConfig: abi.encode(false)
+                })
+            )
+        });
+        AirdropAccountConfig memory accountConfig = AirdropAccountConfig({
+            maxPushBatchSize: 32,
+            minimumSnapshotConfirmations: 1,
+            cadence: AirdropCadence.DAILY,
+            dustDestination: AirdropDustDestination.FUNDER
+        });
+        config.routerRoutes[0].actions[1] = RouterAction({
+            actionType: RouterActionType.SWAP_AND_FUND_AIRDROP,
+            allocationBps: 5_000,
+            recipient: address(0),
+            adapter: address(swapAdapter),
+            priceGuard: address(priceGuard),
+            actionConfig: abi.encode(
+                RouterSwapAndFundConfig({
+                    outputAsset: address(payout),
+                    maxAmountInPerCall: type(uint128).max,
+                    routeData: hex"01",
+                    approvalProof: proof,
+                    fundingConfig: abi.encode(accountConfig)
+                })
+            )
+        });
+
+        ProjectLaunchPreview memory predicted = launcher.predictLaunch(config);
+        vm.prank(CREATOR);
+        ProjectLaunchPreview memory launched = launcher.launch(config);
+        assertEq(launched.addresses.router, predicted.addresses.router);
+        assertEq(launched.addresses.treasury, predicted.addresses.treasury);
+        assertEq(launched.addresses.airdrop, predicted.addresses.airdrop);
+
+        ProjectRouterV2 router = ProjectRouterV2(payable(launched.addresses.router));
+        RouterAction memory treasuryAction = _routerAction(router, address(quote), 1, 0);
+        RouterAction memory airdropAction = _routerAction(router, address(quote), 1, 1);
+        assertEq(treasuryAction.recipient, launched.addresses.treasury);
+        assertEq(airdropAction.recipient, launched.addresses.airdrop);
+
+        payout.mint(address(swapAdapter), 2_000);
+        swapAdapter.configure(1_000, type(uint256).max, false);
+        priceGuard.setExpectedSubject(launched.addresses.subject);
+        priceGuard.setQuote(1, 2_000_000);
+        quote.mint(address(this), 10_000);
+        quote.approve(address(router), 10_000);
+        router.fund(launched.projectId, launched.addresses.subject, address(quote), 10_000, "");
+        router.execute(address(quote), type(uint256).max, new uint256[](2), new bytes[](2));
+
+        assertEq(
+            ProjectTreasuryVaultV2(payable(launched.addresses.treasury))
+                .accountedBalance(address(payout)),
+            1_000
+        );
+        assertEq(payout.balanceOf(launched.addresses.airdrop), 1_000);
+        assertEq(quote.allowance(address(router), address(swapAdapter)), 0);
+        assertEq(payout.allowance(address(router), launched.addresses.treasury), 0);
+        assertEq(payout.allowance(address(router), launched.addresses.airdrop), 0);
     }
 
     function testRaffleRandomnessIsPlatformMaterialized() public {
@@ -772,7 +872,7 @@ contract ProjectLauncherV2Test is Test {
         vm.prank(CREATOR);
         ProjectLaunchPreview memory launched = launcher.launch(config);
         ProjectRouterV2 router = ProjectRouterV2(payable(launched.addresses.router));
-        RouterAction memory action = router.routeAction(address(quote), 1, 0);
+        RouterAction memory action = _routerAction(router, address(quote), 1, 0);
         assertEq(action.recipient, launched.addresses.liquidityManager);
         ProjectLiquidityManagerV2.FundingConfig memory materializedLiquidity =
             abi.decode(action.actionConfig, (ProjectLiquidityManagerV2.FundingConfig));
@@ -1458,6 +1558,14 @@ contract ProjectLauncherV2Test is Test {
             timelockDelay: 1 days,
             referenceSupply: config.totalSupply
         });
+    }
+
+    function _routerAction(ProjectRouterV2 router, address asset, uint64 version, uint256 index)
+        private
+        view
+        returns (RouterAction memory action)
+    {
+        (action,,,) = router.actionStatus(asset, version, index);
     }
 
     function _deployCreationCodeStores(bool basketEnabled)

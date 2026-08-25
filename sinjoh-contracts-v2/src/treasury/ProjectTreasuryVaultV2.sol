@@ -332,7 +332,7 @@ contract ProjectTreasuryVaultV2 is
         }
 
         (uint256 guardMinOut, uint48 validUntil) = IProjectPriceGuard(priceGuard)
-            .minimumOutput(assetIn, assetOut, amountIn, routeHash, guardData);
+            .minimumOutput(subject, assetIn, assetOut, amountIn, routeHash, guardData);
         if (guardMinOut == 0) revert InvalidGuardMinimum(guardMinOut);
         uint48 currentTime = Time.timestamp();
         if (validUntil < currentTime) revert GuardQuoteExpired(validUntil, currentTime);

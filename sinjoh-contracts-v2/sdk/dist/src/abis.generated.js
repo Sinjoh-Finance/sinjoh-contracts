@@ -16076,35 +16076,6 @@ export const projectRouterV2Abi = [
     },
     {
         "type": "function",
-        "name": "allocatedToAction",
-        "inputs": [
-            {
-                "name": "asset",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "version",
-                "type": "uint64",
-                "internalType": "uint64"
-            },
-            {
-                "name": "index",
-                "type": "uint256",
-                "internalType": "uint256"
-            }
-        ],
-        "outputs": [
-            {
-                "name": "",
-                "type": "uint256",
-                "internalType": "uint256"
-            }
-        ],
-        "stateMutability": "view"
-    },
-    {
-        "type": "function",
         "name": "controller",
         "inputs": [],
         "outputs": [
@@ -16445,6 +16416,30 @@ export const projectRouterV2Abi = [
     },
     {
         "type": "function",
+        "name": "maximumExecutableAmount",
+        "inputs": [
+            {
+                "name": "asset",
+                "type": "address",
+                "internalType": "address"
+            },
+            {
+                "name": "version",
+                "type": "uint64",
+                "internalType": "uint64"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
         "name": "pauseAction",
         "inputs": [
             {
@@ -16577,6 +16572,55 @@ export const projectRouterV2Abi = [
             }
         ],
         "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "quoteAction",
+        "inputs": [
+            {
+                "name": "asset",
+                "type": "address",
+                "internalType": "address"
+            },
+            {
+                "name": "version",
+                "type": "uint64",
+                "internalType": "uint64"
+            },
+            {
+                "name": "actionIndex",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "amount",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "callerMinOut",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "guardData",
+                "type": "bytes",
+                "internalType": "bytes"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "assetOut",
+                "type": "address",
+                "internalType": "address"
+            },
+            {
+                "name": "amountOut",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "nonpayable"
     },
     {
         "type": "function",
@@ -16714,179 +16758,6 @@ export const projectRouterV2Abi = [
             }
         ],
         "stateMutability": "nonpayable"
-    },
-    {
-        "type": "function",
-        "name": "routeAction",
-        "inputs": [
-            {
-                "name": "asset",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "version",
-                "type": "uint64",
-                "internalType": "uint64"
-            },
-            {
-                "name": "index",
-                "type": "uint256",
-                "internalType": "uint256"
-            }
-        ],
-        "outputs": [
-            {
-                "name": "",
-                "type": "tuple",
-                "internalType": "struct RouterAction",
-                "components": [
-                    {
-                        "name": "actionType",
-                        "type": "uint8",
-                        "internalType": "enum RouterActionType"
-                    },
-                    {
-                        "name": "allocationBps",
-                        "type": "uint16",
-                        "internalType": "uint16"
-                    },
-                    {
-                        "name": "recipient",
-                        "type": "address",
-                        "internalType": "address"
-                    },
-                    {
-                        "name": "adapter",
-                        "type": "address",
-                        "internalType": "address"
-                    },
-                    {
-                        "name": "priceGuard",
-                        "type": "address",
-                        "internalType": "address"
-                    },
-                    {
-                        "name": "actionConfig",
-                        "type": "bytes",
-                        "internalType": "bytes"
-                    }
-                ]
-            }
-        ],
-        "stateMutability": "view"
-    },
-    {
-        "type": "function",
-        "name": "routeActions",
-        "inputs": [
-            {
-                "name": "asset",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "version",
-                "type": "uint64",
-                "internalType": "uint64"
-            }
-        ],
-        "outputs": [
-            {
-                "name": "",
-                "type": "tuple[]",
-                "internalType": "struct RouterAction[]",
-                "components": [
-                    {
-                        "name": "actionType",
-                        "type": "uint8",
-                        "internalType": "enum RouterActionType"
-                    },
-                    {
-                        "name": "allocationBps",
-                        "type": "uint16",
-                        "internalType": "uint16"
-                    },
-                    {
-                        "name": "recipient",
-                        "type": "address",
-                        "internalType": "address"
-                    },
-                    {
-                        "name": "adapter",
-                        "type": "address",
-                        "internalType": "address"
-                    },
-                    {
-                        "name": "priceGuard",
-                        "type": "address",
-                        "internalType": "address"
-                    },
-                    {
-                        "name": "actionConfig",
-                        "type": "bytes",
-                        "internalType": "bytes"
-                    }
-                ]
-            }
-        ],
-        "stateMutability": "view"
-    },
-    {
-        "type": "function",
-        "name": "routeHeader",
-        "inputs": [
-            {
-                "name": "asset",
-                "type": "address",
-                "internalType": "address"
-            },
-            {
-                "name": "version",
-                "type": "uint64",
-                "internalType": "uint64"
-            }
-        ],
-        "outputs": [
-            {
-                "name": "",
-                "type": "tuple",
-                "internalType": "struct ProjectRouterV2.RouteHeader",
-                "components": [
-                    {
-                        "name": "version",
-                        "type": "uint64",
-                        "internalType": "uint64"
-                    },
-                    {
-                        "name": "activatedAt",
-                        "type": "uint48",
-                        "internalType": "uint48"
-                    },
-                    {
-                        "name": "actionCount",
-                        "type": "uint8",
-                        "internalType": "uint8"
-                    },
-                    {
-                        "name": "routeHash",
-                        "type": "bytes32",
-                        "internalType": "bytes32"
-                    },
-                    {
-                        "name": "totalRouted",
-                        "type": "uint256",
-                        "internalType": "uint256"
-                    },
-                    {
-                        "name": "exists",
-                        "type": "bool",
-                        "internalType": "bool"
-                    }
-                ]
-            }
-        ],
-        "stateMutability": "view"
     },
     {
         "type": "function",
@@ -17128,6 +16999,37 @@ export const projectRouterV2Abi = [
                 "type": "address",
                 "indexed": false,
                 "internalType": "address"
+            },
+            {
+                "name": "amountOut",
+                "type": "uint256",
+                "indexed": false,
+                "internalType": "uint256"
+            }
+        ],
+        "anonymous": false
+    },
+    {
+        "type": "event",
+        "name": "AssetNormalized",
+        "inputs": [
+            {
+                "name": "assetIn",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+            },
+            {
+                "name": "assetOut",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+            },
+            {
+                "name": "amountIn",
+                "type": "uint256",
+                "indexed": false,
+                "internalType": "uint256"
             },
             {
                 "name": "amountOut",
@@ -18022,6 +17924,17 @@ export const projectRouterV2Abi = [
     {
         "type": "error",
         "name": "OnlyLauncher",
+        "inputs": [
+            {
+                "name": "caller",
+                "type": "address",
+                "internalType": "address"
+            }
+        ]
+    },
+    {
+        "type": "error",
+        "name": "OnlyQuoteSimulation",
         "inputs": [
             {
                 "name": "caller",

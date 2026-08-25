@@ -12414,28 +12414,6 @@ export declare const projectRouterV2Abi: readonly [{
     readonly stateMutability: "view";
 }, {
     readonly type: "function";
-    readonly name: "allocatedToAction";
-    readonly inputs: readonly [{
-        readonly name: "asset";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "version";
-        readonly type: "uint64";
-        readonly internalType: "uint64";
-    }, {
-        readonly name: "index";
-        readonly type: "uint256";
-        readonly internalType: "uint256";
-    }];
-    readonly outputs: readonly [{
-        readonly name: "";
-        readonly type: "uint256";
-        readonly internalType: "uint256";
-    }];
-    readonly stateMutability: "view";
-}, {
-    readonly type: "function";
     readonly name: "controller";
     readonly inputs: readonly [];
     readonly outputs: readonly [{
@@ -12696,6 +12674,24 @@ export declare const projectRouterV2Abi: readonly [{
     readonly stateMutability: "view";
 }, {
     readonly type: "function";
+    readonly name: "maximumExecutableAmount";
+    readonly inputs: readonly [{
+        readonly name: "asset";
+        readonly type: "address";
+        readonly internalType: "address";
+    }, {
+        readonly name: "version";
+        readonly type: "uint64";
+        readonly internalType: "uint64";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
     readonly name: "pauseAction";
     readonly inputs: readonly [{
         readonly name: "asset";
@@ -12796,6 +12792,44 @@ export declare const projectRouterV2Abi: readonly [{
         readonly internalType: "uint256";
     }];
     readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "quoteAction";
+    readonly inputs: readonly [{
+        readonly name: "asset";
+        readonly type: "address";
+        readonly internalType: "address";
+    }, {
+        readonly name: "version";
+        readonly type: "uint64";
+        readonly internalType: "uint64";
+    }, {
+        readonly name: "actionIndex";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "amount";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "callerMinOut";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "guardData";
+        readonly type: "bytes";
+        readonly internalType: "bytes";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "assetOut";
+        readonly type: "address";
+        readonly internalType: "address";
+    }, {
+        readonly name: "amountOut";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly stateMutability: "nonpayable";
 }, {
     readonly type: "function";
     readonly name: "raffle";
@@ -12902,139 +12936,6 @@ export declare const projectRouterV2Abi: readonly [{
         readonly internalType: "bool";
     }];
     readonly stateMutability: "nonpayable";
-}, {
-    readonly type: "function";
-    readonly name: "routeAction";
-    readonly inputs: readonly [{
-        readonly name: "asset";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "version";
-        readonly type: "uint64";
-        readonly internalType: "uint64";
-    }, {
-        readonly name: "index";
-        readonly type: "uint256";
-        readonly internalType: "uint256";
-    }];
-    readonly outputs: readonly [{
-        readonly name: "";
-        readonly type: "tuple";
-        readonly internalType: "struct RouterAction";
-        readonly components: readonly [{
-            readonly name: "actionType";
-            readonly type: "uint8";
-            readonly internalType: "enum RouterActionType";
-        }, {
-            readonly name: "allocationBps";
-            readonly type: "uint16";
-            readonly internalType: "uint16";
-        }, {
-            readonly name: "recipient";
-            readonly type: "address";
-            readonly internalType: "address";
-        }, {
-            readonly name: "adapter";
-            readonly type: "address";
-            readonly internalType: "address";
-        }, {
-            readonly name: "priceGuard";
-            readonly type: "address";
-            readonly internalType: "address";
-        }, {
-            readonly name: "actionConfig";
-            readonly type: "bytes";
-            readonly internalType: "bytes";
-        }];
-    }];
-    readonly stateMutability: "view";
-}, {
-    readonly type: "function";
-    readonly name: "routeActions";
-    readonly inputs: readonly [{
-        readonly name: "asset";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "version";
-        readonly type: "uint64";
-        readonly internalType: "uint64";
-    }];
-    readonly outputs: readonly [{
-        readonly name: "";
-        readonly type: "tuple[]";
-        readonly internalType: "struct RouterAction[]";
-        readonly components: readonly [{
-            readonly name: "actionType";
-            readonly type: "uint8";
-            readonly internalType: "enum RouterActionType";
-        }, {
-            readonly name: "allocationBps";
-            readonly type: "uint16";
-            readonly internalType: "uint16";
-        }, {
-            readonly name: "recipient";
-            readonly type: "address";
-            readonly internalType: "address";
-        }, {
-            readonly name: "adapter";
-            readonly type: "address";
-            readonly internalType: "address";
-        }, {
-            readonly name: "priceGuard";
-            readonly type: "address";
-            readonly internalType: "address";
-        }, {
-            readonly name: "actionConfig";
-            readonly type: "bytes";
-            readonly internalType: "bytes";
-        }];
-    }];
-    readonly stateMutability: "view";
-}, {
-    readonly type: "function";
-    readonly name: "routeHeader";
-    readonly inputs: readonly [{
-        readonly name: "asset";
-        readonly type: "address";
-        readonly internalType: "address";
-    }, {
-        readonly name: "version";
-        readonly type: "uint64";
-        readonly internalType: "uint64";
-    }];
-    readonly outputs: readonly [{
-        readonly name: "";
-        readonly type: "tuple";
-        readonly internalType: "struct ProjectRouterV2.RouteHeader";
-        readonly components: readonly [{
-            readonly name: "version";
-            readonly type: "uint64";
-            readonly internalType: "uint64";
-        }, {
-            readonly name: "activatedAt";
-            readonly type: "uint48";
-            readonly internalType: "uint48";
-        }, {
-            readonly name: "actionCount";
-            readonly type: "uint8";
-            readonly internalType: "uint8";
-        }, {
-            readonly name: "routeHash";
-            readonly type: "bytes32";
-            readonly internalType: "bytes32";
-        }, {
-            readonly name: "totalRouted";
-            readonly type: "uint256";
-            readonly internalType: "uint256";
-        }, {
-            readonly name: "exists";
-            readonly type: "bool";
-            readonly internalType: "bool";
-        }];
-    }];
-    readonly stateMutability: "view";
 }, {
     readonly type: "function";
     readonly name: "sendProtocolFee";
@@ -13221,6 +13122,31 @@ export declare const projectRouterV2Abi: readonly [{
         readonly type: "address";
         readonly indexed: false;
         readonly internalType: "address";
+    }, {
+        readonly name: "amountOut";
+        readonly type: "uint256";
+        readonly indexed: false;
+        readonly internalType: "uint256";
+    }];
+    readonly anonymous: false;
+}, {
+    readonly type: "event";
+    readonly name: "AssetNormalized";
+    readonly inputs: readonly [{
+        readonly name: "assetIn";
+        readonly type: "address";
+        readonly indexed: true;
+        readonly internalType: "address";
+    }, {
+        readonly name: "assetOut";
+        readonly type: "address";
+        readonly indexed: true;
+        readonly internalType: "address";
+    }, {
+        readonly name: "amountIn";
+        readonly type: "uint256";
+        readonly indexed: false;
+        readonly internalType: "uint256";
     }, {
         readonly name: "amountOut";
         readonly type: "uint256";
@@ -13906,6 +13832,14 @@ export declare const projectRouterV2Abi: readonly [{
 }, {
     readonly type: "error";
     readonly name: "OnlyLauncher";
+    readonly inputs: readonly [{
+        readonly name: "caller";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+}, {
+    readonly type: "error";
+    readonly name: "OnlyQuoteSimulation";
     readonly inputs: readonly [{
         readonly name: "caller";
         readonly type: "address";

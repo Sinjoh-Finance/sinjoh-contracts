@@ -108,6 +108,11 @@ const guardAbi = parseAbi([
   "function validityPeriod() view returns (uint48)",
   "function comparisonAmount() view returns (uint128)",
 ]);
+const wethBoundAbi = parseAbi(["function weth() view returns (address)"]);
+const wethGuardAbi = parseAbi([
+  "function weth() view returns (address)",
+  "function wethCodehash() view returns (bytes32)",
+]);
 const codeStoreAbi = parseAbi([
   "function creationCodeHash() view returns (bytes32)",
   "function creationCodeLength() view returns (uint256)",
@@ -154,6 +159,12 @@ const runtimeBindings = [
   ["raffle implementation", "raffleImplementation", "raffleImplementationRuntimeHash"],
   ["randomness adapter", "randomnessAdapter", "randomnessAdapterRuntimeHash"],
   ["project swap adapter", "projectSwapAdapter", "projectSwapAdapterRuntimeHash"],
+  ["WETH", "weth", "wethRuntimeHash"],
+  ["Pons V2 pair buyback adapter", "ponsV2PairBuybackAdapter", "ponsV2PairBuybackAdapterRuntimeHash"],
+  ["Pons V2 pair buyback guard", "ponsV2PairBuybackPriceGuard", "ponsV2PairBuybackPriceGuardRuntimeHash"],
+  ["Flap buyback adapter", "flapBuybackAdapter", "flapBuybackAdapterRuntimeHash"],
+  ["Flap buyback guard", "flapBuybackPriceGuard", "flapBuybackPriceGuardRuntimeHash"],
+  ["Flap payout guard", "flapPayoutPriceGuard", "flapPayoutPriceGuardRuntimeHash"],
   ["funding band integration factory", "fundingBandV3IntegrationFactory", "fundingBandV3IntegrationFactoryRuntimeHash"],
   ["funding band quote oracle", "fundingBandQuoteUsdOracle", "fundingBandQuoteUsdOracleRuntimeHash"],
   ["funding band quote asset", "fundingBandQuoteAsset", "fundingBandQuoteAssetRuntimeHash"],
@@ -161,6 +172,7 @@ const runtimeBindings = [
   ["V3 guard 500", "projectV3PriceGuard500", "projectV3PriceGuard500RuntimeHash"],
   ["V3 guard 3000", "projectV3PriceGuard3000", "projectV3PriceGuard3000RuntimeHash"],
   ["V3 guard 10000", "projectV3PriceGuard10000", "projectV3PriceGuard10000RuntimeHash"],
+  ["WETH unwrap guard", "projectWethUnwrapPriceGuard", "projectWethUnwrapPriceGuardRuntimeHash"],
   ["V3 factory", "v3Factory", "v3FactoryRuntimeHash"],
   ["V3 position manager", "v3PositionManager", "v3PositionManagerRuntimeHash"],
   ["V4 position manager", "v4PositionManager", "v4PositionManagerRuntimeHash"],
@@ -169,6 +181,22 @@ const runtimeBindings = [
 ];
 await Promise.all(runtimeBindings.map(([label, addressKey, hashKey]) =>
   verifyCodeHash(label, manifest[addressKey], manifest[hashKey])));
+
+assertEqual(
+  "project swap adapter WETH binding",
+  await read(manifest.projectSwapAdapter, wethBoundAbi, "weth"),
+  manifest.weth,
+);
+assertEqual(
+  "WETH unwrap guard asset binding",
+  await read(manifest.projectWethUnwrapPriceGuard, wethGuardAbi, "weth"),
+  manifest.weth,
+);
+assertEqual(
+  "WETH unwrap guard runtime pin",
+  await read(manifest.projectWethUnwrapPriceGuard, wethGuardAbi, "wethCodehash"),
+  manifest.wethRuntimeHash,
+);
 
 assertEqual("launcher protocol version", await read(manifest.launcher, launcherAbi, "PROTOCOL_VERSION"), manifest.protocolVersion);
 assertEqual("launcher registry", await read(manifest.launcher, launcherAbi, "registry"), manifest.registry);

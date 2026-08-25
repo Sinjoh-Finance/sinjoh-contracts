@@ -7,7 +7,8 @@ import {
     RouterAction,
     RouterActionType,
     RouterRouteInput,
-    RouterSwapConfig
+    RouterSwapConfig,
+    RouterSwapAndFundConfig
 } from "../../src/router/RouterTypes.sol";
 import { RouterTestBase } from "../RouterTestBase.sol";
 import { MockReentrantController } from "../mocks/MockRouterIntegrations.sol";
@@ -43,9 +44,21 @@ contract ProjectRouterV2Test is RouterTestBase {
 
     function testConstructorRejectsInitcodeRiskBeforeDeployment() public {
         RouterAction memory action = _sendAction(RECIPIENT, 10_000);
-        action.actionConfig = new bytes(17_000);
+        action.actionConfig = new bytes(132_000);
         vm.expectPartialRevert(ProjectRouterV2.InitialRouteDataTooLarge.selector);
         _deployRouter(_singleRoute(address(assetA), action), bytes32(0));
+    }
+
+    function testRouteSupportsEveryUiBucketRecipientCombination() public {
+        RouterRouteInput[] memory routes = new RouterRouteInput[](1);
+        routes[0].inputAsset = address(assetA);
+        routes[0].actions = new RouterAction[](80);
+        for (uint256 i; i < 80; ++i) {
+            routes[0].actions[i] = _sendAction(address(uint160(0x1000 + i)), 125);
+        }
+        ProjectRouterV2 router = _deployRouter(routes, bytes32(0));
+        (, RouterAction[] memory actions) = router.activeRoute(address(assetA));
+        assertEq(actions.length, 80);
     }
 
     function testExecutionCallbackCannotReenterGovernanceConfiguration() public {
@@ -189,8 +202,8 @@ contract ProjectRouterV2Test is RouterTestBase {
         }
         assertEq(assetA.balanceOf(CREATOR), 50);
         assertEq(assetA.balanceOf(RECIPIENT), 50);
-        assertEq(router.allocatedToAction(address(assetA), 1, 0), 50);
-        assertEq(router.allocatedToAction(address(assetA), 1, 1), 50);
+        assertEq(_allocated(router, address(assetA), 1, 0), 50);
+        assertEq(_allocated(router, address(assetA), 1, 1), 50);
     }
 
     function testThreeActionCumulativeAllocationDoesNotUnderflowAcrossBatches() public {
@@ -209,9 +222,9 @@ contract ProjectRouterV2Test is RouterTestBase {
         assertEq(projected[1], 0);
         assertEq(projected[2], 0);
         _execute(router, address(assetA), 1);
-        assertEq(router.allocatedToAction(address(assetA), 1, 0), 4);
-        assertEq(router.allocatedToAction(address(assetA), 1, 1), 5);
-        assertEq(router.allocatedToAction(address(assetA), 1, 2), 5);
+        assertEq(_allocated(router, address(assetA), 1, 0), 4);
+        assertEq(_allocated(router, address(assetA), 1, 1), 5);
+        assertEq(_allocated(router, address(assetA), 1, 2), 5);
     }
 
     function testOneRoutePaysCreatorTreasuryAirdropRaffleAndLiquidity() public {
@@ -264,7 +277,7 @@ contract ProjectRouterV2Test is RouterTestBase {
         );
         ProjectRouterV2 router = _deployRouter(_singleRoute(address(assetA), action), bytes32(0));
         funding = abi.decode(
-            router.routeAction(address(assetA), 1, 0).actionConfig,
+            _action(router, address(assetA), 1, 0).actionConfig,
             (ProjectLiquidityManagerV2.FundingConfig)
         );
         assertEq(funding.config.feeRecipient, CREATOR);
@@ -275,7 +288,7 @@ contract ProjectRouterV2Test is RouterTestBase {
         RouterRouteInput memory next = _singleRoute(address(assetA), action)[0];
         _controllerCall(router, abi.encodeCall(router.activateRoute, (next)));
         funding = abi.decode(
-            router.routeAction(address(assetA), 2, 0).actionConfig,
+            _action(router, address(assetA), 2, 0).actionConfig,
             (ProjectLiquidityManagerV2.FundingConfig)
         );
         assertEq(funding.config.feeRecipient, address(treasury));
@@ -359,7 +372,10 @@ contract ProjectRouterV2Test is RouterTestBase {
     function testApprovedSwapUsesStrongerCallerMinimumAndSendsMeasuredOutput() public {
         bytes32 root = _swapLeaf(address(assetA), address(assetB));
         RouterSwapConfig memory config = RouterSwapConfig({
-            outputAsset: address(assetB), routeData: ROUTE_DATA, approvalProof: new bytes32[](0)
+            outputAsset: address(assetB),
+            maxAmountInPerCall: type(uint128).max,
+            routeData: ROUTE_DATA,
+            approvalProof: new bytes32[](0)
         });
         RouterAction memory action = RouterAction({
             actionType: RouterActionType.SWAP_AND_SEND,
@@ -383,10 +399,213 @@ contract ProjectRouterV2Test is RouterTestBase {
         assertEq(assetA.allowance(address(router), address(adapter)), 0);
     }
 
+    function testExecuteAutomaticallyChunksAtTheImmutableSwapCap() public {
+        bytes32 root = _swapLeaf(address(assetA), address(assetB));
+        RouterSwapConfig memory config = RouterSwapConfig({
+            outputAsset: address(assetB),
+            maxAmountInPerCall: 1_000,
+            routeData: ROUTE_DATA,
+            approvalProof: new bytes32[](0)
+        });
+        RouterAction memory action = RouterAction({
+            actionType: RouterActionType.SWAP_AND_SEND,
+            allocationBps: 10_000,
+            recipient: RECIPIENT,
+            adapter: address(adapter),
+            priceGuard: address(priceGuard),
+            actionConfig: abi.encode(config)
+        });
+        ProjectRouterV2 router = _deployRouter(_singleRoute(address(assetA), action), root);
+        assetB.mint(address(adapter), 1_000);
+        adapter.configure(1_000, 1_000, false);
+        priceGuard.setQuote(1, 2_000_000);
+        _fund(router, address(assetA), 10_000);
+
+        assertEq(router.maximumExecutableAmount(address(assetA), 1), 1_000);
+        uint256 executed =
+            router.execute(address(assetA), type(uint256).max, new uint256[](1), new bytes[](1));
+        assertEq(executed, 1_000);
+        assertEq(router.pending(address(assetA)), 8_900);
+        assertEq(assetB.balanceOf(RECIPIENT), 1_000);
+    }
+
+    function testZeroSenderCanQuoteExactActionOutputButOnchainCallerCannot() public {
+        bytes32 root = _swapLeaf(address(assetA), address(assetB));
+        RouterSwapConfig memory config = RouterSwapConfig({
+            outputAsset: address(assetB),
+            maxAmountInPerCall: type(uint128).max,
+            routeData: ROUTE_DATA,
+            approvalProof: new bytes32[](0)
+        });
+        RouterAction memory action = RouterAction({
+            actionType: RouterActionType.SWAP_AND_SEND,
+            allocationBps: 10_000,
+            recipient: RECIPIENT,
+            adapter: address(adapter),
+            priceGuard: address(priceGuard),
+            actionConfig: abi.encode(config)
+        });
+        ProjectRouterV2 router = _deployRouter(_singleRoute(address(assetA), action), root);
+        assetB.mint(address(adapter), 5_000);
+        adapter.configure(5_000, type(uint256).max, false);
+        priceGuard.setQuote(1, 2_000_000);
+        _fund(router, address(assetA), 10_000);
+
+        vm.expectPartialRevert(ProjectRouterV2.OnlyQuoteSimulation.selector);
+        router.quoteAction(address(assetA), 1, 0, 9_900, 0, "");
+
+        vm.prank(address(0));
+        (address outputAsset, uint256 amountOut) =
+            router.quoteAction(address(assetA), 1, 0, 9_900, 0, "");
+        assertEq(outputAsset, address(assetB));
+        assertEq(amountOut, 5_000);
+    }
+
+    function testQuoteCannotSpendMoreThanPendingAndActionEscrow() public {
+        ProjectRouterV2 router = _deployRouter(
+            _singleRoute(address(assetA), _sendAction(RECIPIENT, 10_000)), bytes32(0)
+        );
+        _fund(router, address(assetA), 10_000);
+        vm.prank(address(0));
+        vm.expectPartialRevert(ProjectRouterV2.InvalidAmount.selector);
+        router.quoteAction(address(assetA), 1, 0, 9_901, 0, "");
+
+        _controllerCall(router, abi.encodeCall(router.pauseAction, (address(assetA), 1, 0)));
+        router.execute(address(assetA), type(uint256).max, new uint256[](1), new bytes[](1));
+        _controllerCall(router, abi.encodeCall(router.resumeAction, (address(assetA), 1, 0)));
+
+        vm.prank(address(0));
+        (address outputAsset, uint256 amountOut) =
+            router.quoteAction(address(assetA), 1, 0, 9_900, 0, "");
+        assertEq(outputAsset, address(assetA));
+        assertEq(amountOut, 9_900);
+
+        vm.prank(address(0));
+        vm.expectPartialRevert(ProjectRouterV2.InvalidAmount.selector);
+        router.quoteAction(address(assetA), 1, 0, 9_901, 0, "");
+    }
+
+    function testApprovedNormalizationCreditsExistingOutputRouteWithoutSecondProtocolFee() public {
+        bytes32 root = _swapLeaf(address(assetA), address(assetB));
+        RouterSwapConfig memory config = RouterSwapConfig({
+            outputAsset: address(assetB),
+            maxAmountInPerCall: type(uint128).max,
+            routeData: ROUTE_DATA,
+            approvalProof: new bytes32[](0)
+        });
+        RouterAction memory normalize = RouterAction({
+            actionType: RouterActionType.NORMALIZE_TO_ROUTE,
+            allocationBps: 10_000,
+            recipient: address(0),
+            adapter: address(adapter),
+            priceGuard: address(priceGuard),
+            actionConfig: abi.encode(config)
+        });
+        RouterRouteInput[] memory routes = new RouterRouteInput[](2);
+        routes[0] = _singleRoute(address(assetB), _sendAction(RECIPIENT, 10_000))[0];
+        routes[1] = _singleRoute(address(assetA), normalize)[0];
+        ProjectRouterV2 router = _deployRouter(routes, root);
+
+        assetB.mint(address(adapter), 5_000);
+        adapter.configure(5_000, type(uint256).max, false);
+        priceGuard.setQuote(4_000, 2_000_000);
+        _fund(router, address(assetA), 10_000);
+        _execute(router, address(assetA), type(uint256).max);
+
+        assertEq(router.pending(address(assetA)), 0);
+        assertEq(router.protocolOwed(address(assetA)), 100);
+        assertEq(router.pending(address(assetB)), 5_000);
+        assertEq(router.protocolOwed(address(assetB)), 0);
+        assertTrue(router.isAssetBacked(address(assetA)));
+        assertTrue(router.isAssetBacked(address(assetB)));
+
+        _execute(router, address(assetB), type(uint256).max);
+        assertEq(assetB.balanceOf(RECIPIENT), 5_000);
+        assertEq(router.pending(address(assetB)), 0);
+    }
+
+    function testNormalizationRejectsAnOutputWithoutAnExistingRoute() public {
+        bytes32 root = _swapLeaf(address(assetA), address(assetB));
+        RouterSwapConfig memory config = RouterSwapConfig({
+            outputAsset: address(assetB),
+            maxAmountInPerCall: type(uint128).max,
+            routeData: ROUTE_DATA,
+            approvalProof: new bytes32[](0)
+        });
+        RouterAction memory normalize = RouterAction({
+            actionType: RouterActionType.NORMALIZE_TO_ROUTE,
+            allocationBps: 10_000,
+            recipient: address(0),
+            adapter: address(adapter),
+            priceGuard: address(priceGuard),
+            actionConfig: abi.encode(config)
+        });
+        vm.expectPartialRevert(ProjectRouterV2.NoActiveRoute.selector);
+        _deployRouter(_singleRoute(address(assetA), normalize), root);
+    }
+
+    function testApprovedSwapCanFundTreasuryWithConvertedAsset() public {
+        bytes32 root = _swapLeaf(address(assetA), address(assetB));
+        RouterSwapAndFundConfig memory config = RouterSwapAndFundConfig({
+            outputAsset: address(assetB),
+            maxAmountInPerCall: type(uint128).max,
+            routeData: ROUTE_DATA,
+            approvalProof: new bytes32[](0),
+            fundingConfig: abi.encode(false)
+        });
+        RouterAction memory action = RouterAction({
+            actionType: RouterActionType.SWAP_AND_FUND_TREASURY,
+            allocationBps: 10_000,
+            recipient: address(treasury),
+            adapter: address(adapter),
+            priceGuard: address(priceGuard),
+            actionConfig: abi.encode(config)
+        });
+        ProjectRouterV2 router = _deployRouter(_singleRoute(address(assetA), action), root);
+        assetB.mint(address(adapter), 5_000);
+        adapter.configure(5_000, type(uint256).max, false);
+        priceGuard.setExpectedSubject(address(token));
+        priceGuard.setQuote(4_000, 2_000_000);
+        _fund(router, address(assetA), 10_000);
+        _execute(router, address(assetA), type(uint256).max);
+        assertEq(treasury.accountedBalance(address(assetB)), 5_000);
+        assertEq(assetA.allowance(address(router), address(adapter)), 0);
+        assertEq(assetB.allowance(address(router), address(treasury)), 0);
+    }
+
+    function testApprovedSwapCanFundAirdropWithConvertedAsset() public {
+        bytes32 root = _swapLeaf(address(assetA), address(assetB));
+        RouterSwapAndFundConfig memory config = RouterSwapAndFundConfig({
+            outputAsset: address(assetB),
+            maxAmountInPerCall: type(uint128).max,
+            routeData: ROUTE_DATA,
+            approvalProof: new bytes32[](0),
+            fundingConfig: hex"aabb"
+        });
+        RouterAction memory action = RouterAction({
+            actionType: RouterActionType.SWAP_AND_FUND_AIRDROP,
+            allocationBps: 10_000,
+            recipient: address(airdropSink),
+            adapter: address(adapter),
+            priceGuard: address(priceGuard),
+            actionConfig: abi.encode(config)
+        });
+        ProjectRouterV2 router = _deployRouter(_singleRoute(address(assetA), action), root);
+        assetB.mint(address(adapter), 7_000);
+        adapter.configure(7_000, type(uint256).max, false);
+        priceGuard.setExpectedSubject(address(token));
+        priceGuard.setQuote(6_000, 2_000_000);
+        _fund(router, address(assetA), 10_000);
+        _execute(router, address(assetA), type(uint256).max);
+        assertEq(airdropSink.funded(address(assetB)), 7_000);
+        assertEq(assetA.allowance(address(router), address(adapter)), 0);
+        assertEq(assetB.allowance(address(router), address(airdropSink)), 0);
+    }
+
     function testUnderOutputSwapEscrowsInputInsteadOfLosingIt() public {
         bytes32 root = _swapLeaf(address(assetA), address(assetB));
         RouterSwapConfig memory config =
-            RouterSwapConfig(address(assetB), ROUTE_DATA, new bytes32[](0));
+            RouterSwapConfig(address(assetB), type(uint128).max, ROUTE_DATA, new bytes32[](0));
         RouterAction memory action = RouterAction(
             RouterActionType.SWAP_AND_SEND,
             10_000,
@@ -472,7 +691,7 @@ contract ProjectRouterV2Test is RouterTestBase {
         _deployRouter(_route(address(token), actions), bytes32(0));
 
         RouterSwapConfig memory config =
-            RouterSwapConfig(address(assetB), ROUTE_DATA, new bytes32[](0));
+            RouterSwapConfig(address(assetB), type(uint128).max, ROUTE_DATA, new bytes32[](0));
         actions[0] = RouterAction(
             RouterActionType.SWAP_AND_SEND,
             10_000,
@@ -514,6 +733,22 @@ contract ProjectRouterV2Test is RouterTestBase {
         bytes memory config
     ) private pure returns (RouterAction memory) {
         return RouterAction(actionType, bps, recipient, address(0), address(0), config);
+    }
+
+    function _action(ProjectRouterV2 router, address asset, uint64 version, uint256 index)
+        private
+        view
+        returns (RouterAction memory action)
+    {
+        (action,,,) = router.actionStatus(asset, version, index);
+    }
+
+    function _allocated(ProjectRouterV2 router, address asset, uint64 version, uint256 index)
+        private
+        view
+        returns (uint256 cumulativeAllocation)
+    {
+        (,, cumulativeAllocation,) = router.actionStatus(asset, version, index);
     }
 
     function _route(address asset, RouterAction[] memory actions)

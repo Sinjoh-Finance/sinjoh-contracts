@@ -82,17 +82,23 @@ contract MockProjectController is IProjectControlled {
     contract MockProjectPriceGuard is IProjectPriceGuard {
         uint256 public minimumOut;
         uint48 public validUntil;
+        address public expectedSubject;
 
         function setQuote(uint256 minimumOut_, uint48 validUntil_) external {
             minimumOut = minimumOut_;
             validUntil = validUntil_;
         }
 
-        function minimumOutput(address, address, uint256, bytes32, bytes calldata)
+        function setExpectedSubject(address expectedSubject_) external {
+            expectedSubject = expectedSubject_;
+        }
+
+        function minimumOutput(address subject, address, address, uint256, bytes32, bytes calldata)
             external
             view
             returns (uint256, uint48)
         {
+            require(expectedSubject == address(0) || subject == expectedSubject, "subject");
             return (minimumOut, validUntil);
         }
     }
@@ -120,7 +126,6 @@ contract MockProjectController is IProjectControlled {
         function swap(address assetIn, address assetOut, uint256 amountIn, uint256, bytes calldata)
             external
             payable
-            returns (uint256 reportedAmountOut)
         {
             if (shouldRevert) revert ForcedFailure();
             uint256 spend = spendAmount == type(uint256).max ? amountIn : spendAmount;
@@ -141,7 +146,6 @@ contract MockProjectController is IProjectControlled {
             } else {
                 IERC20(assetOut).safeTransfer(msg.sender, outputAmount);
             }
-            return outputAmount;
         }
     }
 

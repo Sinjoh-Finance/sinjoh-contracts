@@ -9,7 +9,11 @@ enum RouterActionType {
     FUND_AIRDROP,
     FUND_RAFFLE,
     FUND_TREASURY,
-    FUND_PROJECT_SINK
+    FUND_PROJECT_SINK,
+    SWAP_AND_FUND_TREASURY,
+    SWAP_AND_FUND_AIRDROP,
+    SWAP_AND_FUND_RAFFLE,
+    NORMALIZE_TO_ROUTE
 }
 
 struct RouterAction {
@@ -28,6 +32,15 @@ struct RouterRouteInput {
 
 struct RouterSwapConfig {
     address outputAsset;
+    uint128 maxAmountInPerCall;
     bytes routeData;
     bytes32[] approvalProof;
+}
+
+struct RouterSwapAndFundConfig {
+    address outputAsset;
+    uint128 maxAmountInPerCall;
+    bytes routeData;
+    bytes32[] approvalProof;
+    bytes fundingConfig;
 }
