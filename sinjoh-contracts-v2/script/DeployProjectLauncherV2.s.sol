@@ -622,23 +622,19 @@ contract DeployProjectLauncherV2 is Script {
         );
     }
 
-    function serializeWethUnwrapIntegration(
-        string calldata object,
+    function _serializeWethUnwrapIntegration(
+        string memory object,
         address swapAdapter,
-        bytes32[] calldata approvalProof
-    ) external {
-        require(msg.sender == address(this), "ONLY_SELF");
+        bytes32[] memory approvalProof
+    ) private {
+        address unwrapGuard = address(_unwrapGuard);
         address weth = _unwrapGuard.weth();
         vm.serializeAddress(object, "weth", weth);
         vm.serializeBytes32(object, "wethRuntimeHash", weth.codehash);
-        vm.serializeAddress(object, "projectWethUnwrapPriceGuard", address(_unwrapGuard));
+        vm.serializeAddress(object, "projectWethUnwrapPriceGuard", unwrapGuard);
+        vm.serializeBytes32(object, "projectWethUnwrapPriceGuardRuntimeHash", unwrapGuard.codehash);
         vm.serializeBytes32(
-            object, "projectWethUnwrapPriceGuardRuntimeHash", address(_unwrapGuard).codehash
-        );
-        vm.serializeBytes32(
-            object,
-            "wethUnwrapApprovalLeaf",
-            IntegrationApproval.swapLeaf(swapAdapter, address(_unwrapGuard))
+            object, "wethUnwrapApprovalLeaf", IntegrationApproval.swapLeaf(swapAdapter, unwrapGuard)
         );
         vm.serializeBytes32(object, "wethUnwrapApprovalProof", approvalProof);
     }
@@ -646,6 +642,9 @@ contract DeployProjectLauncherV2 is Script {
     function _serializeApprovedRoutes(string memory object, ReleaseIntegrations memory integrations)
         private
     {
+        _serializeWethUnwrapIntegration(
+            object, integrations.swapAdapter, _approvalProof(integrations, 11)
+        );
         vm.serializeAddress(
             object, "ponsV2PairBuybackAdapter", integrations.ponsV2PairBuybackAdapter
         );
@@ -762,9 +761,6 @@ contract DeployProjectLauncherV2 is Script {
         );
         vm.serializeBytes32(
             object, "projectV3PriceGuard10000RuntimeHash", address(integrations.guard10000).codehash
-        );
-        this.serializeWethUnwrapIntegration(
-            object, integrations.swapAdapter, _approvalProof(integrations, 11)
         );
         vm.serializeBytes32(object, "swapApprovalLeaf500", integrations.swapLeaf500);
         vm.serializeBytes32(object, "swapApprovalLeaf3000", integrations.swapLeaf3000);
