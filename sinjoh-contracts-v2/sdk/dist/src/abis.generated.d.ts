@@ -5371,6 +5371,26 @@ export declare const projectLauncherV2Abi: readonly [{
     readonly inputs: readonly [];
 }, {
     readonly type: "error";
+    readonly name: "InvalidRaffleRouteAsset";
+    readonly inputs: readonly [{
+        readonly name: "routeIndex";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "actionIndex";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "expected";
+        readonly type: "address";
+        readonly internalType: "address";
+    }, {
+        readonly name: "supplied";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+}, {
+    readonly type: "error";
     readonly name: "InvalidReleaseComponent";
     readonly inputs: readonly [{
         readonly name: "candidate";

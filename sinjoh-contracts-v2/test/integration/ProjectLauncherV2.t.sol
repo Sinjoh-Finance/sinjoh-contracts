@@ -717,6 +717,93 @@ contract ProjectLauncherV2Test is Test {
         assertFalse(raffle.isExcluded(CREATOR));
     }
 
+    function testValidatorRejectsDirectRaffleRouteWhoseInputDiffersFromPrizeAsset() public {
+        MockERC20 prizeAsset = new MockERC20("Prize", "PRIZE");
+        ProjectLaunchConfig memory config = _baseMultisigConfig();
+        config.modules.router = true;
+        config.modules.raffle = true;
+        config.raffle = _raffleConfig(address(0), address(prizeAsset));
+        config.routerRoutes = new RouterRouteInput[](1);
+        config.routerRoutes[0].inputAsset = address(0);
+        config.routerRoutes[0].actions = new RouterAction[](1);
+        config.routerRoutes[0].actions[0] = RouterAction({
+            actionType: RouterActionType.FUND_RAFFLE,
+            allocationBps: 10_000,
+            recipient: address(0),
+            adapter: address(0),
+            priceGuard: address(0),
+            actionConfig: ""
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ProjectLauncherV2.InvalidRaffleRouteAsset.selector,
+                0,
+                0,
+                address(prizeAsset),
+                address(0)
+            )
+        );
+        launcher.validateLaunchConfig(config);
+
+        config.routerRoutes[0].inputAsset = address(prizeAsset);
+        launcher.validateLaunchConfig(config);
+    }
+
+    function testValidatorRejectsConvertedRaffleRouteWhoseOutputDiffersFromPrizeAsset() public {
+        MockERC20 inputAsset = new MockERC20("Input", "INPUT");
+        MockERC20 prizeAsset = new MockERC20("Prize", "PRIZE");
+        MockERC20 wrongOutput = new MockERC20("Wrong", "WRONG");
+        MockProjectSwapAdapter swapAdapter = new MockProjectSwapAdapter();
+        MockProjectPriceGuard priceGuard = new MockProjectPriceGuard();
+        ProjectLaunchConfig memory config = _baseMultisigConfig();
+        config.modules.router = true;
+        config.modules.raffle = true;
+        config.raffle = _raffleConfig(address(0), address(prizeAsset));
+        config.routerRoutes = new RouterRouteInput[](1);
+        config.routerRoutes[0].inputAsset = address(inputAsset);
+        config.routerRoutes[0].actions = new RouterAction[](1);
+        bytes32[] memory proof = new bytes32[](0);
+        config.routerRoutes[0].actions[0] = RouterAction({
+            actionType: RouterActionType.SWAP_AND_FUND_RAFFLE,
+            allocationBps: 10_000,
+            recipient: address(0),
+            adapter: address(swapAdapter),
+            priceGuard: address(priceGuard),
+            actionConfig: abi.encode(
+                RouterSwapAndFundConfig({
+                    outputAsset: address(wrongOutput),
+                    maxAmountInPerCall: type(uint128).max,
+                    routeData: hex"01",
+                    approvalProof: proof,
+                    fundingConfig: ""
+                })
+            )
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ProjectLauncherV2.InvalidRaffleRouteAsset.selector,
+                0,
+                0,
+                address(prizeAsset),
+                address(wrongOutput)
+            )
+        );
+        launcher.validateLaunchConfig(config);
+
+        config.routerRoutes[0].actions[0].actionConfig = abi.encode(
+            RouterSwapAndFundConfig({
+                outputAsset: address(prizeAsset),
+                maxAmountInPerCall: type(uint128).max,
+                routeData: hex"01",
+                approvalProof: proof,
+                fundingConfig: ""
+            })
+        );
+        launcher.validateLaunchConfig(config);
+    }
+
     function testLaunchRouterMaterializesAndExecutesConvertedTreasuryAndAirdropRoutes() public {
         MockERC20 quote = new MockERC20("Quote", "QUOTE");
         MockERC20 payout = new MockERC20("Payout", "PAYOUT");

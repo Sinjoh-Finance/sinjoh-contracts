@@ -6880,6 +6880,32 @@ export const projectLauncherV2Abi = [
     },
     {
         "type": "error",
+        "name": "InvalidRaffleRouteAsset",
+        "inputs": [
+            {
+                "name": "routeIndex",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "actionIndex",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "expected",
+                "type": "address",
+                "internalType": "address"
+            },
+            {
+                "name": "supplied",
+                "type": "address",
+                "internalType": "address"
+            }
+        ]
+    },
+    {
+        "type": "error",
         "name": "InvalidReleaseComponent",
         "inputs": [
             {
