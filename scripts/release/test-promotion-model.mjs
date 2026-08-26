@@ -7,6 +7,7 @@ import {
   collectPromotionContracts,
   resolvePromotionConsumers
 } from "./promotion-model.mjs";
+import { projectV2DeploymentKeys } from "./project-v2-mainnet-entry.mjs";
 
 const sourceCommit = "1".repeat(40);
 const buildHash = "2".repeat(64);
@@ -117,6 +118,65 @@ const repoRoot = resolve(import.meta.dirname, "../..");
 const mainnetManifest = JSON.parse(
   readFileSync(resolve(repoRoot, "mainnet-deployments.json"), "utf8")
 );
+const projectRelease = JSON.parse(readFileSync(resolve(
+  repoRoot,
+  "sinjoh-contracts-v2/deployments/project-launcher-v2-4663-public-pons-dual-funding.json"
+), "utf8"));
+const fundingRelease = JSON.parse(readFileSync(resolve(
+  repoRoot,
+  "sinjoh-funding-bands/deployments/funding-bands-4663-public-pons-dual.json"
+), "utf8"));
+assert.equal(
+  createHash("sha256")
+    .update(readFileSync(resolve(
+      repoRoot,
+      "sinjoh-contracts-v2/deployments/project-launcher-v2-4663-public-pons-dual-funding.json"
+    )))
+    .digest("hex"),
+  "07f6a52fccad5dba731e538548a88f96d1e6bbd03f90cdcd9e34d23e42034d41"
+);
+assert.equal(
+  createHash("sha256")
+    .update(readFileSync(resolve(
+      repoRoot,
+      "sinjoh-funding-bands/deployments/funding-bands-4663-public-pons-dual.json"
+    )))
+    .digest("hex"),
+  "a1b57ef6a72d12cb82e6aac13dc3048d31811dd7d6810c002b40afb17614e0fc"
+);
+assert.equal(mainnetManifest.currentInfrastructure.projectV2.sourceCommit, projectRelease.gitCommit);
+assert.equal(mainnetManifest.currentInfrastructure.projectV2.buildHash, projectRelease.buildHash);
+for (const key of projectV2DeploymentKeys) {
+  assert.equal(mainnetManifest.currentInfrastructure.projectV2[key].address, projectRelease[key]);
+  assert.equal(
+    mainnetManifest.currentInfrastructure.projectV2[key].runtimeCodeHash,
+    projectRelease[`${key}RuntimeHash`].toLowerCase()
+  );
+}
+assert.equal(
+  mainnetManifest.currentInfrastructure.fundingBands.ponsV2Generation.adapterFactory.address,
+  fundingRelease.ponsV2AdapterFactory
+);
+assert.equal(
+  mainnetManifest.currentInfrastructure.fundingBands.ponsV2Generation.ordinaryAdapterImplementation.address,
+  fundingRelease.ponsV2AdapterImplementation
+);
+assert.equal(
+  mainnetManifest.currentInfrastructure.fundingBands.ponsV2Generation.projectAdapterImplementation.address,
+  fundingRelease.ponsV2ProjectAdapterImplementation
+);
+assert.equal(
+  mainnetManifest.currentInfrastructure.fundingBands.ponsV2Verifier.address,
+  fundingRelease.verifier
+);
+assert.equal(
+  mainnetManifest.currentInfrastructure.fundingBands.launchEscrow.address,
+  fundingRelease.escrow
+);
+assert.equal(
+  mainnetManifest.currentInfrastructure.fundingBands.manager.address,
+  fundingRelease.manager
+);
 const releaseBindings = JSON.parse(
   readFileSync(resolve(repoRoot, "deployments/consumers/bindings.json"), "utf8")
 );
@@ -144,11 +204,11 @@ assert.equal(
 );
 assert.equal(
   generatedConsumers.ui.contracts.ponsV2PairBuybackAdapter.address,
-  "0x1BE0E8F04221329FDfea34f41a1832a80c2c147c"
+  "0xfAB57a5fE409B4503A1a09fD7DC80e6ffB85Abb8"
 );
 assert.equal(
   generatedConsumers.ui.contracts.ponsV2PairBuybackPriceGuard.address,
-  "0x902A6Fa8Ca273aAB186633FF27879Cd3703F6AED"
+  "0x69768f0b41A5A51aB23b23ccfbE9e3122Ac0DA8b"
 );
 assert.equal(
   releaseContracts[
@@ -162,18 +222,73 @@ assert.equal(
   ].address,
   "0x69768f0b41A5A51aB23b23ccfbE9e3122Ac0DA8b"
 );
+assert.equal(
+  releaseContracts[
+    "contracts.ponsV2PairBuybackHistoricalGenerations.trustedForwarderFactory.adapter"
+  ].address,
+  "0x1BE0E8F04221329FDfea34f41a1832a80c2c147c"
+);
+assert.equal(
+  releaseContracts[
+    "contracts.ponsV2PairBuybackHistoricalGenerations.trustedForwarderFactory.priceGuard"
+  ].address,
+  "0x902A6Fa8Ca273aAB186633FF27879Cd3703F6AED"
+);
 assert.deepEqual(
   Object.keys(mainnetManifest.currentInfrastructure.projectV2Generations).sort(),
   [
     "project-v2-gascap-20260825-3d6dd81",
+    "project-v2-public-pons-wrong-locker-20260825-1925510",
     "project-v2-routing-complete-20260825-3b5dc15"
   ]
 );
 assert.equal(
   createHash("sha256")
-    .update(JSON.stringify(mainnetManifest.currentInfrastructure.projectV2Generations))
+    .update(JSON.stringify(
+      mainnetManifest.currentInfrastructure.projectV2Generations[
+        "project-v2-routing-complete-20260825-3b5dc15"
+      ]
+    ))
     .digest("hex"),
-  "7eedcf498e4b745a7c9a22bfa509849aea1a8944b09609b1c691263cd6bc54df"
+  "50e4ba8d6de68d17109e940adeb300c7769a0a5ecb2220272470884f7474241b"
+);
+assert.equal(
+  createHash("sha256")
+    .update(JSON.stringify(
+      mainnetManifest.currentInfrastructure.projectV2Generations[
+        "project-v2-gascap-20260825-3d6dd81"
+      ]
+    ))
+    .digest("hex"),
+  "7a0f243fb43e29e3f140a8fde7a100e5498b6c1347447ee187f940b275842d95"
+);
+assert.equal(
+  mainnetManifest.currentInfrastructure.projectV2.launcher.address,
+  "0x6b5e99b344C0671f77BAC00c5ADbE453Ffa39100"
+);
+assert.equal(
+  mainnetManifest.currentInfrastructure.projectV2.ponsProjectAdapterFactory.address,
+  "0xa16389c14c9299A4317D50aEfd5e4cC442F2dF0d"
+);
+assert.equal(
+  mainnetManifest.currentInfrastructure.ponsV2AdapterImplementation.address,
+  "0xAf3D6710621697d25096E01367A3D0490Fd11e2b"
+);
+assert.equal(
+  mainnetManifest.currentInfrastructure.fundingBands.ponsV2Verifier.address,
+  "0x9d93036656C51dd9Fe2164f9325FeF850fC282D9"
+);
+assert.equal(
+  mainnetManifest.currentInfrastructure.fundingBands.launchEscrow.address,
+  "0xf8F28826d4837e10fc9eD0d7787F763725F10378"
+);
+assert.equal(
+  mainnetManifest.dependencies.ponsV2LaunchFactory.address,
+  "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e"
+);
+assert.equal(
+  mainnetManifest.dependencies.ponsV2LaunchLocker.address,
+  "0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952"
 );
 
 console.log("promotion model tests passed");
