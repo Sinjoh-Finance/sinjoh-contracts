@@ -8,21 +8,46 @@
   "governance": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f",
   "deployedAt": "2026-07-30",
   "letscashDependencies": {
-    "verifiedAtBlock": 33989899,
+    "verifiedAtBlock": 46056417,
     "factoryProxy": {
       "address": "0x5bd1Fbe78a78fe8236fa00CF48fbEBA74ae34661",
       "runtimeCodeHash": "0x51faa3f1aaa267eb4ffb4dd57f07a89edf3ffd618213bf35cf7f8254a07961e5",
-      "implementation": "0x3dfd73a63e15920add4b6c5c6a4b1b4b768b2c1a",
-      "implementationRuntimeCodeHash": "0xef0219f515c49723f589e3aa4748b6f99caa8ef8a3f03e4c1a2b4d977d80f731",
+      "implementation": "0x8E0Ee024c2B547AaE91E6B9b1D3940449B3404F4",
+      "implementationRuntimeCodeHash": "0xf2e80731c9679b7869b99b8a3eb0428be9923d93abdce4c73de77e9b7fca0603",
+      "implementationDeploymentTransaction": "0xa58e575486af020528b46aff993f2a549ca594423b8549a89ff91bd24e433bab",
+      "implementationDeploymentBlock": 46051259,
+      "implementationUpgradeTransaction": "0xc4268d9713dc7212e143f5f25ab171ccc409f15aaeb9b89c7a20cd1554544ec6",
+      "implementationUpgradeBlock": 46056417,
+      "owner": "0xD2DeFbd13aFF22D6989E8C14B4517Ec308079E91",
       "implementationBinding": {
         "kind": "eip1967",
         "slot": "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
       }
     },
     "factoryImplementation": {
-      "address": "0x3dfd73a63e15920add4b6c5c6a4b1b4b768b2c1a",
-      "runtimeCodeHash": "0xef0219f515c49723f589e3aa4748b6f99caa8ef8a3f03e4c1a2b4d977d80f731",
-      "eip1967ImplementationSlot": "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
+      "address": "0x8E0Ee024c2B547AaE91E6B9b1D3940449B3404F4",
+      "runtimeCodeHash": "0xf2e80731c9679b7869b99b8a3eb0428be9923d93abdce4c73de77e9b7fca0603",
+      "deploymentTransaction": "0xa58e575486af020528b46aff993f2a549ca594423b8549a89ff91bd24e433bab",
+      "deploymentBlock": 46051259,
+      "eip1967ImplementationSlot": "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc",
+      "verified": {
+        "contractName": "CashCatFactoryVNext",
+        "compilerVersion": "v0.8.28+commit.7893614a",
+        "optimizerRuns": 800,
+        "evmVersion": "cancun",
+        "blockscoutSourceMatch": true
+      }
+    },
+    "factoryHistoricalImplementations": {
+      "cash-cat-factory-vnext-pre-20260825": {
+        "address": "0x3dFd73A63E15920aDd4B6c5C6a4b1b4B768b2c1A",
+        "runtimeCodeHash": "0xef0219f515c49723f589e3aa4748b6f99caa8ef8a3f03e4c1a2b4d977d80f731",
+        "deploymentTransaction": "0xf0871106205ff3df6c8f3f11585be0508d813f5f0d3e5c1454c5464983766919",
+        "deploymentBlock": 28872652,
+        "supersededAtBlock": 46056417,
+        "supersededBy": "0x8E0Ee024c2B547AaE91E6B9b1D3940449B3404F4",
+        "upgradeTransaction": "0xc4268d9713dc7212e143f5f25ab171ccc409f15aaeb9b89c7a20cd1554544ec6"
+      }
     },
     "hook": {
       "address": "0x75A54357D9C78a2Db19004a5FDc76c50F9242AEC",

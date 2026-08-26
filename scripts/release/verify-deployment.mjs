@@ -69,6 +69,37 @@ function collectContracts(value, path, contracts) {
   }
 }
 
+function collectImplementationBindings(value, path, bindings) {
+  if (Array.isArray(value)) {
+    value.forEach((entry, index) => collectImplementationBindings(entry, `${path}[${index}]`, bindings));
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  if (value.implementationBinding?.kind === "eip1967") {
+    if (
+      !/^0x[0-9a-fA-F]{40}$/.test(value.address ?? "") ||
+      !/^0x[0-9a-fA-F]{40}$/.test(value.implementation ?? "") ||
+      !/^0x[0-9a-fA-F]{64}$/.test(value.implementationBinding.slot ?? "")
+    ) {
+      throw new Error(`${path}: incomplete EIP-1967 implementation binding`);
+    }
+    bindings.push({
+      path,
+      proxy: value.address,
+      implementation: value.implementation.toLowerCase(),
+      slot: value.implementationBinding.slot
+    });
+  }
+  for (const [key, nested] of Object.entries(value)) {
+    collectImplementationBindings(nested, `${path}.${key}`, bindings);
+  }
+}
+
+function storageAddress(value) {
+  if (!/^0x[0-9a-fA-F]{64}$/.test(value)) throw new Error(`invalid storage word ${value}`);
+  return `0x${value.slice(-40)}`.toLowerCase();
+}
+
 const chainId = Number(argument("--network"));
 const rpcUrl = argument("--rpc-url");
 const secondaryRpcUrl = argument("--secondary-rpc-url");
@@ -102,6 +133,8 @@ const roots = chainId === 4663
 const contracts = [];
 roots.forEach((root, index) => collectContracts(root, `root[${index}]`, contracts));
 if (contracts.length === 0) throw new Error("manifest contains no code-hash-pinned contracts");
+const implementationBindings = [];
+roots.forEach((root, index) => collectImplementationBindings(root, `root[${index}]`, implementationBindings));
 
 const finalized = requireFinalized
   ? Number(cast(["block", "finalized", "--field", "number", ...rpcOptions(rpcUrl)]))
@@ -133,6 +166,36 @@ for (const contract of contracts) {
     failures.push(
       `${contract.path}: deployment block ${contract.deploymentBlock} exceeds secondary finalized ${secondaryFinalized}`
     );
+  }
+}
+for (const binding of implementationBindings) {
+  try {
+    const primaryValue = storageAddress(cast([
+      "storage",
+      binding.proxy,
+      binding.slot,
+      ...rpcOptions(rpcUrl)
+    ]));
+    if (primaryValue !== binding.implementation) {
+      failures.push(
+        `${binding.path}: primary EIP-1967 implementation ${primaryValue} != ${binding.implementation}`
+      );
+    }
+    if (secondaryRpcUrl) {
+      const secondaryValue = storageAddress(cast([
+        "storage",
+        binding.proxy,
+        binding.slot,
+        ...rpcOptions(secondaryRpcUrl)
+      ]));
+      if (secondaryValue !== primaryValue) {
+        failures.push(
+          `${binding.path}: RPC providers disagree on EIP-1967 implementation (${primaryValue} != ${secondaryValue})`
+        );
+      }
+    }
+  } catch (error) {
+    failures.push(`${binding.path}: EIP-1967 read failed (${error.message.split("\n", 1)[0]})`);
   }
 }
 
@@ -184,6 +247,9 @@ if (failures.length > 0) {
   process.exit(1);
 }
 console.log(`verified ${contracts.length} code-hash-pinned contracts on chain ${chainId}`);
+if (implementationBindings.length > 0) {
+  console.log(`verified ${implementationBindings.length} EIP-1967 implementation bindings`);
+}
 if (assertionCount > 0) console.log(`verified ${assertionCount} owner/admin/config assertions`);
 if (requireFinalized) console.log(`finalized block: ${finalized}`);
 if (secondaryFinalized !== null) console.log(`secondary finalized block: ${secondaryFinalized}`);
