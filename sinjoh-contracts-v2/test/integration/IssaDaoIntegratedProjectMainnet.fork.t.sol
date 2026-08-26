@@ -62,6 +62,7 @@ contract IssaDaoIntegratedProjectMainnetForkTest is ProjectLauncherV2Test {
     uint256 internal constant OBSERVER_KEY = uint256(keccak256("issa-funding-bands-observer"));
     address internal constant ISSA_CREATOR = 0xe4605138e185FBeE40ff6193A044aa0BE2909216;
     address internal constant PONS_FACTORY = 0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e;
+    address internal constant PONS_LOCKER = 0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952;
     address internal constant PONS_HOOK = 0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044;
     address internal constant PONS_FEE_ESCROW = 0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e;
     address internal constant WETH = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
@@ -86,9 +87,13 @@ contract IssaDaoIntegratedProjectMainnetForkTest is ProjectLauncherV2Test {
         vm.createSelectFork(rpcUrl);
         releaseRandomness = new MockRaffleRandomness();
 
+        assertEq(IPonsV2LaunchFactory(PONS_FACTORY).locker(), PONS_LOCKER);
+
         SinjohPonsV2AdapterFactory adapterFactory =
             new SinjohPonsV2AdapterFactory(PONS_FACTORY, PONS_FEE_ESCROW, WETH, block.chainid);
         _installLauncher(_launchpadFactoryLeaf(address(adapterFactory)), true);
+        assertEq(launcher.PONS_LOCKER(), PONS_LOCKER);
+        assertEq(launcher.validator().PONS_LOCKER(), PONS_LOCKER);
 
         SinjohPonsV2ProjectAdapter projectImplementation = new SinjohPonsV2ProjectAdapter(
             address(adapterFactory), PONS_FACTORY, PONS_FEE_ESCROW, WETH, block.chainid
@@ -248,6 +253,7 @@ contract IssaDaoIntegratedProjectMainnetForkTest is ProjectLauncherV2Test {
         assertEq(timelock.getMinDelay(), 24 hours);
         assertEq(ProjectStakingPoolV2(record.stakingPool).lockDuration(), 30 days);
         assertEq(ProjectStakingPoolV2(record.stakingPool).guardian(), ISSA_CREATOR);
+        assertTrue(ProjectStakingPoolV2(record.stakingPool).custodyExcluded(PONS_LOCKER));
 
         IPonsV2LaunchFactory.LaunchedToken memory ponsRecord =
             IPonsV2LaunchFactory(PONS_FACTORY).getLaunchedToken(subject);

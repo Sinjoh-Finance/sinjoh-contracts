@@ -31,7 +31,7 @@ import {
 contract ProjectLaunchDeployerV2 {
     uint32 private constant PROTOCOL_VERSION = 2;
     address private constant BURN_ADDRESS = SinjohV2Constants.BURN_ADDRESS;
-    address private constant PONS_LOCKER = 0x1006fA85294A9c38AA4214d52c86CC970Ddc5647;
+    address private constant PONS_LOCKER = 0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952;
     address private constant PONS_POOL_MANAGER = 0x8366a39CC670B4001A1121B8F6A443A643e40951;
     uint256 private constant REQUIRED_CODE_STORES = 11;
     uint256 private constant REQUIRED_CODE_STORES_WITHOUT_BASKET = 10;

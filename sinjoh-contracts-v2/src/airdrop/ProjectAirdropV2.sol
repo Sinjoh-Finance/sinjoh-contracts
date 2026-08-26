@@ -33,7 +33,7 @@ contract ProjectAirdropV2 is IProjectModule, IProjectFundable, ReentrancyGuard {
 
     address public constant NATIVE_ASSET = address(0);
     address public constant BURN_ADDRESS = SinjohV2Constants.BURN_ADDRESS;
-    address public constant PONS_LOCKER = 0x1006fA85294A9c38AA4214d52c86CC970Ddc5647;
+    address public constant PONS_LOCKER = 0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952;
     address public constant PONS_POOL_MANAGER = 0x8366a39CC670B4001A1121B8F6A443A643e40951;
     uint16 public constant BPS = 10_000;
     uint16 public constant PROTOCOL_FEE_BPS = 100;
