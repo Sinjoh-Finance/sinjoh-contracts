@@ -2,31 +2,257 @@
   "schemaVersion": 1,
   "chainId": 4663,
   "assertions": [
-    { "id": "launch-staking-fee-recipient", "address": "0x1f20bF432206C133C08FCCaC4857B22e2327CE2b", "signature": "protocolFeeRecipient()(address)", "type": "address", "expected": "0x5Bb7582557F5be30b62c335Ad3ccf4bA79E138c5" },
-    { "id": "launch-staking-fee-bps", "address": "0x1f20bF432206C133C08FCCaC4857B22e2327CE2b", "signature": "PROTOCOL_FEE_BPS()(uint16)", "type": "uint", "expected": "100" },
-    { "id": "launch-staking-min-interval", "address": "0x1f20bF432206C133C08FCCaC4857B22e2327CE2b", "signature": "MIN_INTERVAL()(uint32)", "type": "uint", "expected": "3600" },
-    { "id": "launch-staking-max-interval", "address": "0x1f20bF432206C133C08FCCaC4857B22e2327CE2b", "signature": "MAX_INTERVAL()(uint32)", "type": "uint", "expected": "2592000" },
-    { "id": "launch-staking-min-claim-period", "address": "0x1f20bF432206C133C08FCCaC4857B22e2327CE2b", "signature": "MIN_CLAIM_PERIOD()(uint32)", "type": "uint", "expected": "86400" },
-    { "id": "launch-staking-max-claim-period", "address": "0x1f20bF432206C133C08FCCaC4857B22e2327CE2b", "signature": "MAX_CLAIM_PERIOD()(uint32)", "type": "uint", "expected": "31536000" },
-    { "id": "pons-v1-retired", "address": "0xA5aAb3F0c6EeadF30Ef1D3Eb997108E976351feB", "signature": "launchEnabled()(bool)", "type": "bool", "expected": false },
-    { "id": "pons-v1-locker", "address": "0xA5aAb3F0c6EeadF30Ef1D3Eb997108E976351feB", "signature": "locker()(address)", "type": "address", "expected": "0x736D76699C26D0d966744cAe304C000d471f7F35" },
-    { "id": "revenue-collector-owner", "address": "0x5bb7582557f5be30b62c335ad3ccf4ba79e138c5", "signature": "owner()(address)", "type": "address", "expected": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f" },
-    { "id": "revenue-collector-processor", "address": "0x5bb7582557f5be30b62c335ad3ccf4ba79e138c5", "signature": "processor()(address)", "type": "address", "expected": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f" },
-    { "id": "airdrop-attestor", "address": "0xa1d65242d367501d9a261389a69005e584f4786a", "signature": "attestor()(address)", "type": "address", "expected": "0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49" },
-    { "id": "airdrop-fee-recipient", "address": "0xa1d65242d367501d9a261389a69005e584f4786a", "signature": "protocolFeeRecipient()(address)", "type": "address", "expected": "0x5Bb7582557F5be30b62c335Ad3ccf4bA79E138c5" },
-    { "id": "liquidity-manager-fee-recipient", "address": "0xf67150fb39e6a9200c06f9f8df589d40c94d79c3", "signature": "protocolFeeRecipient()(address)", "type": "address", "expected": "0x5Bb7582557F5be30b62c335Ad3ccf4bA79E138c5" },
-    { "id": "funding-bands-fee-recipient", "address": "0x49cCBaF51a141f726Ed8010612fd541cE8d81023", "signature": "protocolFeeRecipient()(address)", "type": "address", "expected": "0x5Bb7582557F5be30b62c335Ad3ccf4bA79E138c5" },
-    { "id": "funding-bands-weth", "address": "0x49cCBaF51a141f726Ed8010612fd541cE8d81023", "signature": "weth()(address)", "type": "address", "expected": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73" },
-    { "id": "funding-bands-escrow", "address": "0x49cCBaF51a141f726Ed8010612fd541cE8d81023", "signature": "launchEscrow()(address)", "type": "address", "expected": "0x1b1C878f5D7F46159Dc4aE34405a6b36631DFA23" },
-    { "id": "funding-bands-guard-owner", "address": "0x7078b0b68293217678f9B8e0A2AfA8eC26eF149a", "signature": "owner()(address)", "type": "address", "expected": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f" },
-    { "id": "funding-bands-guard-signer", "address": "0x7078b0b68293217678f9B8e0A2AfA8eC26eF149a", "signature": "quoteSigner()(address)", "type": "address", "expected": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f" },
-    { "id": "funding-bands-escrow-binder", "address": "0x1b1C878f5D7F46159Dc4aE34405a6b36631DFA23", "signature": "binder()(address)", "type": "address", "expected": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f" },
-    { "id": "pons-v2-adapter-binder", "address": "0x6b3862cd05478355e0230eeDBa71a321f0c776bD", "signature": "binder()(address)", "type": "address", "expected": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f" },
-    { "id": "letscash-guard-signer", "address": "0x1fE014FDa9B4054a5Da3b52Be5031393F83eeC8d", "signature": "quoteSigner()(address)", "type": "address", "expected": "0xd89fB916dD031Da9b0A32e820307c2d41a7dDe09" },
-    { "id": "flap-buyback-guard-signer", "address": "0xe19827483E32690012840b2b9bC6CBf9bE177Bf5", "signature": "quoteSigner()(address)", "type": "address", "expected": "0xd89fB916dD031Da9b0A32e820307c2d41a7dDe09" },
-    { "id": "flap-payout-guard-signer", "address": "0x071d29A300C1b51db1BDe8BaA550B86E1892Dc5e", "signature": "quoteSigner()(address)", "type": "address", "expected": "0xd89fB916dD031Da9b0A32e820307c2d41a7dDe09" },
-    { "id": "pons-v2-buyback-guard-signer", "address": "0x3a4c8fF885e1B502a66a82cbEC67817b55776f7D", "signature": "quoteSigner()(address)", "type": "address", "expected": "0xd89fB916dD031Da9b0A32e820307c2d41a7dDe09" },
-    { "id": "pons-v2-pair-guard-signer", "address": "0x69768f0b41A5A51aB23b23ccfbE9e3122Ac0DA8b", "signature": "quoteSigner()(address)", "type": "address", "expected": "0xd89fB916dD031Da9b0A32e820307c2d41a7dDe09" },
-    { "id": "pools-trade-guard-signer", "address": "0xF786782FeB44fE7c125D8AB7d570ee7bc129F685", "signature": "quoteSigner()(address)", "type": "address", "expected": "0xd89fB916dD031Da9b0A32e820307c2d41a7dDe09" }
+    {
+      "id": "launch-staking-fee-recipient",
+      "address": "0x1f20bF432206C133C08FCCaC4857B22e2327CE2b",
+      "signature": "protocolFeeRecipient()(address)",
+      "type": "address",
+      "expected": "0x5Bb7582557F5be30b62c335Ad3ccf4bA79E138c5"
+    },
+    {
+      "id": "launch-staking-fee-bps",
+      "address": "0x1f20bF432206C133C08FCCaC4857B22e2327CE2b",
+      "signature": "PROTOCOL_FEE_BPS()(uint16)",
+      "type": "uint",
+      "expected": "100"
+    },
+    {
+      "id": "launch-staking-min-interval",
+      "address": "0x1f20bF432206C133C08FCCaC4857B22e2327CE2b",
+      "signature": "MIN_INTERVAL()(uint32)",
+      "type": "uint",
+      "expected": "3600"
+    },
+    {
+      "id": "launch-staking-max-interval",
+      "address": "0x1f20bF432206C133C08FCCaC4857B22e2327CE2b",
+      "signature": "MAX_INTERVAL()(uint32)",
+      "type": "uint",
+      "expected": "2592000"
+    },
+    {
+      "id": "launch-staking-min-claim-period",
+      "address": "0x1f20bF432206C133C08FCCaC4857B22e2327CE2b",
+      "signature": "MIN_CLAIM_PERIOD()(uint32)",
+      "type": "uint",
+      "expected": "86400"
+    },
+    {
+      "id": "launch-staking-max-claim-period",
+      "address": "0x1f20bF432206C133C08FCCaC4857B22e2327CE2b",
+      "signature": "MAX_CLAIM_PERIOD()(uint32)",
+      "type": "uint",
+      "expected": "31536000"
+    },
+    {
+      "id": "pons-v1-retired",
+      "address": "0xA5aAb3F0c6EeadF30Ef1D3Eb997108E976351feB",
+      "signature": "launchEnabled()(bool)",
+      "type": "bool",
+      "expected": false
+    },
+    {
+      "id": "pons-v1-locker",
+      "address": "0xA5aAb3F0c6EeadF30Ef1D3Eb997108E976351feB",
+      "signature": "locker()(address)",
+      "type": "address",
+      "expected": "0x736D76699C26D0d966744cAe304C000d471f7F35"
+    },
+    {
+      "id": "revenue-collector-owner",
+      "address": "0x5bb7582557f5be30b62c335ad3ccf4ba79e138c5",
+      "signature": "owner()(address)",
+      "type": "address",
+      "expected": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f"
+    },
+    {
+      "id": "revenue-collector-processor",
+      "address": "0x5bb7582557f5be30b62c335ad3ccf4ba79e138c5",
+      "signature": "processor()(address)",
+      "type": "address",
+      "expected": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f"
+    },
+    {
+      "id": "airdrop-attestor",
+      "address": "0xa1d65242d367501d9a261389a69005e584f4786a",
+      "signature": "attestor()(address)",
+      "type": "address",
+      "expected": "0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49"
+    },
+    {
+      "id": "airdrop-fee-recipient",
+      "address": "0xa1d65242d367501d9a261389a69005e584f4786a",
+      "signature": "protocolFeeRecipient()(address)",
+      "type": "address",
+      "expected": "0x5Bb7582557F5be30b62c335Ad3ccf4bA79E138c5"
+    },
+    {
+      "id": "liquidity-manager-fee-recipient",
+      "address": "0xf67150fb39e6a9200c06f9f8df589d40c94d79c3",
+      "signature": "protocolFeeRecipient()(address)",
+      "type": "address",
+      "expected": "0x5Bb7582557F5be30b62c335Ad3ccf4bA79E138c5"
+    },
+    {
+      "id": "funding-bands-fee-recipient",
+      "address": "0x8AEb669200bcc03454Fe3B73124A4318027862e9",
+      "signature": "protocolFeeRecipient()(address)",
+      "type": "address",
+      "expected": "0x5Bb7582557F5be30b62c335Ad3ccf4bA79E138c5"
+    },
+    {
+      "id": "funding-bands-weth",
+      "address": "0x8AEb669200bcc03454Fe3B73124A4318027862e9",
+      "signature": "weth()(address)",
+      "type": "address",
+      "expected": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73"
+    },
+    {
+      "id": "funding-bands-escrow",
+      "address": "0x8AEb669200bcc03454Fe3B73124A4318027862e9",
+      "signature": "launchEscrow()(address)",
+      "type": "address",
+      "expected": "0xf8F28826d4837e10fc9eD0d7787F763725F10378"
+    },
+    {
+      "id": "funding-bands-guard-owner",
+      "address": "0xADB3BD2222dBCd08ab78Bd7BD2BDbb6Adf043915",
+      "signature": "owner()(address)",
+      "type": "address",
+      "expected": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f"
+    },
+    {
+      "id": "funding-bands-guard-signer",
+      "address": "0xADB3BD2222dBCd08ab78Bd7BD2BDbb6Adf043915",
+      "signature": "quoteSigner()(address)",
+      "type": "address",
+      "expected": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f"
+    },
+    {
+      "id": "funding-bands-verifier-ordinary-codehash",
+      "address": "0x9d93036656C51dd9Fe2164f9325FeF850fC282D9",
+      "signature": "sinjohAdapterCodehash()(bytes32)",
+      "type": "bytes32",
+      "expected": "0x24a075583a480fc6112a3610d85cdb7d7c3a60b3f75fc39be8db101eded05d60"
+    },
+    {
+      "id": "funding-bands-verifier-project-codehash",
+      "address": "0x9d93036656C51dd9Fe2164f9325FeF850fC282D9",
+      "signature": "sinjohProjectAdapterCodehash()(bytes32)",
+      "type": "bytes32",
+      "expected": "0xc2a8650e9e8104925c41b98f7ab14a7612b6d740530a68554add01fc63d509d3"
+    },
+    {
+      "id": "funding-bands-escrow-binder",
+      "address": "0xf8F28826d4837e10fc9eD0d7787F763725F10378",
+      "signature": "binder()(address)",
+      "type": "address",
+      "expected": "0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49"
+    },
+    {
+      "id": "pons-v2-current-factory-binder",
+      "address": "0xa16389c14c9299A4317D50aEfd5e4cC442F2dF0d",
+      "signature": "binder()(address)",
+      "type": "address",
+      "expected": "0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49"
+    },
+    {
+      "id": "pons-v2-current-factory-implementation",
+      "address": "0xa16389c14c9299A4317D50aEfd5e4cC442F2dF0d",
+      "signature": "implementation()(address)",
+      "type": "address",
+      "expected": "0xAf3D6710621697d25096E01367A3D0490Fd11e2b"
+    },
+    {
+      "id": "pons-v2-current-factory-launch-factory",
+      "address": "0xa16389c14c9299A4317D50aEfd5e4cC442F2dF0d",
+      "signature": "launchFactory()(address)",
+      "type": "address",
+      "expected": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e"
+    },
+    {
+      "id": "pons-v2-current-factory-funding-bands-escrow",
+      "address": "0xa16389c14c9299A4317D50aEfd5e4cC442F2dF0d",
+      "signature": "fundingBandsEscrow()(address)",
+      "type": "address",
+      "expected": "0xf8F28826d4837e10fc9eD0d7787F763725F10378"
+    },
+    {
+      "id": "pons-v2-current-factory-project-launcher",
+      "address": "0xa16389c14c9299A4317D50aEfd5e4cC442F2dF0d",
+      "signature": "projectLauncher()(address)",
+      "type": "address",
+      "expected": "0x6b5e99b344C0671f77BAC00c5ADbE453Ffa39100"
+    },
+    {
+      "id": "pons-v2-current-factory-project-implementation",
+      "address": "0xa16389c14c9299A4317D50aEfd5e4cC442F2dF0d",
+      "signature": "projectImplementation()(address)",
+      "type": "address",
+      "expected": "0xC5C7B33708121d542AC8172104D1d708DF61cA37"
+    },
+    {
+      "id": "pons-v2-current-implementation-factory",
+      "address": "0xAf3D6710621697d25096E01367A3D0490Fd11e2b",
+      "signature": "adapterFactory()(address)",
+      "type": "address",
+      "expected": "0xa16389c14c9299A4317D50aEfd5e4cC442F2dF0d"
+    },
+    {
+      "id": "pons-v2-public-factory-locker",
+      "address": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+      "signature": "locker()(address)",
+      "type": "address",
+      "expected": "0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952"
+    },
+    {
+      "id": "pons-v2-public-factory-forwarder",
+      "address": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+      "signature": "launchForwarder()(address)",
+      "type": "address",
+      "expected": "0xe33E9E479dF8802cb0866d5d05258bEc4cF62948"
+    },
+    {
+      "id": "letscash-guard-signer",
+      "address": "0x1fE014FDa9B4054a5Da3b52Be5031393F83eeC8d",
+      "signature": "quoteSigner()(address)",
+      "type": "address",
+      "expected": "0xd89fB916dD031Da9b0A32e820307c2d41a7dDe09"
+    },
+    {
+      "id": "flap-buyback-guard-signer",
+      "address": "0xe19827483E32690012840b2b9bC6CBf9bE177Bf5",
+      "signature": "quoteSigner()(address)",
+      "type": "address",
+      "expected": "0xd89fB916dD031Da9b0A32e820307c2d41a7dDe09"
+    },
+    {
+      "id": "flap-payout-guard-signer",
+      "address": "0x071d29A300C1b51db1BDe8BaA550B86E1892Dc5e",
+      "signature": "quoteSigner()(address)",
+      "type": "address",
+      "expected": "0xd89fB916dD031Da9b0A32e820307c2d41a7dDe09"
+    },
+    {
+      "id": "pons-v2-buyback-guard-signer",
+      "address": "0x3a4c8fF885e1B502a66a82cbEC67817b55776f7D",
+      "signature": "quoteSigner()(address)",
+      "type": "address",
+      "expected": "0xd89fB916dD031Da9b0A32e820307c2d41a7dDe09"
+    },
+    {
+      "id": "pons-v2-pair-guard-signer",
+      "address": "0x69768f0b41A5A51aB23b23ccfbE9e3122Ac0DA8b",
+      "signature": "quoteSigner()(address)",
+      "type": "address",
+      "expected": "0xd89fB916dD031Da9b0A32e820307c2d41a7dDe09"
+    },
+    {
+      "id": "pools-trade-guard-signer",
+      "address": "0xF786782FeB44fE7c125D8AB7d570ee7bc129F685",
+      "signature": "quoteSigner()(address)",
+      "type": "address",
+      "expected": "0xd89fB916dD031Da9b0A32e820307c2d41a7dDe09"
+    }
   ]
 }
