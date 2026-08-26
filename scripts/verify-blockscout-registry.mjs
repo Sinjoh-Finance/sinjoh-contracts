@@ -10,8 +10,15 @@ const failures = [];
 if (registry.schemaVersion !== 1) failures.push("schemaVersion must be 1");
 if (registry.network?.chainId !== 4663) failures.push("chainId must be 4663");
 if (!Array.isArray(registry.contracts)) failures.push("contracts must be an array");
+if (!Array.isArray(registry.historical?.contracts)) {
+  failures.push("historical.contracts must be an array");
+}
 
-const contracts = Array.isArray(registry.contracts) ? registry.contracts : [];
+const currentContracts = Array.isArray(registry.contracts) ? registry.contracts : [];
+const historicalContracts = Array.isArray(registry.historical?.contracts)
+  ? registry.historical.contracts
+  : [];
+const contracts = [...currentContracts, ...historicalContracts];
 const uniqueAddresses = new Set(contracts.map(({ address }) => address.toLowerCase()));
 if (uniqueAddresses.size !== contracts.length) failures.push("contract addresses must be unique");
 
