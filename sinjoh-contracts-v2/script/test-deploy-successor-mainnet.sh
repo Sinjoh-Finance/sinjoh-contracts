@@ -37,6 +37,13 @@ case "${1:-}" in
           echo true
         fi
         ;;
+      *"locker()(address)"*)
+        if [[ "${FAKE_LOCKER_MISMATCH:-0}" == "1" && "$*" == *"quiknode.pro"* ]]; then
+          echo 0x1006fA85294A9c38AA4214d52c86CC970Ddc5647
+        else
+          echo 0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952
+        fi
+        ;;
       *"launchFactory()(address)"*)
         if [[ "${FAKE_BINDING_MISMATCH:-0}" == "1" && "$*" == *"quiknode.pro"* ]]; then
           echo 0x7DCeEaB0A53684b001A4900768a52eAcDb27294e
@@ -174,6 +181,27 @@ set -e
 }
 [[ "$pair_output" == *"reports UI pair"*"is not approved by public Pons"* ]] || {
   echo "QuickNode pair mismatch was not reported" >&2
+  exit 1
+}
+
+set +e
+locker_output="$({
+  PATH="$fake_bin:$PATH" \
+  FAKE_LOCKER_MISMATCH=1 \
+  RPC_URL=https://robinhood-mainnet.core.chainstack.com/primary-secret \
+  RPC_VERIFICATION_URL=https://verified.robinhood-mainnet.quiknode.pro/secondary-secret \
+  FOUNDRY_ACCOUNT=test-account \
+    "$package_dir/script/deploy-successor-mainnet.sh"
+} 2>&1)"
+locker_status=$?
+set -e
+
+[[ "$locker_status" -ne 0 ]] || {
+  echo "expected the successor wrapper to reject the wrong public Pons locker" >&2
+  exit 1
+}
+[[ "$locker_output" == *"reports public Pons locker"*"expected 0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952"* ]] || {
+  echo "public Pons locker mismatch was not reported" >&2
   exit 1
 }
 

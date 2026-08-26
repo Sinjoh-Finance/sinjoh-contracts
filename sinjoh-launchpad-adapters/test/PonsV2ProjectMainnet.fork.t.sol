@@ -59,6 +59,7 @@ contract ForkProjectLauncher {
 /// Pons factory generation that the public Pons application already indexes.
 contract PonsV2ProjectMainnetForkTest is TestBase {
     address internal constant PONS_FACTORY = 0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e;
+    address internal constant PONS_LOCKER = 0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952;
     address internal constant PONS_FEE_ESCROW = 0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e;
     address internal constant WETH = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
     address internal constant CREATOR = 0xe4605138e185FBeE40ff6193A044aa0BE2909216;
@@ -71,6 +72,7 @@ contract PonsV2ProjectMainnetForkTest is TestBase {
 
         assertTrue(IPonsV2LaunchFactory(PONS_FACTORY).launchEnabled());
         assertEq(IPonsV2LaunchFactory(PONS_FACTORY).feeEscrow(), PONS_FEE_ESCROW);
+        assertEq(IPonsV2LaunchFactory(PONS_FACTORY).locker(), PONS_LOCKER);
 
         SinjohPonsV2AdapterFactory adapterFactory =
             new SinjohPonsV2AdapterFactory(PONS_FACTORY, PONS_FEE_ESCROW, WETH, CHAIN_ID);
@@ -84,6 +86,9 @@ contract PonsV2ProjectMainnetForkTest is TestBase {
         adapterFactory.bindProjectV2(
             address(launcher), address(registry), address(tokenFactory), address(implementation)
         );
+        // The public Pons factory retains its historical launch forwarder. This launch still
+        // succeeds because the Project adapter calls the ordinary launchToken entry point.
+        assertTrue(IPonsV2LaunchFactory(PONS_FACTORY).launchForwarder() != address(adapterFactory));
 
         bytes32 userSalt = keccak256("ISSA_PUBLIC_PONS_PROJECT_FORK");
         address predictedAdapter = adapterFactory.predictProjectAddress(CREATOR, userSalt);

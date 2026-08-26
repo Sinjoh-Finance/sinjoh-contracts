@@ -164,6 +164,7 @@ export PONS_LAUNCH_FACTORY="${PONS_LAUNCH_FACTORY:-0x7eD598BcEf8bd9Edd8C97A195C6
 export PONS_LAUNCH_FACTORY_RUNTIME_HASH="${PONS_LAUNCH_FACTORY_RUNTIME_HASH:-0x89a27da6f703e0a7cdd4f233e7cb57604ff75b164530962d3ff7cf8483a67d84}"
 
 public_pons_factory=0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e
+public_pons_locker=0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952
 public_pons_factory_lower="$(printf '%s' "$public_pons_factory" | tr '[:upper:]' '[:lower:]')"
 pons_factory_lower="$(printf '%s' "$PONS_LAUNCH_FACTORY" | tr '[:upper:]' '[:lower:]')"
 [[ "$pons_factory_lower" == "$public_pons_factory_lower" ]] \
@@ -183,7 +184,11 @@ ui_pair_tokens=(
 verify_pons_factory() {
   local provider="$1"
   local rpc_url="$2"
-  local enabled fee config pair approved
+  local enabled fee config pair approved locker
+  locker="$(cast call "$PONS_LAUNCH_FACTORY" 'locker()(address)' --rpc-url "$rpc_url")" \
+    || fail "could not read the public Pons locker through $provider"
+  [[ "$(printf '%s' "$locker" | tr '[:upper:]' '[:lower:]')" == "$(printf '%s' "$public_pons_locker" | tr '[:upper:]' '[:lower:]')" ]] \
+    || fail "$provider reports public Pons locker $locker, expected $public_pons_locker (no transaction was sent)"
   enabled="$(cast call "$PONS_LAUNCH_FACTORY" 'launchEnabled()(bool)' --rpc-url "$rpc_url")" \
     || fail "could not read Pons launchEnabled through $provider"
   [[ "$enabled" == "true" ]] \
@@ -239,6 +244,12 @@ verify_pons_buyback_binding QuickNode "$RPC_VERIFICATION_URL"
 export PONS_FEE_ESCROW="$(jq -er '.dependencies.ponsV2FeeEscrow.address' "$mainnet_deployments")"
 export PONS_FEE_ESCROW_RUNTIME_HASH="$(
   jq -er '.dependencies.ponsV2FeeEscrow.runtimeCodeHash' "$mainnet_deployments"
+)"
+export FUNDING_BANDS_ESCROW="$(
+  jq -er '.currentInfrastructure.fundingBands.launchEscrow.address' "$mainnet_deployments"
+)"
+export FUNDING_BANDS_ESCROW_RUNTIME_HASH="$(
+  jq -er '.currentInfrastructure.fundingBands.launchEscrow.runtimeCodeHash' "$mainnet_deployments"
 )"
 export DEPLOY_FRESH_LAUNCHPAD_FACTORIES=1
 # The exact Issa/public-Pons fork gate is part of the release test suite and must always run
