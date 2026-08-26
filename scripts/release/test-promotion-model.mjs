@@ -118,6 +118,28 @@ const repoRoot = resolve(import.meta.dirname, "../..");
 const mainnetManifest = JSON.parse(
   readFileSync(resolve(repoRoot, "mainnet-deployments.json"), "utf8")
 );
+assert.equal(
+  mainnetManifest.letscashDependencies.factoryProxy.implementation,
+  "0x8E0Ee024c2B547AaE91E6B9b1D3940449B3404F4"
+);
+assert.equal(
+  mainnetManifest.letscashDependencies.factoryProxy.implementationRuntimeCodeHash,
+  "0xf2e80731c9679b7869b99b8a3eb0428be9923d93abdce4c73de77e9b7fca0603"
+);
+assert.equal(
+  mainnetManifest.letscashDependencies.factoryImplementation.address,
+  mainnetManifest.letscashDependencies.factoryProxy.implementation
+);
+assert.deepEqual(
+  Object.keys(mainnetManifest.letscashDependencies.factoryHistoricalImplementations),
+  ["cash-cat-factory-vnext-pre-20260825"]
+);
+assert.equal(
+  mainnetManifest.letscashDependencies.factoryHistoricalImplementations[
+    "cash-cat-factory-vnext-pre-20260825"
+  ].address,
+  "0x3dFd73A63E15920aDd4B6c5C6a4b1b4B768b2c1A"
+);
 const projectRelease = JSON.parse(readFileSync(resolve(
   repoRoot,
   "sinjoh-contracts-v2/deployments/project-launcher-v2-4663-public-pons-dual-funding.json"

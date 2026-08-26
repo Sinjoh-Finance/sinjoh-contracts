@@ -213,6 +213,20 @@
       "expected": "0xe33E9E479dF8802cb0866d5d05258bEc4cF62948"
     },
     {
+      "id": "letscash-factory-owner",
+      "address": "0x5bd1Fbe78a78fe8236fa00CF48fbEBA74ae34661",
+      "signature": "owner()(address)",
+      "type": "address",
+      "expected": "0xD2DeFbd13aFF22D6989E8C14B4517Ec308079E91"
+    },
+    {
+      "id": "letscash-owner-safe-threshold",
+      "address": "0xD2DeFbd13aFF22D6989E8C14B4517Ec308079E91",
+      "signature": "getThreshold()(uint256)",
+      "type": "uint",
+      "expected": "2"
+    },
+    {
       "id": "letscash-guard-signer",
       "address": "0x1fE014FDa9B4054a5Da3b52Be5031393F83eeC8d",
       "signature": "quoteSigner()(address)",
