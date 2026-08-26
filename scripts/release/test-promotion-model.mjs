@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
@@ -160,6 +161,19 @@ assert.equal(
     "contracts.ponsV2PairBuybackHistoricalGenerations.indexedLegacyFactory.priceGuard"
   ].address,
   "0x69768f0b41A5A51aB23b23ccfbE9e3122Ac0DA8b"
+);
+assert.deepEqual(
+  Object.keys(mainnetManifest.currentInfrastructure.projectV2Generations).sort(),
+  [
+    "project-v2-gascap-20260825-3d6dd81",
+    "project-v2-routing-complete-20260825-3b5dc15"
+  ]
+);
+assert.equal(
+  createHash("sha256")
+    .update(JSON.stringify(mainnetManifest.currentInfrastructure.projectV2Generations))
+    .digest("hex"),
+  "7eedcf498e4b745a7c9a22bfa509849aea1a8944b09609b1c691263cd6bc54df"
 );
 
 console.log("promotion model tests passed");
