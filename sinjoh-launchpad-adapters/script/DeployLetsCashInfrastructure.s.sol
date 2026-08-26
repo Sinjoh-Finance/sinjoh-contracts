@@ -21,7 +21,7 @@ contract DeployLetsCashInfrastructure {
     uint256 internal constant ROBINHOOD_MAINNET_CHAIN_ID = 4_663;
     address internal constant LETSCASH_FACTORY = 0x5bd1Fbe78a78fe8236fa00CF48fbEBA74ae34661;
     address internal constant LETSCASH_FACTORY_IMPLEMENTATION =
-        0x3dFd73A63E15920aDd4B6c5C6a4b1b4B768b2c1A;
+        0x8E0Ee024c2B547AaE91E6B9b1D3940449B3404F4;
     address internal constant POOL_MANAGER = 0x8366a39CC670B4001A1121B8F6A443A643e40951;
     address internal constant LETSCASH_HOOK = 0x75A54357D9C78a2Db19004a5FDc76c50F9242AEC;
     address internal constant WETH = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
@@ -29,7 +29,7 @@ contract DeployLetsCashInfrastructure {
     bytes32 internal constant LETSCASH_FACTORY_HASH =
         0x51faa3f1aaa267eb4ffb4dd57f07a89edf3ffd618213bf35cf7f8254a07961e5;
     bytes32 internal constant LETSCASH_FACTORY_IMPLEMENTATION_HASH =
-        0xef0219f515c49723f589e3aa4748b6f99caa8ef8a3f03e4c1a2b4d977d80f731;
+        0xf2e80731c9679b7869b99b8a3eb0428be9923d93abdce4c73de77e9b7fca0603;
     bytes32 internal constant POOL_MANAGER_HASH =
         0xbd3881180b547f5fe817545743cfb4343e96b1bc6640dcd70c106b0066e95626;
     bytes32 internal constant LETSCASH_HOOK_HASH =

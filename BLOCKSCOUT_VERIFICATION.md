@@ -17,10 +17,10 @@ explorer:
 - 0 failed or pending verifications
 
 The machine-readable evidence is
-[`blockscout-verification.json`](./blockscout-verification.json). Each entry
-links directly to the explorer and records its deployment tag, source path,
-contract name, compiler, optimizer runs, EVM target, verification result, and
-license.
+[`blockscout-verification.json`](./blockscout-verification.json). Current entries live under
+`contracts`; superseded but still independently verifiable deployments live under
+`historical.contracts`. Each entry links directly to the explorer and records its deployment tag,
+source path, contract name, compiler, optimizer runs, EVM target, verification result, and license.
 
 ## What verification proves
 
@@ -92,4 +92,3 @@ matches compiled artifacts to manifest addresses and onchain runtime.
 Standard JSON through Blockscout's v2 API, retries transient failures, polls to
 a terminal status, and fails closed if bytecode is changed or verification
 fails.
-

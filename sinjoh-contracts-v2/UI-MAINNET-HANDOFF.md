@@ -2,77 +2,58 @@
 
 Status: **canonical deployed release; use this release for production consumers**
 
-Chain: Robinhood Chain mainnet (`4663`)
+- Chain: Robinhood Chain mainnet (`4663`)
+- Release: `project-v2-public-pons-dual-funding-letscash-20260826-c184fad`
+- Source commit: `c184faddd881ddcabdc26c70364f825b79a142d0`
+- Active promotion SHA-256: `85a37923cd7a4d0ad3d83667686ee752d184fe3570332c74878bffc441c963b7`
+- Deployment manifest SHA-256: `5be4748d0dc575ec14030e619a7da7ffc735bb63369a107aef7ea6d80ea30b2c`
+- Active promotion run: `32929898024`
 
-Canonical source commit: `618f7113cfd58fa818bdc798ee230aba4e05d2a6`
+The signed promotion and `mainnet-deployments.json` are authoritative. Render consumer
+configuration from them; do not copy an earlier generation into application source.
 
-Canonical build hash: `2f869c15eb3f2500ade570880377d5eab57559a5a9771face16e3556b9aae551`
-
-Deployment blocks: `45138065` through `45138244`
-
-The earlier `4ca4f6aca08e7669b1c7e08f21a1219be2cab548` deployment is superseded and must
-not be used by the UI, API, SDK, indexers, keepers, or verification scripts.
-
-## Canonical artifacts
-
-- [`deployments/project-v2-recovery-manifest-4663-7837.json`](./deployments/project-v2-recovery-manifest-4663-7837.json)
-- [`deployments/project-v2-recovery-promotion-entry-4663-7837.json`](./deployments/project-v2-recovery-promotion-entry-4663-7837.json)
-- [`deployments/project-v2-recovery-consumer-input-4663-7837.json`](./deployments/project-v2-recovery-consumer-input-4663-7837.json)
-- [`../deployments/consumers/bindings.json`](../deployments/consumers/bindings.json)
-
-The promotion entry is incorporated into `mainnet-deployments.json` under
-`currentInfrastructure.projectV2`. Render consumer environments from the repository binding model;
-do not copy addresses into application source.
-
-## Browser entry points
-
-| Contract | Address | Runtime code hash | Deployment transaction |
-| --- | --- | --- | --- |
-| `ProjectLauncherV2` | `0x87B67dfFf09363AA75f4BEf1a43ae7d90C8f497B` | `0x86b7c7f88e40538022f80f00cad22469d622cbfb45a66c8d39577560e6ac5131` | `0x0ed96cfdcb1a484bcfad83756f26f865489689a53fe8233744a612ec8906ae90` |
-| `ProjectRegistryV2` | `0xb10f8350264315850D3aa8b9794f34F496F6d0Cf` | `0x4317d73c13f1c9706677709ef42fa4cf4b03202ed130230c363eb2e10082ffe6` | `0xaa8258c49b72d63ce0f7366802904ad5c15f16bb9992c7a9fb901b16a87b2226` |
-| `ProjectLaunchDeployerV2` | `0x92EBaC0139001Face632aA25Bf6EC19Dc3a5747e` | `0x4b84e29376fa6ab3363fb7256057e30741b41dd22356d7d5ea7be6ea82edf128` | `0x31cc7ba558ebe23677dadb7b7e5a683ce4d5d7984aa1774ca4c982dfd73bf590` |
-| `SinjohPonsV2ProjectAdapterFactory` | `0xAc299024C0f4E561D6e99CEFABB9b7212de729b6` | `0x964762b1cdb587f7dc7d27f796e0ed403e0066e00a7ed0d015c90b1df32c5ec5` | `0x5c632df37c4d79ed4c40ac1f944b431ee7f33ecaceb45a9309b783ac08bdaf41` |
-| `SinjohPonsV2ProjectAdapter` implementation | `0x3943b7f46b201CFe5033367Ae2E102555e0ea50F` | `0xd61178a140dc8f8df8a0ae4987dc93b7063334496591c10e81aee660d1d916e6` | `0xc9121126ed8dae4812802ddc23b68fea872d7bfce68947258a24ea6cede2edbd` |
-
-An atomic Pons + Project launch transacts with
-`0xAc299024C0f4E561D6e99CEFABB9b7212de729b6`. A direct Project-token launch
-transacts with `0x87B67dfFf09363AA75f4BEf1a43ae7d90C8f497B`.
-
-## Canonical Pons V2 dependencies
+## Current Project contracts
 
 | Contract | Address | Runtime code hash |
 | --- | --- | --- |
-| Launch factory | `0x7DCeEaB0A53684b001A4900768a52eAcDb27294e` | `0x3392f4e9040deec97e49bf05fc3a696f295b79806ef83910d84943d431d05e83` |
-| Launch deployer | `0xa0bc05240f1cD1f3Df7FEfA35e48C19ffF4c6ACe` | `0x1a02242a68ae3b615880e87cba298a208fe991a7a6f87cbc9b34e596e9518fc7` |
+| `ProjectLauncherV2` | `0x6b5e99b344C0671f77BAC00c5ADbE453Ffa39100` | `0x5dd89482f663119e13acfdbb0b3b89d35814f494cd8c90c0c3337f176395c824` |
+| `ProjectRegistryV2` | `0xF2F0C38dd9E4DCBa46A4b8bE2E7441377c103Bf4` | `0x0638ed852649bdca466c3d3a231893176f0d2659aba56782387f58af9bcc31d2` |
+| `ProjectLaunchDeployerV2` | `0xF2844Cd17F45adA05894AF938a96CB4417158f3B` | `0x53e0c3f1091041295157454414bf76becbc7225af1c9f883978a190152872c55` |
+| `ProjectLaunchValidatorV2` | `0xA227633Cc64FeB8c36c63602cd3480e26c0F26Eb` | `0x943fc6a6f784346ae310d5376510ed8086b16d74eb3f4de5e3584bb53af7e7ed` |
+| Pons adapter factory | `0xa16389c14c9299A4317D50aEfd5e4cC442F2dF0d` | `0x42b9b3eca3f4bf37072bcf60f3405e30bd6e95e7279c307cdef9c5905f67f3bf` |
+| Project Pons adapter implementation | `0xC5C7B33708121d542AC8172104D1d708DF61cA37` | `0x305007652acf94952e5feb97add75c50ed8934365c67b3f1522eaf4809810841` |
+
+Atomic public-Pons Project launches transact with the predicted adapter clone from
+`0xa16389c14c9299A4317D50aEfd5e4cC442F2dF0d`. Direct Project-token launches transact with
+`0x6b5e99b344C0671f77BAC00c5ADbE453Ffa39100`.
+
+## Current public Pons dependencies
+
+| Contract | Address | Runtime code hash |
+| --- | --- | --- |
+| Launch factory | `0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e` | `0x89a27da6f703e0a7cdd4f233e7cb57604ff75b164530962d3ff7cf8483a67d84` |
+| Launch deployer | `0x3711ceA4feaDE896C913C68F01Eda97Cb06D1A42` | `0xeade22566c766377f6adfb99534f2772251efad9568642c0704a7051418e624c` |
 | Fee escrow | `0xd3AFEB2a57f70eF218Aa82451c51B2fb0416Ac9e` | `0xf25f75cfbc1637ba068dc34f69098fa4e8a80f8ee8fe7bf7820594e0b3fed2f1` |
-| Meme hook | `0xE9Ec0Ffc7d5bEF33f815D7b0cDd15A7c5Dc1e044` | `0x5f3bc01971cffe8dea490d70f123c25c01ae2c3579b68d40109c3ac68e1461eb` |
-| Buyback vault | `0xA61f18568d3B817bbb95450D42F7403e871Ce0a1` | `0x99fd213fd5cccddc5bb26e9ab9763a69bd17f7286333f93ae9c3b96817f8f904` |
-| Launch locker | `0x1006fA85294A9c38AA4214d52c86CC970Ddc5647` | `0x5304631acb89c64e75397509c745337b6ddb3e7f529e2297a335114049bcff7d` |
-| Uniswap V4 PoolManager | `0x8366a39CC670B4001A1121B8F6A443A643e40951` | `0xbd3881180b547f5fe817545743cfb4343e96b1bc6640dcd70c106b0066e95626` |
+| Meme hook | `0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044` | `0xc21b1e6c1b45403e81a581f22ed6d9c747997af1cfdac1b1dc9f4b1d346a10db` |
+| Buyback vault | `0x42df2a798f82289E177311362e8f5ccC45c1219c` | `0x5de8480874faffefa539648f1a7d6c1e69b39da3fa34de22fc95eb7586aece03` |
+| Launch locker | `0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952` | `0x58455f80b3773871d601a025e56ec27c71ab3bbb8e2ca6b17828954450742025` |
 
-The launch factory, hook, locker, and buyback vault are owned by
-`0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49`; each `pendingOwner()` is zero.
+## Current Funding Bands contracts
 
-## Release behavior
+| Contract | Address | Runtime code hash |
+| --- | --- | --- |
+| Manager | `0x8AEb669200bcc03454Fe3B73124A4318027862e9` | `0x27e79a76b510ea9ba4018822199e31339c8ac4a083e2723d6ec0b305c168e3d6` |
+| Launch verifier | `0x9d93036656C51dd9Fe2164f9325FeF850fC282D9` | `0xedb1114f6c470682c3142a35300db3bb0000cc42b73f2adbb3cdd554bb14d34d` |
+| Launch escrow | `0xf8F28826d4837e10fc9eD0d7787F763725F10378` | `0xc4c40096bf36620fafdb166f7328f84c6907a60392fc3321fb66ab345b99dafc` |
+| Price guard | `0xADB3BD2222dBCd08ab78Bd7BD2BDbb6Adf043915` | `0x08599108bd65ee9d3f87e6431dd3e6fa5ad1e25cf44cb597041a35836c79bc39` |
+| ETH/USD oracle | `0xB1115B9d0c409d6bCbb8d2483B2Cc0C425679754` | `0x0f34766397d79c63a443067d266f6cddce1107ad410fc75f68293c0386412bb7` |
 
-- Baskets are disabled.
-- Project Raffle, Staking, Treasury, governance, Airdrop, Router, and the Pons Project adapter are available.
-- Project Airdrop uses signed `AirdropEpochCommitment` calldata; legacy airdrop calldata is incompatible.
-- Project Funding Bands for Pons launches activates after graduation through the canonical Pons V4 Funding Bands path. The Project-specific V3 module is not selected for an atomic Pons launch.
-- Protocol fee recipient: `0x5Bb7582557F5be30b62c335Ad3ccf4bA79E138c5`.
-- Integration approval root: `0x97c6b100e3d71cb95d125537fcd2736043d90ff56852f425eac29dc33956b19d`.
+## Consumer requirements
 
-## Indexer and verification
-
-Start Project V2 discovery at block `45138065` and enumerate Registry
-`0xb10f8350264315850D3aa8b9794f34F496F6d0Cf`.
-
-Use the configured Chainstack primary and QuickNode secondary. Never substitute a public
-Robinhood RPC or Alchemy.
-
-```bash
-cd sinjoh-contracts-v2
-export RELEASE_MANIFEST=deployments/project-v2-recovery-manifest-4663-7837.json
-RPC_URL="$CHAINSTACK_RPC_URL" node script/verify-deployed-release.mjs "$RELEASE_MANIFEST"
-RPC_URL="$QUICKNODE_RPC_URL" node script/verify-deployed-release.mjs "$RELEASE_MANIFEST"
-```
+- Preserve prior generations under explicit historical keys for existing projects.
+- Use the public Pons factory above for both ordinary and Project Pons launches.
+- Use the agnostic Sinjoh fee router for Project launch fee routing and Funding Bands destinations.
+- Discover the deterministic liquid-votes wrapper from the Project record for liquid governance and holder airdrops.
+- Treat Treasury, staking, Airdrop, and Raffle as independent optional modules.
+- Validate every address and runtime code hash against the signed promotion before enabling launch.
+- Use two independent Robinhood Chain RPC providers for production preflight.
