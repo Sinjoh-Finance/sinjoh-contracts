@@ -31,13 +31,13 @@ const plan = buildActionPlan(9000n, (nonce) => {
   return address;
 });
 
-assert.equal(plan.length, 18);
+assert.equal(plan.length, 17);
 assert.equal(plan.filter((action) => action.kind === "create").length, 13);
-assert.equal(plan.filter((action) => action.kind === "call").length, 5);
+assert.equal(plan.filter((action) => action.kind === "call").length, 4);
 assert.equal(plan[0].nonce, 9000);
 assert.equal(plan[12].nonce, 9012);
 assert.equal(plan[13].nonce, 9013);
-assert.equal(plan[17].nonce, 9017);
+assert.equal(plan[16].nonce, 9016);
 assert.equal(plan[12].expectedAddress, addresses.get(9012n));
 assert.equal(safeNonceFromViews({
   primaryPending: "7833",
@@ -66,7 +66,7 @@ assert.throws(() => safeNonceFromViews({
 assert.equal(RECOVERY_GAS_ESTIMATE_MULTIPLIER, 200);
 assert.equal(
   Math.max(...HISTORICAL_GAS_REPLAYS.map(({ sent, required }) => Math.ceil(required * 100 / sent))),
-  127
+  115
 );
 assert.throws(() => assertGasMultiplier(160), /below the approved 200% recovery policy/);
 assert.throws(() => assertGasMultiplier(126), /below the approved 200% recovery policy/);
@@ -128,7 +128,7 @@ assert.doesNotMatch(orchestratorSource, /console\.(?:log|error)\([^\n]*(?:RPC_UR
 assert.match(orchestratorSource, /\["nonce", "--block", "pending", DEPLOYER\]/);
 assert.match(orchestratorSource, /\["nonce", "--block", "latest", DEPLOYER\]/);
 
-const artifactValue = { chainId: CHAIN_ID, actions: 18 };
+const artifactValue = { chainId: CHAIN_ID, actions: 17 };
 const artifactDirectory = mkdtempSync(join(tmpdir(), "project-v2-recovery-test-"));
 const artifactPath = join(artifactDirectory, "artifact.json");
 assert.equal(writeOrValidateArtifact(artifactPath, artifactValue), "created");
@@ -136,7 +136,7 @@ assert.equal(writeOrValidateArtifact(artifactPath, artifactValue), "validated");
 assert.doesNotThrow(() => assertArtifactIdentity(
   readFileSync(artifactPath, "utf8"), artifactValue
 ));
-writeFileSync(artifactPath, `${JSON.stringify({ chainId: CHAIN_ID, actions: 17 })}\n`);
+writeFileSync(artifactPath, `${JSON.stringify({ chainId: CHAIN_ID, actions: 16 })}\n`);
 assert.throws(
   () => writeOrValidateArtifact(artifactPath, artifactValue),
   /does not exactly match recovered state/

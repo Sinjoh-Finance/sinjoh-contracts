@@ -19,7 +19,6 @@ import { ISinjohSwapAdapter } from "./interfaces/ISinjohSwapAdapter.sol";
 import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
 import { IProjectFundable } from "../interfaces/IProjectFundable.sol";
 import { IProjectModule } from "../interfaces/IProjectModule.sol";
-import { IProjectTokenIdentity } from "../interfaces/IProjectTokenIdentity.sol";
 import { ProjectIds } from "../libraries/ProjectIds.sol";
 import { IntegrationApproval } from "../libraries/IntegrationApproval.sol";
 import { SinjohV2Constants } from "../libraries/SinjohV2Constants.sol";
@@ -279,9 +278,11 @@ contract ProjectLiquidityManagerV2 is IProjectModule, IProjectFundable {
         }
         if (subject_.code.length == 0) revert InvalidSubject(subject_);
         bytes32 expectedProjectId = ProjectIds.derive(block.chainid, registry_, subject_);
+        (bool declaresIdentity, address subjectRegistry, bytes32 subjectProjectId) =
+            ProjectIds.declaredIdentity(subject_);
         if (
-            IProjectTokenIdentity(subject_).registry() != registry_
-                || IProjectTokenIdentity(subject_).projectId() != expectedProjectId
+            declaresIdentity
+                && (subjectRegistry != registry_ || subjectProjectId != expectedProjectId)
         ) revert InvalidSubject(subject_);
         if (
             v3Factory_.code.length == 0 || v3PositionManager_.code.length == 0

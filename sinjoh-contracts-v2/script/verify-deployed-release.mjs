@@ -122,12 +122,21 @@ const codeStoreAbi = parseAbi([
 const raffleAbi = parseAbi(["function initialized() view returns (bool)"]);
 const ponsProjectFactoryAbi = parseAbi([
   "function launchFactory() view returns (address)",
+  "function feeEscrow() view returns (address)",
+  "function weth() view returns (address)",
+  "function deploymentChainId() view returns (uint256)",
   "function projectLauncher() view returns (address)",
   "function projectRegistry() view returns (address)",
   "function projectTokenFactory() view returns (address)",
   "function projectImplementation() view returns (address)",
 ]);
-const ponsLaunchFactoryAbi = parseAbi(["function launchForwarder() view returns (address)"]);
+const ponsProjectImplementationAbi = parseAbi([
+  "function adapterFactory() view returns (address)",
+  "function launchFactory() view returns (address)",
+  "function feeEscrow() view returns (address)",
+  "function weth() view returns (address)",
+  "function deploymentChainId() view returns (uint256)",
+]);
 const poolsProjectFactoryAbi = parseAbi([
   "function projectLauncher() view returns (address)",
   "function projectRegistry() view returns (address)",
@@ -228,9 +237,35 @@ assertEqual(
   manifest.ponsLaunchFactory,
 );
 assertEqual(
-  "Pons launch forwarder",
-  await read(manifest.ponsLaunchFactory, ponsLaunchFactoryAbi, "launchForwarder"),
+  "Pons project implementation adapter factory binding",
+  await read(manifest.ponsProjectAdapterImplementation, ponsProjectImplementationAbi, "adapterFactory"),
   manifest.ponsProjectAdapterFactory,
+);
+for (const [label, functionName, expected] of [
+  ["Pons project implementation launch factory binding", "launchFactory", manifest.ponsLaunchFactory],
+  [
+    "Pons project implementation fee escrow binding",
+    "feeEscrow",
+    await read(manifest.ponsProjectAdapterFactory, ponsProjectFactoryAbi, "feeEscrow"),
+  ],
+  ["Pons project implementation WETH binding", "weth", manifest.weth],
+  ["Pons project implementation chain binding", "deploymentChainId", BigInt(manifest.chainId)],
+]) {
+  assertEqual(
+    label,
+    await read(manifest.ponsProjectAdapterImplementation, ponsProjectImplementationAbi, functionName),
+    expected,
+  );
+}
+assertEqual(
+  "Pons project adapter factory WETH binding",
+  await read(manifest.ponsProjectAdapterFactory, ponsProjectFactoryAbi, "weth"),
+  manifest.weth,
+);
+assertEqual(
+  "Pons project adapter factory chain binding",
+  await read(manifest.ponsProjectAdapterFactory, ponsProjectFactoryAbi, "deploymentChainId"),
+  BigInt(manifest.chainId),
 );
 assertEqual(
   "Pools LBP registration helper binding",

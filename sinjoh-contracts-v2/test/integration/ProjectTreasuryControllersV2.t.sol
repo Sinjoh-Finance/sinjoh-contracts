@@ -91,7 +91,7 @@ contract ProjectTreasuryControllersV2IntegrationTest is TestBase {
         ProjectTimelockV2 timelock = ProjectTimelockV2(
             payable(vm.deployCode(
                     "ProjectTimelockV2.sol:ProjectTimelockV2",
-                    abi.encode(address(registry), address(token), address(token), config)
+                    abi.encode(address(registry), address(token), address(token), false, config)
                 ))
         );
         ProjectTreasuryVaultV2 multisigVault = _deployVault(address(multisig));

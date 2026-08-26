@@ -6,7 +6,6 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { Time } from "@openzeppelin/contracts/utils/types/Time.sol";
 import { IProjectControlled } from "../interfaces/IProjectControlled.sol";
-import { IProjectTokenIdentity } from "../interfaces/IProjectTokenIdentity.sol";
 import { ProjectIds } from "../libraries/ProjectIds.sol";
 import { SinjohV2Constants } from "../libraries/SinjohV2Constants.sol";
 
@@ -114,13 +113,12 @@ contract ProjectMultisigAccountV2 is IProjectControlled, ERC721Holder, Reentranc
         if (subject_.code.length == 0) revert InvalidSubject(subject_);
 
         bytes32 expectedProjectId = ProjectIds.derive(block.chainid, registry_, subject_);
-        bytes32 actualProjectId = IProjectTokenIdentity(subject_).projectId();
+        (bool declaresIdentity, address subjectRegistry, bytes32 subjectProjectId) =
+            ProjectIds.declaredIdentity(subject_);
         if (
-            IProjectTokenIdentity(subject_).registry() != registry_
-                || actualProjectId != expectedProjectId
-        ) {
-            revert ProjectIdentityMismatch(expectedProjectId, actualProjectId);
-        }
+            declaresIdentity
+                && (subjectRegistry != registry_ || subjectProjectId != expectedProjectId)
+        ) revert ProjectIdentityMismatch(expectedProjectId, subjectProjectId);
 
         address previous;
         for (uint256 i; i < SIGNER_COUNT; ++i) {
@@ -138,11 +136,15 @@ contract ProjectMultisigAccountV2 is IProjectControlled, ERC721Holder, Reentranc
 
         registry = registry_;
         subject = subject_;
-        projectId = actualProjectId;
+        projectId = expectedProjectId;
         controller = address(this);
 
         emit MultisigAccountCreated(
-            actualProjectId, address(this), initialSigners[0], initialSigners[1], initialSigners[2]
+            expectedProjectId,
+            address(this),
+            initialSigners[0],
+            initialSigners[1],
+            initialSigners[2]
         );
     }
 

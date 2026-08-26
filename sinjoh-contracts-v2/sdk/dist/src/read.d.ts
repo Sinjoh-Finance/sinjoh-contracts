@@ -9,6 +9,7 @@ export declare function predictLaunch(client: PublicClient, launcher: Address, c
         fundingBandMarketCapGuard: `0x${string}`;
         fundingBandPositionAdapter: `0x${string}`;
         fundingBands: `0x${string}`;
+        liquidVotes: `0x${string}`;
         liquidityManager: `0x${string}`;
         multisigAccount: `0x${string}`;
         posNft: `0x${string}`;
@@ -36,6 +37,7 @@ export declare function validateLaunchConfig(client: PublicClient, launcher: Add
         fundingBandMarketCapGuard: `0x${string}`;
         fundingBandPositionAdapter: `0x${string}`;
         fundingBands: `0x${string}`;
+        liquidVotes: `0x${string}`;
         liquidityManager: `0x${string}`;
         multisigAccount: `0x${string}`;
         posNft: `0x${string}`;

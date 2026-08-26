@@ -68,16 +68,19 @@ contract SinjohPonsV2LaunchVerifier is ISinjohLaunchVerifier, ISinjohPrelaunchVe
     address public immutable poolManager;
     address public immutable weth;
     bytes32 public immutable sinjohAdapterCodehash;
+    bytes32 public immutable sinjohProjectAdapterCodehash;
 
     constructor(
         address ponsFactory_,
         address memeHook_,
         address weth_,
-        bytes32 sinjohAdapterCodehash_
+        bytes32 sinjohAdapterCodehash_,
+        bytes32 sinjohProjectAdapterCodehash_
     ) {
         if (
             ponsFactory_.code.length == 0 || memeHook_.code.length == 0 || weth_.code.length == 0
                 || sinjohAdapterCodehash_ == bytes32(0)
+                || sinjohProjectAdapterCodehash_ == bytes32(0)
         ) {
             revert InvalidAddress();
         }
@@ -91,6 +94,7 @@ contract SinjohPonsV2LaunchVerifier is ISinjohLaunchVerifier, ISinjohPrelaunchVe
         poolManager = poolManager_;
         weth = weth_;
         sinjohAdapterCodehash = sinjohAdapterCodehash_;
+        sinjohProjectAdapterCodehash = sinjohProjectAdapterCodehash_;
     }
 
     function verify(address subject, bytes calldata launchData)
@@ -112,7 +116,7 @@ contract SinjohPonsV2LaunchVerifier is ISinjohLaunchVerifier, ISinjohPrelaunchVe
 
         address creator = record.deployer;
         if (record.deployer.code.length != 0) {
-            if (record.deployer.codehash != sinjohAdapterCodehash) revert InvalidLaunch();
+            if (!_isApprovedAdapterCodehash(record.deployer.codehash)) revert InvalidLaunch();
             ISinjohPonsV2AdapterView adapter = ISinjohPonsV2AdapterView(record.deployer);
             creator = adapter.creator();
             if (
@@ -176,7 +180,7 @@ contract SinjohPonsV2LaunchVerifier is ISinjohLaunchVerifier, ISinjohPrelaunchVe
             !record.exists || record.token != subject || record.curve.code.length == 0
                 || record.deployer != adapter_ || record.pairToken != address(0)
                 || record.phase != IPonsV2LaunchFactory.GraduationPhase.NotGraduated
-                || adapter_.codehash != sinjohAdapterCodehash
+                || !_isApprovedAdapterCodehash(adapter_.codehash)
         ) revert InvalidLaunch();
 
         ISinjohPonsV2AdapterView adapter = ISinjohPonsV2AdapterView(adapter_);
@@ -197,5 +201,9 @@ contract SinjohPonsV2LaunchVerifier is ISinjohLaunchVerifier, ISinjohPrelaunchVe
         preparation = VerifiedPreparation({
             creatorAtLaunch: creator, subject: subject, launchSupply: launchSupply
         });
+    }
+
+    function _isApprovedAdapterCodehash(bytes32 codehash) private view returns (bool) {
+        return codehash == sinjohAdapterCodehash || codehash == sinjohProjectAdapterCodehash;
     }
 }

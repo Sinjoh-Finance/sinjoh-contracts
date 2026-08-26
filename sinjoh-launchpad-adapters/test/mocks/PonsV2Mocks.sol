@@ -419,7 +419,7 @@ contract MockLaunchFactory {
         MockERC20 launched = new MockERC20(params.name, params.symbol, 18);
         // `deployer` is the caller of launchToken — the adapter — which is what
         // gives it the right to sweep its own curve.
-        MockBondingCurve deployed = new MockBondingCurve(
+        MockBondingCurve deployed = new MockBondingCurve{ salt: params.salt }(
             pairToken, msg.sender, params.creatorFeeRecipient, MockFeeEscrow(feeEscrow)
         );
         deployed.initialize(address(launched));

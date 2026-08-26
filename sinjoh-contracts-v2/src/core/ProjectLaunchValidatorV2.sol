@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { MerkleProof } from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import { AirdropEligibilityMode } from "../airdrop/AirdropTypes.sol";
 import {
@@ -111,6 +112,18 @@ contract ProjectLaunchValidatorV2 {
     ) external view {
         address subject = preview.addresses.subject;
         if (subject.code.length == 0) revert InvalidExternalSubject(subject);
+        if (
+            config.governanceMode == LaunchGovernanceMode.MULTISIG
+                || preview.addresses.voteSource != subject
+        ) {
+            IERC20Metadata metadata = IERC20Metadata(subject);
+            if (
+                metadata.totalSupply() != config.totalSupply
+                    || keccak256(bytes(metadata.name())) != keccak256(bytes(config.name))
+                    || keccak256(bytes(metadata.symbol())) != keccak256(bytes(config.symbol))
+            ) revert InvalidExternalSubject(subject);
+            return;
+        }
         IProjectVotesSubject token = IProjectVotesSubject(subject);
         if (
             token.registry() != registry || token.projectId() != preview.projectId

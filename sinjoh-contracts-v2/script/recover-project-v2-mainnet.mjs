@@ -23,8 +23,7 @@ export const HISTORICAL_GAS_REPLAYS = [
   { action: "guard3000", sent: 2_037_102, required: 2_182_108 },
   { action: "guard10000", sent: 2_037_102, required: 2_182_108 },
   { action: "ponsTokenFactory", sent: 4_939_988, required: 5_049_945 },
-  { action: "launchpadTokenFactory", sent: 4_055_671, required: 4_199_769 },
-  { action: "setPonsForwarder", sent: 42_172, required: 53_315 }
+  { action: "launchpadTokenFactory", sent: 4_055_671, required: 4_199_769 }
 ];
 // Both approved providers replayed the failed CREATEs to the final RETURN and agreed on these
 // code-deposit floors and fresh estimates made with the former 160% setting. Scaling those
@@ -100,7 +99,6 @@ const createActions = [
 
 const callActions = [
   ["bindPons", "bindPonsProjectV2()", "PONS_PROJECT_ADAPTER_FACTORY"],
-  ["setPonsForwarder", "setPonsLaunchForwarder()", "PONS_LAUNCH_FACTORY"],
   ["bindPoolsInstant", "bindPoolsInstantProjectV2()", "POOLS_INSTANT_PROJECT_ADAPTER_FACTORY"],
   ["bindPoolsInstantNoFee", "bindPoolsInstantNoFeeProjectV2()", "POOLS_INSTANT_NO_FEE_PROJECT_ADAPTER_FACTORY"],
   ["bindPoolsLbp", "bindPoolsLbpProjectV2()", "POOLS_LBP_PROJECT_ADAPTER_FACTORY"]
@@ -350,7 +348,6 @@ function stateEnvironment(plan, baseline, environmentInput = process.env) {
     PONS_POOL_MANAGER: "0x8366a39CC670B4001A1121B8F6A443A643e40951",
     PONS_POOL_MANAGER_RUNTIME_HASH: "0xbd3881180b547f5fe817545743cfb4343e96b1bc6640dcd70c106b0066e95626"
   });
-  environment.BASELINE_PONS_LAUNCH_FORWARDER = baseline.ponsProjectAdapterFactory;
   return environment;
 }
 
@@ -447,13 +444,6 @@ function assertOwnershipAndBindingProgress(primary, secondary, environment, stat
         throw new Error(`${address}: binding state is inconsistent with the recovery journal`);
       }
     }
-  }
-  const expectedForwarder = state.actions.setPonsForwarder
-    ? environment.PONS_PROJECT_ADAPTER_FACTORY
-    : environment.BASELINE_PONS_LAUNCH_FORWARDER;
-  if (dualCall(primary, secondary, environment.PONS_LAUNCH_FACTORY, "launchForwarder()(address)")
-      .toLowerCase() !== expectedForwarder.toLowerCase()) {
-    throw new Error("Pons launch forwarder state is inconsistent with the recovery journal");
   }
 }
 
@@ -668,11 +658,6 @@ function expectedCallData(action, environment) {
       environment.PONS_PROJECT_ADAPTER_IMPLEMENTATION
     ]);
   }
-  if (action.id === "setPonsForwarder") {
-    return run("cast", [
-      "calldata", "setLaunchForwarder(address)", environment.PONS_PROJECT_ADAPTER_FACTORY
-    ]);
-  }
   if (action.id === "bindPoolsLbp") {
     return run("cast", [
       "calldata", "bindProjectV2(address,address,address,address)",
@@ -699,11 +684,6 @@ function verifyCallState(primary, secondary, action, environment) {
         throw new Error(`${action.id}: post-state mismatch`);
       }
     });
-  } else if (action.id === "setPonsForwarder") {
-    if (dualCall(primary, secondary, environment.PONS_LAUNCH_FACTORY, "launchForwarder()(address)").toLowerCase()
-        !== environment.PONS_PROJECT_ADAPTER_FACTORY.toLowerCase()) {
-      throw new Error(`${action.id}: post-state mismatch`);
-    }
   } else {
     const target = environment[action.targetEnvironment];
     const expected = [launcher, registry, launchpadFactory];
@@ -1251,7 +1231,6 @@ export function runRecovery(overrides = {}) {
         "script", scriptTarget,
         "--sig", action.signature,
         "--sender", DEPLOYER,
-        "--rpc-url", primary,
         "--gas-estimate-multiplier", String(RECOVERY_GAS_ESTIMATE_MULTIPLIER)
       ],
       { env: environment }
@@ -1287,7 +1266,6 @@ export function runRecovery(overrides = {}) {
         "--sig", action.signature,
         "--sender", DEPLOYER,
         ...signerArguments,
-        "--rpc-url", primary,
         "--broadcast",
         "--slow",
         "--gas-estimate-multiplier", String(RECOVERY_GAS_ESTIMATE_MULTIPLIER)

@@ -5,13 +5,23 @@ script = "script"
 out = "out"
 cache_path = "cache"
 libs = ["../sinjoh-treasury-vault/lib"]
-allow_paths = ["../sinjoh-liquidity-manager/lib"]
+allow_paths = [
+    "../sinjoh-liquidity-manager/lib",
+    "../sinjoh-funding-bands",
+    "../sinjoh-launchpad-adapters",
+    "../sinjoh-fee-router",
+]
 remappings = [
+    "@sinjoh-v2/=src/",
     "@openzeppelin/contracts/=../sinjoh-treasury-vault/lib/openzeppelin-contracts/contracts/",
     "@uniswap/v3-core/=../sinjoh-liquidity-manager/lib/v3-core/",
+    "@uniswap/v3-periphery/=../sinjoh-liquidity-manager/lib/v3-periphery/",
     "@uniswap/v4-core/=../sinjoh-liquidity-manager/lib/v4-periphery/lib/v4-core/",
     "@uniswap/v4-periphery/=../sinjoh-liquidity-manager/lib/v4-periphery/",
     "permit2/=../sinjoh-liquidity-manager/lib/v4-periphery/lib/permit2/",
+    "sinjoh-funding-bands/=../sinjoh-funding-bands/",
+    "sinjoh-launchpad-adapters/=../sinjoh-launchpad-adapters/",
+    "sinjoh-fee-router/=../sinjoh-fee-router/",
 ]
 solc_version = "0.8.28"
 evm_version = "cancun"
