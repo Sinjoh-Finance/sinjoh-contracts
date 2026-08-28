@@ -1,0 +1,120 @@
+{
+  "schemaVersion": "1.0",
+  "run": {
+    "id": "20260827-215719",
+    "date": "2026-08-27",
+    "requirements": "YIELD-VAULTS.md"
+  },
+  "summary": {
+    "building": "A 3000-piece bearer NFT collection with an isolated treasury per token and pooled Delta LP strategy shares.",
+    "verdict": "blocked",
+    "topRisk": "Stock Token eligibility and securities restrictions conflict with unrestricted bearer-NFT transfers.",
+    "mustDecideFirst": "Use counsel-approved eligibility checks at mint, transfer, and redemption, or remove Stock Tokens.",
+    "watchOutFor": "Most published Delta stake, farm, zap, and manager contracts lack verified public source and complete ABI material."
+  },
+  "components": [
+    {
+      "name": "Delta Liquidity",
+      "type": "Other",
+      "version": "unversioned",
+      "sourceUrl": "https://deltaliquidity.app/docs",
+      "status": "fresh",
+      "risks": [
+        {"severity": "critical", "title": "Core contracts are not source-verified", "detail": "Stake, farm, zap, oracle, and manager custody and upgrade behavior cannot be independently reviewed from published source."},
+        {"severity": "high", "title": "Rewards are not automatically compounded", "detail": "Seven-day streaming and manual claiming require explicit NAV and exit accounting."},
+        {"severity": "high", "title": "Direct per-NFT positions do not scale", "detail": "Maintaining up to 3000 separate ranges creates excessive keeper and gas overhead."},
+        {"severity": "medium", "title": "Range and inventory risk", "detail": "Out-of-range positions stop earning fees and become one-sided."}
+      ]
+    },
+    {
+      "name": "Robinhood Chain",
+      "type": "Blockchain",
+      "version": "unversioned; chain ID 4663",
+      "sourceUrl": "https://docs.robinhood.com/chain/",
+      "status": "fresh",
+      "risks": [
+        {"severity": "high", "title": "Public infrastructure is not production-grade", "detail": "The public RPC is rate limited and not recommended for production."},
+        {"severity": "medium", "title": "L2 governance and validator dependency", "detail": "Security Council and validator operation are external trust assumptions."},
+        {"severity": "medium", "title": "Brand misuse can block launch", "detail": "Robinhood marks cannot appear in NFT art, metadata, or contract attributes."}
+      ]
+    },
+    {
+      "name": "Robinhood Stock Tokens and API",
+      "type": "API",
+      "version": "unversioned",
+      "sourceUrl": "https://docs.robinhood.com/chain/stock-tokens/",
+      "status": "fresh",
+      "risks": [
+        {"severity": "critical", "title": "Jurisdiction and securities restrictions", "detail": "An unrestricted NFT wrapper can bypass restrictions on the underlying Stock Tokens."},
+        {"severity": "high", "title": "Multiplier double-counting", "detail": "Mixing adjusted onchain feeds with REST prices and uiMultiplier can silently corrupt NAV."},
+        {"severity": "high", "title": "24/5 and corporate-action pauses", "detail": "Price-dependent operations must stop when feeds are stale or paused."},
+        {"severity": "medium", "title": "Issuer and instrument risk", "detail": "The tokens are issuer debt securities, not direct shareholder rights."}
+      ]
+    },
+    {
+      "name": "Chainlink Data Feeds",
+      "type": "Other",
+      "version": "unversioned",
+      "sourceUrl": "https://docs.robinhood.com/chain/oracles-and-price-feeds/",
+      "status": "fresh",
+      "risks": [
+        {"severity": "high", "title": "Missing sequencer-feed address", "detail": "Robinhood recommends an uptime check but no official Robinhood Chain Chainlink feed address was found."},
+        {"severity": "high", "title": "Stale-price misuse", "detail": "A last 24/5 answer must not be treated as a live weekend price."}
+      ]
+    },
+    {
+      "name": "Uniswap v3 and v4",
+      "type": "Other",
+      "version": "v3 unversioned; v4 core 1.0.2",
+      "sourceUrl": "https://docs.uniswap.org/concepts/protocol/concentrated-liquidity",
+      "status": "fresh",
+      "risks": [
+        {"severity": "high", "title": "Slippage and range manipulation", "detail": "Weak minimums, deadlines, or price checks expose deposits and rebalances."},
+        {"severity": "medium", "title": "Position-NFT custody", "detail": "Token IDs and lifecycle approvals must remain recoverable and auditable."},
+        {"severity": "medium", "title": "Out-of-range drift", "detail": "Positions may stop earning and become concentrated in one asset."}
+      ]
+    },
+    {
+      "name": "ERC-4626",
+      "type": "Other",
+      "version": "EIP-4626",
+      "sourceUrl": "https://eips.ethereum.org/EIPS/eip-4626",
+      "status": "fresh",
+      "risks": [
+        {"severity": "high", "title": "Multi-asset semantic mismatch", "detail": "A two-asset LP is not a native single-asset ERC-4626 vault."},
+        {"severity": "high", "title": "Inflation and donation attacks", "detail": "Unprotected initial share accounting can dilute subsequent deposits."}
+      ]
+    },
+    {
+      "name": "OpenZeppelin Contracts",
+      "type": "SDK",
+      "version": "5.6.1",
+      "sourceUrl": "https://github.com/OpenZeppelin/openzeppelin-contracts/releases/tag/v5.6.1",
+      "status": "fresh",
+      "risks": [
+        {"severity": "medium", "title": "Clone initialization or salt mistakes", "detail": "A bad initializer or ambiguous salt can compromise treasury ownership."},
+        {"severity": "low", "title": "Custom hook risk", "detail": "Transfer eligibility and exit locks require complete lifecycle tests."}
+      ]
+    }
+  ],
+  "riskTotals": {"critical": 2, "high": 10, "medium": 7, "low": 1},
+  "preCodingDecisions": [
+    {"title": "Eligibility model", "detail": "Counsel-approved transfer and redemption gating or removal of Stock Tokens.", "immutable": true},
+    {"title": "Initial asset manifest", "detail": "Pin verified Stock Tokens, feeds, Delta pools, routers, and risk limits.", "immutable": true},
+    {"title": "Delta integration boundary", "detail": "Obtain reviewable source and ABI material or constrain v1 to the verified v3 builder.", "immutable": false},
+    {"title": "Strategy share interface", "detail": "Define single-asset accounting plus explicit in-kind two-asset exit.", "immutable": true},
+    {"title": "Oracle circuit breaker", "detail": "Confirm sequencer health source or implement an approved alternative.", "immutable": false}
+  ],
+  "requirementsCorrections": [
+    {"kind": "wrong_assumption", "detail": "Stock Tokens are issuer debt securities, not direct ownership of shares."},
+    {"kind": "wrong_assumption", "detail": "Delta does not currently auto-compound and withdrawals return both assets."},
+    {"kind": "missing_constraint", "detail": "Eligibility must be enforced at mint, transfer, and redemption."},
+    {"kind": "underspecified", "detail": "Use pooled Delta strategy shares rather than 3000 default direct LP positions."},
+    {"kind": "immutable_choice", "detail": "Last-NFT behavior, exit tax, fee splits, and the initial asset manifest must be fixed at launch."}
+  ],
+  "openQuestions": [
+    "Unresolvable from public sources: the verified source, complete ABI, and upgrade controls for Delta stake/farm/zap/manager contracts.",
+    "Unresolvable from public sources: an official Chainlink sequencer-uptime feed address for Robinhood Chain.",
+    "Requires product counsel rather than public documentation: the exact eligible-jurisdiction and transfer policy for this NFT wrapper."
+  ]
+}
