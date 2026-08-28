@@ -17,7 +17,7 @@ Every statement in this plan is classified as one of:
 - **Conditional:** technically feasible only after the named dependency is verified.
 - **Blocked:** implementation or production release cannot proceed until the named evidence or authority exists.
 
-The development team must stop at **Gate 0** if a decision changes economics, ownership, redemption, regulated-asset eligibility, or third-party integration behavior. Engineers may build isolated mocks and generic primitives before those decisions, but must not encode an unapproved choice into production contracts.
+The development team must stop at **Gate 0** if a decision changes economics, ownership, redemption, or third-party integration behavior. Engineers may build isolated mocks and generic primitives before those decisions, but must not encode an unapproved choice into production contracts.
 
 ## 2. Confirmed product requirements
 
@@ -28,15 +28,16 @@ The following requirements are confirmed from the product discussion:
 3. NFT treasuries can have exposure to:
    - Stock Tokens;
    - liquidity positions on Delta; and
-   - a USDG sleeve that can later use approved lending strategies.
+   - a USDG sleeve that deploys capital into configured lending strategies.
 4. The protocol must support adding new strategy implementations in the future without replacing the NFT collection.
 5. The architecture must keep three understandable portfolio categories:
    - Core Stock Token sleeve;
    - Market-Making sleeve using Delta strategy adapters; and
-   - USDG Yield sleeve supporting idle USDG, lending adapters, and later approved strategies.
-6. Each token ID must remain associated with its own treasury. The exact owner-control, operator, transfer, and redemption rules are intentionally left open under D4, D5, D13, and D15.
+   - USDG Yield sleeve supporting lending adapters and future configured strategies.
+6. Each token ID must remain associated with its own treasury. The exact owner-control, operator, transfer, and redemption rules are intentionally left open under D4, D13, and D15.
+7. Redemption charges exactly **5% of every asset redeemed** while more than one NFT remains. The charge is redistributed in kind to the remaining live NFTs. The final NFT is exempt and receives the remaining distributor dust.
 
-Everything else—including price, fee percentages, allocation weights, royalty behavior, sale mechanics, redemption outputs, governance membership, asset selections, and launch protocols—remains subject to an explicit decision below.
+Everything else—including mint price, primary-sale percentages, allocation weights, royalty behavior, sale mechanics, redemption outputs, governance membership, asset selections, and launch protocols—remains subject to an explicit decision below.
 
 `YIELD-VAULTS-BLUEPRINT.md` labels several of those recommendations “settled.” That label records the prior architecture proposal; it is not evidence of explicit product-owner approval. Because this plan was requested without feature assumptions, those choices remain open until the decision log records approval.
 
@@ -46,18 +47,17 @@ Everything else—including price, fee percentages, allocation weights, royalty 
 |---|---|---|---|
 | 3,000 isolated NFT accounts | Verified | Deterministic minimal-proxy accounts and per-token accounting are standard EVM patterns; existing Sinjoh V2 uses deterministic clones | Build one deterministic account per token ID; do not deploy 3,000 full strategy stacks |
 | Per-NFT economic isolation at scale | Verified with architecture condition | Holding shares in three collection sleeves avoids 3,000 copies of every external position | Each account owns sleeve shares; sleeves own external assets |
-| Bearer-style ownership transfer | Verified with policy condition | ERC-721 ownership can control the account, but regulated Stock Token eligibility may constrain transfers | Transfer hook must pass eligibility policy or the Stock Token sleeve must be excluded |
+| Bearer-style ownership transfer | Verified | Current ERC-721 ownership controls the token account and transfers the complete economic claim | Use normal ERC-721 transfer semantics with no additional protocol transfer registry |
 | Equal distributions to live NFTs | Verified | Accumulator accounting avoids looping over all NFTs | Use a high-precision per-live-NFT accumulator and per-account debt checkpoints |
-| Delta v3 LP creation | Conditional | Verified builder contract exists, but the complete stake/farm/zap/manager path has not been verified | V1 adapter may use verified builder plus canonical Uniswap v3 lifecycle only; no unverified Delta component |
-| Delta fee harvesting | Conditional | Delta documentation describes fees, WETH streaming, claim fee, and withdrawal behavior | Encode behavior only after ABI/source/fork tests reproduce it |
-| Stock Token custody and transfer | Blocked for production | Stock Tokens are issuer debt securities with access and jurisdiction constraints | Legal/eligibility policy and exact token manifest are release blockers |
+| Delta v3 LP and staking lifecycle | Conditional | The builder is verified, but the exact stake/farm/zap/manager interfaces still need to be resolved | Full LP fees and staking/reward support are required scope; implementation starts by obtaining exact contracts, ABIs, and fork behavior |
+| Delta fee and reward harvesting | Conditional | Delta documentation describes fees, WETH streaming, claim fee, and withdrawal behavior | Implement and test trading fees, staking rewards, streaming, and withdrawal as one complete integration |
+| Stock Token custody and transfer | Conditional | Exact Stock Token contracts and token-level transfer behavior have not been selected | Use the signed asset manifest and propagate the actual token contract behavior without adding another transfer gate |
 | Stock Token valuation | Conditional | Official price feeds are available, but feed addresses and the Robinhood Chain sequencer feed must be selected and verified | PriceHub cannot be finalized before the signed asset/feed manifest |
-| USDG idle reserve | Verified | USDG is an ERC-20 on Robinhood Chain | Initial adapter can hold idle USDG after token behavior is verified on a pinned fork |
-| USDG lending | Conditional | No lending venue has been selected | Generic ERC-4626 support is feasible only for a selected, compatible, reviewed venue |
+| USDG lending | Conditional | No lending venue has been selected | Select the production lending venue and implement its exact deposit, yield, withdrawal, loss, and receipt-token behavior |
 | Future strategies | Verified with governance condition | Immutable, allowlisted adapters can be added through a registry and timelock | No arbitrary calls or `delegatecall`; every new adapter is a separate reviewed version |
 | Atomic NFT redemption | Verified if output is sleeve shares | External protocols can pause or revert, so atomic underlying unwinds are not dependable | Recommended burn transfers sleeve shares; optional unwinding is a separate user action |
 | Existing Sinjoh V2 revenue routing | Blocked pending design choice | Current router restricts sinks to registered same-project modules | Select a successor router/module or a purpose-built source bridge; do not bypass identity checks |
-| Production launch | Blocked | Legal policy, exact asset/feed/pool manifests, an idle-only or selected-lending decision, verified Delta lifecycle, production infrastructure, audit, and launch authority are unresolved | Local/testnet work can proceed; mainnet cannot |
+| Production launch | Blocked | Exact asset/feed/pool/lending manifests, the complete Delta lifecycle, production infrastructure, audit, and launch authority are unresolved | Local/testnet work can proceed; mainnet cannot |
 
 Authoritative references used by the research pass:
 
@@ -87,25 +87,24 @@ The recommendations below are architecture proposals, not approved features.
 | D2 | Initial sleeve allocation | Set Stock/Delta/USDG percentages | Treat illustrated `50% / 35% / 15%` as a proposal; approve exact bounds and rounding | Sale settlement, rebalancing, metadata |
 | D3 | Sale model | Fixed price all-or-refund, rolling mint, auction, allowlist phases | Fixed-price escrow with exact-3,000 success and full refund on failure | SaleEscrow state machine |
 | D4 | Redemption output | Underlying assets, sleeve shares, or asynchronous unwind | Atomic burn for sleeve shares; optional separate unwind | NFT burn, account, sleeve interfaces |
-| D5 | Stock Token eligibility | Gate mint/transfer/redemption, restrict only the sleeve, or remove Stock Tokens | Obtain counsel-approved onchain policy before coding production transfer rules | NFT transfer and Stock sleeve |
+| D5 | Stock Token contract behavior | Record the selected tokens' actual transfer, pause, freeze, and return-value behavior | Propagate the underlying token result without adding a separate protocol transfer gate | Asset manifest and fork tests |
 | D6 | Asset manifest | Exact three Stock Tokens, pools, fees, tick ranges, feeds, decimals, trading calendars | Versioned signed manifest; no contract literals outside the manifest | PriceHub and external adapters |
 | D7 | Package placement | Add to `sinjoh-contracts-v2` or create `sinjoh-yield-vaults` | New Foundry package for an independent audit/release lifecycle; reuse libraries, not storage | Repository scaffolding and CI |
 | D8 | Existing project revenue path | Successor router action/module or direct authenticated bridge | New explicit router action/module with invariant-preserving destination registration | RevenueRouter integration |
-| D9 | USDG lending venue | Select one protocol/vault or launch idle-only | Launch idle-only unless a venue passes code, liquidity, withdrawal, and legal review | Lending adapter and mainnet allocation |
+| D9 | USDG lending venue | Select the exact production protocol/vault | Deploy the USDG allocation into the selected lending venue at launch; any temporarily uninvested USDG is transaction liquidity, not the strategy | Lending adapter and mainnet allocation |
 | D10 | Governance composition | Multisig members, quorum, timelock, guardian, emergency powers | Separate delayed governance from narrow pause-only guardian | Registry, timelock, runbook |
 | D11 | Royalties and ongoing fees | None or exact percentages, recipients, and sunset rules | Specify separately from protocol yield; never rely on royalties for solvency | Revenue router and marketplace metadata |
 | D12 | Dynamic artwork | Static metadata, live NAV/yield traits, or hybrid | Launch static base art plus verifiable read-only portfolio traits | Metadata/indexer/UI scope |
 | D13 | Bound-token burn | Disable bound-token burn, unwrap before burn, or support pro-rata bound claims | Disable burn while non-transferable/unclaimable assets exist | Redemption safety |
 | D14 | Launch and canary policy | Allocation caps, loss limits, observation window, escalation authority | Per-adapter and collection caps with staged enablement and exit-only state | Release and operations |
-| D15 | NFT ownership and control | Bearer claim follows ERC-721 ownership, restricted transfer, or separate beneficial-owner registry | Bearer claim controlled by current ERC-721 owner, subject to D5 eligibility; operators may transfer the NFT but cannot execute treasury actions unless separately authorized | NFT/account authority, approvals, transfer hooks |
-| D16 | Redemption charge | No charge, fixed percentage, tiered/time-based charge, or expense-only cost recovery | Do not encode the illustrated `3%` until its rate, base, recipients, exemptions, and disclosures are approved | Burn accounting, tests, UI, disclosures |
+| D15 | NFT ownership and control | Bearer claim follows ERC-721 ownership or uses separate treasury-operation approvals | Bearer claim controlled by current ERC-721 owner; operators may transfer the NFT but cannot execute treasury actions unless separately authorized | NFT/account authority and approvals |
+| D16 | Redemption charge | **Closed by product owner:** 5% in-kind redistribution | Charge 5% of each redeemed asset when another live NFT remains; final NFT is exempt and receives remaining dust | Fixed requirement for burn accounting, tests, and UI |
 
 ### Gate 0 exit criteria
 
 Gate 0 passes only when:
 
 - D1–D16 have dated decisions and named approvers in `docs/yield-vaults/decision-log.md`;
-- counsel has supplied the Stock Token eligibility and disclosure requirements, or D5 removes the Stock Token sleeve from launch;
 - the product owner has approved the complete fund-flow diagram and every fee recipient;
 - the team has chosen the package/repository and integration ownership boundaries;
 - no unresolved decision can change storage layout, ownership, redemption, or sale accounting; and
@@ -142,7 +141,7 @@ This separates four concerns:
 1. **Ownership:** the NFT owner controls the token account's allowed lifecycle actions.
 2. **Accounting:** the account holds independently measurable sleeve shares.
 3. **Execution:** collection sleeves and adapters interact with external protocols.
-4. **Governance:** registries and a timelock approve bounded strategies; a guardian can only reduce risk.
+4. **Governance:** a timelock queues configuration changes before they execute, preventing an administrator from changing strategy targets or limits instantly. A separate guardian is an emergency brake: it may stop new deposits or rebalances, but it cannot withdraw treasury assets, change recipients, or activate a strategy. Holder transfers, claims, and redemption remain available under their normal rules.
 
 The system must not use a loop across 3,000 NFTs for revenue allocation, strategy operation, transfer, or redemption.
 
@@ -157,7 +156,7 @@ Sizes are review scope, not calendar estimates:
 - **L:** cross-contract or cross-repository behavior requiring integration tests.
 - **XL:** economic/security subsystem requiring a dedicated threat model and audit attention.
 
-No schedule is asserted. Calendar planning requires team composition, reviewer availability, audit vendor capacity, legal response time, and external protocol access. The delivery lead must estimate dates only after those inputs are named.
+No schedule is asserted. Calendar planning requires team composition, reviewer availability, audit vendor capacity, and external protocol access. The delivery lead must estimate dates only after those inputs are named.
 
 ### 6.2 Required roles
 
@@ -170,8 +169,7 @@ No schedule is asserted. Calendar planning requires team composition, reviewer a
 | Security lead | Threat model, test strategy, audit readiness, incident controls |
 | SDK/release engineer | ABIs, typed clients, manifests, bytecode/provenance checks |
 | Platform engineer | Keeper, indexer, API, alerting, data reconciliation |
-| Frontend engineer | Sale, portfolio, claims, redemption, eligibility UX |
-| Legal/compliance owner | Eligibility policy, disclosures, securities/jurisdiction review |
+| Frontend engineer | Sale, portfolio, claims, transfer, and redemption UX |
 | Operations authority | Multisig, timelock, guardian, deployment and incident runbooks |
 
 One person may hold multiple roles, but every approval must identify the role exercised.
@@ -189,7 +187,7 @@ G0 Decision and feasibility freeze
  │                                              │               │
  │                                              └─────── C4 Revenue/ops
  │
- └── S0 Strategy lifecycle ── S1 Price/eligibility ── S2 Base sleeve
+ └── S0 Strategy lifecycle ── S1 Price/market state ── S2 Base sleeve
                                       │                    │
                                       ├──── S3 Stock ──────┤
                                       ├──── S4 USDG ───────┤
@@ -219,7 +217,7 @@ Parallelism rules:
 
 ## 8. Work breakdown
 
-### G0 — Product, legal, and external-integration freeze (XL)
+### G0 — Product and external-integration freeze (XL)
 
 **Objective:** Convert every open choice and external dependency into approved, testable input.
 
@@ -229,19 +227,18 @@ Parallelism rules:
 
 - G0.1 Create the decision log for D1–D16 with owner, options, recommendation, evidence, decision, approver, and date.
 - G0.2 Create one audited fund-flow ledger covering mint, refund, settlement, revenue, claim, strategy deposit, harvest, transfer, burn, tax, and post-burn unwrap.
-- G0.3 Obtain written legal requirements for Stock Token eligibility, transfer, custody, redemption, disclosures, and territorial restrictions.
-- G0.4 Produce the asset/feed/pool manifest with complete addresses, chain IDs, decimals, token behavior, code hashes, sources, and approvers.
-- G0.5 Produce Delta integration evidence for every method and address the adapter will call.
-- G0.6 Select a lending venue or explicitly approve idle-only USDG for launch.
-- G0.7 Approve governance signers, quorum, timelock delay, guardian limits, and key custody procedure.
+- G0.3 Produce the asset/feed/pool/lending manifest with complete addresses, chain IDs, decimals, token behavior, code hashes, sources, and approvers.
+- G0.4 Produce Delta integration evidence for every method and address the adapter will call, including staking, reward claiming, streaming, and exit.
+- G0.5 Select the production USDG lending venue and record its exact deposit, yield, receipt-token, withdrawal, and loss semantics.
+- G0.6 Approve governance signers, quorum, timelock delay, guardian limits, and key custody procedure.
 
-**Deliverables:** `docs/yield-vaults/decision-log.md`, `fund-flow-ledger.md`, `legal-requirements.md`, `asset-manifest.json`, `integration-evidence/`, and `governance-policy.md`.
+**Deliverables:** `docs/yield-vaults/decision-log.md`, `fund-flow-ledger.md`, `asset-manifest.json`, `integration-evidence/`, and `governance-policy.md`.
 
 **Exit gate:** All Gate 0 criteria pass; manifest validation rejects incomplete or duplicate entries; security signs off on trust assumptions.
 
 **Rollback:** No production code has been deployed. Reopen decisions and invalidate dependent design approvals.
 
-**Feasibility:** Conditional; legal and third-party evidence are external blockers.
+**Feasibility:** Conditional; exact third-party contracts and integration evidence are external blockers.
 
 ### F0 — Repository, package, and CI foundation (M)
 
@@ -337,24 +334,24 @@ Parallelism rules:
 
 **Objective:** Bind each token ID to one deterministic economic account controlled by current NFT ownership.
 
-**Dependencies:** F2, C1, S1, D4, D5, D13, D15, D16.
+**Dependencies:** F2, C1, D4, D13, D15, D16.
 
 **Work packages:**
 
 - C2.1 Implement the capped ERC-721 collection and immutable token-ID-to-account derivation.
 - C2.2 Implement `YieldVaultAccount` with only approved claim, deposit, redemption, and recovery actions; no generic executor.
 - C2.3 Resolve authority dynamically from current NFT ownership so transfer moves control without moving every sleeve share.
-- C2.4 Apply eligibility policy at every legally required boundary.
+- C2.4 Use standard ERC-721 transfer semantics without a separate transfer registry or attestation service.
 - C2.5 Specify approval/operator behavior and prevent marketplace approvals from becoming arbitrary treasury execution authority.
 - C2.6 Implement burn lifecycle and permanent consumed-token protection.
 
-**Deliverables:** NFT, account implementation/factory, ownership-policy tests, account address prediction in SDK fixtures.
+**Deliverables:** NFT, account implementation/factory, ownership and operator tests, account address prediction in SDK fixtures.
 
-**Exit gate:** Former owners lose control in the same transaction as transfer; account address is stable; no one can mint above 3,000 or reuse a burned token ID; every ownership boundary satisfies the approved policy.
+**Exit gate:** Former owners lose control in the same transaction as transfer; account address is stable; no one can mint above 3,000 or reuse a burned token ID; transfers do not call a separate registry or attestation service.
 
 **Rollback:** Pause mint/transfer where authorized; core ownership contracts are immutable, so defects require a new collection version rather than hidden migration.
 
-**Feasibility:** Conditional on D5; otherwise verified.
+**Feasibility:** Verified.
 
 ### C3 — Equal-per-live-NFT distribution accounting (XL)
 
@@ -423,11 +420,11 @@ Parallelism rules:
 
 **Feasibility:** Verified.
 
-### S1 — PriceHub, market state, and eligibility policy (XL)
+### S1 — PriceHub and market state (XL)
 
-**Objective:** Centralize asset valuation and regulated-access decisions without treating an oracle price as execution truth.
+**Objective:** Centralize asset valuation and market-state decisions without treating an oracle price as execution truth.
 
-**Dependencies:** F1, G0.3, G0.4.
+**Dependencies:** F1, G0.3.
 
 **Work packages:**
 
@@ -435,16 +432,15 @@ Parallelism rules:
 - S1.2 Record feed decimals, heartbeat/staleness, multiplier semantics, market hours, and fallback behavior in the manifest.
 - S1.3 Prevent mixing raw REST prices with adjusted onchain feeds or applying multipliers twice.
 - S1.4 Implement stale, invalid, negative, zero, and sequencer-grace-period rejection.
-- S1.5 Implement the counsel-approved eligibility policy as a replaceable policy version only if replacement semantics are approved.
-- S1.6 Keep valuation separate from swap slippage checks and realized settlement accounting.
+- S1.5 Keep valuation separate from swap slippage checks and realized settlement accounting.
 
-**Deliverables:** `PriceHub`, feed adapters, eligibility policy, oracle simulation fixtures, signed feed manifest.
+**Deliverables:** `PriceHub`, feed adapters, oracle simulation fixtures, signed feed manifest.
 
 **Exit gate:** All approved feeds reproduce official examples; stale/down/closed-market conditions trigger specified behavior; no unapproved fallback can authorize a trade or transfer.
 
 **Rollback:** Pause valuations and new allocations; existing shares remain redeemable according to the approved safe path.
 
-**Feasibility:** Blocked for production until feed addresses, sequencer feed, and legal policy are supplied.
+**Feasibility:** Blocked for production until feed addresses and the sequencer-health source are supplied.
 
 ### S2 — Base sleeve and share accounting (XL)
 
@@ -471,9 +467,9 @@ Parallelism rules:
 
 ### S3 — Core Stock Token sleeve (XL)
 
-**Objective:** Hold and rebalance the approved Stock Token basket under eligibility and oracle controls.
+**Objective:** Hold and rebalance the configured Stock Token basket under oracle and market controls.
 
-**Dependencies:** S1, S2, D5, D6.
+**Dependencies:** S1, S2, D6.
 
 **Work packages:**
 
@@ -485,52 +481,52 @@ Parallelism rules:
 
 **Deliverables:** `CoreStockTokenSleeve`, asset adapters if required, fork tests, asset risk sheets.
 
-**Exit gate:** Exact selected assets pass behavior tests; an ineligible account cannot enter a prohibited state; stale/closed/down feeds stop risk-increasing actions; a frozen token cannot freeze NFT burn when D4 uses sleeve shares.
+**Exit gate:** Exact selected assets pass behavior tests; stale/closed/down feeds stop risk-increasing actions; native token transfer failures are surfaced without adding another transfer gate; a frozen token cannot freeze NFT burn when D4 uses sleeve shares.
 
-**Rollback:** Stop purchases/rebalances, retain or unwind assets according to legal and liquidity rules, and expose status in UI.
+**Rollback:** Stop purchases/rebalances, retain or unwind assets according to liquidity and token-contract behavior, and expose status in UI.
 
-**Feasibility:** Blocked for production until D5 and D6 are resolved.
+**Feasibility:** Blocked for production until D6 is resolved and the selected contracts pass fork integration tests.
 
 ### S4 — USDG Yield sleeve and lending adapters (L/XL)
 
-**Objective:** Hold USDG safely and adopt reviewed lending strategies through bounded adapters.
+**Objective:** Deploy USDG into configured lending strategies through bounded adapters.
 
 **Dependencies:** S0, S2, D9.
 
 **Work packages:**
 
-- S4.1 Implement `USDGYieldSleeve` and `IdleUSDGAdapter` first.
+- S4.1 Implement `USDGYieldSleeve` and the selected production lending adapter. Plain USDG balances are transient transaction liquidity, not the launch strategy.
 - S4.2 Verify USDG transfer semantics, decimals, pause/blacklist behavior, and liquidity on a pinned fork.
-- S4.3 If a venue is approved, implement one venue-specific immutable adapter; use generic ERC-4626 behavior only when the selected vault conforms in tests.
+- S4.3 Implement the venue's exact immutable adapter; use generic ERC-4626 behavior only if the selected vault actually conforms in integration tests.
 - S4.4 Test deposit/redeem limits, liquidity shortfall, loss, fees, share inflation, pause, and emergency withdrawal.
-- S4.5 Add allocation caps and an idle reserve floor.
+- S4.5 Add the configured allocation and transaction-liquidity behavior without promising principal protection or active lender management.
 
-**Deliverables:** USDG sleeve, idle adapter, optional selected lending adapter, venue risk sheet.
+**Deliverables:** USDG sleeve, selected lending adapter, integration fixtures, and documented venue semantics.
 
-**Exit gate:** Idle mode works independently; lending failures cannot block sleeve-share transfer; actual balance changes match accounting; venue impairment is reflected rather than reverted away or hidden.
+**Exit gate:** USDG is deposited into the selected lending venue; yield and receipt tokens reconcile to sleeve value; lending failures cannot block sleeve-share transfer; venue impairment is reflected rather than reverted away or hidden.
 
-**Rollback:** Set lending adapter exit-only, withdraw as liquidity permits, and route new deposits to idle USDG.
+**Rollback:** Stop new deposits into the affected adapter and preserve holder claims while withdrawals execute according to the venue's actual liquidity rules.
 
-**Feasibility:** Idle adapter verified; lending conditional on D9 and venue evidence.
+**Feasibility:** Conditional on D9 and the selected venue's exact integration behavior.
 
 ### S5 — Delta market-making sleeve and adapter (XL)
 
-**Objective:** Create, manage, harvest, and exit only verified Delta-compatible v3 LP positions.
+**Objective:** Create, stake, manage, harvest rewards from, and exit Delta-compatible v3 LP positions.
 
-**Dependencies:** S0, S1, S2, D6, G0.5.
+**Dependencies:** S0, S1, S2, D6, G0.4.
 
 **Work packages:**
 
-- S5.1 Freeze the exact integration path and prove every called contract/address from official source or verified bytecode.
-- S5.2 Implement `DeltaV3StrategyAdapter` around the verified Delta v3 builder at `0x6235cF6bd8419b34942F4EDDB39C880BD96dD700` plus the canonical verified position lifecycle.
+- S5.1 Resolve and record every Delta contract, address, ABI, custody transition, and method used for LP creation, staking, reward claims, streaming, rebalancing, and exit.
+- S5.2 Implement `DeltaV3StrategyAdapter` around the verified Delta v3 builder at `0x6235cF6bd8419b34942F4EDDB39C880BD96dD700` plus the exact configured Delta staking and reward lifecycle.
 - S5.3 Validate token ordering, pool fee, tick spacing, range bounds, minimum amounts, deadlines, callbacks, approvals, and recipient ownership.
-- S5.4 Account separately for principal, unclaimed trading fees, claimed trading fees, and the documented claim fee. Add WETH streaming/reward accounting only if the exact staking/reward contracts are separately verified and approved for launch.
+- S5.4 Account separately for principal, unclaimed trading fees, claimed trading fees, staking rewards, streamed-but-unclaimable WETH, claimable WETH, and the documented claim fee.
 - S5.5 Implement harvest/rebalance with minimum-value thresholds, slippage/price-deviation checks, keeper authorization, and no assumed auto-compounding.
-- S5.6 Test withdrawal returning both pool assets and failure of every optional Delta component.
+- S5.6 Test unstaking, reward collection, stream completion, and withdrawal returning both pool assets, including failure at every Delta call boundary.
 
 **Deliverables:** market-making sleeve, Delta adapter, pinned-fork suite, integration evidence package, operational thresholds.
 
-**Exit gate:** The adapter reproduces deposits, trading-fee claims, and exits on a pinned mainnet fork; position NFT ownership is provable; accounting reconciles to token balances; unverified stake/farm/zap/manager calls are absent. If staking rewards are in launch scope, their complete verified lifecycle and seven-day streaming accounting must pass an additional fork-test gate; otherwise reward/staking code is absent and no reward APY is advertised.
+**Exit gate:** The adapter reproduces LP creation, staking, trading-fee collection, reward claiming, seven-day streaming, unstaking, and two-asset exit on a pinned mainnet fork; position custody is provable at every step; accounting reconciles to token balances and claimable/streaming rewards.
 
 **Rollback:** Pause deposits/rebalances, collect/withdraw through the verified path, transfer underlying sleeve shares without forcing external calls.
 
@@ -608,28 +604,28 @@ Parallelism rules:
 
 ### P3 — Sale, portfolio, strategy, and redemption UI (L)
 
-**Objective:** Make ownership, value sources, restrictions, risk, and fund movements understandable before signature.
+**Objective:** Make ownership, value sources, strategy state, risk, and fund movements understandable before signature.
 
-**Dependencies:** P1, P2, D12, approved legal disclosures.
+**Dependencies:** P1, P2, D12.
 
 **Repository:** `/Users/dsb/Sinjoh-UI`.
 
 **Work packages:**
 
 - P3.1 Add sale/refund/settlement status and exact payment breakdown.
-- P3.2 Add token page showing full ownership, account, sleeve shares, holdings, claimable amount, strategy exposure, valuation timestamp, and restrictions.
+- P3.2 Add token page showing full ownership, account, sleeve shares, holdings, claimable amount, strategy exposure, and valuation timestamp.
 - P3.3 Add claim and allocation previews with before/after balances.
-- P3.4 Add burn confirmation showing irreversible NFT destruction, exact sleeve shares received, exit tax if approved, and optional later unwrap.
-- P3.5 Show stale oracle, paused strategy, loss, restricted asset, and exit-only states without masking risk behind APY.
+- P3.4 Add burn confirmation showing irreversible NFT destruction, exact sleeve shares received, the fixed 5% in-kind charge, and optional later unwrap.
+- P3.5 Show stale oracle, paused strategy, loss, token-level transfer failure, and exit-only states without masking risk behind APY.
 - P3.6 Add static or dynamic metadata according to D12; label estimates and source timestamps.
 
 **Deliverables:** routes/components, transaction simulations, accessible states, analytics events, UX test scripts.
 
-**Exit gate:** Automated wallet-flow tests cover mint payment, sale refund, settlement display, revenue claim, sleeve allocation, transfer, burn, and optional unwrap. For each write, the review screen must assert source asset/amount, destination, fees, minimum received, resulting ownership, and irreversible effects where applicable. State fixtures must assert the exact enabled/disabled controls and warning copy for pause, loss, stale data, ineligibility, refund, transfer, exit-only strategy, and burn.
+**Exit gate:** Automated wallet-flow tests cover mint payment, sale refund, settlement display, revenue claim, sleeve allocation, transfer, burn, and optional unwrap. For each write, the review screen must assert source asset/amount, destination, fees, minimum received, resulting ownership, and irreversible effects where applicable. State fixtures must assert the exact enabled/disabled controls and warning copy for pause, loss, stale data, token-transfer failure, refund, transfer, exit-only strategy, and burn.
 
 **Rollback:** Feature-flag UI entry points by release manifest; never imply that hiding the UI disables contracts.
 
-**Feasibility:** Verified after ABI/disclosure freeze; existing UI uses viem/wagmi and release manifests.
+**Feasibility:** Verified after ABI freeze; existing UI uses viem/wagmi and release manifests.
 
 ### O1 — Keeper, monitoring, reconciliation, and runbooks (L)
 
@@ -685,7 +681,7 @@ Parallelism rules:
 
 **Objective:** Deploy reproducibly, cap initial exposure, and promote only from observed evidence.
 
-**Dependencies:** All prior exit gates, D14, audit sign-off, legal launch approval.
+**Dependencies:** All prior exit gates, D14, audit sign-off, and product launch approval.
 
 **Work packages:**
 
@@ -699,7 +695,7 @@ Parallelism rules:
 
 **Deliverables:** rehearsal report, deployment transactions, verified source, release manifest, authority handoff receipts, canary report, public disclosures.
 
-**Exit gate:** Every mainnet blocker in Section 3 is cleared; configuration equals approved hashes; canary entry and exit succeed; monitoring and incident responders are live; product, legal, security, and operations sign release.
+**Exit gate:** Every mainnet blocker in Section 3 is cleared; configuration equals approved hashes; canary entry and exit succeed; monitoring and incident responders are live; product, security, and operations sign release.
 
 **Rollback:** Before sale settlement, use the approved refund path. Disable defective adapters and UI manifests. Immutable core defects require a new collection version; no forced NFT migration or hidden proxy upgrade.
 
@@ -744,11 +740,11 @@ The detailed 25-invariant catalog in the architecture blueprint must be copied i
 | Local deterministic chain | All mocks, accounting, state machines, adversarial tests | F0 |
 | Robinhood Chain testnet `46630` | Full UX and operational rehearsal using test assets/integrations | Stable mock/testnet manifest |
 | Pinned mainnet fork `4663` | Exact external bytecode integration and failure testing | Signed candidate manifest |
-| Robinhood Chain mainnet `4663` core deployment | Source verification and authority setup; no public value yet | Audit + legal + deployment approval |
+| Robinhood Chain mainnet `4663` core deployment | Source verification and authority setup; no public value yet | Audit + product + deployment approval |
 | Mainnet canary | Capped approved strategy exposure | D14 thresholds + live monitoring |
 | Public sale/active collection | Approved production behavior | All R1 exit criteria |
 
-Testnet success is not evidence that a mainnet address, liquidity condition, legal policy, or external protocol behavior is valid. Fork success is not a substitute for legal approval or independent audit.
+Testnet success is not evidence that a mainnet address, liquidity condition, or external protocol behavior is valid. Fork success is not a substitute for independent audit.
 
 ## 11. Deployment manifest and provenance requirements
 
@@ -794,7 +790,7 @@ The implementation should reuse reviewed patterns, libraries, and test ideas—n
 Reuse candidates:
 
 - deterministic clone/address prediction patterns from `BasketManagerV2`;
-- bearer ownership and manager transfer-hook patterns from `BasketNFTV2`, after adapting them to the approved eligibility model;
+- bearer ownership and manager transfer-hook patterns from `BasketNFTV2`, adapted to unrestricted ERC-721 transfer and the selected operator model;
 - exact-balance-delta and allowance-clearing patterns from `ERC4626BasketYieldAdapter`;
 - repository release, size-check, ABI-generation, provenance, and prediction tooling;
 - existing keeper planner/runner/scheduler/simulation infrastructure;
@@ -844,7 +840,7 @@ Every PR must include:
 - **Class A:** wording, UI copy, or offchain display; standard review.
 - **Class B:** bounded offchain operations or indexer/API behavior; platform + security review.
 - **Class C:** adapter version or risk-bound change; governance delay, fork test, canary, and security review.
-- **Class D:** economics, ownership, eligibility, redemption, sale, core accounting, or immutable configuration; return to Gate 0, update blueprint/decision log, and re-audit affected scope.
+- **Class D:** economics, ownership, redemption, sale, core accounting, or immutable configuration; return to Gate 0, update blueprint/decision log, and re-audit affected scope.
 
 ## 15. Milestone exit checklist
 
@@ -881,7 +877,7 @@ Every PR must include:
 ### Milestone F — Audit and launch ready
 
 - Q1 passes with no unresolved critical/high issues.
-- Legal, security, product, and operations sign the identical manifest/config hash.
+- Security, product, and operations sign the identical manifest/config hash.
 - R1 deployment rehearsal and canary exit pass.
 
 ## 16. Definition of done
@@ -889,7 +885,7 @@ Every PR must include:
 Yield Vaults is ready for a public mainnet launch only when:
 
 1. The approved collection creates no more than 3,000 NFTs and every token has one deterministic isolated account.
-2. NFT transfer and burn implement the approved economic-ownership and eligibility rules.
+2. NFT transfer and burn implement the approved economic-ownership rules using standard ERC-721 transfers.
 3. Sale, ongoing revenue, sleeve accounting, claims, losses, and redemption conserve value within declared rounding bounds.
 4. The three sleeve categories work independently, and failure of any external adapter does not block core redemption.
 5. Only signed-manifest external contracts receive approvals or funds.
@@ -897,14 +893,14 @@ Yield Vaults is ready for a public mainnet launch only when:
 7. SDK, indexer, API, keeper, UI, monitoring, and runbooks are release-hash aligned.
 8. All invariant, fork, E2E, provenance, and deployment-rehearsal checks pass.
 9. Independent audit findings are resolved and the deployed bytecode matches the audited artifacts.
-10. Product, legal/compliance, security, and operations approve the same launch configuration.
+10. Product, security, and operations approve the same launch configuration.
 
 ## 17. Product-owner review agenda
 
 Review and approve the plan in four passes:
 
 1. **Economics and launch:** D1, D2, D3, D11, D14, D16.
-2. **Ownership and redemption:** D4, D5, D13, D15.
+2. **Ownership and redemption:** D4, D13, D15. D16 is a closed product decision.
 3. **Assets and integrations:** D6, D8, D9.
 4. **Control and product surface:** D7, D10, D12.
 

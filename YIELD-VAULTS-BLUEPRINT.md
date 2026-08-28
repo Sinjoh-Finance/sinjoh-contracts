@@ -40,7 +40,7 @@ These decisions are settled for v1:
 | NFT treasury | One deterministic minimal-proxy account per token ID |
 | Treasury assets | Sleeve shares plus temporary WETH/USDG and approved distributions |
 | Ongoing revenue | Equal per-live-NFT share accounting with no 3,000-token loop |
-| Exit tax | 3% in the same assets, redistributed to remaining NFTs |
+| Exit tax | 5% in the same assets, redistributed to remaining NFTs |
 | Final NFT | No exit tax; receives all distributor dust and closes collection |
 | Performance fee | None for Sinjoh in v1 |
 | Strategy evolution | New immutable adapters may be registered and activated inside an existing sleeve |
@@ -101,11 +101,11 @@ Burning therefore transfers the NFT account's sleeve-share tokens and liquid ass
 
 Ownership is layered and explicit:
 
-| Asset or right | Legal/onchain owner | Economic beneficiary |
+| Asset or right | Onchain owner | Economic beneficiary |
 |---|---|---|
 | ERC-721 | Holder wallet | Holder wallet |
-| Token treasury account | Bound permanently to token ID | Current eligible ERC-721 holder |
-| Sleeve-share tokens | Token treasury account or distributor pending settlement | Current eligible ERC-721 holder |
+| Token treasury account | Bound permanently to token ID | Current ERC-721 holder |
+| Sleeve-share tokens | Token treasury account or distributor pending settlement | Current ERC-721 holder |
 | Stock Tokens | Core Sleeve | Core Sleeve shareholders pro rata |
 | Delta position NFT | Market-Making Sleeve or its bound adapter | Market-Making Sleeve shareholders pro rata |
 | USDG lending receipt | USDG Yield Sleeve or its bound adapter | USDG Yield Sleeve shareholders pro rata |
@@ -137,7 +137,7 @@ An ERC-721 transfer changes only `ownerOf(tokenId)`. It does not move treasury a
 - Provides normalized 18-decimal USD quotes.
 - Validates feed decimals, positive answer, heartbeat, staleness, corporate-action pause, and configured deviation limits.
 - Supports Chainlink feeds, pool TWAP comparison, and an explicit operational circuit breaker.
-- Is never used to calculate the 3% exit tax; the tax is applied directly to each asset amount.
+- Is never used to calculate the 5% exit tax; the tax is applied directly to each asset amount.
 - Feed failure pauses only price-dependent deposits, swaps, and rebalances.
 
 #### `YieldVaultCollectionFactory`
@@ -174,7 +174,6 @@ It must not expose arbitrary `call`, `delegatecall`, arbitrary recipient, or res
 - Mint and burn callable only by `YieldVaultCollection`.
 - Transfers disabled until sale success.
 - Transfers disabled while the token is being burned.
-- Mint, transfer, and redemption recipient pass `IEligibilityPolicy` when restricted sleeves are enabled.
 - EIP-2981 royalty receiver is the collection revenue router.
 - `tokenURI` exposes token ID, account address, collection state, and renderer output without Robinhood marks.
 
@@ -184,7 +183,7 @@ It must not expose arbitrary `call`, `delegatecall`, arbitrary recipient, or res
 - Initialized once with collection address, NFT address, and token ID.
 - Receives approved sleeve shares and temporary liquid assets.
 - Can approve exact amounts only to collection-approved sleeves during allocation.
-- Can release assets only to the snapshotted eligible holder and distributor during a collection-controlled burn.
+- Can release assets only to the snapshotted holder and distributor during a collection-controlled burn.
 - Cannot execute arbitrary calls or pay an administrator.
 - Maximum tracked treasury assets: eight.
 
@@ -239,7 +238,6 @@ Every sleeve is an ERC-20 share token. A token treasury owns sleeve shares; the 
 - Supports timelocked constituent replacement when an issuer deprecates a token or liquidity/feed quality fails.
 - Normal redemption can return constituents in kind.
 - Optional USDG redemption is available only with valid feeds, protected routes, and user-provided minimum output.
-- Share transfers enforce the collection eligibility policy.
 
 #### `MarketMakingSleeve`
 
@@ -249,14 +247,13 @@ Every sleeve is an ERC-20 share token. A token treasury owns sleeve shares; the 
 - Accounts for principal inventory, uncollected trading fees, claimed WETH, and streamed but not yet claimable rewards.
 - Harvest and rebalance are permissionless but policy-guarded.
 - Share redemption may return underlying assets when liquid; holders can always retain the share claim when an adapter is exit-only.
-- Share transfers enforce the collection eligibility policy when underlying positions include Stock Tokens.
 
 #### `USDGYieldSleeve`
 
 - Fixed category weight: 15%.
 - Accounting and deposit asset is USDG `0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168`.
 - Implements ERC-4626 when all normal deposits and redemptions are expressed in USDG.
-- Holds an idle USDG buffer plus shares of approved lending adapters.
+- Deploys USDG into the configured lending adapter; any plain USDG balance is transient transaction liquidity.
 - Initial maximum exposure to any single lending adapter: 10% of total collection portfolio value.
 - Initial canary cap for a new adapter: 2% of total collection portfolio value.
 - Supports synchronous and queued withdrawal adapters without blocking NFT burn.
@@ -358,28 +355,22 @@ Rules:
 
 ### 6.4 Initial adapters
 
-#### `IdleUSDGAdapter`
+#### `USDGLendingAdapter`
 
-- Holds USDG without lending it.
-- Provides immediate liquidity buffer.
-- No external dependencies beyond USDG.
-
-#### `ERC4626LendingAdapter`
-
-- Bound to one reviewed ERC-4626 USDG vault.
-- Uses virtual-share-aware or otherwise reviewed inflation protection.
+- Bound to the configured USDG lending venue.
+- Implements the venue's actual receipt-token, interest, loss, and withdrawal behavior.
 - Validates `asset() == USDG`.
 - Never treats `previewRedeem` as a price oracle.
-- Supports deposit caps, liquidity checks, and full exit.
+- If the venue uses ERC-4626, supports its deposit limits, liquidity checks, and full exit without assuming every lender is ERC-4626.
 
 #### `DeltaV3StrategyAdapter`
 
-- V1 entry path uses the verified Delta position builder at `0x6235cF6bd8419b34942F4EDDB39C880BD96dD700`.
-- Owns the resulting Uniswap v3 position NFT.
-- Uses canonical position-manager calls for increase, decrease, collect, and close.
+- Uses the verified Delta position builder at `0x6235cF6bd8419b34942F4EDDB39C880BD96dD700`.
+- Creates and owns the resulting Uniswap v3 position NFT, then stakes it through the configured Delta staking lifecycle.
+- Implements the configured increase, decrease, collect, stake, reward-claim, stream, unstake, and close calls.
 - Every mint/rebalance uses nonzero minimum amounts, a deadline, approved pool, oracle/TWAP agreement, and maximum price impact.
 - Tracks streamed WETH rewards separately from claimable WETH.
-- Does not depend on unverified Delta stake, farm, zap, or ladder-manager contracts in v1.
+- Requires complete contract addresses and ABIs for every Delta dependency before implementation is considered complete.
 
 ## 7. Core interfaces
 
@@ -472,11 +463,10 @@ projectRevenueNftBps = 8000
 projectRevenueCreatorBps = 1000
 projectRevenueSinjohBps = 500
 projectRevenueOperationsBps = 500
-exitTaxBps = 300
+exitTaxBps = 500
 coreSleeveWeightBps = 5000
 marketMakingSleeveWeightBps = 3500
 usdgYieldSleeveWeightBps = 1500
-eligibilityPolicy
 collectionTimelock
 guardian
 renderer
@@ -525,7 +515,7 @@ CLOSED
 
 - NFT transfers, ongoing fee distribution, and redemption begin only at `ACTIVE`.
 - A guardian may move `ACTIVE` to `INVESTMENT_PAUSED`.
-- `INVESTMENT_PAUSED` still permits settlement, NFT transfers subject to eligibility, NFT burn, sleeve-share transfer, and sleeve exit.
+- `INVESTMENT_PAUSED` still permits settlement, NFT transfers, NFT burn, sleeve-share transfer, and sleeve exit.
 
 ### 9.2 Token state
 
@@ -567,11 +557,10 @@ YieldVaultNFT mints SALE_LOCKED token
 
 Rules:
 
-1. Buyer must pass eligibility.
-2. Payment is measured by balance delta and must equal the fixed price.
-3. Account is deployed before NFT mint.
-4. No part of the payment leaves escrow before sale success.
-5. Pre-success NFTs cannot transfer, burn for backing, or approve operators.
+1. Payment is measured by balance delta and must equal the fixed price.
+2. Account is deployed before NFT mint.
+3. No part of the payment leaves escrow before sale success.
+4. Pre-success NFTs cannot transfer, burn for backing, or approve operators.
 
 ### 10.2 Sale success
 
@@ -657,8 +646,8 @@ A rebalance is permitted only after the range has remained outside policy for th
 
 ### 10.7 USDG lending
 
-1. USDGYieldSleeve retains its required idle buffer.
-2. Surplus USDG is allocated among active lending adapters subject to individual and aggregate caps.
+1. USDGYieldSleeve deposits USDG into the configured lending adapter.
+2. Plain USDG remains only while a deposit or withdrawal is in progress.
 3. Adapter receipt tokens remain in the adapter or sleeve as specified by the reviewed implementation.
 4. Interest increases USDGYieldSleeve share value.
 5. If liquidity becomes unavailable, new deposits pause and the adapter becomes queued or exit-only.
@@ -668,10 +657,10 @@ A rebalance is permitted only after the range has remained outside policy for th
 
 The core redemption is one atomic transaction:
 
-1. Verify caller owns the NFT and beneficiary is eligible to receive restricted sleeve shares.
+1. Verify caller owns the NFT and snapshot the beneficiary.
 2. Settle every pending distribution asset for the token ID.
 3. Snapshot the account's tracked asset balances.
-4. If `liveSupply > 1`, calculate `tax = balance * 300 / 10_000` for each asset.
+4. If `liveSupply > 1`, calculate `tax = balance * 500 / 10_000` for each asset.
 5. Mark token burning, burn the NFT, and decrement `liveSupply`.
 6. Transfer each tax amount to the distributor and accrue it using the new live supply.
 7. Transfer each remaining balance to the beneficiary.
@@ -690,7 +679,7 @@ When `liveSupply == 1`:
 
 After receiving sleeve shares, the former NFT holder may:
 
-- keep or transfer the shares subject to eligibility;
+- keep or transfer the shares;
 - redeem Core Sleeve shares for Stock Tokens in kind;
 - redeem Market-Making Sleeve shares through available strategy liquidity;
 - redeem USDGYieldSleeve shares for USDG when `maxWithdraw` permits; or
@@ -814,14 +803,13 @@ These conditions cannot stop NFT transfer, settlement, core burn, or in-kind sle
 
 | Actor | Allowed | Forbidden |
 |---|---|---|
-| NFT holder | Transfer eligible NFT; settle; burn; redeem received sleeve shares | Withdraw account assets without burning; select arbitrary strategies |
+| NFT holder | Transfer NFT; settle; burn; redeem received sleeve shares | Withdraw account assets without burning; select arbitrary strategies |
 | Anyone/keeper | Settle; process revenue legs; harvest/rebalance within policy; execute expired reserve sweep | Choose arbitrary pool, route, asset, amount, or recipient |
 | Creator | Receive immutable revenue share; propose policy action | Withdraw backing; change holder economics; bypass timelock |
 | Sinjoh | Receive immutable fee; publish reviewed global adapter entries | Activate adapter for a collection unilaterally; seize backing |
 | CollectionTimelock | Activate reviewed adapters; set bounded caps; migrate feeds/constituents | Change supply, category weights, fee splits, exit tax, or beneficiary rules |
 | Guardian | Pause deposits/rebalances; place adapter exit-only; trigger de-risk to sleeve | Transfer backing to any external recipient; resume a retired adapter |
 | Operations multisig | Spend non-backing reserve and pay capped keepers | Spend treasury backing or distributor assets |
-| Eligibility authority | Attest eligibility according to legal policy | Move funds or change economics |
 
 Recipient address rotation for creator, Sinjoh, and operations uses two-step propose/accept. Rotating a recipient changes only where its future non-backing allocation goes.
 
@@ -922,7 +910,7 @@ Therefore:
 For any token ID, the SDK/indexer exposes:
 
 - complete NFT, account, collection, distributor, sleeve, adapter, asset, pool, feed, and position addresses;
-- owner and eligibility status;
+- owner;
 - settled sleeve shares;
 - pending sleeve shares;
 - pro-rata underlying assets by sleeve;
@@ -931,7 +919,7 @@ For any token ID, the SDK/indexer exposes:
 - Delta position range and in-range status;
 - uncollected, claimed, and streaming rewards;
 - estimated sleeve redemption outputs;
-- 3% tax estimate by asset; and
+- 5% tax estimate by asset; and
 - collection and strategy pause states.
 
 ### 18.2 Dynamic artwork
@@ -970,7 +958,7 @@ The implementation and invariant suite must continuously prove:
 9. Distributor actual balance covers all unsettled claims and tracked dust per asset.
 10. An accumulator increases only after measured asset receipt.
 11. A burned or refunded token can never settle future revenue.
-12. Exit tax is exactly 3% per asset when more than one NFT remains.
+12. Exit tax is exactly 5% per asset when more than one NFT remains.
 13. Exit tax is zero for the final NFT.
 14. Exit tax denominator is the live supply after the burned NFT is removed.
 15. The final NFT receives all remaining distributor dust.
@@ -982,7 +970,7 @@ The implementation and invariant suite must continuously prove:
 21. All temporary ERC-20 allowances return to zero.
 22. Every swap and position operation respects route, deadline, minimum output, and price policy.
 23. Sleeve total supply and pro-rata claims remain internally solvent after deposits, yield, loss, donations, and redemptions.
-24. Restricted NFTs and sleeve shares cannot transfer to an ineligible recipient.
+24. ERC-721 transfers use standard ownership semantics without a separate protocol transfer registry or attestation gate.
 25. Collection top-level weights and economics cannot change after deployment.
 
 ## 21. Test blueprint
@@ -994,7 +982,6 @@ The implementation and invariant suite must continuously prove:
 - deterministic collection/account addresses;
 - exact 3,000 cap and token-ID range;
 - fixed-price payment and inexact receipt rejection;
-- eligibility success/failure;
 - transfer lock during sale;
 - no early fee release;
 - success only at 3,000;
@@ -1032,7 +1019,6 @@ The implementation and invariant suite must continuously prove:
 - realized yield and loss;
 - constituent and adapter caps;
 - pause/exit-only behavior;
-- eligibility on sleeve-share transfers;
 - queued USDG withdrawal behavior.
 
 #### Adapters
@@ -1051,11 +1037,10 @@ The implementation and invariant suite must continuously prove:
 #### Redemption
 
 - settle then burn;
-- exact per-asset 3% tax;
+- exact per-asset 5% tax;
 - no oracle/strategy call;
 - tax redistributed to remaining token IDs;
 - final NFT zero tax and dust sweep;
-- ineligible beneficiary rejection;
 - malicious token reentrancy;
 - repeated burn rejection.
 
@@ -1140,7 +1125,6 @@ sinjoh-contracts-v2/src/yield-vaults/
 │   ├── IYieldVaultFundable.sol
 │   ├── IYieldVaultSleeve.sol
 │   ├── IStrategyAdapter.sol
-│   ├── IEligibilityPolicy.sol
 │   └── IPriceHub.sol
 ├── sleeves/
 │   ├── BaseSleeve.sol
@@ -1148,8 +1132,7 @@ sinjoh-contracts-v2/src/yield-vaults/
 │   ├── MarketMakingSleeve.sol
 │   └── USDGYieldSleeve.sol
 ├── adapters/
-│   ├── IdleUSDGAdapter.sol
-│   ├── ERC4626LendingAdapter.sol
+│   ├── USDGLendingAdapter.sol
 │   └── DeltaV3StrategyAdapter.sol
 └── libraries/
     ├── YieldVaultIds.sol
@@ -1164,9 +1147,8 @@ Tests mirror this tree under `sinjoh-contracts-v2/test/yield-vaults/`, with unit
 
 ### Phase 0: launch prerequisites
 
-- product counsel approves Stock Token eligibility and NFT structure;
-- confirm initial three Stock Tokens, feeds, and permitted jurisdictions;
-- obtain reviewable Delta dependencies or constrain v1 to the verified builder path;
+- confirm initial three Stock Tokens and feeds;
+- obtain the complete Delta LP, staking, reward, streaming, and exit dependencies;
 - resolve the Robinhood Chain operational health circuit breaker;
 - freeze collection economics and manifest schema.
 
@@ -1196,15 +1178,14 @@ Exit criterion: exact solvency and tax redistribution from 3,000 NFTs down to th
 - CoreStockTokenSleeve;
 - MarketMakingSleeve;
 - USDGYieldSleeve;
-- PriceHub and eligibility hooks.
+- PriceHub and market-state hooks.
 
 Exit criterion: gain, loss, donation, pause, in-kind, queued, and terminal cases pass.
 
 ### Phase 4: adapters
 
-- IdleUSDGAdapter;
-- generic ERC4626LendingAdapter;
-- DeltaV3StrategyAdapter;
+- selected USDG lending adapter;
+- DeltaV3StrategyAdapter with staking and reward streaming;
 - strategy registry and canary lifecycle.
 
 Exit criterion: full fork rehearsal and independent adapter audit.
@@ -1236,7 +1217,6 @@ The collection release manifest records complete addresses and code hashes for:
 - collection, NFT, account implementation, SaleEscrow, distributor, revenue router, operations reserve, and timelock;
 - each sleeve and adapter;
 - WETH, USDG, every Stock Token, every price feed, every pool, every router, every position manager, and the Delta builder;
-- eligibility policy and attestation authority;
 - creator, Sinjoh, operations, guardian, and timelock recipients;
 - compiler, optimizer, source commit, dependency lock hashes, audit hashes, and deployment transaction hashes;
 - all immutable economic parameters and policy caps.
@@ -1259,7 +1239,7 @@ The protocol is ready for production only when all are true:
 10. No privileged path can transfer backing to an arbitrary recipient.
 11. The proof-of-backing view reconciles distributor liabilities, account balances, sleeve shares, and underlying positions.
 12. Complete addresses and verified code hashes are published for every onchain dependency.
-13. Legal eligibility is enforced at mint, NFT transfer, restricted-share transfer, and redemption.
+13. NFT transfers use standard ERC-721 ownership semantics without a separate protocol transfer gate.
 14. Independent audits find no unresolved critical or high-severity issue.
 15. UI, SDK, contracts, keepers, indexer, and release manifest pass route-parity and recovery rehearsals.
 
@@ -1281,6 +1261,6 @@ These require a new collection version or a separately approved product, not a s
 
 ## 27. Founder-level product summary
 
-Each of the 3,000 NFTs owns shares in three permanent portfolio sleeves. The sleeves can adopt better lending markets, LP systems, and approved Stock Token constituents over time without migrating the NFTs. Collection revenue buys more sleeve shares for every live token. The account and its pending claims follow the NFT on transfer. Burning the NFT atomically releases its share assets and leaves 3% for the remaining collection.
+Each of the 3,000 NFTs owns shares in three permanent portfolio sleeves. The sleeves can adopt better lending markets, LP systems, and approved Stock Token constituents over time without migrating the NFTs. Collection revenue buys more sleeve shares for every live token. The account and its pending claims follow the NFT on transfer. Burning the NFT atomically releases its share assets and leaves 5% for the remaining collection.
 
 The ownership system is permanent. The earning engines are modular. External failures can reduce value, but they cannot give an operator custody or trap the NFT's core redemption right.

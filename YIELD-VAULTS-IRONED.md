@@ -5,7 +5,7 @@
 
 ## One-sentence product
 
-Yield Vaults is a fixed collection of 3,000 transferable NFTs, each permanently bound to its own onchain treasury containing Stock Tokens, shares of Delta LP strategies, and a liquid reserve; the treasury compounds while the NFT exists and can be claimed only by burning the NFT.
+Yield Vaults is a fixed collection of 3,000 transferable NFTs, each permanently bound to its own onchain treasury containing Stock Tokens, shares of Delta LP strategies, and a USDG lending position; the treasury compounds while the NFT exists and can be claimed only by burning the NFT.
 
 ## The product decision
 
@@ -26,15 +26,15 @@ A literal Delta position NFT for every Yield Vault is possible, but it should no
 | Item | Decision |
 |---|---|
 | Supply | Exactly 3,000; no later minting |
-| NFT standard | ERC-721 bearer claim with transfer-eligibility checks |
+| NFT standard | ERC-721 bearer claim with standard transfers |
 | Mint format | Fixed-price mint so every token begins with equal backing |
 | Vault | One deterministic minimal-proxy vault per token, deployed and initialized at mint |
-| Portfolio | 50% Core Stock Token sleeve, 35% Delta LP sleeve, 15% USDG reserve |
+| Portfolio | 50% Core Stock Token sleeve, 35% Delta LP sleeve, 15% USDG lending sleeve |
 | Stock sleeve | Three launch-approved Stock Tokens, equal-weighted inside the 50% sleeve |
 | Delta sleeve | Two collection strategy-share tokens, equal-weighted inside the 35% sleeve |
-| Reserve | USDG `0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168` |
+| USDG lending asset | USDG `0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168` |
 | Input and reward asset | WETH `0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73` |
-| Exit tax | 3% of assets redeemed, redistributed in kind to the remaining live NFTs |
+| Exit tax | 5% of assets redeemed, redistributed in kind to the remaining live NFTs |
 | Last NFT | Exit tax is waived; it receives rounding dust and closes the collection |
 | Performance fee | None from Sinjoh; Delta's documented 1% fee on claimed LP fees still applies |
 | Bound-token burn | Disabled at launch; it can be enabled only as a disclosed immutable mint-time term |
@@ -77,7 +77,7 @@ For token `i`, `vaultOf(i)` is deterministic from the chain ID, factory, collect
 
 - three approved Stock Token balances;
 - two Delta strategy-share balances;
-- USDG reserve;
+- USDG lending shares or receipt tokens;
 - any allocations earned but not yet settled from the distributor; and
 - its portion of collected and still-unclaimed strategy rewards.
 
@@ -87,12 +87,12 @@ The wallet holding the ERC-721 owns the exclusive bearer right to transfer the e
 
 | Actor | Can do | Cannot do |
 |---|---|---|
-| NFT holder | Transfer to another eligible wallet; inspect backing; settle pending allocations; begin and finalize redemption | Withdraw individual assets; redirect strategy funds; alter collection economics |
+| NFT holder | Transfer to another wallet; inspect backing; settle pending allocations; begin and finalize redemption | Withdraw individual assets; redirect strategy funds; alter collection economics |
 | NFT vault | Hold assets and strategy shares; approve only registered adapters during a guarded operation; release assets during final redemption | Pay an arbitrary recipient; call arbitrary contracts |
 | Fee distributor | Invest routed fees once; attribute equal units to live token IDs; settle one or a bounded batch | Loop through all 3,000 NFTs; change ownership; use backing for operations |
 | Delta strategy | Own and manage the underlying LP position; collect fees; compound; issue shares; redeem normally or in kind | Hold unrelated collection assets; send principal to an operator |
 | Keeper | Call permissionless settle, harvest, rebalance, and exit-processing functions and earn a capped bounty | Choose arbitrary swaps, pools, ranges, recipients, or fees |
-| Guardian multisig | Pause new investment; force an approved strategy into reserve assets during an incident | Withdraw backing; rewrite splits; block in-kind redemption permanently |
+| Guardian multisig | Pause new investment or place a configured strategy into exit-only mode | Withdraw or redirect backing; activate a strategy; rewrite splits; block in-kind redemption permanently |
 | Timelock | Approve a reviewed adapter/feed migration after seven days | Change supply, bearer ownership, primary splits, royalty split, or exit tax |
 
 Operational migrations are necessary because pools, feeds, and external contracts can be deprecated. They are constrained migrations, not discretionary treasury management: funds may move only from an approved component to another approved component or to USDG/WETH reserve, never to an administrator.
@@ -101,11 +101,11 @@ Operational migrations are necessary because pools, feeds, and external contract
 
 ### 1. Mint
 
-1. The buyer passes the collection eligibility check and pays the fixed WETH price.
+1. The buyer pays the fixed WETH price.
 2. The factory creates and initializes the deterministic vault for the token ID.
 3. The payment router sends 10% to the creator, 5% to Sinjoh, and 5% to the operations reserve.
 4. The remaining 80% enters the vault as WETH immediately, so the NFT is fully backed even when Stock Token markets or feeds are closed.
-5. If all market and oracle guards are live, the router can allocate the WETH atomically. Otherwise anyone can call `allocate(tokenId)` later to convert it through pre-approved routes into the three Stock Tokens, USDG, and two Delta strategy shares.
+5. If all market and oracle guards are live, the router can allocate the WETH atomically. Otherwise anyone can call `allocate(tokenId)` later to convert it through configured routes into the three Stock Tokens, the USDG lending sleeve, and two Delta strategy shares.
 6. The ERC-721 is minted only after the vault has received the full 80% backing amount; otherwise the entire mint reverts. Deferred allocation changes composition, never ownership or backing custody.
 
 ### 2. Delta investment
@@ -133,7 +133,7 @@ Pending strategy shares already earn their underlying fees while held by the dis
 
 ### 4. Transfer
 
-The ERC-721 moves to an eligible recipient. The vault address and all balances remain unchanged because they are bound to the token ID. There is no asset transfer and no taxable disposal performed by the protocol. The new holder receives all settled balances, pending allocations, and redemption rights.
+The ERC-721 moves to its recipient using standard transfer semantics. The vault address and all balances remain unchanged because they are bound to the token ID. The new holder receives all settled balances, pending allocations, and redemption rights.
 
 ### 5. Harvest and rebalance
 
@@ -150,8 +150,8 @@ Redemption is deliberately multi-step so one failed external call cannot strand 
 1. The holder calls `beginExit(tokenId)`. Transfers lock, ownership is snapshotted, and all pending allocations settle.
 2. Anyone may call bounded `processExitLeg(tokenId, leg)` calls. Strategy shares redeem to their current two assets; fees and rewards are collected where possible.
 3. If a strategy cannot unwind after the emergency delay, its strategy shares or canonical position assets can be delivered in kind instead of blocking the exit forever.
-4. The holder calls `finalizeExit(tokenId)`. The contract burns the NFT, decrements live supply, and sends 97% of every resulting asset to the snapshotted owner.
-5. The remaining 3% of each asset is added to the distributor indices for the remaining live NFTs.
+4. The holder calls `finalizeExit(tokenId)`. The contract burns the NFT, decrements live supply, and sends 95% of every resulting asset to the snapshotted owner.
+5. The remaining 5% of each asset is added to the distributor indices for the remaining live NFTs.
 6. If this was the final live NFT, no tax is charged; it receives all residual balances and rounding dust, and the collection enters `CLOSED` state.
 
 No redemption quote is guaranteed in WETH. Normal Delta withdrawal returns the current pool assets, and forced conversion would add avoidable slippage.
@@ -163,7 +163,7 @@ The dashboard reports four separate numbers rather than one misleading “floor�
 - **Gross backing:** direct Stock Tokens, reserve, strategy principal, current LP inventory, and uncollected fees.
 - **Pending revenue:** assets attributed by the distributor but not yet moved into the vault.
 - **Unvested/streaming rewards:** earned Delta rewards that are not yet claimable.
-- **Estimated net redemption:** gross backing minus the 3% exit tax, Delta's fee on claimed fees, and conservative unwind costs.
+- **Estimated net redemption:** gross backing minus the 5% exit tax, Delta's fee on claimed fees, and conservative unwind costs.
 
 Stock Token valuation uses the multiplier-adjusted onchain Chainlink feed exactly once. The Robinhood REST price is metadata only. When feeds are stale, paused, or outside operating hours, the UI labels NAV stale and the contracts refuse price-dependent actions.
 
@@ -172,28 +172,14 @@ Stock Token valuation uses the multiplier-adjusted onchain Chainlink feed exactl
 - One failed target does not block settlement or exit of the other targets.
 - A paused Delta strategy stops deposits and rebalances but permits harvest, withdrawal, or in-kind exit.
 - Unauthorized ERC-20 transfers are quarantined and never counted as backing until governance explicitly accepts them through the timelock.
-- The guardian can only move assets toward an approved reserve state.
+- The guardian can pause new deposits and rebalances or place a strategy into exit-only mode. It cannot move or redirect assets; the strategy's fixed exit path sends assets back to its sleeve.
 - Reentrancy protection, checks-effects-interactions, per-call value caps, allowance clearing, and exact balance-delta accounting apply to every adapter.
 - Every vault, strategy, asset, feed, router, and position ID is indexed and shown in the proof-of-backing dashboard.
 
-## Eligibility and legal launch gate
-
-Stock Tokens are restricted tokenised debt securities, not direct shares. A production collection using them must enforce the legally approved eligibility policy at mint, transfer, and redemption. An unrestricted bearer NFT would defeat a mint-only jurisdiction check.
-
-Before mainnet, counsel must approve:
-
-- the NFT's securities and collective-investment characterization;
-- eligible jurisdictions and prohibited persons;
-- transfer and redemption attestations;
-- offering, risk, tax, and marketing disclosures; and
-- the use of “Stock Tokens” without Robinhood branding in art, metadata, or contract attributes.
-
-If transfer gating is unacceptable, the launchable alternative is to remove Stock Tokens and use unrestricted crypto assets instead.
-
 ## Security gates before production
 
-1. Delta must publish or privately provide the full source, ABI, upgrade controls, and audit material for any stake, farm, zap, or ladder-manager contract Sinjoh will depend on.
-2. V1 must otherwise remain on the verified Delta v3 position-builder path and canonical Uniswap v3 lifecycle calls.
+1. Resolve the full address, ABI, custody, and call sequence for every Delta builder, stake, farm, zap, reward-stream, or manager contract the strategy uses.
+2. Prove LP creation, staking, fee and reward collection, seven-day streaming, unstaking, and two-asset exit on a pinned Robinhood Chain fork.
 3. The Stock Token asset/feed manifest must be verified immediately before deployment.
 4. The missing Robinhood Chain sequencer-health mechanism must be resolved or replaced by an explicit circuit breaker.
 5. The complete system needs invariant, fuzz, fork, failure-recovery, and independent audit coverage.
@@ -208,8 +194,8 @@ The art must be original and must not incorporate Robinhood Chain marks. This tu
 
 Yield Vaults is a 3,000-piece collection where the asset is not just the artwork—the asset owns an onchain endowment.
 
-When someone mints, most of the purchase funds that exact NFT's permanent treasury. The treasury holds diversified Stock Token exposure, supplies liquidity through Delta, and keeps a liquid USDG reserve. Every sale and every connected project-token fee sends new capital back to all live vaults. Delta trading fees compound inside the strategies, and the NFT's artwork evolves with its actual backing.
+When someone mints, most of the purchase funds that exact NFT's permanent treasury. The treasury holds diversified Stock Token exposure, supplies liquidity through Delta, and lends USDG through the configured venue. Every sale and every connected project-token fee sends new capital back to all live vaults. Delta trading fees and rewards compound inside the strategies, and the NFT's artwork evolves with its actual backing.
 
-Sell the NFT and the whole treasury moves with it. Hold it and its claim keeps accumulating. To take the assets out, the owner must destroy the NFT; a 3% exit tax is left behind for everyone who stays. No creator or operator can reach into a vault, and every dollar of backing is traceable onchain.
+Sell the NFT and the whole treasury moves with it. Hold it and its claim keeps accumulating. To take the assets out, the owner must destroy the NFT; a 5% exit tax is left behind for everyone who stays. No creator or operator can reach into a vault, and every dollar of backing is traceable onchain.
 
 It is a collectible, a transparent portfolio, and a revenue-sharing engine in one object: **the NFT is the vault key, and burning the key opens the vault.**
