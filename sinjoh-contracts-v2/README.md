@@ -24,6 +24,7 @@ OpenZeppelin Contracts 5.6.1 is imported from the repository's pinned vendored d
 | Raffle | implemented |
 | Liquidity | implemented |
 | Launcher | implemented |
+| Yield Banks | implemented; production integrations remain manifest-gated |
 
 ## Verification
 
@@ -32,6 +33,14 @@ forge fmt --check
 forge build --sizes
 forge test
 ```
+
+Yield Banks uses collection-configured supply and economics, OpenSea/SeaDrop primary minting,
+idle proceeds custody, and a separate manual allocation transaction. The initial portfolio model
+directly holds the collection's selected Robinhood Stock Tokens and USDG. Market-making exposure is
+entered only through a registry-reviewed, runtime-codehash-bound synchronous adapter invoked by the
+collection's allocation operator. Adapter count, per-adapter cap, and operator loss limits are
+constructor configuration—not protocol constants. No mint, sellout threshold, deadline, or
+automatic job triggers investment.
 
 Token Governance is deployed atomically as one `ProjectTimelockV2` that creates and permanently
 binds its `ProjectGovernorV2`. The Governor is the sole proposer/canceller, execution is open only

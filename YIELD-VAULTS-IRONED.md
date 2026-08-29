@@ -1,11 +1,12 @@
 # Yield Vaults — Ironed Product and Protocol Design
 
-> The canonical contract and implementation architecture is now
-> `YIELD-VAULTS-BLUEPRINT.md`. This document remains the product-level explanation.
+> **Superseded historical source:** use `YIELD-BANKS-DEVELOPMENT-PLAN.md` for the
+> canonical Yield Banks architecture. Fixed supply and sale-finalization language below
+> does not apply to the implementation.
 
 ## One-sentence product
 
-Yield Vaults is a fixed collection of 3,000 transferable NFTs, each permanently bound to its own onchain treasury containing Stock Tokens, shares of Delta LP strategies, and a USDG lending position; the treasury compounds while the NFT exists and can be claimed only by burning the NFT.
+Yield Banks is a configurable-supply collection of transferable NFTs, each permanently bound to its own onchain treasury containing Stock Tokens, shares of market-making strategies, and a USDG lending position; the treasury compounds while the NFT exists and can be claimed only by burning the NFT.
 
 ## The product decision
 
@@ -25,13 +26,13 @@ A literal Delta position NFT for every Yield Vault is possible, but it should no
 
 | Item | Decision |
 |---|---|
-| Supply | Exactly 3,000; no later minting |
+| Supply | Positive immutable maximum configured per collection |
 | NFT standard | ERC-721 bearer claim with standard transfers |
 | Mint format | Fixed-price mint so every token begins with equal backing |
 | Vault | One deterministic minimal-proxy vault per token, deployed and initialized at mint |
-| Portfolio | 50% Core Stock Token sleeve, 35% Delta LP sleeve, 15% USDG lending sleeve |
-| Stock sleeve | Three launch-approved Stock Tokens, equal-weighted inside the 50% sleeve |
-| Delta sleeve | Two collection strategy-share tokens, equal-weighted inside the 35% sleeve |
+| Portfolio | Positive Core Stock Token, Delta LP, and USDG lending sleeve weights configured immutably per collection and totaling 100% |
+| Stock sleeve | Three launch-approved Stock Tokens, equal-weighted inside the collection-configured Core sleeve |
+| Delta sleeve | Two collection strategy-share tokens, equal-weighted inside the collection-configured Delta sleeve |
 | USDG lending asset | USDG `0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168` |
 | Input and reward asset | WETH `0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73` |
 | Exit tax | 5% of assets redeemed, redistributed in kind to the remaining live NFTs |
@@ -45,10 +46,10 @@ The exact three Stock Tokens and two Delta pools must be selected immediately be
 
 ### Primary mint payment
 
-- 80% is invested into that NFT's treasury.
-- 10% goes to the collection creator.
-- 5% goes to Sinjoh.
-- 5% funds the disclosed collection operations reserve for audits, automation, and keeper bounties. It is explicitly not NFT backing, is controlled by a published multisig, and must publish every payment. Unused reserve after 12 months is routed to the NFT treasuries.
+- The collection-configured backing share is assigned to that NFT's treasury.
+- The collection-configured creator share goes to the collection creator.
+- The collection-configured Sinjoh share goes to Sinjoh.
+- The collection-configured operations share funds the disclosed collection operations reserve for audits, automation, and keeper bounties. It is explicitly not NFT backing, is controlled by a published multisig, and must publish every payment. Unused reserve after 12 months is routed to the NFT treasuries.
 
 ### Sinjoh secondary sale
 
@@ -64,10 +65,10 @@ External marketplaces may not enforce royalties. The protocol must never forecas
 
 Any project-token fee explicitly assigned to this collection is split:
 
-- 80% to all live NFT treasuries;
-- 10% to the creator;
-- 5% to Sinjoh; and
-- 5% to the collection operations reserve.
+- the collection-configured backing share to all live NFT treasuries;
+- the collection-configured creator share to the creator;
+- the collection-configured Sinjoh share to Sinjoh; and
+- the collection-configured operations share to the collection operations reserve.
 
 Voluntary approved-asset contributions go 100% to the live NFT treasuries.
 
@@ -103,10 +104,10 @@ Operational migrations are necessary because pools, feeds, and external contract
 
 1. The buyer pays the fixed WETH price.
 2. The factory creates and initializes the deterministic vault for the token ID.
-3. The payment router sends 10% to the creator, 5% to Sinjoh, and 5% to the operations reserve.
-4. The remaining 80% enters the vault as WETH immediately, so the NFT is fully backed even when Stock Token markets or feeds are closed.
+3. The payment router records the collection-configured creator, Sinjoh, and operations entitlements.
+4. The collection-configured backing share remains in the proceeds vault until Sinjoh manually executes allocation, so market or feed availability never blocks minting.
 5. If all market and oracle guards are live, the router can allocate the WETH atomically. Otherwise anyone can call `allocate(tokenId)` later to convert it through configured routes into the three Stock Tokens, the USDG lending sleeve, and two Delta strategy shares.
-6. The ERC-721 is minted only after the vault has received the full 80% backing amount; otherwise the entire mint reverts. Deferred allocation changes composition, never ownership or backing custody.
+6. The ERC-721 is minted through SeaDrop after the proceeds vault receives and records the actual payment. Deferred allocation changes composition, never ownership or backing custody.
 
 ### 2. Delta investment
 

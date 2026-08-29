@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sinjoh.com/schemas/yield-banks-manifest-1.0.json",
+  "title": "Sinjoh Yield Banks release manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "chainId", "collectionId", "factoryVersion", "compiler", "deployment", "economics", "policyCaps", "openSea", "contracts", "dependencies", "stockTokens", "adapters", "feeds", "pools", "roles", "auditHashes"],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "chainId": { "enum": [4663, 46630] },
+    "collectionId": { "$ref": "#/$defs/bytes32" },
+    "factoryVersion": { "$ref": "#/$defs/bytes32" },
+    "compiler": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "optimizerRuns", "sourceCommit", "dependencyLockHash"],
+      "properties": {
+        "version": { "const": "0.8.28" },
+        "optimizerRuns": { "const": 200 },
+        "sourceCommit": { "$ref": "#/$defs/bytes32" },
+        "dependencyLockHash": { "$ref": "#/$defs/bytes32" }
+      }
+    },
+    "deployment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["factorySalt", "collectionSalt", "collectionConfigurationHash", "systemPlanHash", "collectionCreationCodeHash", "metadataBaseUri", "metadataBaseUriHash", "contractUri", "contractUriHash"],
+      "properties": {
+        "factorySalt": { "$ref": "#/$defs/bytes32" },
+        "collectionSalt": { "$ref": "#/$defs/bytes32" },
+        "collectionConfigurationHash": { "$ref": "#/$defs/bytes32" },
+        "systemPlanHash": { "$ref": "#/$defs/bytes32" },
+        "collectionCreationCodeHash": { "$ref": "#/$defs/bytes32" },
+        "metadataBaseUri": { "type": "string", "minLength": 1 },
+        "metadataBaseUriHash": { "$ref": "#/$defs/bytes32" },
+        "contractUri": { "type": "string", "minLength": 1 },
+        "contractUriHash": { "$ref": "#/$defs/bytes32" }
+      }
+    },
+    "economics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maxSupply", "primaryBackingBps", "primaryCreatorBps", "primarySinjohBps", "primaryOperationsBps", "royaltyBackingBps", "royaltyCreatorBps", "royaltySinjohBps", "royaltyOperationsBps", "exitTaxBps", "coreWeightBps", "marketMakingWeightBps", "usdgWeightBps"],
+      "properties": {
+        "maxSupply": { "type": "integer", "minimum": 1, "maximum": 18446744073709551615 },
+        "primaryBackingBps": { "$ref": "#/$defs/positiveBps" },
+        "primaryCreatorBps": { "$ref": "#/$defs/bps" },
+        "primarySinjohBps": { "$ref": "#/$defs/bps" },
+        "primaryOperationsBps": { "$ref": "#/$defs/bps" },
+        "royaltyBackingBps": { "$ref": "#/$defs/positiveBps" },
+        "royaltyCreatorBps": { "$ref": "#/$defs/bps" },
+        "royaltySinjohBps": { "$ref": "#/$defs/bps" },
+        "royaltyOperationsBps": { "$ref": "#/$defs/bps" },
+        "exitTaxBps": { "const": 500 },
+        "coreWeightBps": { "$ref": "#/$defs/positiveBps" },
+        "marketMakingWeightBps": { "$ref": "#/$defs/positiveBps" },
+        "usdgWeightBps": { "$ref": "#/$defs/positiveBps" }
+      }
+    },
+    "policyCaps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["core", "marketMaking", "usdg"],
+      "properties": {
+        "core": { "$ref": "#/$defs/sleevePolicy" },
+        "marketMaking": { "$ref": "#/$defs/sleevePolicy" },
+        "usdg": { "$ref": "#/$defs/sleevePolicy" }
+      }
+    },
+    "openSea": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["collectionSlug", "collectionUrl", "mintStagesHash", "creatorPayoutAddress", "observedPrimaryPlatformFeeBps", "observedAt"],
+      "properties": {
+        "collectionSlug": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "collectionUrl": { "type": "string", "format": "uri", "pattern": "^https://opensea\\.io/collection/[a-z0-9][a-z0-9-]*/overview$" },
+        "mintStagesHash": { "$ref": "#/$defs/bytes32" },
+        "creatorPayoutAddress": { "$ref": "#/$defs/address" },
+        "observedPrimaryPlatformFeeBps": { "type": "integer", "minimum": 0, "maximum": 10000 },
+        "observedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "contracts": {
+      "type": "object",
+      "required": ["registry", "factoryDeployer", "factory", "collection", "nft", "accountImplementation", "proceedsVault", "distributor", "revenueRouter", "operationsReserve", "timelock", "allocator", "priceHub", "strategyRegistry", "renderer", "coreSleeve", "marketMakingSleeve", "usdgSleeve"],
+      "additionalProperties": { "$ref": "#/$defs/deployment" }
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/deployment" },
+      "required": ["WETH", "USDG", "seaDrop", "seaport"]
+    },
+    "stockTokens": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/deployment" } },
+    "adapters": { "type": "object", "additionalProperties": { "$ref": "#/$defs/deployment" } },
+    "feeds": { "type": "object", "minProperties": 1, "additionalProperties": { "$ref": "#/$defs/deployment" } },
+    "pools": { "type": "object", "additionalProperties": { "$ref": "#/$defs/deployment" } },
+    "roles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["creator", "sinjoh", "operations", "allocationOperator", "guardian", "timelock"],
+      "properties": {
+        "creator": { "$ref": "#/$defs/address" },
+        "sinjoh": { "$ref": "#/$defs/address" },
+        "operations": { "$ref": "#/$defs/address" },
+        "allocationOperator": { "$ref": "#/$defs/address" },
+        "guardian": { "$ref": "#/$defs/address" },
+        "timelock": { "$ref": "#/$defs/address" }
+      }
+    },
+    "auditHashes": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/bytes32" }, "uniqueItems": true }
+  },
+  "$defs": {
+    "bps": { "type": "integer", "minimum": 0, "maximum": 10000 },
+    "positiveBps": { "type": "integer", "minimum": 1, "maximum": 10000 },
+    "sleevePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maximumStrategies", "maximumAdapterCapBps", "maximumOperatorLossBps"],
+      "properties": {
+        "maximumStrategies": { "type": "integer", "minimum": 0, "maximum": 8 },
+        "maximumAdapterCapBps": { "$ref": "#/$defs/bps" },
+        "maximumOperatorLossBps": { "$ref": "#/$defs/bps" }
+      }
+    },
+    "address": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$", "not": { "const": "0x0000000000000000000000000000000000000000" } },
+    "bytes32": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$" },
+    "deployment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["address", "runtimeCodeHash", "version", "provenance", "deploymentTransaction", "verificationTransaction"],
+      "properties": {
+        "address": { "$ref": "#/$defs/address" },
+        "runtimeCodeHash": { "$ref": "#/$defs/bytes32" },
+        "version": { "type": "string", "minLength": 1 },
+        "provenance": { "type": "string", "minLength": 1 },
+        "deploymentTransaction": { "$ref": "#/$defs/bytes32" },
+        "verificationTransaction": { "$ref": "#/$defs/bytes32" },
+        "auditHash": { "$ref": "#/$defs/bytes32" }
+      }
+    }
+  }
+}

@@ -1,6 +1,9 @@
 # Yield Vaults — Development and Delivery Plan
 
-**Status:** Handoff-ready plan; product decisions listed as open are not approved requirements
+> **Superseded historical plan:** use `YIELD-BANKS-DEVELOPMENT-PLAN.md`, version 2.0.
+> No requirement, default, integration, or naming choice in this file is canonical.
+
+**Status:** Superseded historical planning record
 **Prepared:** 2026-08-27
 **Source architecture:** `YIELD-VAULTS-BLUEPRINT.md`
 **Feasibility research:** `.agent-research/runs/20260827-215719/final-report.md`

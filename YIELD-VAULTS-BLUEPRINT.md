@@ -1,14 +1,20 @@
 # Yield Vaults Protocol Blueprint
 
+> **Superseded for implementation:** The primary-sale, supply, escrow, refund, mint,
+> transfer-lock, and sale-state sections in this document are no longer canonical.
+> Use `YIELD-BANKS-DEVELOPMENT-PLAN.md`, version 2.0, for the authoritative Yield Banks
+> development plan. This file is historical context only; none of its sale, portfolio,
+> strategy, supply, or naming defaults are implementation requirements.
+
 Version: 1.0
 
 Date: 2026-08-27
 
-Status: Canonical architecture for implementation
+Status: Superseded historical source material
 
 Network: Robinhood Chain, chain ID 4663
 
-Supply: Exactly 3,000 NFTs after a successful sale
+Supply: Superseded; Yield Banks uses an immutable positive maximum configured per collection
 
 Supersedes: `YIELD-VAULTS-IRONED.md` for engineering decisions
 
@@ -32,11 +38,11 @@ These decisions are settled for v1:
 |---|---|
 | Collection size | Exactly 3,000 NFTs after sale success |
 | Sale | Fixed-price, all-or-refund sale in WETH |
-| Initial backing | 80% of each mint payment |
-| Creator allocation | 10% of each successful mint payment |
-| Sinjoh allocation | 5% of each successful mint payment |
-| Operations reserve | 5% of each successful mint payment |
-| Portfolio weights | 50% Core, 35% Market-Making, 15% USDG Yield |
+| Initial backing | Positive basis-point share configured immutably per collection |
+| Creator allocation | Basis-point share configured immutably per collection |
+| Sinjoh allocation | Basis-point share configured immutably per collection |
+| Operations reserve | Basis-point share configured immutably per collection |
+| Portfolio weights | Positive Core, Market-Making, and USDG Yield weights configured immutably per collection and totaling 100% |
 | NFT treasury | One deterministic minimal-proxy account per token ID |
 | Treasury assets | Sleeve shares plus temporary WETH/USDG and approved distributions |
 | Ongoing revenue | Equal per-live-NFT share accounting with no 3,000-token loop |
@@ -192,7 +198,7 @@ It must not expose arbitrary `call`, `delegatecall`, arbitrary recipient, or res
 - Receives every mint payment in WETH.
 - Records payment and payer by token ID.
 - Before sale success, no creator, Sinjoh, operations, or strategy transfer is allowed.
-- On success, releases the 80/10/5/5 allocations.
+- On manual allocation, releases the collection-configured primary allocations.
 - On failed sale, returns 100% of WETH to the recorded payer as the NFT is canceled.
 - Owns no funds after success or complete refund.
 
@@ -216,7 +222,7 @@ It must not expose arbitrary `call`, `delegatecall`, arbitrary recipient, or res
 #### `OperationsReserve`
 
 - Explicitly not NFT backing.
-- Receives the 5% primary allocation and ongoing operations allocation.
+- Receives the collection-configured primary and ongoing operations allocation.
 - Pays disclosed audits, automation, and capped keeper bounties through its own multisig policy.
 - After the primary-reserve sunset, anyone may sweep unused primary reserves to `CollectionRevenueRouter` for 100% NFT distribution.
 
@@ -232,7 +238,7 @@ Every sleeve is an ERC-20 share token. A token treasury owns sleeve shares; the 
 
 #### `CoreStockTokenSleeve`
 
-- Fixed category weight: 50% of collection portfolio contributions.
+- Category weight is configured immutably per collection.
 - Holds up to three active Stock Tokens.
 - Launch target: equal weights inside the sleeve unless the manifest specifies another immutable launch allocation.
 - Supports timelocked constituent replacement when an issuer deprecates a token or liquidity/feed quality fails.
@@ -241,7 +247,7 @@ Every sleeve is an ERC-20 share token. A token treasury owns sleeve shares; the 
 
 #### `MarketMakingSleeve`
 
-- Fixed category weight: 35%.
+- Category weight is configured immutably per collection.
 - Owns approved Delta strategy-adapter shares or Delta/Uniswap position NFTs.
 - V1 enables at most two strategies and one active position per strategy.
 - Accounts for principal inventory, uncollected trading fees, claimed WETH, and streamed but not yet claimable rewards.
@@ -250,7 +256,7 @@ Every sleeve is an ERC-20 share token. A token treasury owns sleeve shares; the 
 
 #### `USDGYieldSleeve`
 
-- Fixed category weight: 15%.
+- Category weight is configured immutably per collection.
 - Accounting and deposit asset is USDG `0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168`.
 - Implements ERC-4626 when all normal deposits and redemptions are expressed in USDG.
 - Deploys USDG into the configured lending adapter; any plain USDG balance is transient transaction liquidity.
@@ -547,7 +553,7 @@ Buyer
   | fixed WETH price
   v
 SaleEscrow
-  | records payer, tokenId, 80% backing liability, 20% fee liability
+  | records payer, tokenId, configured backing liability, and configured recipient liabilities
   v
 YieldVaultCollection
   | creates deterministic account
@@ -567,8 +573,8 @@ Rules:
 When paid mint count reaches 3,000:
 
 1. Collection records `finalizedSupply = 3000` and permanently closes minting.
-2. SaleEscrow releases 10% to creator, 5% to Sinjoh, and 5% to OperationsReserve.
-3. The combined 80% seed backing remains WETH and is allocated once across the three sleeves at 50/35/15.
+2. The proceeds vault releases the configured creator, Sinjoh, and OperationsReserve shares only during manual allocation.
+3. The configured backing share is wrapped and allocated across the three sleeves using the collection's immutable configured weights.
 4. The exact sleeve shares received are divided equally across all 3,000 token IDs through distributor accumulators.
 5. Rounding dust remains accounted in the distributor and ultimately belongs to the final live NFT.
 6. Anyone may call `settle(tokenId)` to move the three sleeve-share balances into its deterministic account.
@@ -600,7 +606,7 @@ CollectionRevenueRouter
       |
       v
 PortfolioAllocator
-      | 50% / 35% / 15%
+      | configured immutable weights totaling 100%
       v
 Sleeve deposits
       | measured shares
@@ -616,7 +622,7 @@ Revenue source types:
 | Source | NFT share | Creator | Sinjoh | Operations |
 |---|---:|---:|---:|---:|
 | Sinjoh secondary royalty | 70% of royalty | 15% | 15% | 0% |
-| Bound-project-token revenue | 80% | 10% | 5% | 5% |
+| Bound-project-token revenue | configured backing share | configured creator share | configured Sinjoh share | configured operations share |
 | Approved voluntary contribution | 100% | 0% | 0% | 0% |
 | Exit tax | 100% to remaining NFTs | 0% | 0% | 0% |
 

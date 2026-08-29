@@ -1,0 +1,104 @@
+{
+  "schemaVersion": "1.0",
+  "run": {
+    "id": "20260828-195505",
+    "date": "2026-08-28",
+    "requirements": "Direct Stock Token and USDG custody with a minimal future Delta LP adapter path"
+  },
+  "summary": {
+    "building": "Direct Stock Token and USDG custody with a manually operated synchronous adapter extension point",
+    "verdict": "caution",
+    "topRisk": "An incomplete Delta entry and exit lifecycle can strand collection backing",
+    "mustDecideFirst": "Bind the exact INJOH token, Delta product, pool, conversion route, and complete redemption lifecycle before Delta activation",
+    "watchOutFor": "Stock Token dividends are reinvested through the onchain multiplier rather than paid separately"
+  },
+  "components": [
+    {
+      "name": "OpenZeppelin Contracts",
+      "type": "SDK",
+      "version": "5.6.1",
+      "sourceUrl": "https://github.com/OpenZeppelin/openzeppelin-contracts/releases/tag/v5.6.1",
+      "status": "cached",
+      "risks": [
+        {
+          "severity": "medium",
+          "title": "External-call lifecycle risk",
+          "detail": "Adapter calls require reentrancy protection, measured receipts, and cleared temporary allowances"
+        },
+        {
+          "severity": "low",
+          "title": "Ownership handoff risk",
+          "detail": "Two-step registry ownership must be accepted before production activation"
+        }
+      ]
+    },
+    {
+      "name": "Robinhood Stock Tokens",
+      "type": "Blockchain",
+      "version": "unversioned",
+      "sourceUrl": "https://docs.robinhood.com/chain/stock-tokens/",
+      "status": "fresh",
+      "risks": [
+        {
+          "severity": "critical",
+          "title": "Restricted-holder incompatibility",
+          "detail": "Production exposure requires a counsel-approved holder eligibility policy"
+        },
+        {
+          "severity": "high",
+          "title": "Multiplier double counting",
+          "detail": "The official per-token price feed already includes the Stock Token multiplier"
+        }
+      ]
+    },
+    {
+      "name": "Delta Liquidity",
+      "type": "Blockchain",
+      "version": "unversioned",
+      "sourceUrl": "https://deltaliquidity.app/docs",
+      "status": "partial",
+      "risks": [
+        {
+          "severity": "critical",
+          "title": "Incomplete entry and exit lifecycle",
+          "detail": "The exact product, pool, conversion route, custody, and redemption semantics are not fully bound"
+        },
+        {
+          "severity": "high",
+          "title": "Two-asset and streamed-reward accounting",
+          "detail": "Exits may return INJOH and WETH while WETH rewards can remain streamed"
+        }
+      ]
+    }
+  ],
+  "riskTotals": {
+    "critical": 2,
+    "high": 2,
+    "medium": 1,
+    "low": 1
+  },
+  "preCodingDecisions": [
+    {
+      "title": "Delta activation bindings",
+      "detail": "Exact INJOH token, product, pool, route, ABI, addresses, runtime hashes, caps, and exit semantics are required before activation",
+      "immutable": true
+    }
+  ],
+  "requirementsCorrections": [
+    {
+      "kind": "wrong_assumption",
+      "detail": "Stock Token dividends are reinvested through uiMultiplier rather than separately paid to the sleeve"
+    },
+    {
+      "kind": "wrong_assumption",
+      "detail": "USDG is a direct holding in the MVP and must not be described as a yield sleeve"
+    },
+    {
+      "kind": "missing_constraint",
+      "detail": "The concrete Delta product, INJOH token, pool, conversion route, and complete exit lifecycle are not supplied"
+    }
+  ],
+  "openQuestions": [
+    "Unresolvable from current requirements and public sources: which exact Delta product and INJOH/WETH pool the collection will use"
+  ]
+}
