@@ -9,6 +9,7 @@ struct PublicDrop {
     uint16 feeBps;
     bool restrictFeeRecipients;
 }
+
 struct TokenGatedDropStage {
     uint80 mintPrice;
     uint16 maxTotalMintableByWallet;

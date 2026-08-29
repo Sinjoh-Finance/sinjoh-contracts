@@ -11,6 +11,7 @@ import { IYieldBankAllocationRoute } from "./interfaces/IYieldBankAllocationRout
 import { IYieldBankSleeve } from "./interfaces/IYieldBankSleeve.sol";
 import { IYieldBankManagedSleeve } from "./interfaces/IYieldBankManagedSleeve.sol";
 import { IntegrationBinding } from "./libraries/IntegrationBinding.sol";
+import { YieldBankCollectionState } from "./YieldBankTypes.sol";
 
 interface IYieldBankAllocationOperatorSource {
     function allocationOperator() external view returns (address);
@@ -53,6 +54,7 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
     error InvalidConfiguration();
     error InexactReceipt(uint256 expected, uint256 received);
     error RouteUnavailable(address inputAsset, address sleeve);
+    error InvestmentUnavailable(YieldBankCollectionState state);
 
     event RouteBound(
         address indexed inputAsset,
@@ -120,6 +122,12 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
         _;
     }
 
+    modifier whenInvestmentActive() {
+        YieldBankCollectionState current = collection.state();
+        if (current != YieldBankCollectionState.ACTIVE) revert InvestmentUnavailable(current);
+        _;
+    }
+
     function allocationOperator() public view returns (address) {
         return IYieldBankAllocationOperatorSource(collection.proceedsVault()).allocationOperator();
     }
@@ -149,6 +157,7 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
     function allocate(address asset, uint256 amount, bytes calldata data)
         external
         onlyRevenueRouter
+        whenInvestmentActive
         nonReentrant
         returns (address[] memory distributionAssets, uint256[] memory distributionAmounts)
     {
@@ -164,6 +173,7 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
         AllocationCall[3] calldata calls
     )
         external
+        whenInvestmentActive
         nonReentrant
         returns (address[] memory distributionAssets, uint256[] memory distributionAmounts)
     {
@@ -182,7 +192,13 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
         uint256 assets,
         uint256 minPositionUnits,
         bytes calldata data
-    ) external onlyAllocationOperator nonReentrant returns (uint256 positionUnits) {
+    )
+        external
+        onlyAllocationOperator
+        whenInvestmentActive
+        nonReentrant
+        returns (uint256 positionUnits)
+    {
         if (!_isSleeve(sleeve)) revert InvalidConfiguration();
         return
             IYieldBankManagedSleeve(sleeve)
@@ -204,6 +220,7 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
     function collectAdapter(address sleeve, address adapter, bytes calldata data)
         external
         onlyAllocationOperator
+        whenInvestmentActive
         nonReentrant
         returns (address[] memory assets, uint256[] memory amounts)
     {

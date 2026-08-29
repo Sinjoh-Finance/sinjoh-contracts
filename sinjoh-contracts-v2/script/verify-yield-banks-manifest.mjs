@@ -31,6 +31,7 @@ const sameAddress = (left, right) => getAddress(left) === getAddress(right);
 
 assert(manifest.schemaVersion === "1.0", "unsupported Yield Banks manifest schema");
 assert(manifest.chainId === 4663 || manifest.chainId === 46630, "unsupported chainId");
+assert(bytes32.test(manifest.collectionId), "collectionId must be bytes32");
 assert(Number(await client.getChainId()) === manifest.chainId, "RPC chain does not match manifest");
 assert(Number.isSafeInteger(manifest.economics.maxSupply) && manifest.economics.maxSupply > 0,
   "maxSupply must be a positive safe integer");
@@ -138,7 +139,10 @@ const deployerAbi = [
   { type: "function", name: "predict", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "address" }] },
 ];
 const collectionAbi = [
+  { type: "function", name: "collectionId", stateMutability: "view", inputs: [], outputs: [{ type: "bytes32" }] },
   { type: "function", name: "maxSupply", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "nft", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+  { type: "function", name: "distributor", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "proceedsVault", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   ...[
     "primaryBackingBps", "primaryCreatorBps", "primarySinjohBps", "primaryOperationsBps",
@@ -148,6 +152,9 @@ const collectionAbi = [
 const nftAbi = [
   { type: "function", name: "maxSupply", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "seaDrop", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+  { type: "function", name: "collection", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+  { type: "function", name: "royaltyReceiver", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+  { type: "function", name: "ROYALTY_BPS", stateMutability: "view", inputs: [], outputs: [{ type: "uint96" }] },
 ];
 const vaultAbi = [
   { type: "function", name: "allocationOperator", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
@@ -186,16 +193,23 @@ const read = (address, abi, functionName, args = []) => client.readContract({
 });
 const factory = manifest.contracts.factory.address;
 const [predictedFactory, factoryVersion, collectionCodeHash, systemPlanHash,
-  collectionMaxSupply, collectionProceedsVault, nftMaxSupply, nftSeaDrop,
-  allocationOperator, collectionRecord, ...onchainEconomicValues] = await Promise.all([
+  collectionId, collectionMaxSupply, collectionNft, collectionDistributor,
+  collectionProceedsVault, nftMaxSupply, nftSeaDrop, nftCollection, nftRoyaltyReceiver,
+  nftRoyaltyBps, allocationOperator, collectionRecord, ...onchainEconomicValues] = await Promise.all([
   read(manifest.contracts.factoryDeployer.address, deployerAbi, "predict", [manifest.deployment.factorySalt]),
   read(factory, factoryAbi, "factoryVersion"),
   read(factory, factoryAbi, "collectionCreationCodeHash"),
   read(factory, factoryAbi, "systemPlanHash"),
+  read(manifest.contracts.collection.address, collectionAbi, "collectionId"),
   read(manifest.contracts.collection.address, collectionAbi, "maxSupply"),
+  read(manifest.contracts.collection.address, collectionAbi, "nft"),
+  read(manifest.contracts.collection.address, collectionAbi, "distributor"),
   read(manifest.contracts.collection.address, collectionAbi, "proceedsVault"),
   read(manifest.contracts.nft.address, nftAbi, "maxSupply"),
   read(manifest.contracts.nft.address, nftAbi, "seaDrop"),
+  read(manifest.contracts.nft.address, nftAbi, "collection"),
+  read(manifest.contracts.nft.address, nftAbi, "royaltyReceiver"),
+  read(manifest.contracts.nft.address, nftAbi, "ROYALTY_BPS"),
   read(manifest.contracts.proceedsVault.address, vaultAbi, "allocationOperator"),
   read(manifest.contracts.registry.address, registryAbi, "collections", [manifest.contracts.collection.address]),
   ...[
@@ -214,12 +228,22 @@ assert(systemPlanHash.toLowerCase() === manifest.deployment.systemPlanHash.toLow
   "system plan hash mismatch");
 assert(collectionRecord[2].toLowerCase() === manifest.deployment.collectionConfigurationHash.toLowerCase(),
   "collection configuration hash mismatch");
-assert(collectionRecord[5] === true, "collection is not registered");
+assert(sameAddress(collectionRecord[0], factory)
+  && collectionRecord[1].toLowerCase() === manifest.factoryVersion.toLowerCase()
+  && collectionRecord[3].toLowerCase() === manifest.contracts.collection.runtimeCodeHash.toLowerCase()
+  && collectionRecord[5] === true, "collection registry record mismatch");
+assert(collectionId.toLowerCase() === manifest.collectionId.toLowerCase(), "collectionId mismatch");
 assert(collectionMaxSupply === BigInt(manifest.economics.maxSupply)
   && nftMaxSupply === BigInt(manifest.economics.maxSupply), "onchain maxSupply mismatch");
 assert(sameAddress(collectionProceedsVault, manifest.contracts.proceedsVault.address),
   "collection proceeds vault mismatch");
+assert(sameAddress(collectionNft, manifest.contracts.nft.address), "collection NFT mismatch");
+assert(sameAddress(collectionDistributor, manifest.contracts.distributor.address),
+  "collection distributor mismatch");
 assert(sameAddress(nftSeaDrop, manifest.dependencies.seaDrop.address), "NFT SeaDrop mismatch");
+assert(sameAddress(nftCollection, manifest.contracts.collection.address), "NFT collection mismatch");
+assert(sameAddress(nftRoyaltyReceiver, manifest.contracts.revenueRouter.address)
+  && Number(nftRoyaltyBps) === 500, "NFT royalty receiver or rate mismatch");
 assert(sameAddress(allocationOperator, manifest.roles.allocationOperator),
   "allocation operator mismatch");
 const collectionEconomicKeys = [

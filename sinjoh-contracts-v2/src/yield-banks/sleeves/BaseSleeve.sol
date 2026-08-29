@@ -62,6 +62,7 @@ abstract contract BaseSleeve is ERC20, ReentrancyGuard, IYieldBankSleeve {
     error InsufficientAdapterOutput(uint256 minimum, uint256 actual);
     error RuntimeCodeHashMismatch(address adapter);
     error CapExceeded(uint256 maximum, uint256 requested);
+    error OracleUnavailable(address asset, IPriceHub.FailureReason failure);
 
     event InventoryAssetAdded(address indexed asset);
     event InventoryAssetReplaced(address indexed previousAsset, address indexed replacementAsset);
@@ -157,15 +158,30 @@ abstract contract BaseSleeve is ERC20, ReentrancyGuard, IYieldBankSleeve {
     }
 
     function totalAssetsUsd18() public view override returns (uint256 value, uint48 pricedAt) {
+        (value, pricedAt,,) = _totalAssetsUsd18();
+    }
+
+    function _totalAssetsUsd18()
+        private
+        view
+        returns (
+            uint256 value,
+            uint48 pricedAt,
+            address failedAsset,
+            IPriceHub.FailureReason failedReason
+        )
+    {
         pricedAt = type(uint48).max;
         uint256 length = _inventoryAssets.length;
         for (uint256 i; i < length; ++i) {
             address asset = _inventoryAssets[i];
             uint256 balance = IERC20(asset).balanceOf(address(this));
             if (balance == 0) continue;
-            (uint256 price, uint48 timestamp, IPriceHub.FailureReason failure) =
+            (uint256 price, uint48 timestamp, IPriceHub.FailureReason assetFailure) =
                 priceHub.quoteUsd18(asset);
-            if (failure != IPriceHub.FailureReason.NONE) return (0, timestamp);
+            if (assetFailure != IPriceHub.FailureReason.NONE || price == 0) {
+                return (0, timestamp, asset, assetFailure);
+            }
             uint8 decimals_ = IERC20Metadata(asset).decimals();
             value += Math.mulDiv(balance, price, 10 ** decimals_);
             if (timestamp < pricedAt) pricedAt = timestamp;
@@ -177,14 +193,17 @@ abstract contract BaseSleeve is ERC20, ReentrancyGuard, IYieldBankSleeve {
             if (current == YieldBankAdapterState.RETIRED) continue;
             uint256 managed = IStrategyAdapter(adapter).totalManagedAssets();
             if (managed != 0) {
-                (uint256 price, uint48 timestamp, IPriceHub.FailureReason failure) =
+                (uint256 price, uint48 timestamp, IPriceHub.FailureReason assetFailure) =
                     priceHub.quoteUsd18(accountingAsset);
-                if (failure != IPriceHub.FailureReason.NONE) return (0, timestamp);
+                if (assetFailure != IPriceHub.FailureReason.NONE || price == 0) {
+                    return (0, timestamp, accountingAsset, assetFailure);
+                }
                 value += Math.mulDiv(managed, price, 10 ** accountingDecimals);
                 if (timestamp < pricedAt) pricedAt = timestamp;
             }
         }
         if (pricedAt == type(uint48).max) pricedAt = 0;
+        return (value, pricedAt, address(0), IPriceHub.FailureReason.NONE);
     }
 
     function deposit(uint256 assets, address receiver, uint256 minShares, bytes calldata data)
@@ -196,9 +215,13 @@ abstract contract BaseSleeve is ERC20, ReentrancyGuard, IYieldBankSleeve {
     {
         if (depositsPaused) revert DepositsPaused();
         if (assets == 0 || receiver == address(0)) revert InvalidConfiguration();
-        (uint256 navBefore,) = totalAssetsUsd18();
+        (uint256 navBefore,, address failedAsset, IPriceHub.FailureReason navFailure) =
+            _totalAssetsUsd18();
+        if (failedAsset != address(0)) revert OracleUnavailable(failedAsset, navFailure);
         (uint256 price,, IPriceHub.FailureReason failure) = priceHub.quoteUsd18(accountingAsset);
-        if (failure != IPriceHub.FailureReason.NONE || price == 0) revert InvalidConfiguration();
+        if (failure != IPriceHub.FailureReason.NONE || price == 0) {
+            revert OracleUnavailable(accountingAsset, failure);
+        }
         uint256 assetValue = Math.mulDiv(assets, price, 10 ** accountingDecimals);
         IERC20 token = IERC20(accountingAsset);
         uint256 beforeBalance = token.balanceOf(address(this));

@@ -30,9 +30,11 @@ interface IYieldBankSeaDropCollection {
 contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungibleSeaDropToken {
     uint256 public constant MAX_MINT_QUANTITY = 20;
     uint16 private constant BPS = 10_000;
+    uint96 public constant ROYALTY_BPS = 500;
     address public immutable collection;
     address public immutable renderer;
     address public immutable seaDrop;
+    address public immutable royaltyReceiver;
     uint256 public immutable override maxSupply;
     uint256 public totalMinted;
     mapping(address => uint256) public numberMinted;
@@ -50,6 +52,7 @@ contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungi
     error ImmutableMaxSupply(uint256 supplied);
     error ProceedsVaultAlreadySet();
     error ProvenanceLocked();
+    error ImmutableRoyaltyInfo(address receiver, uint96 bps);
 
     event AllowedSeaDropUpdated(address[] allowedSeaDrop);
     event ContractURIUpdated(string newContractURI);
@@ -80,8 +83,9 @@ contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungi
         collection = collection_;
         renderer = renderer_;
         seaDrop = seaDrop_;
+        royaltyReceiver = revenueRouter_;
         maxSupply = maxSupply_;
-        _setDefaultRoyalty(revenueRouter_, 500);
+        _setDefaultRoyalty(revenueRouter_, ROYALTY_BPS);
         address[] memory allowed = new address[](1);
         allowed[0] = seaDrop_;
         emit AllowedSeaDropUpdated(allowed);
@@ -128,8 +132,7 @@ contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungi
 
     function updatePublicDrop(address impl, PublicDrop calldata value) external override onlyOwner {
         _requireSeaDrop(impl);
-        if (value.mintPrice == 0) revert InvalidMintPrice();
-        if (value.feeBps >= BPS) revert PaidMintRequired();
+        _requirePaidMint(value.mintPrice, value.feeBps);
         ISeaDrop(seaDrop).updatePublicDrop(value);
     }
 
@@ -158,8 +161,7 @@ contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungi
         onlyOwner
     {
         _requireSeaDrop(impl);
-        if (value.mintPrice == 0) revert InvalidMintPrice();
-        if (value.feeBps >= BPS) revert PaidMintRequired();
+        _requirePaidMint(value.mintPrice, value.feeBps);
         ISeaDrop(seaDrop).updateTokenGatedDrop(token, value);
     }
 
@@ -189,8 +191,7 @@ contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungi
         SignedMintValidationParams memory value
     ) external override onlyOwner {
         _requireSeaDrop(impl);
-        if (value.minMintPrice == 0) revert InvalidMintPrice();
-        if (value.maxFeeBps >= BPS) revert PaidMintRequired();
+        _requirePaidMint(value.minMintPrice, value.maxFeeBps);
         ISeaDrop(seaDrop).updateSignedMintValidationParams(signer, value);
     }
 
@@ -225,8 +226,8 @@ contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungi
         override
         onlyOwner
     {
-        if (value.royaltyAddress == address(0) || value.royaltyBps > 10_000) {
-            revert InvalidConfiguration();
+        if (value.royaltyAddress != royaltyReceiver || value.royaltyBps != ROYALTY_BPS) {
+            revert ImmutableRoyaltyInfo(value.royaltyAddress, value.royaltyBps);
         }
         _setDefaultRoyalty(value.royaltyAddress, value.royaltyBps);
         emit RoyaltyInfoUpdated(value.royaltyAddress, value.royaltyBps);
@@ -283,5 +284,10 @@ contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungi
 
     function _requireSeaDrop(address impl) private view {
         if (impl != seaDrop) revert OnlyAllowedSeaDrop(impl);
+    }
+
+    function _requirePaidMint(uint256 mintPrice, uint256 feeBps) private pure {
+        if (mintPrice == 0) revert InvalidMintPrice();
+        if (feeBps >= BPS) revert PaidMintRequired();
     }
 }

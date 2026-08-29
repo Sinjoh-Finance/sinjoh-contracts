@@ -22,6 +22,7 @@ import {
     IYieldBankAllocationRoute
 } from "../../src/yield-banks/interfaces/IYieldBankAllocationRoute.sol";
 import { IStrategyAdapter } from "../../src/yield-banks/interfaces/IStrategyAdapter.sol";
+import { YieldBankCollectionState } from "../../src/yield-banks/YieldBankTypes.sol";
 
 contract MockYieldBankAsset is ERC20 {
     constructor(string memory name_, string memory symbol_) ERC20(name_, symbol_) { }
@@ -97,9 +98,14 @@ contract MockYieldBankPrimaryAllocator {
 
 contract MockYieldBankCollectionPointer {
     address public proceedsVault;
+    YieldBankCollectionState public state = YieldBankCollectionState.ACTIVE;
 
     function setProceedsVault(address value) external {
         proceedsVault = value;
+    }
+
+    function setState(YieldBankCollectionState value) external {
+        state = value;
     }
 }
 

@@ -140,6 +140,7 @@ contract CoreStockTokenSleeve is BaseSleeve {
         if (calls.length != length) revert InvalidConfiguration();
         uint256 allocated;
         for (uint256 i; i < length; ++i) {
+            if (calls[i].minimumOutput == 0) revert InvalidConfiguration();
             Constituent memory constituent = _constituents[i];
             IntegrationBinding.requireBound(constituent.route, constituent.routeRuntimeCodeHash);
             uint256 amountIn = i + 1 == length
