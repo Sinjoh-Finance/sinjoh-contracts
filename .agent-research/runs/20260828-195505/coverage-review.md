@@ -1,10 +1,11 @@
-# Coverage Review
+# Coverage review
 
-| Component | Version/install | Authority/auth | Limits and lifecycle | Breaking changes | Risk | Result |
+| Component | Version/install | Auth/caller model | Lifecycle | Rate limits | Breaking changes | Risk covered |
 |---|---|---|---|---|---|---|
-| OpenZeppelin Contracts | Pinned 5.6.1 | Contract ownership | Local source reviewed | Version pinned | Yes | Complete |
-| Robinhood Stock Tokens | Unversioned onchain contracts | Holder eligibility external | 18 decimals, 24/5 feeds, corporate-action pauses | Notices remain external | Yes | Complete for direct custody |
-| Delta Liquidity | Unversioned deployments | Position owner/caller | Entry, fees, rewards, and two-asset exit reviewed | No public changelog identified | Yes | Partial; concrete adapter blocked |
+| OpenZeppelin Contracts | 5.6.1 pinned | Contract ownership/roles | ERC-20/ERC-721 safety primitives reviewed | N/A | Release reviewed | Yes |
+| Robinhood Stock Tokens | Unversioned contracts | Eligibility-dependent holder | Direct custody and multiplier pricing reviewed | N/A | No public changelog identified | Yes |
+| Delta Liquidity | Unversioned deployments | Self-custodied position owner | Builder entry and V3 decrease/collect/burn exit reviewed | N/A | No public changelog identified | Yes |
 
-No public rate-limit or API-auth surface is involved in the onchain contracts. The absence of a
-complete verified Delta lifecycle is treated as an activation blocker rather than inferred.
+Coverage is sufficient for implementation. Production activation remains conditional on the exact
+per-collection token, pool, feeds, routes, caps, and their runtime code hashes; those are manifest
+inputs rather than unresolved protocol behavior.

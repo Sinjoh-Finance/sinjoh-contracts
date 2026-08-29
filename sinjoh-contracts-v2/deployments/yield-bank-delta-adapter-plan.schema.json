@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sinjoh.com/schemas/yield-bank-delta-adapter-plan-1.0.json",
+  "title": "Sinjoh Yield Banks Delta adapter deployment plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["chainId", "expectedRuntimeCodeHash", "config"],
+  "properties": {
+    "chainId": { "enum": [4663, 46630] },
+    "expectedRuntimeCodeHash": { "$ref": "#/$defs/nonzeroBytes32" },
+    "config": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sleeve", "weth", "injoh", "priceHub", "pool", "positionManager", "positionBuilder", "entryRoute", "exitRoute", "poolCodeHash", "factoryCodeHash", "positionManagerCodeHash", "positionBuilderCodeHash", "entryRouteCodeHash", "exitRouteCodeHash", "maximumPositions"],
+      "properties": {
+        "sleeve": { "$ref": "#/$defs/address" },
+        "weth": { "$ref": "#/$defs/address" },
+        "injoh": { "$ref": "#/$defs/address" },
+        "priceHub": { "$ref": "#/$defs/address" },
+        "pool": { "$ref": "#/$defs/address" },
+        "positionManager": { "$ref": "#/$defs/address" },
+        "positionBuilder": { "$ref": "#/$defs/address" },
+        "entryRoute": { "$ref": "#/$defs/address" },
+        "exitRoute": { "$ref": "#/$defs/address" },
+        "poolCodeHash": { "$ref": "#/$defs/nonzeroBytes32" },
+        "factoryCodeHash": { "$ref": "#/$defs/nonzeroBytes32" },
+        "positionManagerCodeHash": { "$ref": "#/$defs/nonzeroBytes32" },
+        "positionBuilderCodeHash": { "$ref": "#/$defs/nonzeroBytes32" },
+        "entryRouteCodeHash": { "$ref": "#/$defs/nonzeroBytes32" },
+        "exitRouteCodeHash": { "$ref": "#/$defs/nonzeroBytes32" },
+        "maximumPositions": { "type": "integer", "minimum": 1, "maximum": 64 }
+      }
+    }
+  },
+  "$defs": {
+    "address": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$", "not": { "const": "0x0000000000000000000000000000000000000000" } },
+    "nonzeroBytes32": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$", "not": { "const": "0x0000000000000000000000000000000000000000000000000000000000000000" } }
+  }
+}

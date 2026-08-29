@@ -141,10 +141,13 @@ The initial implementation stays deliberately narrow:
 - future venues extend the same small adapter interface and registry/codehash checks without changing
   minting, proceeds custody, NFT ownership, or primary entitlement accounting.
 
-The generic adapter boundary is part of v1. A concrete Delta adapter cannot enter a production
-manifest until the exact `$INJOH` token, `$INJOH`/WETH pool, entry route, position parameters,
-valuation method, and complete-exit behavior have passed the integration gate. Those values are not
-guessed or embedded as protocol defaults.
+The generic adapter boundary and the concrete `DeltaV3LPAdapter` are part of v1. The Delta adapter
+self-custodies ordinary V3 position NFTs minted through the verified Delta builder, binds the pool,
+factory, position manager, entry route, exit route, sleeve, and PriceHub by address and runtime code
+hash, and implements explicit manual deposit, collection, partial withdrawal, and full in-kind exit.
+The exact `$INJOH` token, `$INJOH`/WETH pool, conversion routes, position limit, allocation cap,
+ladder rungs, tick bounds, deadlines, and slippage floors remain reviewed per-collection or
+per-transaction inputs. They are not guessed or embedded as protocol defaults.
 
 ## 6. Lifecycle and state model
 

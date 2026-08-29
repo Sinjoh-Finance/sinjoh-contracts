@@ -5,47 +5,57 @@
 
 ## Facts
 
-- Delta runs on Robinhood Chain, chain ID 4663, and documents both stake and shaped-position
-  products: https://deltaliquidity.app/docs
-- Stake exits return both underlying coins without an automatic swap, exit penalty, or lockup.
-- Stake rewards are WETH streamed over seven days; Delta charges 1% of collected fees.
+- Delta runs on Robinhood Chain, chain ID 4663, and documents shaped LP positions and staking:
+  https://deltaliquidity.app/docs
 - Delta documents `DeltaPositionBuilder` at
   `0x6235cF6bd8419b34942F4EDDB39C880BD96dD700`.
-- The explorer-verified `DeltaPositionBuilder` mints ordinary Uniswap position NFTs directly to
-  `msg.sender`. Its constructor binds the Uniswap factory and position manager, and its source
-  validates pool identity, tick ranges, deadlines, and token-transfer limits:
+- The explorer-verified builder exposes
+  `mintLadder(address pool, Rung[] rungs, int24 minCurrentTick, int24 maxCurrentTick, uint256 deadline)`
+  and mints ordinary Uniswap V3 position NFTs directly to `msg.sender`:
   https://robinhoodchain.blockscout.com/api?module=contract&action=getsourcecode&address=0x6235cF6bd8419b34942F4EDDB39C880BD96dD700
+- The verified builder constructor binds Uniswap V3 factory
+  `0x1f7d7550B1b028f7571E69A784071F0205FD2EfA` and position manager
+  `0x73991a25C818Bf1f1128dEAaB1492D45638DE0D3`.
+- Its source validates factory pool identity, current-tick bounds, rung ranges, token transfer caps,
+  and the deadline, and refunds unused token amounts to the caller.
 - Delta's documented single-asset `DeltaZap` at
   `0xC0b8eC7589ee49c53305517bFd53BEd708392294` did not expose verified source or ABI through the
-  explorer API during this run.
+  explorer API during this run and is not used by Yield Banks.
 
 ## Assumptions
 
-- `$INJOH` begins as WETH proceeds and therefore needs an explicitly reviewed conversion path
-  before a two-sided position can be created.
+- Each collection will choose and review its own `$INJOH` token, `$INJOH`/WETH pool, conversion
+  routes, PriceHub feeds, adapter cap, and maximum position count.
 
 ## Inferences
 
-- A concrete adapter cannot safely guess whether Yield Banks should use a stake, a shaped ladder,
-  or a zap. The generic synchronous adapter control plane can be completed now; Delta activation
-  must wait for exact `$INJOH`, pool, entry, custody, fee-claim, and exit bindings.
+- Yield Banks can implement a complete Delta ladder lifecycle without the unverified zap or stake
+  manager: convert explicitly through codehash-bound routes, mint V3 NFTs through the verified
+  builder, self-custody them, decrease/collect/burn through the verified position manager, and
+  return WETH plus residual `$INJOH` in kind on full exit.
+- Live uncollected V3 fees cannot be read exactly from the position-manager NFT alone. NAV can
+  conservatively count principal plus stored owed amounts; an operator collection realizes live
+  fees before distribution.
 
 ## Risks
 
-**CRITICAL — incomplete entry and exit lifecycle**
+**HIGH — activation binding mismatch**
 
-Activating against an unverified zap or incomplete position lifecycle can strand collection backing
-or produce a position that the redemption path cannot unwind.
+A wrong token, pool, route, factory, manager, or builder can direct backing into the wrong market.
+The constructor, deployment plan, release manifest, registry, and live verifier must all bind the
+same addresses and runtime code hashes.
 
-**HIGH — two-asset and streamed-reward accounting**
+**MEDIUM — conservative fee valuation**
 
-An exit may return both `$INJOH` and WETH, while rewards can remain streamed. A concrete adapter must
-define valuation and full-exit behavior for all of them.
+Live fees not yet crystallized into `tokensOwed` are omitted from adapter NAV until collection. This
+undercounts rather than overstates backing, but operations must collect before financial reporting
+that requires realized fee totals.
 
 ## Resolved questions
 
-**Can the concrete Delta adapter be safely implemented from the current requirements alone?**
+**Can the concrete Delta adapter be implemented without relying on an unverified Delta zap or stake
+manager?**
 
-No. Public sources identify a verified position builder, but the exact collection token, pool,
-single-sided conversion route, chosen Delta product, and complete redemption lifecycle are not yet
-bound.
+Yes. The verified builder creates caller-owned ordinary V3 NFTs, and the standard verified position
+manager supplies the complete decrease, collect, and burn lifecycle. Collection-specific economic
+choices remain explicit deployment or transaction inputs rather than protocol defaults.

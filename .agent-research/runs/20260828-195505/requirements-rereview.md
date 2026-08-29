@@ -1,12 +1,13 @@
-# Requirements Re-review
+# Requirements re-review
 
-- **Sound:** Directly hold Stock Tokens and USDG.
-- **Wrong assumption corrected:** Stock Token dividends are not separately paid to a collection
-  contract; they are reinvested through the token multiplier.
-- **Sound:** Keep one small, synchronous adapter extension point for manually operated positions.
-- **Missing constraint:** The concrete `$INJOH` token, Delta product, pool, and WETH-to-`$INJOH`
-  conversion route are not supplied.
-- **Immutable choice:** Every activated adapter and venue must be bound by address and runtime code
-  hash in the deployment manifest.
-- **Implementation consequence:** Remove USDG lending, canary promotion, queued withdrawals,
-  risk-class/audit metadata, and generic harvesting. Do not activate a concrete Delta adapter yet.
+- **Wrong assumption corrected:** Stock Token dividends are represented through the token multiplier;
+  the MVP must not add a separate dividend-claim subsystem.
+- **Wrong assumption corrected:** USDG is directly held and must not be described as a lending or
+  automatic yield strategy.
+- **Immutable deployment inputs:** Every collection must bind its exact `$INJOH` token, pool,
+  PriceHub feeds, routes, Delta builder, factory, position manager, runtime hashes, position limit,
+  and allocation cap before activation.
+- **Transaction inputs:** Ladder rungs, current-tick bounds, deadlines, token minima, liquidity to
+  remove, conversion amount, and output floor remain explicit operator choices.
+- **Scope held:** The concrete adapter uses the verified ladder builder and ordinary V3 NFT lifecycle.
+  It does not add staking, zaps, automatic keepers, queued withdrawals, lending, or new governance.

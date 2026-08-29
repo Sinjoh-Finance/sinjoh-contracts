@@ -22,6 +22,9 @@ contract, API, SDK, indexer, keeper, and UI naming consistently uses **Yield Ban
 - `PriceHub` and `StrategyRegistry`: fail-closed 18-decimal pricing and adapter provenance.
 - `CoreStockTokenSleeve`, `MarketMakingSleeve`, and `USDGSleeve`: capped ERC-20 share sleeves with in-kind redemption.
 - `IStrategyAdapter`: a small synchronous extension boundary for separately reviewed future venues.
+- `DeltaV3LPAdapter`: a codehash-bound, self-custodied `$INJOH`/WETH Delta ladder adapter with
+  explicit manual entry, fee collection, partial withdrawal, full in-kind exit, and oracle-valued
+  position accounting.
 
 The core burn path settles pending assets, applies a 5% tax to each tracked asset while more than one
 NFT remains, redistributes that tax using the post-burn live supply, and transfers the remainder to
@@ -34,16 +37,22 @@ Only the configured allocation operator can enter or collect from adapters; the 
 can withdraw and exit. Calls cannot accept a loss above the immutable `maximumOperatorLossBps`
 recorded for that sleeve in the release manifest.
 
-## Activation blockers
+## Production inputs
 
 The following production modules require the Phase-0 manifest and external review inputs described
 in `.agent-research/runs/20260828-195505/final-report.md`:
 
 - counsel-approved Stock Token holder eligibility and transfer policy, or removal of Stock Tokens;
 - the collection's selected Stock Tokens, feeds, and operational chain-health source; and
-- the exact `$INJOH` token, `$INJOH`/WETH pool, entry route, position parameters, valuation method,
-  complete-exit behavior, and verified Delta lifecycle dependencies. No concrete Delta adapter is
-  deployable until these are supplied.
+- the exact `$INJOH` token, `$INJOH`/WETH pool, both conversion routes, INJOH and WETH price feeds,
+  per-adapter position limit and allocation cap.
+
+The concrete Delta adapter is implemented in `adapters/DeltaV3LPAdapter.sol`. It binds the verified
+Delta position builder `0x6235cF6bd8419b34942F4EDDB39C880BD96dD700`, factory
+`0x1f7d7550B1b028f7571E69A784071F0205FD2EfA`, position manager
+`0x73991a25C818Bf1f1128dEAaB1492D45638DE0D3`, selected pool, routes, sleeve, and PriceHub by exact
+address and runtime code hash. It owns ordinary V3 position NFTs itself and rejects unsolicited
+NFTs. The operator chooses ladder rungs and slippage limits per transaction; none are hard-coded.
 
 Primary minting is hosted by OpenSea and sends native ETH through pinned SeaDrop. There is no sale
 success, refund, deadline, sellout release, or automatic investment transition. Missing
@@ -69,6 +78,7 @@ Run from `sinjoh-contracts-v2`:
 forge test --match-contract YieldBankCollectionTest
 forge test --match-contract YieldBankStrategyAndOracleTest
 forge test --match-contract YieldBankCollectionInvariantTest
+forge test --match-contract DeltaV3LPAdapterTest
 forge test
 forge build --sizes
 ```

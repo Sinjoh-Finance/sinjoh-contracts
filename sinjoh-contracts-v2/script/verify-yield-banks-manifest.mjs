@@ -61,6 +61,25 @@ for (const [key, address] of Object.entries(expectedDependencies)) {
 }
 assert(manifest.stockTokens.length >= 1, "at least one reviewed Stock Token is required");
 assert(Object.keys(manifest.feeds).length >= 1, "at least one reviewed feed is required");
+assert(manifest.delta && Number.isInteger(manifest.delta.maximumPositions)
+  && manifest.delta.maximumPositions >= 1 && manifest.delta.maximumPositions <= 64,
+"delta.maximumPositions must be an integer from 1 through 64");
+assert(isBps(manifest.delta.adapterCapBps) && manifest.delta.adapterCapBps > 0
+  && manifest.delta.adapterCapBps <= manifest.policyCaps.marketMaking.maximumAdapterCapBps,
+"delta.adapterCapBps exceeds the market-making sleeve policy");
+assert(manifest.policyCaps.marketMaking.maximumStrategies >= 1,
+  "Delta requires at least one market-making strategy slot");
+const containsAddress = (records, address) => Object.values(records)
+  .some((entry) => sameAddress(entry.address, address));
+for (const [field, records] of [
+  ["adapter", manifest.adapters], ["entryRoute", manifest.adapters],
+  ["exitRoute", manifest.adapters], ["pool", manifest.pools],
+  ["injoh", manifest.dependencies], ["positionBuilder", manifest.dependencies],
+  ["factory", manifest.dependencies], ["positionManager", manifest.dependencies],
+]) assert(containsAddress(records, manifest.delta[field]),
+  `delta.${field} is not bound to its manifest group`);
+assert(!sameAddress(manifest.delta.injoh, manifest.dependencies.WETH.address),
+  "delta.injoh must differ from WETH");
 for (const sleeve of ["core", "marketMaking", "usdg"]) {
   const policy = manifest.policyCaps[sleeve];
   assert(policy && Number.isInteger(policy.maximumStrategies)
@@ -144,6 +163,24 @@ const registryAbi = [
     { type: "uint48" }, { type: "bool" },
   ] },
 ];
+const deltaAdapterAbi = [
+  ...[
+    "sleeve", "accountingAsset", "injoh", "priceHub", "pool", "factory",
+    "positionManager", "positionBuilder", "entryRoute", "exitRoute",
+  ].map((name) => ({ type: "function", name, stateMutability: "view", inputs: [], outputs: [{ type: "address" }] })),
+  { type: "function", name: "maximumPositions", stateMutability: "view", inputs: [], outputs: [{ type: "uint8" }] },
+];
+const strategyRegistryAbi = [
+  { type: "function", name: "recordOf", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "tuple", components: [
+    { name: "implementation", type: "address" }, { name: "runtimeCodeHash", type: "bytes32" },
+    { name: "sleeveCategory", type: "bytes32" }, { name: "accountingAsset", type: "address" },
+    { name: "state", type: "uint8" }, { name: "registeredAt", type: "uint48" },
+  ] }] },
+];
+const sleeveAdapterAbi = [
+  { type: "function", name: "adapterState", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint8" }] },
+  { type: "function", name: "adapterCapBps", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint16" }] },
+];
 const read = (address, abi, functionName, args = []) => client.readContract({
   address, abi, functionName, args,
 });
@@ -200,6 +237,45 @@ royaltyEconomicKeys.forEach((key, index) => assert(
     === BigInt(manifest.economics[key]), `onchain ${key} mismatch`,
 ));
 
+const deltaAddressFields = [
+  ["sleeve", manifest.contracts.marketMakingSleeve.address],
+  ["accountingAsset", manifest.dependencies.WETH.address],
+  ["injoh", manifest.delta.injoh],
+  ["priceHub", manifest.contracts.priceHub.address],
+  ["pool", manifest.delta.pool],
+  ["factory", manifest.delta.factory],
+  ["positionManager", manifest.delta.positionManager],
+  ["positionBuilder", manifest.delta.positionBuilder],
+  ["entryRoute", manifest.delta.entryRoute],
+  ["exitRoute", manifest.delta.exitRoute],
+];
+const [deltaAddresses, maximumPositions, strategyRecord, sleeveAdapterState, sleeveAdapterCap] =
+  await Promise.all([
+    Promise.all(deltaAddressFields.map(([field]) =>
+      read(manifest.delta.adapter, deltaAdapterAbi, field))),
+    read(manifest.delta.adapter, deltaAdapterAbi, "maximumPositions"),
+    read(manifest.contracts.strategyRegistry.address, strategyRegistryAbi, "recordOf", [manifest.delta.adapter]),
+    read(manifest.contracts.marketMakingSleeve.address, sleeveAdapterAbi, "adapterState", [manifest.delta.adapter]),
+    read(manifest.contracts.marketMakingSleeve.address, sleeveAdapterAbi, "adapterCapBps", [manifest.delta.adapter]),
+  ]);
+deltaAddressFields.forEach(([field, expected], index) => assert(
+  sameAddress(deltaAddresses[index], expected), `Delta adapter ${field} mismatch`,
+));
+assert(Number(maximumPositions) === manifest.delta.maximumPositions,
+  "Delta adapter maximumPositions mismatch");
+assert(sameAddress(strategyRecord[0], manifest.delta.adapter)
+  && sameAddress(strategyRecord[3], manifest.dependencies.WETH.address)
+  && strategyRecord[1].toLowerCase()
+    === manifest.adapters[Object.keys(manifest.adapters).find((key) =>
+      sameAddress(manifest.adapters[key].address, manifest.delta.adapter))].runtimeCodeHash.toLowerCase()
+  && strategyRecord[2].toLowerCase()
+    === keccak256(stringToHex("YIELD_BANK_MARKET_MAKING")).toLowerCase()
+  && Number(strategyRecord[4]) === 1,
+"Delta adapter is not registered with the expected category, asset, and runtime");
+assert(Number(sleeveAdapterState) === 3, "Delta adapter is not ACTIVE in the market-making sleeve");
+assert(Number(sleeveAdapterCap) === manifest.delta.adapterCapBps,
+  "Delta adapter cap does not match the manifest");
+
 console.log(JSON.stringify({
   status: "verified",
   manifest: manifestPath,
@@ -207,5 +283,6 @@ console.log(JSON.stringify({
   collection: manifest.contracts.collection.address,
   nft: manifest.contracts.nft.address,
   proceedsVault: manifest.contracts.proceedsVault.address,
+  deltaAdapter: manifest.delta.adapter,
   contractsVerified: entries.length,
 }, null, 2));

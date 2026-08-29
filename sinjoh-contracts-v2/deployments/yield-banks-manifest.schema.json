@@ -4,7 +4,7 @@
   "title": "Sinjoh Yield Banks release manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "chainId", "collectionId", "factoryVersion", "compiler", "deployment", "economics", "policyCaps", "openSea", "contracts", "dependencies", "stockTokens", "adapters", "feeds", "pools", "roles", "auditHashes"],
+  "required": ["schemaVersion", "chainId", "collectionId", "factoryVersion", "compiler", "deployment", "economics", "policyCaps", "openSea", "contracts", "dependencies", "stockTokens", "adapters", "feeds", "pools", "delta", "roles", "auditHashes"],
   "properties": {
     "schemaVersion": { "const": "1.0" },
     "chainId": { "enum": [4663, 46630] },
@@ -94,6 +94,23 @@
     "adapters": { "type": "object", "additionalProperties": { "$ref": "#/$defs/deployment" } },
     "feeds": { "type": "object", "minProperties": 1, "additionalProperties": { "$ref": "#/$defs/deployment" } },
     "pools": { "type": "object", "additionalProperties": { "$ref": "#/$defs/deployment" } },
+    "delta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adapter", "injoh", "pool", "positionBuilder", "factory", "positionManager", "entryRoute", "exitRoute", "maximumPositions", "adapterCapBps"],
+      "properties": {
+        "adapter": { "$ref": "#/$defs/address" },
+        "injoh": { "$ref": "#/$defs/address" },
+        "pool": { "$ref": "#/$defs/address" },
+        "positionBuilder": { "$ref": "#/$defs/address" },
+        "factory": { "$ref": "#/$defs/address" },
+        "positionManager": { "$ref": "#/$defs/address" },
+        "entryRoute": { "$ref": "#/$defs/address" },
+        "exitRoute": { "$ref": "#/$defs/address" },
+        "maximumPositions": { "type": "integer", "minimum": 1, "maximum": 64 },
+        "adapterCapBps": { "$ref": "#/$defs/positiveBps" }
+      }
+    },
     "roles": {
       "type": "object",
       "additionalProperties": false,
