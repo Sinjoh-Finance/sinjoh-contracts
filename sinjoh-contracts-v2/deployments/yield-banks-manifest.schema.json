@@ -334,6 +334,7 @@
       }
     },
     "address": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$", "not": { "const": "0x0000000000000000000000000000000000000000" } },
+    "addressOrZero": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
     "bytes32": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$" },
     "deployment": {
       "type": "object",

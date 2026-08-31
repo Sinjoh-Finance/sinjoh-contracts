@@ -185,6 +185,9 @@ transfer eligibility solely from recipient-address state; a proof-required NFT t
 not OpenSea-compatible.
 
 ```sh
+# Before using either deployment schema, rejects unresolved or external references:
+node script/verify-yield-bank-schemas.mjs
+
 node script/verify-yield-banks-manifest.mjs \
   /absolute/path/to/yield-banks-manifest.json "$YIELD_BANK_RPC_URL"
 
