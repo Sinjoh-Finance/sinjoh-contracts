@@ -14,6 +14,9 @@ import { StrategyRegistry } from "../../src/yield-banks/StrategyRegistry.sol";
 import { BaseSleeve } from "../../src/yield-banks/sleeves/BaseSleeve.sol";
 import { USDGSleeve } from "../../src/yield-banks/sleeves/USDGSleeve.sol";
 import { IPriceHub } from "../../src/yield-banks/interfaces/IPriceHub.sol";
+import {
+    YieldBankAdapterRedemptionCall
+} from "../../src/yield-banks/interfaces/IYieldBankManagedSleeve.sol";
 import { YieldBankAdapterState } from "../../src/yield-banks/YieldBankTypes.sol";
 import { YieldBankIds } from "../../src/yield-banks/libraries/YieldBankIds.sol";
 
@@ -128,6 +131,30 @@ contract YieldBankStrategyAndOracleTest is Test {
         assertEq(adapter.totalManagedAssets(), 0);
         sleeve.retireAdapter(address(adapter));
         assertEq(uint8(sleeve.adapterState(address(adapter))), uint8(YieldBankAdapterState.RETIRED));
+    }
+
+    function testManagedRedemptionUnwindsOnlyTheOwnersProRataAdapterPosition() external {
+        usdg.mint(address(this), 1_000e18);
+        usdg.approve(address(sleeve), 1_000e18);
+        sleeve.deposit(1_000e18, address(this), 999e18, "");
+        sleeve.addAdapter(address(adapter), 5_000);
+        sleeve.depositToAdapter(address(adapter), 500e18, 500e18, "");
+
+        uint256[] memory minimumOutputs = new uint256[](2);
+        minimumOutputs[0] = 100e18;
+        YieldBankAdapterRedemptionCall[] memory calls = new YieldBankAdapterRedemptionCall[](1);
+        calls[0] =
+            YieldBankAdapterRedemptionCall({ adapter: address(adapter), maxLossBps: 0, data: "" });
+        (address[] memory assets, uint256[] memory amounts) =
+            sleeve.redeemManaged(100e18, address(this), address(this), minimumOutputs, calls);
+
+        assertEq(assets[0], address(usdg));
+        assertEq(amounts[0], 100e18);
+        assertEq(usdg.balanceOf(address(this)), 100e18);
+        assertEq(sleeve.balanceOf(address(this)), 900e18);
+        assertEq(sleeve.totalSupply(), 900e18);
+        assertEq(adapter.totalManagedAssets(), 450e18);
+        assertEq(usdg.balanceOf(address(sleeve)), 450e18);
     }
 
     function testRegistryBindingPreventsAdapterReuseByAnotherSleeve() external {

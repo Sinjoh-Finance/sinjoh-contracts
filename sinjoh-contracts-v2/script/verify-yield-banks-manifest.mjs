@@ -81,6 +81,42 @@ for (const [field, records] of [
   `delta.${field} is not bound to its manifest group`);
 assert(!sameAddress(manifest.delta.injoh, manifest.dependencies.WETH.address),
   "delta.injoh must differ from WETH");
+assert(manifest.routeBindings && Array.isArray(manifest.routeBindings.allocations)
+  && Array.isArray(manifest.routeBindings.rebalances), "routeBindings are required");
+const allManifestEntries = [
+  ...Object.values(manifest.dependencies), ...manifest.stockTokens,
+  ...Object.values(manifest.adapters), ...Object.values(manifest.pools),
+];
+const manifestEntryFor = (address) => allManifestEntries.find((entry) => sameAddress(entry.address, address));
+const allocationKeys = new Set();
+for (const binding of manifest.routeBindings.allocations) {
+  const key = `${getAddress(binding.inputAsset)}:${getAddress(binding.sleeve)}`;
+  assert(!allocationKeys.has(key), `duplicate allocation route ${key}`);
+  allocationKeys.add(key);
+  const entry = manifestEntryFor(binding.route);
+  assert(entry && entry.runtimeCodeHash.toLowerCase() === binding.runtimeCodeHash.toLowerCase(),
+    `allocation route ${binding.route} is not a matching manifest dependency`);
+}
+for (const sleeve of [manifest.contracts.coreSleeve.address, manifest.contracts.usdgSleeve.address]) {
+  assert(allocationKeys.has(`${getAddress(manifest.dependencies.WETH.address)}:${getAddress(sleeve)}`),
+    `missing WETH allocation route for sleeve ${sleeve}`);
+}
+const rebalanceAssets = [
+  manifest.dependencies.USDG.address, manifest.delta.injoh,
+  ...manifest.stockTokens.map((entry) => entry.address),
+];
+const rebalanceKeys = new Set();
+for (const binding of manifest.routeBindings.rebalances) {
+  const key = getAddress(binding.inputAsset);
+  assert(!rebalanceKeys.has(key), `duplicate rebalance route ${key}`);
+  rebalanceKeys.add(key);
+  const entry = manifestEntryFor(binding.route);
+  assert(entry && entry.runtimeCodeHash.toLowerCase() === binding.runtimeCodeHash.toLowerCase(),
+    `rebalance route ${binding.route} is not a matching manifest dependency`);
+}
+for (const asset of rebalanceAssets) {
+  assert(rebalanceKeys.has(getAddress(asset)), `missing WETH rebalance route for ${asset}`);
+}
 for (const sleeve of ["core", "marketMaking", "usdg"]) {
   const policy = manifest.policyCaps[sleeve];
   assert(policy && Number.isInteger(policy.maximumStrategies)
@@ -144,6 +180,7 @@ const collectionAbi = [
   { type: "function", name: "nft", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "distributor", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "proceedsVault", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+  { type: "function", name: "portfolioAllocator", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   ...[
     "primaryBackingBps", "primaryCreatorBps", "primarySinjohBps", "primaryOperationsBps",
     "coreWeightBps", "marketMakingWeightBps", "usdgWeightBps",
@@ -183,6 +220,14 @@ const strategyRegistryAbi = [
     { name: "sleeveCategory", type: "bytes32" }, { name: "accountingAsset", type: "address" },
     { name: "state", type: "uint8" }, { name: "registeredAt", type: "uint48" },
   ] }] },
+];
+const allocatorAbi = [
+  { type: "function", name: "routeBinding", stateMutability: "view", inputs: [
+    { type: "address" }, { type: "address" },
+  ], outputs: [{ type: "address" }, { type: "bytes32" }] },
+  { type: "function", name: "rebalanceRoute", stateMutability: "view", inputs: [
+    { type: "address" },
+  ], outputs: [{ type: "address" }, { type: "bytes32" }] },
 ];
 const sleeveAdapterAbi = [
   { type: "function", name: "adapterState", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint8" }] },
@@ -237,6 +282,10 @@ assert(collectionMaxSupply === BigInt(manifest.economics.maxSupply)
   && nftMaxSupply === BigInt(manifest.economics.maxSupply), "onchain maxSupply mismatch");
 assert(sameAddress(collectionProceedsVault, manifest.contracts.proceedsVault.address),
   "collection proceeds vault mismatch");
+assert(sameAddress(
+  await read(manifest.contracts.collection.address, collectionAbi, "portfolioAllocator"),
+  manifest.contracts.allocator.address,
+), "collection portfolio allocator mismatch");
 assert(sameAddress(collectionNft, manifest.contracts.nft.address), "collection NFT mismatch");
 assert(sameAddress(collectionDistributor, manifest.contracts.distributor.address),
   "collection distributor mismatch");
@@ -299,6 +348,22 @@ assert(sameAddress(strategyRecord[0], manifest.delta.adapter)
 assert(Number(sleeveAdapterState) === 3, "Delta adapter is not ACTIVE in the market-making sleeve");
 assert(Number(sleeveAdapterCap) === manifest.delta.adapterCapBps,
   "Delta adapter cap does not match the manifest");
+for (const binding of manifest.routeBindings.allocations) {
+  const actual = await read(manifest.contracts.allocator.address, allocatorAbi, "routeBinding", [
+    binding.inputAsset, binding.sleeve,
+  ]);
+  assert(sameAddress(actual[0], binding.route)
+    && actual[1].toLowerCase() === binding.runtimeCodeHash.toLowerCase(),
+  `allocation route binding mismatch for ${binding.inputAsset} -> ${binding.sleeve}`);
+}
+for (const binding of manifest.routeBindings.rebalances) {
+  const actual = await read(manifest.contracts.allocator.address, allocatorAbi, "rebalanceRoute", [
+    binding.inputAsset,
+  ]);
+  assert(sameAddress(actual[0], binding.route)
+    && actual[1].toLowerCase() === binding.runtimeCodeHash.toLowerCase(),
+  `rebalance route binding mismatch for ${binding.inputAsset}`);
+}
 
 console.log(JSON.stringify({
   status: "verified",

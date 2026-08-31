@@ -17,7 +17,7 @@ contract, API, SDK, indexer, keeper, and UI naming consistently uses **Yield Ban
 - `YieldBankDistributor`: RAY-precision per-live-token distributions without supply-sized loops.
 - `CollectionRevenueRouter`: authenticated project and royalty revenue using immutable per-collection economics with retryable legs.
 - `YieldBankProjectRevenueBridge`: exact, identity-bound Project V2 `FUND_PROJECT_SINK` bridge into one collection revenue router.
-- `CollectionPortfolioAllocator`: immutable per-collection sleeve weights for primary and ongoing allocation with exact route-input checks.
+- `CollectionPortfolioAllocator`: collection defaults for primary and ongoing allocation plus NFT-owner targets and operator-executed full-backing rebalances with exact route-input checks.
 - `OperationsReserve` and `CollectionTimelock`: non-backing reserve sunset and fixed seven-day policy delay.
 - `PriceHub` and `StrategyRegistry`: fail-closed 18-decimal pricing and adapter provenance.
 - `CoreStockTokenSleeve`, `MarketMakingSleeve`, and `USDGSleeve`: capped ERC-20 share sleeves with in-kind redemption.
@@ -36,6 +36,16 @@ salt binds the chain ID, collection address, collection ID, and token ID.
 Only the configured allocation operator can enter or collect from adapters; the operator or guardian
 can withdraw and exit. Calls cannot accept a loss above the immutable `maximumOperatorLossBps`
 recorded for that sleeve in the release manifest.
+
+Each current NFT owner can set a percentage target across Core Stocks, Delta `$INJOH`/WETH LP, and
+USDG, including selecting a single sleeve. The request does not grant the holder direct strategy or
+adapter authority. The allocation operator manually executes the exact pending revision: claim and
+settlement run first, every existing sleeve position is redeemed pro rata, adapter positions are
+partially unwound with reviewed calldata and loss limits, non-WETH assets use timelock-bound reverse
+routes, and all recovered WETH is deposited at the owner target. An unexecuted request is bound to
+the requesting owner and becomes unusable if the NFT transfers. The same approved target can be
+manually re-synced after later distributions create allocation drift; a newer owner revision always
+invalidates older execution instructions.
 
 ## Production inputs
 

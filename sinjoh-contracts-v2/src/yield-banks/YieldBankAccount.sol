@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { IYieldBankCollection } from "./interfaces/IYieldBankCollection.sol";
 
 /// @notice Deterministic custody account permanently bound to one Yield Bank token ID.
 /// @dev The implementation is locked in its constructor; only clones may be initialized.
@@ -24,6 +25,7 @@ contract YieldBankAccount {
     error AlreadyInitialized();
     error OnlyCollection(address caller);
     error OnlyAssetController(address caller);
+    error OnlyPortfolioAllocator(address caller);
     error InvalidConfiguration();
     error InvalidAsset(address asset);
     error TooManyTrackedAssets(uint256 supplied);
@@ -51,8 +53,18 @@ contract YieldBankAccount {
     }
 
     modifier onlyAssetController() {
-        if (msg.sender != collection && msg.sender != distributor) {
+        if (
+            msg.sender != collection && msg.sender != distributor
+                && msg.sender != IYieldBankCollection(collection).portfolioAllocator()
+        ) {
             revert OnlyAssetController(msg.sender);
+        }
+        _;
+    }
+
+    modifier onlyPortfolioAllocator() {
+        if (msg.sender != IYieldBankCollection(collection).portfolioAllocator()) {
+            revert OnlyPortfolioAllocator(msg.sender);
         }
         _;
     }
@@ -98,6 +110,18 @@ contract YieldBankAccount {
         if (closed) revert AccountIsClosed();
         if (!_isTracked[asset]) revert InvalidAsset(asset);
         IERC20(asset).forceApprove(distributor, 0);
+    }
+
+    function approveRebalance(address asset, uint256 amount) external onlyPortfolioAllocator {
+        if (closed) revert AccountIsClosed();
+        if (!_isTracked[asset] || amount == 0) revert InvalidAsset(asset);
+        IERC20(asset).forceApprove(msg.sender, amount);
+    }
+
+    function clearRebalanceApproval(address asset) external onlyPortfolioAllocator {
+        if (closed) revert AccountIsClosed();
+        if (!_isTracked[asset]) revert InvalidAsset(asset);
+        IERC20(asset).forceApprove(msg.sender, 0);
     }
 
     function releaseRemainder(address asset, address beneficiary, uint256 distributedTaxAmount)

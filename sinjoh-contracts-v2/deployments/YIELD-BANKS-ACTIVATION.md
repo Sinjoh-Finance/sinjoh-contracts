@@ -20,7 +20,7 @@ Still required from the operator and review process:
 1. creator, Sinjoh, operations, allocation-operator, guardian, proposer, and timelock recipients;
 2. the collection's selected Stock Token contracts and their eligibility classification;
 3. every Chainlink/reference feed and heartbeat;
-4. every approved pool, conversion route, price feed, and runtime code hash;
+4. every approved pool, allocation route, reverse rebalance route, price feed, and runtime code hash;
 5. for Delta activation, the exact `$INJOH` token, `$INJOH`/WETH pool, WETH-to-`$INJOH` entry
    route, `$INJOH`-to-WETH exit route, per-adapter position limit and allocation cap;
 6. runtime hashes, source commit, dependency lock hash, deployment transaction hashes, and audit hashes;
@@ -85,6 +85,15 @@ list every live position and returns any residual WETH and `$INJOH` in kind to t
 SDK's `encodeYieldBankDeltaDepositData`, `encodeYieldBankDeltaWithdrawalData`,
 `encodeYieldBankDeltaCollectionData`, and `encodeYieldBankDeltaExitData` helpers; do not hand-encode
 operator calldata.
+
+Owner-selected allocation execution is manual as well. Before activation, the collection timelock
+must bind WETH entry routes for the Core Stock Token and USDG sleeves and a reverse-to-WETH route
+for USDG, every reviewed Stock Token, and `$INJOH`. The release manifest's `routeBindings` section
+records each exact address and runtime hash, and the verifier checks the live allocator mappings.
+For each execution the operator must use the SDK's `prepareYieldBankTargetExecution` helper with
+current per-asset minima, adapter unwind calldata, maximum loss values, expected target revision,
+and deadline. Holders use `prepareYieldBankTargetAllocation`; that call changes only the requested
+target and never moves backing by itself.
 
 After source verification and OpenSea configuration, complete every provenance and transaction
 field in a manifest conforming to `yield-banks-manifest.schema.json`, then verify all runtime code,

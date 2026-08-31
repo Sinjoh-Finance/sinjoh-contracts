@@ -9,6 +9,7 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { YieldBankAdapterState, YieldBankRedemptionMode } from "../YieldBankTypes.sol";
 import { IYieldBankEligibilityPolicy } from "../interfaces/IYieldBankEligibilityPolicy.sol";
+import { YieldBankAdapterRedemptionCall } from "../interfaces/IYieldBankManagedSleeve.sol";
 import { IYieldBankSleeve } from "../interfaces/IYieldBankSleeve.sol";
 import { IStrategyAdapter } from "../interfaces/IStrategyAdapter.sol";
 import { IPriceHub } from "../interfaces/IPriceHub.sol";
@@ -273,6 +274,99 @@ abstract contract BaseSleeve is ERC20, ReentrancyGuard, IYieldBankSleeve {
         }
         if (aggregate < minimumOutput) revert InsufficientShares(minimumOutput, aggregate);
         emit Redeemed(owner, receiver, shares);
+    }
+
+    /// @notice Burns one account's shares and proportionally unwinds every managed adapter.
+    /// @dev Only the collection allocator may supply the reviewed, manual adapter calldata.
+    function redeemManaged(
+        uint256 shares,
+        address receiver,
+        address owner,
+        uint256[] calldata minimumOutputs,
+        YieldBankAdapterRedemptionCall[] calldata adapterCalls
+    )
+        external
+        onlyAllocator
+        nonReentrant
+        returns (address[] memory assets, uint256[] memory amounts)
+    {
+        if (shares == 0 || receiver == address(0) || owner == address(0)) {
+            revert InvalidConfiguration();
+        }
+        uint256 supplyBefore = totalSupply();
+        uint256 length = _inventoryAssets.length;
+        if (minimumOutputs.length != length || shares > balanceOf(owner)) {
+            revert InvalidConfiguration();
+        }
+        assets = new address[](length);
+        amounts = new uint256[](length);
+        uint256[] memory balancesBefore = new uint256[](length);
+        for (uint256 i; i < length; ++i) {
+            address asset = _inventoryAssets[i];
+            assets[i] = asset;
+            balancesBefore[i] = IERC20(asset).balanceOf(address(this));
+        }
+
+        uint256 accountingReturned = _withdrawManagedProRata(shares, supplyBefore, adapterCalls);
+        if (msg.sender != owner) _spendAllowance(owner, msg.sender, shares);
+        _burn(owner, shares);
+        for (uint256 i; i < length; ++i) {
+            uint256 amount = Math.mulDiv(balancesBefore[i], shares, supplyBefore);
+            if (assets[i] == accountingAsset) amount += accountingReturned;
+            if (amount < minimumOutputs[i]) {
+                revert InsufficientAdapterOutput(minimumOutputs[i], amount);
+            }
+            amounts[i] = amount;
+            if (amount != 0) IERC20(assets[i]).safeTransfer(receiver, amount);
+        }
+        emit Redeemed(owner, receiver, shares);
+    }
+
+    function _withdrawManagedProRata(
+        uint256 shares,
+        uint256 supplyBefore,
+        YieldBankAdapterRedemptionCall[] calldata calls
+    ) private returns (uint256 accountingReturned) {
+        bool[] memory used = new bool[](calls.length);
+        uint256 adapterLength = _adapters.length;
+        for (uint256 i; i < adapterLength; ++i) {
+            address adapter = _adapters[i];
+            uint256 managed = IStrategyAdapter(adapter).totalManagedAssets();
+            uint256 requested = Math.mulDiv(managed, shares, supplyBefore);
+            if (requested == 0) continue;
+            uint256 callIndex = type(uint256).max;
+            for (uint256 j; j < calls.length; ++j) {
+                if (!used[j] && calls[j].adapter == adapter) {
+                    callIndex = j;
+                    break;
+                }
+            }
+            if (callIndex == type(uint256).max) revert InvalidAdapter(adapter);
+            YieldBankAdapterRedemptionCall calldata call_ = calls[callIndex];
+            if (call_.maxLossBps > maximumOperatorLossBps) {
+                revert CapExceeded(maximumOperatorLossBps, call_.maxLossBps);
+            }
+            YieldBankAdapterState current = adapterState[adapter];
+            if (
+                current != YieldBankAdapterState.ACTIVE
+                    && current != YieldBankAdapterState.DEPOSIT_PAUSED
+                    && current != YieldBankAdapterState.EXIT_ONLY
+            ) revert InvalidAdapterState(adapter, current);
+            _requireRuntime(adapter);
+            uint256 balanceBefore = IERC20(accountingAsset).balanceOf(address(this));
+            uint256 returned = IStrategyAdapter(adapter)
+                .withdraw(requested, address(this), call_.maxLossBps, call_.data);
+            uint256 measured = IERC20(accountingAsset).balanceOf(address(this)) - balanceBefore;
+            if (returned != measured) revert InexactReceipt(returned, measured);
+            uint256 minimum = Math.mulDiv(requested, BPS - call_.maxLossBps, BPS);
+            if (measured < minimum) revert InsufficientAdapterOutput(minimum, measured);
+            used[callIndex] = true;
+            accountingReturned += measured;
+            emit AdapterWithdrawal(adapter, requested, measured);
+        }
+        for (uint256 i; i < calls.length; ++i) {
+            if (!used[i]) revert InvalidAdapter(calls[i].adapter);
+        }
     }
 
     function addAdapter(address adapter, uint16 capBps) external onlyTimelock {
