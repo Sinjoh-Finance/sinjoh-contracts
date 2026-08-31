@@ -191,6 +191,21 @@ contract YieldBankCollectionTest is Test {
         assertEq(collection.liveSupply(), 1);
     }
 
+    function testDynamicSleeveDoesNotConsumeDistributorCapacity() public {
+        MockYieldBankAsset dynamicSleeve =
+            new MockYieldBankAsset("Dynamic Delta Sleeve", "DELTA-SLEEVE");
+        address controller = address(0xD311AC01);
+        allocator.setDeltaPoolController(controller);
+        allocator.setDeltaPoolSleeve(address(dynamicSleeve), true);
+        uint256 distributionAssetsBefore = collection.distributor().distributionAssetCount();
+
+        vm.prank(controller);
+        collection.registerDynamicSleeve(address(dynamicSleeve));
+
+        assertTrue(collection.isSleeveAsset(address(dynamicSleeve)));
+        assertEq(collection.distributor().distributionAssetCount(), distributionAssetsBefore);
+    }
+
     function testPendingYieldBankIsTransferableAndRedeemableBeforeAllocation() public {
         _mint(ALICE, 2, 1 ether);
         YieldBankNFT nft = collection.nft();

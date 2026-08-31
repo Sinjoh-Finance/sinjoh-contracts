@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://sinjoh.com/schemas/yield-banks-manifest-1.0.json",
+  "$id": "https://sinjoh.com/schemas/yield-banks-manifest-1.1.json",
   "title": "Sinjoh Yield Banks release manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "chainId", "collectionId", "factoryVersion", "compiler", "deployment", "economics", "redemption", "equityModel", "policyCaps", "openSea", "contracts", "dependencies", "equityAssets", "coreConstituents", "adapters", "feeds", "pools", "deltaPools", "routeBindings", "roles", "auditHashes"],
+  "required": ["schemaVersion", "chainId", "collectionId", "factoryVersion", "compiler", "deployment", "economics", "redemption", "equityModel", "policyCaps", "openSea", "contracts", "dependencies", "equityAssets", "coreConstituents", "adapters", "feeds", "deltaInfrastructure", "routeBindings", "roles", "auditHashes"],
   "properties": {
-    "schemaVersion": { "const": "1.0" },
+    "schemaVersion": { "const": "1.1" },
     "chainId": { "const": 4663 },
     "collectionId": { "$ref": "#/$defs/bytes32" },
     "factoryVersion": { "$ref": "#/$defs/bytes32" },
@@ -79,11 +79,23 @@
     "policyCaps": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["core", "marketMaking", "usdg"],
+      "required": ["core", "marketMaking", "usdg", "deltaPoolFeed"],
       "properties": {
         "core": { "$ref": "#/$defs/sleevePolicy" },
         "marketMaking": { "$ref": "#/$defs/sleevePolicy" },
-        "usdg": { "$ref": "#/$defs/sleevePolicy" }
+        "usdg": { "$ref": "#/$defs/sleevePolicy" },
+        "deltaPoolFeed": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["maximumHeartbeat", "maximumGracePeriod", "minimumTwapWindow", "maximumReferenceDeviationBps", "maximumSpotDeviationBps"],
+          "properties": {
+            "maximumHeartbeat": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
+            "maximumGracePeriod": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+            "minimumTwapWindow": { "type": "integer", "minimum": 1, "maximum": 86400 },
+            "maximumReferenceDeviationBps": { "$ref": "#/$defs/positiveBps" },
+            "maximumSpotDeviationBps": { "type": "integer", "minimum": 1, "maximum": 2000 }
+          }
+        }
       }
     },
     "openSea": {
@@ -125,7 +137,7 @@
     },
     "contracts": {
       "type": "object",
-      "required": ["registry", "factoryDeployer", "factory", "collection", "nft", "accountImplementation", "proceedsVault", "distributor", "revenueRouter", "timelock", "allocator", "priceHub", "strategyRegistry", "renderer", "coreSleeve", "marketMakingSleeve", "usdgSleeve", "rebalanceValueGuard"],
+      "required": ["registry", "factoryDeployer", "factory", "collection", "nft", "accountImplementation", "proceedsVault", "distributor", "revenueRouter", "timelock", "allocator", "deltaPoolController", "priceHub", "strategyRegistry", "renderer", "coreSleeve", "marketMakingSleeve", "usdgSleeve", "rebalanceValueGuard"],
       "additionalProperties": { "$ref": "#/$defs/deployment" }
     },
     "dependencies": {
@@ -148,29 +160,27 @@
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/feedBinding" }
     },
-    "pools": { "type": "object", "additionalProperties": { "$ref": "#/$defs/deployment" } },
-    "deltaPools": {
+    "deltaInfrastructure": {
       "type": "array",
+      "minItems": 1,
       "uniqueItems": true,
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["adapter", "sleeve", "pairedAsset", "pool", "fee", "tickSpacing", "positionBuilder", "factory", "positionManager", "entryRoute", "exitRoute", "maximumPositions", "maximumStrategies", "adapterCapBps"],
+        "required": ["factory", "positionManager", "positionBuilder", "weth", "factoryRuntimeCodeHash", "positionManagerRuntimeCodeHash", "positionBuilderRuntimeCodeHash", "routeCreationCodeHash", "sleeveCreationCodeHash", "adapterCreationCodeHash", "feedCreationCodeHash", "active"],
         "properties": {
-        "adapter": { "$ref": "#/$defs/address" },
-        "sleeve": { "$ref": "#/$defs/address" },
-        "pairedAsset": { "$ref": "#/$defs/address" },
-        "pool": { "$ref": "#/$defs/address" },
-        "fee": { "type": "integer", "minimum": 1, "maximum": 16777215 },
-        "tickSpacing": { "type": "integer", "minimum": 1, "maximum": 8388607 },
-        "positionBuilder": { "$ref": "#/$defs/address" },
-        "factory": { "$ref": "#/$defs/address" },
-        "positionManager": { "$ref": "#/$defs/address" },
-        "entryRoute": { "$ref": "#/$defs/address" },
-        "exitRoute": { "$ref": "#/$defs/address" },
-        "maximumPositions": { "type": "integer", "minimum": 1, "maximum": 64 },
-          "maximumStrategies": { "const": 1 },
-          "adapterCapBps": { "$ref": "#/$defs/positiveBps" }
+          "factory": { "$ref": "#/$defs/address" },
+          "positionManager": { "$ref": "#/$defs/address" },
+          "positionBuilder": { "$ref": "#/$defs/address" },
+          "weth": { "$ref": "#/$defs/address" },
+          "factoryRuntimeCodeHash": { "$ref": "#/$defs/bytes32" },
+          "positionManagerRuntimeCodeHash": { "$ref": "#/$defs/bytes32" },
+          "positionBuilderRuntimeCodeHash": { "$ref": "#/$defs/bytes32" },
+          "routeCreationCodeHash": { "$ref": "#/$defs/bytes32" },
+          "sleeveCreationCodeHash": { "$ref": "#/$defs/bytes32" },
+          "adapterCreationCodeHash": { "$ref": "#/$defs/bytes32" },
+          "feedCreationCodeHash": { "$ref": "#/$defs/bytes32" },
+          "active": { "type": "boolean" }
         }
       }
     },

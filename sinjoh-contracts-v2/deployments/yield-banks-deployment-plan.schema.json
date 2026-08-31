@@ -16,8 +16,8 @@
     "expectedCollection": { "$ref": "#/$defs/address" },
     "components": {
       "type": "array",
-      "minItems": 7,
-      "maxItems": 7,
+      "minItems": 8,
+      "maxItems": 8,
       "items": {
         "type": "object",
         "additionalProperties": false,

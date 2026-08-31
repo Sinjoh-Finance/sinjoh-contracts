@@ -13,6 +13,16 @@ interface IYieldBankSystemComponents {
     function accountImplementation() external view returns (address);
 }
 
+interface IYieldBankSystemAllocatorIdentity {
+    function collection() external view returns (address);
+    function deltaPoolController() external view returns (address);
+}
+
+interface IYieldBankSystemDeltaControllerIdentity {
+    function allocator() external view returns (address);
+    function collection() external view returns (address);
+}
+
 /// @notice Version-pinned atomic deterministic deployer for one complete Yield Banks collection system.
 /// @dev Collection components use CREATE3 so mutually bound immutable constructor arguments can be
 ///      planned from addresses that do not depend on their init code. The collection uses CREATE2
@@ -32,7 +42,8 @@ contract YieldBankSystemFactory is ReentrancyGuard {
     bytes32 public constant KIND_MARKET_MAKING_SLEEVE = keccak256("MARKET_MAKING_SLEEVE");
     bytes32 public constant KIND_USDG_SLEEVE = keccak256("USDG_SLEEVE");
     bytes32 public constant KIND_ACCOUNT_IMPLEMENTATION = keccak256("ACCOUNT_IMPLEMENTATION");
-    uint256 public constant COMPONENT_COUNT = 7;
+    bytes32 public constant KIND_DELTA_POOL_CONTROLLER = keccak256("DELTA_POOL_CONTROLLER");
+    uint256 public constant COMPONENT_COUNT = 8;
 
     YieldBankProtocolRegistry public immutable registry;
     bytes32 public immutable factoryVersion;
@@ -72,6 +83,7 @@ contract YieldBankSystemFactory is ReentrancyGuard {
         address seaDrop,
         uint256 maxSupply,
         address allocationOperator,
+        address deltaPoolController,
         address coreSleeve,
         address marketMakingSleeve,
         address usdgSleeve
@@ -127,7 +139,7 @@ contract YieldBankSystemFactory is ReentrancyGuard {
         if (actualPlanHash != systemPlanHash) {
             revert SystemPlanHashMismatch(systemPlanHash, actualPlanHash);
         }
-        address[7] memory deployed;
+        address[8] memory deployed;
         uint256 seen;
         for (uint256 i; i < COMPONENT_COUNT; ++i) {
             ComponentDeployment calldata component = components[i];
@@ -145,13 +157,14 @@ contract YieldBankSystemFactory is ReentrancyGuard {
             deployed[_kindIndex(component.kind)] = instance;
             emit SystemComponentDeployed(component.kind, instance, component.salt, runtimeCodeHash);
         }
-        _validateDeployedConfig(config, deployed);
         bytes32 actualCollectionCodeHash = keccak256(collectionCreationCode);
         if (actualCollectionCodeHash != collectionCreationCodeHash) {
             revert CreationCodeHashMismatch(collectionCreationCodeHash, actualCollectionCodeHash);
         }
         bytes memory collectionInitCode =
             abi.encodePacked(collectionCreationCode, abi.encode(config));
+        address predictedCollection = _predict(collectionSalt, keccak256(collectionInitCode));
+        _validateDeployedConfig(config, deployed, predictedCollection);
         assembly ("memory-safe") {
             collection := create2(
                 0,
@@ -182,6 +195,7 @@ contract YieldBankSystemFactory is ReentrancyGuard {
             config.seaDrop,
             config.maxSupply,
             config.allocationOperator,
+            deployed[7],
             config.coreSleeve,
             config.marketMakingSleeve,
             config.usdgSleeve
@@ -242,15 +256,25 @@ contract YieldBankSystemFactory is ReentrancyGuard {
             _predict(salt, keccak256(abi.encodePacked(collectionCreationCode, abi.encode(config))));
     }
 
-    function _validateDeployedConfig(YieldBankConfig calldata config, address[7] memory deployed)
-        private
-        pure
-    {
+    function _validateDeployedConfig(
+        YieldBankConfig calldata config,
+        address[8] memory deployed,
+        address predictedCollection
+    ) private view {
         if (
             config.revenueRouter != deployed[0] || config.portfolioAllocator != deployed[1]
                 || config.collectionTimelock != deployed[2] || config.coreSleeve != deployed[3]
                 || config.marketMakingSleeve != deployed[4] || config.usdgSleeve != deployed[5]
                 || config.accountImplementation != deployed[6]
+        ) revert InvalidConfiguration();
+        IYieldBankSystemAllocatorIdentity allocator = IYieldBankSystemAllocatorIdentity(deployed[1]);
+        IYieldBankSystemDeltaControllerIdentity controller =
+            IYieldBankSystemDeltaControllerIdentity(deployed[7]);
+        if (
+            allocator.collection() != predictedCollection
+                || allocator.deltaPoolController() != deployed[7]
+                || controller.allocator() != deployed[1]
+                || controller.collection() != predictedCollection
         ) revert InvalidConfiguration();
     }
 
@@ -262,6 +286,7 @@ contract YieldBankSystemFactory is ReentrancyGuard {
         if (kind == KIND_MARKET_MAKING_SLEEVE) return 4;
         if (kind == KIND_USDG_SLEEVE) return 5;
         if (kind == KIND_ACCOUNT_IMPLEMENTATION) return 6;
+        if (kind == KIND_DELTA_POOL_CONTROLLER) return 7;
         revert InvalidConfiguration();
     }
 

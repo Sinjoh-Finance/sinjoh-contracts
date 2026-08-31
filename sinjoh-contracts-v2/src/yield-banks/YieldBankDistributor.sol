@@ -12,7 +12,7 @@ contract YieldBankDistributor is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint256 public constant RAY = 1e27;
-    uint256 public constant MAX_DISTRIBUTION_ASSETS = 8;
+    uint256 public constant MAX_DISTRIBUTION_ASSETS = 64;
 
     address public immutable collection;
     address[] private _assets;
@@ -93,7 +93,6 @@ contract YieldBankDistributor is ReentrancyGuard {
         uint256 length = _assets.length;
         for (uint256 i; i < length; ++i) {
             address asset = _assets[i];
-            YieldBankAccount(account).trackAsset(asset);
             uint256 amount;
             if (terminal) {
                 amount = accountedBalance[asset];
@@ -104,6 +103,7 @@ contract YieldBankDistributor is ReentrancyGuard {
                 debtRay[tokenId][asset] += amount * RAY;
             }
             if (amount == 0) continue;
+            YieldBankAccount(account).trackAsset(asset);
             accountedBalance[asset] -= amount;
             totalSettled[asset] += amount;
             cumulativeSettled[tokenId][asset] += amount;
@@ -129,6 +129,10 @@ contract YieldBankDistributor is ReentrancyGuard {
 
     function distributionAssets() external view returns (address[] memory) {
         return _assets;
+    }
+
+    function distributionAssetCount() external view returns (uint256) {
+        return _assets.length;
     }
 
     function solvent(address asset) external view returns (bool) {

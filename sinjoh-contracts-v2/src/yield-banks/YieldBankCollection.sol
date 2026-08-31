@@ -12,13 +12,10 @@ import {
     YieldBankTokenState
 } from "./YieldBankTypes.sol";
 import { IYieldBankEligibilityPolicy } from "./interfaces/IYieldBankEligibilityPolicy.sol";
-import { IYieldBankSleeve } from "./interfaces/IYieldBankSleeve.sol";
 import { YieldBankAccount } from "./YieldBankAccount.sol";
 import { YieldBankDistributor } from "./YieldBankDistributor.sol";
 import { YieldBankNFT } from "./YieldBankNFT.sol";
 import { YieldBankProceedsVault } from "./YieldBankProceedsVault.sol";
-import { IntegrationBinding } from "./libraries/IntegrationBinding.sol";
-import { YieldBankIds } from "./libraries/YieldBankIds.sol";
 
 interface IYieldBankRevenueEconomics {
     function primaryBackingBps() external view returns (uint16);
@@ -35,6 +32,8 @@ interface IYieldBankPortfolioEconomics {
     function marketMakingWeightBps() external view returns (uint16);
     function usdgWeightBps() external view returns (uint16);
     function activeDeltaPoolOf(uint256 tokenId) external view returns (address);
+    function isDeltaPoolSleeve(address sleeve) external view returns (bool);
+    function deltaPoolController() external view returns (address);
 }
 
 /// @notice Coordinator for one configurable-supply Yield Banks collection.
@@ -93,6 +92,7 @@ contract YieldBankCollection is ReentrancyGuard {
     error InvalidBatchSize(uint256 supplied);
     error PrimaryPayoutPending();
     error InvalidSleeveAsset(address asset);
+    error OnlyDeltaPoolController(address caller);
     error ActiveDeltaPositionRequiresRebalance(uint256 tokenId, address pool);
     error RedemptionTokenBurnMismatch(
         uint256 expected, uint256 balanceBurned, uint256 supplyBurned
@@ -115,6 +115,7 @@ contract YieldBankCollection is ReentrancyGuard {
         uint256 indexed tokenId, address indexed beneficiary, bool terminal, uint256 pendingBacking
     );
     event DistributionAssetRegistered(address indexed asset);
+    event DynamicSleeveRegistered(address indexed sleeve);
     event RedemptionTokenBurned(
         uint256 indexed tokenId, address indexed owner, address indexed token, uint256 amount
     );
@@ -271,18 +272,6 @@ contract YieldBankCollection is ReentrancyGuard {
         emit DistributionAssetRegistered(asset);
     }
 
-    function registerMarketMakingSleeve(address sleeve, bytes32 runtimeCodeHash) external {
-        if (msg.sender != collectionTimelock) revert OnlyTimelock(msg.sender);
-        if (isSleeveAsset[sleeve]) revert InvalidSleeveAsset(sleeve);
-        IntegrationBinding.requireBound(sleeve, runtimeCodeHash);
-        if (
-            IYieldBankSleeve(sleeve).category() != YieldBankIds.MARKET_MAKING
-                || IYieldBankSleeve(sleeve).accountingAsset() != address(weth)
-        ) revert InvalidSleeveAsset(sleeve);
-        isSleeveAsset[sleeve] = true;
-        emit DistributionAssetRegistered(sleeve);
-    }
-
     function pauseInvestments() external {
         if (msg.sender != guardian) revert OnlyGuardian(msg.sender);
         if (state != YieldBankCollectionState.ACTIVE) revert InvalidState(state);
@@ -388,6 +377,21 @@ contract YieldBankCollection is ReentrancyGuard {
         if (isSleeveAsset[asset]) revert InvalidSleeveAsset(asset);
         isSleeveAsset[asset] = true;
         distributor.registerAsset(asset);
+    }
+
+    /// @notice Marks an operator-materialized, source-verified pool sleeve as restricted backing.
+    /// @dev Dynamic sleeves are not global distributor assets: an NFT must fully rebalance out of
+    ///      its active Delta pool before redemption, so dynamic sleeve shares cannot enter the
+    ///      burn-time distribution loop.
+    function registerDynamicSleeve(address asset) external {
+        address controller = IYieldBankPortfolioEconomics(portfolioAllocator).deltaPoolController();
+        if (msg.sender != controller) revert OnlyDeltaPoolController(msg.sender);
+        if (!IYieldBankPortfolioEconomics(portfolioAllocator).isDeltaPoolSleeve(asset)) {
+            revert InvalidSleeveAsset(asset);
+        }
+        if (isSleeveAsset[asset]) revert InvalidSleeveAsset(asset);
+        isSleeveAsset[asset] = true;
+        emit DynamicSleeveRegistered(asset);
     }
 
     function _burnRedemptionToken(uint256 tokenId, address owner) private {

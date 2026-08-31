@@ -69,9 +69,9 @@ contract YieldBankSystemFactoryTest is Test {
 
         address predictedFactory =
             vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
-        bytes32[7] memory salts;
-        address[7] memory predicted;
-        for (uint256 i; i < 7; ++i) {
+        bytes32[8] memory salts;
+        address[8] memory predicted;
+        for (uint256 i; i < 8; ++i) {
             salts[i] = keccak256(abi.encode("YIELD_BANK_COMPONENT", i));
             predicted[i] = Create3V2.predict(predictedFactory, salts[i]);
         }
@@ -85,26 +85,28 @@ contract YieldBankSystemFactoryTest is Test {
         );
         bytes32 expectedRuntimeHash = keccak256(type(MockYieldBankPlannedComponent).runtimeCode);
         YieldBankSystemFactory.ComponentDeployment[] memory components =
-            new YieldBankSystemFactory.ComponentDeployment[](7);
-        bytes32[7] memory kinds = [
+            new YieldBankSystemFactory.ComponentDeployment[](8);
+        bytes32[8] memory kinds = [
             keccak256("REVENUE_ROUTER"),
             keccak256("PORTFOLIO_ALLOCATOR"),
             keccak256("COLLECTION_TIMELOCK"),
             keccak256("CORE_SLEEVE"),
             keccak256("MARKET_MAKING_SLEEVE"),
             keccak256("USDG_SLEEVE"),
-            keccak256("ACCOUNT_IMPLEMENTATION")
+            keccak256("ACCOUNT_IMPLEMENTATION"),
+            keccak256("DELTA_POOL_CONTROLLER")
         ];
         uint16[6] memory economics = [
             uint16(7_500), uint16(1_200), uint16(1_300), uint16(4_000), uint16(3_750), uint16(2_250)
         ];
         for (uint256 i; i < 6; ++i) {
+            address dependency = i == 1 ? predicted[7] : predicted[(i + 1) % 6];
             components[i] = YieldBankSystemFactory.ComponentDeployment({
                 kind: kinds[i],
                 salt: salts[i],
                 initCode: abi.encodePacked(
                     type(MockYieldBankPlannedComponent).creationCode,
-                    abi.encode(predictedCollection, predicted[(i + 1) % 6], economics)
+                    abi.encode(predictedCollection, dependency, economics)
                 ),
                 expectedRuntimeCodeHash: expectedRuntimeHash
             });
@@ -114,6 +116,15 @@ contract YieldBankSystemFactoryTest is Test {
             salt: salts[6],
             initCode: type(YieldBankAccount).creationCode,
             expectedRuntimeCodeHash: keccak256(type(YieldBankAccount).runtimeCode)
+        });
+        components[7] = YieldBankSystemFactory.ComponentDeployment({
+            kind: kinds[7],
+            salt: salts[7],
+            initCode: abi.encodePacked(
+                type(MockYieldBankPlannedComponent).creationCode,
+                abi.encode(predictedCollection, predicted[1], economics)
+            ),
+            expectedRuntimeCodeHash: expectedRuntimeHash
         });
 
         bytes32 plan = _planHash(
@@ -135,10 +146,11 @@ contract YieldBankSystemFactoryTest is Test {
             assertEq(factory.predictComponent(salts[i]), predicted[i]);
             MockYieldBankPlannedComponent component = MockYieldBankPlannedComponent(predicted[i]);
             assertEq(component.collection(), predictedCollection);
-            assertEq(component.dependency(), predicted[(i + 1) % 6]);
+            assertEq(component.dependency(), i == 1 ? predicted[7] : predicted[(i + 1) % 6]);
         }
         assertEq(factory.predictComponent(salts[6]), predicted[6]);
         assertEq(predicted[6].codehash, keccak256(type(YieldBankAccount).runtimeCode));
+        assertEq(factory.predictComponent(salts[7]), predicted[7]);
         (address recordedFactory,,,,, bool registered) = registry.collections(deployed);
         assertEq(recordedFactory, address(factory));
         assertTrue(registered);
@@ -148,7 +160,7 @@ contract YieldBankSystemFactoryTest is Test {
         MockYieldBankAsset weth,
         MockYieldBankEligibilityPolicy policy,
         MockYieldBankRenderer renderer,
-        address[7] memory predicted
+        address[8] memory predicted
     ) private view returns (YieldBankConfig memory config) {
         config = YieldBankConfig({
             collectionId: COLLECTION_ID,

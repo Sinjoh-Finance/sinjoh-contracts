@@ -10,6 +10,18 @@ if (!manifestPath || !rpcUrl) {
   throw new Error("usage: node script/verify-yield-banks-manifest.mjs <manifest.json> <rpc-url>");
 }
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+const creationArtifactPaths = {
+  routeCreationCodeHash: "../out/DeltaV3SinglePoolRoute.sol/DeltaV3SinglePoolRoute.json",
+  sleeveCreationCodeHash: "../out/MarketMakingSleeve.sol/MarketMakingSleeve.json",
+  adapterCreationCodeHash: "../out/DeltaV3LPAdapter.sol/DeltaV3LPAdapter.json",
+  feedCreationCodeHash: "../out/DeltaV3TwapUsdFeed.sol/DeltaV3TwapUsdFeed.json",
+};
+const expectedCreationCodeHashes = Object.fromEntries(await Promise.all(
+  Object.entries(creationArtifactPaths).map(async ([field, path]) => {
+    const artifact = JSON.parse(await readFile(new URL(path, import.meta.url), "utf8"));
+    return [field, keccak256(artifact.bytecode.object)];
+  }),
+));
 const client = createPublicClient({ transport: http(rpcUrl) });
 const bytes32 = /^0x[0-9a-fA-F]{64}$/;
 const zeroBytes32 = `0x${"0".repeat(64)}`;
@@ -26,7 +38,7 @@ const expectedDependencies = {
 const requiredContracts = [
   "registry", "factoryDeployer", "factory", "collection", "nft", "accountImplementation",
   "proceedsVault", "distributor", "revenueRouter", "timelock",
-  "allocator", "priceHub", "strategyRegistry", "renderer", "coreSleeve",
+  "allocator", "deltaPoolController", "priceHub", "strategyRegistry", "renderer", "coreSleeve",
   "marketMakingSleeve", "usdgSleeve",
   "rebalanceValueGuard",
 ];
@@ -34,7 +46,7 @@ const assert = (condition, message) => { if (!condition) throw new Error(message
 const hashText = (value) => keccak256(stringToHex(value));
 const sameAddress = (left, right) => getAddress(left) === getAddress(right);
 
-assert(manifest.schemaVersion === "1.0", "unsupported Yield Banks manifest schema");
+assert(manifest.schemaVersion === "1.1", "unsupported Yield Banks manifest schema");
 assert(manifest.chainId === 4663, "Yield Banks release manifests require Robinhood mainnet chain 4663");
 assert(bytes32.test(manifest.collectionId), "collectionId must be bytes32");
 assert(Number(await client.getChainId()) === manifest.chainId, "RPC chain does not match manifest");
@@ -80,46 +92,32 @@ assert(new URL(manifest.equityModel.disclosureUri).protocol === "https:",
 assert(manifest.equityAssets.length >= 1, "at least one reviewed equity asset is required");
 assert(Array.isArray(manifest.feeds) && manifest.feeds.length >= 1,
   "at least one reviewed feed binding is required");
-assert(Array.isArray(manifest.deltaPools), "deltaPools must be an array");
-const containsAddress = (records, address) => Object.values(records)
-  .some((entry) => sameAddress(entry.address, address));
+assert(Array.isArray(manifest.deltaInfrastructure) && manifest.deltaInfrastructure.length > 0,
+  "deltaInfrastructure must contain at least one source-verified generation");
 const allManifestEntries = [
   ...Object.values(manifest.contracts), ...Object.values(manifest.dependencies),
   ...manifest.equityAssets, ...Object.values(manifest.adapters),
-  ...manifest.feeds.map((binding) => binding.feed), ...Object.values(manifest.pools),
+  ...manifest.feeds.map((binding) => binding.feed),
 ];
 const manifestEntryFor = (address) => allManifestEntries
   .find((entry) => sameAddress(entry.address, address));
-const seenDeltaPools = new Set();
-const seenDeltaSleeves = new Set();
-const seenDeltaAdapters = new Set();
-for (const delta of manifest.deltaPools) {
-  assert(Number.isInteger(delta.maximumPositions) && delta.maximumPositions >= 1
-    && delta.maximumPositions <= 64, "Delta maximumPositions must be an integer from 1 through 64");
-  assert(delta.maximumStrategies === 1,
-    `Delta sleeve ${delta.sleeve} must have exactly one strategy slot`);
-  assert(isBps(delta.adapterCapBps) && delta.adapterCapBps > 0
-    && delta.adapterCapBps <= manifest.policyCaps.marketMaking.maximumAdapterCapBps,
-  `Delta adapter cap exceeds the market-making policy for ${delta.adapter}`);
-  for (const [field, records] of [
-    ["adapter", manifest.adapters], ["entryRoute", manifest.adapters],
-    ["exitRoute", manifest.adapters], ["pool", manifest.pools],
-    ["pairedAsset", manifest.dependencies], ["positionBuilder", manifest.dependencies],
-    ["factory", manifest.dependencies], ["positionManager", manifest.dependencies],
-  ]) assert(containsAddress(records, delta[field]),
-    `Delta ${field} ${delta[field]} is not bound to its manifest group`);
-  assert(manifestEntryFor(delta.sleeve), `Delta sleeve ${delta.sleeve} is not in the manifest`);
-  assert(!sameAddress(delta.pairedAsset, manifest.dependencies.WETH.address),
-    `Delta paired asset must differ from WETH for ${delta.pool}`);
-  const poolKey = getAddress(delta.pool);
-  const sleeveKey = getAddress(delta.sleeve);
-  const adapterKey = getAddress(delta.adapter);
-  assert(!seenDeltaPools.has(poolKey), `duplicate Delta pool ${poolKey}`);
-  assert(!seenDeltaSleeves.has(sleeveKey), `Delta sleeve reused across pools ${sleeveKey}`);
-  assert(!seenDeltaAdapters.has(adapterKey), `Delta adapter reused across pools ${adapterKey}`);
-  seenDeltaPools.add(poolKey);
-  seenDeltaSleeves.add(sleeveKey);
-  seenDeltaAdapters.add(adapterKey);
+const seenDeltaFactories = new Set();
+for (const infrastructure of manifest.deltaInfrastructure) {
+  const factory = getAddress(infrastructure.factory);
+  assert(!seenDeltaFactories.has(factory), `duplicate Delta factory generation ${factory}`);
+  assert(sameAddress(infrastructure.weth, manifest.dependencies.WETH.address),
+    `Delta infrastructure WETH mismatch for ${factory}`);
+  for (const field of [
+    "factoryRuntimeCodeHash", "positionManagerRuntimeCodeHash", "positionBuilderRuntimeCodeHash",
+    "routeCreationCodeHash", "sleeveCreationCodeHash", "adapterCreationCodeHash",
+    "feedCreationCodeHash",
+  ]) assert(bytes32.test(infrastructure[field]) && infrastructure[field] !== zeroBytes32,
+    `Delta infrastructure ${field} is invalid for ${factory}`);
+  for (const field of Object.keys(creationArtifactPaths)) assert(
+    infrastructure[field].toLowerCase() === expectedCreationCodeHashes[field].toLowerCase(),
+    `Delta infrastructure ${field} does not match the locally built vetted contract`,
+  );
+  seenDeltaFactories.add(factory);
 }
 const equityAssetKeys = new Set(manifest.equityAssets.map((entry) => getAddress(entry.address)));
 assert(Array.isArray(manifest.coreConstituents)
@@ -149,7 +147,6 @@ const requiredPricedAssets = new Set([
   getAddress(manifest.dependencies.WETH.address),
   getAddress(manifest.dependencies.USDG.address),
   ...equityAssetKeys,
-  ...manifest.deltaPools.map((delta) => getAddress(delta.pairedAsset)),
 ]);
 const feedAssetKeys = new Set();
 const feedAddressKeys = new Set();
@@ -171,31 +168,12 @@ for (const binding of manifest.feeds) {
     `missing feed description for ${asset}`);
   const feedSource = new URL(binding.sourceUrl);
   assert(feedSource.protocol === "https:", `feed source must use HTTPS for ${asset}`);
-  if (binding.kind === "chainlink") {
-    assert(feedSource.hostname === "docs.chain.link",
-      `Chainlink feed source must be official Chainlink documentation for ${asset}`);
-    assert(sameAddress(binding.wethUsdFeed, "0x0000000000000000000000000000000000000000")
-      && binding.twapWindow === 0 && binding.maxSpotDeviationBps === 0
-      && binding.comparisonAmount === "0" && binding.minimumLiquidity === "0",
-    `Chainlink feed must not contain derived-price settings for ${asset}`);
-  } else {
-    assert(binding.kind === "delta-v3-twap"
-      && feedSource.hostname === "robinhoodchain.blockscout.com"
-      && feedSource.pathname.toLowerCase().includes(binding.feed.address.toLowerCase())
-      && !sameAddress(binding.referenceSource, "0x0000000000000000000000000000000000000000")
-      && manifestEntryFor(binding.referenceSource)
-      && !sameAddress(binding.wethUsdFeed, "0x0000000000000000000000000000000000000000")
-      && manifestEntryFor(binding.wethUsdFeed)
-      && Number.isInteger(binding.twapWindow) && binding.twapWindow > 0
-      && binding.twapWindow <= 86_400
-      && isBps(binding.maxSpotDeviationBps) && binding.maxSpotDeviationBps > 0
-      && binding.maxSpotDeviationBps <= 2_000
-      && /^\d+$/.test(binding.comparisonAmount) && BigInt(binding.comparisonAmount) > 0n
-      && BigInt(binding.comparisonAmount) < (1n << 128n)
-      && /^\d+$/.test(binding.minimumLiquidity) && BigInt(binding.minimumLiquidity) > 0n
-      && BigInt(binding.minimumLiquidity) < (1n << 128n),
-    `invalid Delta V3 TWAP feed provenance or controls for ${asset}`);
-  }
+  assert(binding.kind === "chainlink" && feedSource.hostname === "docs.chain.link",
+    `release feed must use official Chainlink provenance for ${asset}`);
+  assert(sameAddress(binding.wethUsdFeed, "0x0000000000000000000000000000000000000000")
+    && binding.twapWindow === 0 && binding.maxSpotDeviationBps === 0
+    && binding.comparisonAmount === "0" && binding.minimumLiquidity === "0",
+  `release Chainlink feed must not contain pool-derived settings for ${asset}`);
   assert(Number.isFinite(Date.parse(binding.observedAt)),
     `feed observation time is invalid for ${asset}`);
   assert(equityAssetKeys.has(asset) ? binding.checkAssetOraclePause === true
@@ -228,7 +206,6 @@ const allowedSleeveKeys = new Set([
   getAddress(manifest.contracts.coreSleeve.address),
   getAddress(manifest.contracts.marketMakingSleeve.address),
   getAddress(manifest.contracts.usdgSleeve.address),
-  ...manifest.deltaPools.map((delta) => getAddress(delta.sleeve)),
 ]);
 const allocationKeys = new Set();
 for (const binding of manifest.routeBindings.allocations) {
@@ -248,7 +225,6 @@ assert(allocationKeys.has(
 ), `missing WETH allocation route for USDG sleeve ${manifest.contracts.usdgSleeve.address}`);
 const rebalanceAssets = [
   manifest.dependencies.USDG.address,
-  ...manifest.deltaPools.map((delta) => delta.pairedAsset),
   ...manifest.equityAssets.map((entry) => entry.address),
 ];
 const rebalanceKeys = new Set();
@@ -277,6 +253,26 @@ for (const sleeve of ["core", "marketMaking", "usdg"]) {
   assert(policy.maximumStrategies === 0 || policy.maximumAdapterCapBps > 0,
     `policyCaps.${sleeve} must permit a positive adapter cap when strategies are enabled`);
 }
+const poolFeedPolicy = manifest.policyCaps.deltaPoolFeed;
+assert(poolFeedPolicy && Number.isInteger(poolFeedPolicy.maximumHeartbeat)
+  && poolFeedPolicy.maximumHeartbeat > 0
+  && poolFeedPolicy.maximumHeartbeat <= 4_294_967_295,
+"policyCaps.deltaPoolFeed.maximumHeartbeat is invalid");
+assert(Number.isInteger(poolFeedPolicy.maximumGracePeriod)
+  && poolFeedPolicy.maximumGracePeriod >= 0
+  && poolFeedPolicy.maximumGracePeriod <= 4_294_967_295,
+"policyCaps.deltaPoolFeed.maximumGracePeriod is invalid");
+assert(Number.isInteger(poolFeedPolicy.minimumTwapWindow)
+  && poolFeedPolicy.minimumTwapWindow > 0 && poolFeedPolicy.minimumTwapWindow <= 86_400,
+"policyCaps.deltaPoolFeed.minimumTwapWindow is invalid");
+assert(Number.isInteger(poolFeedPolicy.maximumReferenceDeviationBps)
+  && poolFeedPolicy.maximumReferenceDeviationBps > 0
+  && poolFeedPolicy.maximumReferenceDeviationBps <= 10_000,
+"policyCaps.deltaPoolFeed.maximumReferenceDeviationBps is invalid");
+assert(Number.isInteger(poolFeedPolicy.maximumSpotDeviationBps)
+  && poolFeedPolicy.maximumSpotDeviationBps > 0
+  && poolFeedPolicy.maximumSpotDeviationBps <= 2_000,
+"policyCaps.deltaPoolFeed.maximumSpotDeviationBps is invalid");
 for (const key of [
   "factorySalt", "collectionSalt", "collectionConfigurationHash", "systemPlanHash",
   "collectionCreationCodeHash", "metadataBaseUriHash", "contractUriHash",
@@ -411,7 +407,6 @@ for (const [group, records] of Object.entries({
   contracts: manifest.contracts,
   dependencies: manifest.dependencies,
   adapters: manifest.adapters,
-  pools: manifest.pools,
 })) for (const [key, entry] of Object.entries(records)) entries.push([`${group}.${key}`, entry]);
 manifest.equityAssets.forEach((entry, index) => entries.push([`equityAssets.${index}`, entry]));
 manifest.feeds.forEach((binding, index) => entries.push([`feeds.${index}.feed`, binding.feed]));
@@ -580,6 +575,7 @@ const deltaAdapterAbi = [
   { type: "function", name: "maximumPositions", stateMutability: "view", inputs: [], outputs: [{ type: "uint8" }] },
 ];
 const strategyRegistryAbi = [
+  { type: "function", name: "isRegistrar", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "bool" }] },
   { type: "function", name: "recordOf", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "tuple", components: [
     { name: "implementation", type: "address" }, { name: "runtimeCodeHash", type: "bytes32" },
     { name: "sleeveCategory", type: "bytes32" }, { name: "accountingAsset", type: "address" },
@@ -588,6 +584,7 @@ const strategyRegistryAbi = [
 ];
 const allocatorAbi = [
   { type: "function", name: "rebalanceValueGuard", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+  { type: "function", name: "deltaPoolController", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "routeBinding", stateMutability: "view", inputs: [
     { type: "address" }, { type: "address" },
   ], outputs: [{ type: "address" }, { type: "bytes32" }] },
@@ -630,12 +627,33 @@ const coreSleeveAbi = [
 const priceHubAbi = [
   { type: "function", name: "chainHealthy", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
   { type: "function", name: "guardianPaused", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
+  { type: "function", name: "isRegistrar", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "bool" }] },
   { type: "function", name: "feedConfig", stateMutability: "view", inputs: [{ type: "address" }], outputs: [
     { type: "address" }, { type: "address" }, { type: "uint32" }, { type: "uint32" },
     { type: "uint16" }, { type: "uint8" }, { type: "bytes32" }, { type: "bytes32" },
     { type: "bytes32" }, { type: "bool" }, { type: "bool" }, { type: "bool" },
     { type: "bool" },
   ] },
+];
+const deltaPoolControllerAbi = [
+  ...["allocator", "collection", "timelock", "guardian", "weth", "eligibilityPolicy", "priceHub", "strategyRegistry"]
+    .map((name) => ({ type: "function", name, stateMutability: "view", inputs: [], outputs: [{ type: "address" }] })),
+  { type: "function", name: "infrastructureOfFactory", stateMutability: "view", inputs: [{ type: "address" }], outputs: [
+    { type: "address" }, { type: "address" },
+    { type: "bytes32" }, { type: "bytes32" }, { type: "bytes32" },
+    { type: "bytes32" }, { type: "bytes32" }, { type: "bytes32" }, { type: "bytes32" },
+    { type: "bool" },
+  ] },
+  ...["maximumAdapterCapBps", "maximumOperatorLossBps"].map((name) => ({
+    type: "function", name, stateMutability: "view", inputs: [], outputs: [{ type: "uint16" }],
+  })),
+  ...["maximumPoolFeedHeartbeat", "maximumPoolFeedGracePeriod", "minimumPoolTwapWindow"]
+    .map((name) => ({
+      type: "function", name, stateMutability: "view", inputs: [], outputs: [{ type: "uint32" }],
+    })),
+  ...["maximumPoolReferenceDeviationBps", "maximumPoolSpotDeviationBps"].map((name) => ({
+    type: "function", name, stateMutability: "view", inputs: [], outputs: [{ type: "uint16" }],
+  })),
 ];
 const aggregatorAbi = [
   { type: "function", name: "decimals", stateMutability: "view", inputs: [], outputs: [{ type: "uint8" }] },
@@ -814,6 +832,55 @@ assert(sameAddress(
   await read(manifest.contracts.allocator.address, allocatorAbi, "rebalanceValueGuard"),
   manifest.contracts.rebalanceValueGuard.address,
 ), "allocator rebalance value guard mismatch");
+assert(sameAddress(
+  await read(manifest.contracts.allocator.address, allocatorAbi, "deltaPoolController"),
+  manifest.contracts.deltaPoolController.address,
+), "allocator Delta pool controller mismatch");
+const controllerIdentity = await Promise.all(
+  ["allocator", "collection", "timelock", "guardian", "weth", "eligibilityPolicy", "priceHub", "strategyRegistry"]
+    .map((name) => read(manifest.contracts.deltaPoolController.address, deltaPoolControllerAbi, name)),
+);
+for (const [index, expected] of [
+  manifest.contracts.allocator.address,
+  manifest.contracts.collection.address,
+  manifest.roles.timelock,
+  manifest.roles.guardian,
+  manifest.dependencies.WETH.address,
+  manifest.dependencies.eligibilityPolicy.address,
+  manifest.contracts.priceHub.address,
+  manifest.contracts.strategyRegistry.address,
+].entries()) assert(sameAddress(controllerIdentity[index], expected),
+  `Delta pool controller dependency mismatch at index ${index}`);
+assert(await read(manifest.contracts.strategyRegistry.address, strategyRegistryAbi, "isRegistrar", [
+  manifest.contracts.deltaPoolController.address,
+]) === true, "Delta pool controller is not an authorized strategy registrar");
+assert(await read(manifest.contracts.priceHub.address, priceHubAbi, "isRegistrar", [
+  manifest.contracts.deltaPoolController.address,
+]) === true, "Delta pool controller is not an authorized feed registrar");
+const controllerCaps = await Promise.all([
+  read(manifest.contracts.deltaPoolController.address, deltaPoolControllerAbi,
+    "maximumAdapterCapBps"),
+  read(manifest.contracts.deltaPoolController.address, deltaPoolControllerAbi,
+    "maximumOperatorLossBps"),
+  read(manifest.contracts.deltaPoolController.address, deltaPoolControllerAbi,
+    "maximumPoolFeedHeartbeat"),
+  read(manifest.contracts.deltaPoolController.address, deltaPoolControllerAbi,
+    "maximumPoolFeedGracePeriod"),
+  read(manifest.contracts.deltaPoolController.address, deltaPoolControllerAbi,
+    "minimumPoolTwapWindow"),
+  read(manifest.contracts.deltaPoolController.address, deltaPoolControllerAbi,
+    "maximumPoolReferenceDeviationBps"),
+  read(manifest.contracts.deltaPoolController.address, deltaPoolControllerAbi,
+    "maximumPoolSpotDeviationBps"),
+]);
+assert(Number(controllerCaps[0]) === manifest.policyCaps.marketMaking.maximumAdapterCapBps
+  && Number(controllerCaps[1]) === manifest.policyCaps.marketMaking.maximumOperatorLossBps
+  && Number(controllerCaps[2]) === poolFeedPolicy.maximumHeartbeat
+  && Number(controllerCaps[3]) === poolFeedPolicy.maximumGracePeriod
+  && Number(controllerCaps[4]) === poolFeedPolicy.minimumTwapWindow
+  && Number(controllerCaps[5]) === poolFeedPolicy.maximumReferenceDeviationBps
+  && Number(controllerCaps[6]) === poolFeedPolicy.maximumSpotDeviationBps,
+"Delta pool controller caps do not match the collection market-making policy");
 assert(sameAddress(collectionNft, manifest.contracts.nft.address), "collection NFT mismatch");
 assert(sameAddress(collectionDistributor, manifest.contracts.distributor.address),
   "collection distributor mismatch");
@@ -1016,190 +1083,48 @@ for (const binding of manifest.feeds) {
     const oraclePaused = await read(binding.asset, oraclePauseAbi, "oraclePaused");
     assert(oraclePaused === false, `asset oracle is paused for ${binding.asset}`);
   }
-  if (binding.kind === "delta-v3-twap") {
-    const matchingPools = manifest.deltaPools.filter((delta) =>
-      sameAddress(delta.pairedAsset, binding.asset));
-    assert(matchingPools.length === 1,
-      `derived feed must bind exactly one reviewed Delta pool for ${binding.asset}`);
-    const delta = matchingPools[0];
-    const wethFeedBinding = feedBindingsByAsset.get(getAddress(manifest.dependencies.WETH.address));
-    const state = await Promise.all([
-      read(binding.feed.address, deltaTwapFeedAbi, "pairedAsset"),
-      read(binding.feed.address, deltaTwapFeedAbi, "weth"),
-      read(binding.feed.address, deltaTwapFeedAbi, "pool"),
-      read(binding.feed.address, deltaTwapFeedAbi, "factory"),
-      read(binding.feed.address, deltaTwapFeedAbi, "wethUsdFeed"),
-      read(binding.feed.address, deltaTwapFeedAbi, "pairedAssetCodeHash"),
-      read(binding.feed.address, deltaTwapFeedAbi, "wethCodeHash"),
-      read(binding.feed.address, deltaTwapFeedAbi, "poolCodeHash"),
-      read(binding.feed.address, deltaTwapFeedAbi, "factoryCodeHash"),
-      read(binding.feed.address, deltaTwapFeedAbi, "wethUsdFeedCodeHash"),
-      read(binding.feed.address, deltaTwapFeedAbi, "wethUsdFeedDescriptionHash"),
-      read(binding.feed.address, deltaTwapFeedAbi, "twapWindow"),
-      read(binding.feed.address, deltaTwapFeedAbi, "maxSpotDeviationBps"),
-      read(binding.feed.address, deltaTwapFeedAbi, "comparisonAmount"),
-      read(binding.feed.address, deltaTwapFeedAbi, "minimumLiquidity"),
-    ]);
-    assert(sameAddress(state[0], binding.asset)
-      && sameAddress(state[1], manifest.dependencies.WETH.address)
-      && sameAddress(state[2], delta.pool) && sameAddress(state[3], delta.factory)
-      && sameAddress(state[4], wethFeedBinding.feed.address)
-      && state[5].toLowerCase() === manifestEntryFor(binding.asset).runtimeCodeHash.toLowerCase()
-      && state[6].toLowerCase() === manifest.dependencies.WETH.runtimeCodeHash.toLowerCase()
-      && state[7].toLowerCase() === manifestEntryFor(delta.pool).runtimeCodeHash.toLowerCase()
-      && state[8].toLowerCase() === manifestEntryFor(delta.factory).runtimeCodeHash.toLowerCase()
-      && state[9].toLowerCase() === wethFeedBinding.feed.runtimeCodeHash.toLowerCase()
-      && state[10].toLowerCase() === hashText(wethFeedBinding.description).toLowerCase()
-      && Number(state[11]) === binding.twapWindow
-      && Number(state[12]) === binding.maxSpotDeviationBps
-      && state[13] === BigInt(binding.comparisonAmount)
-      && state[14] === BigInt(binding.minimumLiquidity),
-    `derived Delta V3 TWAP feed binding mismatch for ${binding.asset}`);
-  }
 }
 
-const marketMakingCategory = keccak256(stringToHex("YIELD_BANK_MARKET_MAKING"));
-for (const delta of manifest.deltaPools) {
-  const adapterEntry = manifestEntryFor(delta.adapter);
-  const sleeveEntry = manifestEntryFor(delta.sleeve);
-  const poolEntry = manifestEntryFor(delta.pool);
-  const builderEntry = manifestEntryFor(delta.positionBuilder);
-  const managerEntry = manifestEntryFor(delta.positionManager);
-  const factoryEntry = manifestEntryFor(delta.factory);
-  const entryRouteEntry = manifestEntryFor(delta.entryRoute);
-  const exitRouteEntry = manifestEntryFor(delta.exitRoute);
-  assert(adapterEntry && sleeveEntry && poolEntry && builderEntry && managerEntry && factoryEntry
-    && entryRouteEntry && exitRouteEntry, `Delta manifest entry missing for pool ${delta.pool}`);
-
-  const deltaAddressFields = [
-    ["sleeve", delta.sleeve],
-    ["accountingAsset", manifest.dependencies.WETH.address],
-    ["pairedAsset", delta.pairedAsset],
-    ["priceHub", manifest.contracts.priceHub.address],
-    ["pool", delta.pool],
-    ["factory", delta.factory],
-    ["positionManager", delta.positionManager],
-    ["positionBuilder", delta.positionBuilder],
-    ["entryRoute", delta.entryRoute],
-    ["exitRoute", delta.exitRoute],
-  ];
-  const deltaHashFields = [
-    ["poolCodeHash", poolEntry.runtimeCodeHash],
-    ["factoryCodeHash", factoryEntry.runtimeCodeHash],
-    ["positionManagerCodeHash", managerEntry.runtimeCodeHash],
-    ["positionBuilderCodeHash", builderEntry.runtimeCodeHash],
-    ["entryRouteCodeHash", entryRouteEntry.runtimeCodeHash],
-    ["exitRouteCodeHash", exitRouteEntry.runtimeCodeHash],
-  ];
-  const [deltaAddresses, deltaHashes, maximumPositions, strategyRecord,
-    sleeveAdapterState, sleeveAdapterCap, sleeveMaximumStrategies, configuredAdapters,
-    sleeveCategory, sleeveAccountingAsset, sleeveAllocator, registeredSleeveAsset,
-    allocatorPoolBinding, reversePoolBinding, poolFactory, token0, token1, poolFee,
-    poolTickSpacing, poolLiquidity, poolSlot0, factoryPool, builderFactory,
-    builderManager, builderWeth, managerFactory, managerWeth] = await Promise.all([
-    Promise.all(deltaAddressFields.map(([field]) => read(delta.adapter, deltaAdapterAbi, field))),
-    Promise.all(deltaHashFields.map(([field]) => read(delta.adapter, deltaAdapterAbi, field))),
-    read(delta.adapter, deltaAdapterAbi, "maximumPositions"),
-    read(manifest.contracts.strategyRegistry.address, strategyRegistryAbi, "recordOf", [delta.adapter]),
-    read(delta.sleeve, sleeveAdapterAbi, "adapterState", [delta.adapter]),
-    read(delta.sleeve, sleeveAdapterAbi, "adapterCapBps", [delta.adapter]),
-    read(delta.sleeve, sleeveAdapterAbi, "maximumStrategies"),
-    read(delta.sleeve, sleeveAdapterAbi, "adapters"),
-    read(delta.sleeve, sleeveAdapterAbi, "category"),
-    read(delta.sleeve, sleeveAdapterAbi, "accountingAsset"),
-    read(delta.sleeve, sleeveAdapterAbi, "allocator"),
-    read(manifest.contracts.collection.address, collectionSleeveAbi, "isSleeveAsset", [delta.sleeve]),
-    read(manifest.contracts.allocator.address, allocatorAbi, "deltaPoolBinding", [delta.pool]),
-    read(manifest.contracts.allocator.address, allocatorAbi, "deltaPoolOfSleeve", [delta.sleeve]),
-    read(delta.pool, v3PoolAbi, "factory"),
-    read(delta.pool, v3PoolAbi, "token0"),
-    read(delta.pool, v3PoolAbi, "token1"),
-    read(delta.pool, v3PoolAbi, "fee"),
-    read(delta.pool, v3PoolAbi, "tickSpacing"),
-    read(delta.pool, v3PoolAbi, "liquidity"),
-    read(delta.pool, v3PoolAbi, "slot0"),
-    read(delta.factory, v3FactoryAbi, "getPool", [
-      manifest.dependencies.WETH.address, delta.pairedAsset, delta.fee,
-    ]),
-    read(delta.positionBuilder, positionBuilderAbi, "uniFactory"),
-    read(delta.positionBuilder, positionBuilderAbi, "positionManager"),
-    read(delta.positionBuilder, positionBuilderAbi, "weth"),
-    read(delta.positionManager, positionManagerAbi, "factory"),
-    read(delta.positionManager, positionManagerAbi, "WETH9"),
+for (const infrastructure of manifest.deltaInfrastructure) {
+  const [controllerState, builderFactory, builderManager, builderWeth, managerFactory,
+    managerWeth, factoryCode, managerCode, builderCode] = await Promise.all([
+    read(manifest.contracts.deltaPoolController.address, deltaPoolControllerAbi,
+      "infrastructureOfFactory", [infrastructure.factory]),
+    read(infrastructure.positionBuilder, positionBuilderAbi, "uniFactory"),
+    read(infrastructure.positionBuilder, positionBuilderAbi, "positionManager"),
+    read(infrastructure.positionBuilder, positionBuilderAbi, "weth"),
+    read(infrastructure.positionManager, positionManagerAbi, "factory"),
+    read(infrastructure.positionManager, positionManagerAbi, "WETH9"),
+    client.getCode({ address: infrastructure.factory }),
+    client.getCode({ address: infrastructure.positionManager }),
+    client.getCode({ address: infrastructure.positionBuilder }),
   ]);
-  deltaAddressFields.forEach(([field, expected], index) => assert(
-    sameAddress(deltaAddresses[index], expected),
-    `Delta adapter ${delta.adapter} ${field} mismatch`,
-  ));
-  deltaHashFields.forEach(([field, expected], index) => assert(
-    deltaHashes[index].toLowerCase() === expected.toLowerCase(),
-    `Delta adapter ${delta.adapter} ${field} mismatch`,
-  ));
-  assert(Number(maximumPositions) === delta.maximumPositions,
-    `Delta adapter maximumPositions mismatch for ${delta.adapter}`);
-  assert(sameAddress(strategyRecord.implementation, delta.adapter)
-    && strategyRecord.runtimeCodeHash.toLowerCase() === adapterEntry.runtimeCodeHash.toLowerCase()
-    && strategyRecord.sleeveCategory.toLowerCase() === marketMakingCategory.toLowerCase()
-    && sameAddress(strategyRecord.accountingAsset, manifest.dependencies.WETH.address)
-    && Number(strategyRecord.state) === 1,
-  `Delta adapter registry record mismatch for ${delta.adapter}`);
-  assert(Number(sleeveAdapterState) === 3,
-    `Delta adapter is not ACTIVE for ${delta.adapter}`);
-  assert(Number(sleeveAdapterCap) === delta.adapterCapBps,
-    `Delta adapter cap mismatch for ${delta.adapter}`);
-  assert(Number(sleeveMaximumStrategies) === 1 && configuredAdapters.length === 1
-    && sameAddress(configuredAdapters[0], delta.adapter),
-  `Delta sleeve is not isolated to its one adapter for ${delta.sleeve}`);
-  assert(sleeveCategory.toLowerCase() === marketMakingCategory.toLowerCase()
-    && sameAddress(sleeveAccountingAsset, manifest.dependencies.WETH.address)
-    && sameAddress(sleeveAllocator, manifest.contracts.allocator.address)
-    && registeredSleeveAsset === true
-    && !sameAddress(delta.sleeve, manifest.contracts.marketMakingSleeve.address),
-  `Delta sleeve identity mismatch for ${delta.sleeve}`);
-  assert(sameAddress(allocatorPoolBinding[0], delta.sleeve)
-    && sameAddress(allocatorPoolBinding[1], delta.adapter)
-    && allocatorPoolBinding[2].toLowerCase() === poolEntry.runtimeCodeHash.toLowerCase()
-    && allocatorPoolBinding[3].toLowerCase() === sleeveEntry.runtimeCodeHash.toLowerCase()
-    && allocatorPoolBinding[4].toLowerCase() === adapterEntry.runtimeCodeHash.toLowerCase()
-    && sameAddress(reversePoolBinding, delta.pool),
-  `allocator Delta pool binding mismatch for ${delta.pool}`);
-  assert(sameAddress(poolFactory, delta.factory)
-    && ((sameAddress(token0, manifest.dependencies.WETH.address)
-      && sameAddress(token1, delta.pairedAsset))
-      || (sameAddress(token0, delta.pairedAsset)
-        && sameAddress(token1, manifest.dependencies.WETH.address)))
-    && Number(poolFee) === delta.fee
-    && Number(poolTickSpacing) === delta.tickSpacing
-    && poolLiquidity > 0n && poolSlot0[6] === true
-    && sameAddress(factoryPool, delta.pool),
-  `live Delta pool identity or liquidity mismatch for ${delta.pool}`);
-  assert(sameAddress(builderFactory, delta.factory)
-    && sameAddress(builderManager, delta.positionManager)
-    && sameAddress(builderWeth, manifest.dependencies.WETH.address)
-    && sameAddress(managerFactory, delta.factory)
-    && sameAddress(managerWeth, manifest.dependencies.WETH.address),
-  `Delta builder/manager dependency graph mismatch for ${delta.adapter}`);
-
-  for (const [route, inputAsset, outputAsset, routeEntry] of [
-    [delta.entryRoute, manifest.dependencies.WETH.address, delta.pairedAsset, entryRouteEntry],
-    [delta.exitRoute, delta.pairedAsset, manifest.dependencies.WETH.address, exitRouteEntry],
-  ]) {
-    const routeState = await Promise.all([
-      read(route, singlePoolRouteAbi, "inputAsset"),
-      read(route, singlePoolRouteAbi, "outputAsset"),
-      read(route, singlePoolRouteAbi, "pool"),
-      read(route, singlePoolRouteAbi, "factory"),
-      read(route, singlePoolRouteAbi, "poolCodeHash"),
-      read(route, singlePoolRouteAbi, "factoryCodeHash"),
-    ]);
-    assert(sameAddress(routeState[0], inputAsset) && sameAddress(routeState[1], outputAsset)
-      && sameAddress(routeState[2], delta.pool) && sameAddress(routeState[3], delta.factory)
-      && routeState[4].toLowerCase() === poolEntry.runtimeCodeHash.toLowerCase()
-      && routeState[5].toLowerCase() === factoryEntry.runtimeCodeHash.toLowerCase()
-      && routeEntry.runtimeCodeHash.toLowerCase()
-        === manifestEntryFor(route).runtimeCodeHash.toLowerCase(),
-    `Delta route direction or dependency binding mismatch for ${route}`);
-  }
+  assert(sameAddress(controllerState[0], infrastructure.positionManager)
+    && sameAddress(controllerState[1], infrastructure.positionBuilder)
+    && controllerState[2].toLowerCase() === infrastructure.factoryRuntimeCodeHash.toLowerCase()
+    && controllerState[3].toLowerCase()
+      === infrastructure.positionManagerRuntimeCodeHash.toLowerCase()
+    && controllerState[4].toLowerCase()
+      === infrastructure.positionBuilderRuntimeCodeHash.toLowerCase()
+    && controllerState[5].toLowerCase() === infrastructure.routeCreationCodeHash.toLowerCase()
+    && controllerState[6].toLowerCase() === infrastructure.sleeveCreationCodeHash.toLowerCase()
+    && controllerState[7].toLowerCase() === infrastructure.adapterCreationCodeHash.toLowerCase()
+    && controllerState[8].toLowerCase() === infrastructure.feedCreationCodeHash.toLowerCase()
+    && controllerState[9] === infrastructure.active,
+  `Delta controller infrastructure mismatch for ${infrastructure.factory}`);
+  assert(factoryCode && keccak256(factoryCode).toLowerCase()
+      === infrastructure.factoryRuntimeCodeHash.toLowerCase()
+    && managerCode && keccak256(managerCode).toLowerCase()
+      === infrastructure.positionManagerRuntimeCodeHash.toLowerCase()
+    && builderCode && keccak256(builderCode).toLowerCase()
+      === infrastructure.positionBuilderRuntimeCodeHash.toLowerCase(),
+  `Delta infrastructure code hash mismatch for ${infrastructure.factory}`);
+  assert(sameAddress(builderFactory, infrastructure.factory)
+    && sameAddress(builderManager, infrastructure.positionManager)
+    && sameAddress(builderWeth, infrastructure.weth)
+    && sameAddress(managerFactory, infrastructure.factory)
+    && sameAddress(managerWeth, infrastructure.weth),
+  `Delta infrastructure dependency graph mismatch for ${infrastructure.factory}`);
 }
 for (const binding of manifest.routeBindings.allocations) {
   const actual = await read(manifest.contracts.allocator.address, allocatorAbi, "routeBinding", [
@@ -1241,6 +1166,8 @@ console.log(JSON.stringify({
   collection: manifest.contracts.collection.address,
   nft: manifest.contracts.nft.address,
   proceedsVault: manifest.contracts.proceedsVault.address,
-  deltaPools: manifest.deltaPools.map(({ pool, sleeve, adapter }) => ({ pool, sleeve, adapter })),
+  deltaInfrastructure: manifest.deltaInfrastructure.map(({
+    factory, positionManager, positionBuilder, active,
+  }) => ({ factory, positionManager, positionBuilder, active })),
   contractsVerified: entries.length,
 }, null, 2));

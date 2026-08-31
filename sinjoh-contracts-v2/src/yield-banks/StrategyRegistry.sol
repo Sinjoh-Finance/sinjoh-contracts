@@ -18,6 +18,7 @@ contract StrategyRegistry is Ownable2Step {
     }
 
     mapping(address adapter => StrategyRecord record) private _records;
+    mapping(address registrar => bool allowed) public isRegistrar;
 
     error InvalidStrategy(address adapter);
     error AlreadyRegistered(address adapter);
@@ -30,10 +31,20 @@ contract StrategyRegistry is Ownable2Step {
         bytes32 runtimeCodeHash
     );
     event StrategyRejected(address indexed adapter);
+    event RegistrarSet(address indexed registrar, bool allowed);
 
     constructor(address owner_) Ownable(owner_) { }
 
-    function register(address adapter, bytes32 sleeveCategory) external onlyOwner {
+    function setRegistrar(address registrar, bool allowed) external onlyOwner {
+        if (registrar == address(0)) revert InvalidStrategy(registrar);
+        isRegistrar[registrar] = allowed;
+        emit RegistrarSet(registrar, allowed);
+    }
+
+    function register(address adapter, bytes32 sleeveCategory) external {
+        if (msg.sender != owner() && !isRegistrar[msg.sender]) {
+            revert OwnableUnauthorizedAccount(msg.sender);
+        }
         if (adapter.code.length == 0 || sleeveCategory == bytes32(0)) {
             revert InvalidStrategy(adapter);
         }

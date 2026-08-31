@@ -1,0 +1,71 @@
+{
+  "schemaVersion": "1.0",
+  "run": {
+    "id": "20260831-162733",
+    "date": "2026-08-31",
+    "requirements": "Dynamic Delta pool discovery without per-pool manifests or governance"
+  },
+  "summary": {
+    "building": "Versioned Delta infrastructure admission with onchain pool discovery and isolated execution",
+    "verdict": "ready",
+    "topRisk": "A canonical pool may still contain a hostile token",
+    "mustDecideFirst": "Use additive immutable integration generations",
+    "watchOutFor": "Discovery is not automatic capital execution"
+  },
+  "components": [
+    {
+      "name": "Robinhood Chain",
+      "type": "Blockchain",
+      "version": "4663",
+      "sourceUrl": "https://docs.robinhood.com/chain/connecting/",
+      "status": "fresh",
+      "risks": [
+        {"severity": "high", "title": "Permissionless assets can be malicious", "detail": "Canonical pool identity does not prove token safety."},
+        {"severity": "medium", "title": "Public RPC throttling", "detail": "Production discovery needs redundant providers."}
+      ]
+    },
+    {
+      "name": "Uniswap V3",
+      "type": "Blockchain",
+      "version": "v3-chain-4663-2026-05-22",
+      "sourceUrl": "https://github.com/Uniswap/contracts/blob/main/deployments/4663.md",
+      "status": "cached",
+      "risks": [
+        {"severity": "high", "title": "Slippage and range manipulation", "detail": "Deposits require minima, deadlines, and tick bounds."},
+        {"severity": "medium", "title": "Position NFT custody", "detail": "Every position must be enumerated and fully exit-able."},
+        {"severity": "medium", "title": "Out-of-range drift", "detail": "Liquidity can become inactive and one-sided."}
+      ]
+    },
+    {
+      "name": "Delta position builder",
+      "type": "Other",
+      "version": "unversioned-live-0x6235cF6bd8419b34942F4EDDB39C880BD96dD700",
+      "sourceUrl": "https://robinhoodchain.blockscout.com/address/0x6235cF6bd8419b34942F4EDDB39C880BD96dD700",
+      "status": "fresh",
+      "risks": [
+        {"severity": "high", "title": "Unversioned deployment drift", "detail": "Bind address, dependency tuple, and runtime hashes."},
+        {"severity": "medium", "title": "Future incompatibility", "detail": "A changed position model needs a new adapter generation."}
+      ]
+    },
+    {
+      "name": "OpenZeppelin Contracts",
+      "type": "SDK",
+      "version": "5.6.1",
+      "sourceUrl": "https://github.com/OpenZeppelin/openzeppelin-contracts/releases/tag/v5.6.1",
+      "status": "cached",
+      "risks": [
+        {"severity": "medium", "title": "Initialization and ownership mistakes", "detail": "Factory and governance authority must be bound exactly."},
+        {"severity": "low", "title": "Custom hook risk", "detail": "Restricted share transfer behavior needs lifecycle tests."}
+      ]
+    }
+  ],
+  "riskTotals": {"critical": 0, "high": 3, "medium": 5, "low": 1},
+  "preCodingDecisions": [
+    {"title": "Immutable integration generations", "detail": "Add future Delta deployments as new approved generations instead of mutating live adapters.", "immutable": true}
+  ],
+  "requirementsCorrections": [
+    {"kind": "wrong_assumption", "detail": "A canonical pool does not need a Sinjoh manifest record."},
+    {"kind": "missing_constraint", "detail": "Discovery must remain separate from manual capital execution."}
+  ],
+  "openQuestions": []
+}

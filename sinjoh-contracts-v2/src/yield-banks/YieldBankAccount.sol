@@ -11,7 +11,7 @@ import { IYieldBankRestrictedShare } from "./interfaces/IYieldBankRestrictedShar
 contract YieldBankAccount {
     using SafeERC20 for IERC20;
 
-    uint256 public constant MAX_TRACKED_ASSETS = 8;
+    uint256 public constant MAX_TRACKED_ASSETS = 64;
 
     address public collection;
     address public nft;

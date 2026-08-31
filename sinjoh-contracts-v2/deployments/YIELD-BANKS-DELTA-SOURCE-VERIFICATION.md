@@ -17,8 +17,8 @@ must re-read every value at the same block used for activation.
 | USDG implementation | `0x68184c449e1a8f34fa18d289737129fd27b66f8f` | `0x3a551ac5c744af57e68a1d1431ac403c0f516ffd7d224a75746aee11fc4f3baf` |
 
 The builder getters returned that exact factory, position manager, and WETH. The position manager
-returned the same factory and WETH. The adapter constructor, manifest verifier, SDK verifier, and
-keeper all repeat those graph checks rather than trusting a manifest address in isolation.
+returned the same factory and WETH. `DeltaPoolController`, the release verifier, and the SDK verifier
+repeat those graph checks rather than trusting a manifest address in isolation.
 
 ## Known live pool used only as an integration canary
 
@@ -58,23 +58,44 @@ builder, recorded and valued the returned position, and completely exited it.
 
 ## Fail-closed activation rules
 
-- One isolated sleeve and adapter are deployed per admitted pool; owners cannot select arbitrary
-  unreviewed addresses.
-- Factory `getPool`, pool factory/token/fee/tick spacing/liquidity/lock state, builder dependencies,
-  manager dependencies, route direction, strategy registration, sleeve binding, adapter state,
-  allocation cap, and all runtime hashes must match.
+- Governance approves a source-verified infrastructure generation—not individual pools—by binding
+  the factory, position manager, position builder, their live runtime hashes, and the exact creation
+  code hashes for routes, sleeves, adapters, and fallback feeds.
+- Owners may select any live canonical pool for an active infrastructure generation when the pool is
+  WETH-paired, returned by `factory.getPool(token0, token1, fee)`, initialized, unlocked, and has
+  nonzero liquidity. If already materialized, its exact infrastructure commitment must still be the
+  current one. The release manifest contains no per-pool list.
+- The allocation operator remains the manual execution gate. On first use it calls
+  `DeltaPoolController.materializePool`; the controller itself deploys one isolated sleeve, adapter,
+  and two exact-direction routes from governance-approved binaries and then binds their identities.
+- V3 pool runtime hashes are not shared constants: constructor immutables make canonical pools'
+  deployed bytecode differ. The controller derives the selected pool's current runtime hash during
+  materialization and every adapter and route binds that exact value.
+- Factory `getPool`, pool factory/token/fee/liquidity/lock state, builder dependencies, manager
+  dependencies, route direction, strategy registration, sleeve binding, adapter state, allocation
+  cap, and all relevant runtime hashes must match.
 - WETH and USDG proxy implementation slots are checked in addition to proxy runtime hashes.
-- A pool-TWAP price requires minimum liquidity, aged observations, spot/TWAP deviation limits, a
-  separately reviewed WETH/USD source, and a distinct manifest-bound reference source.
+- A pool-TWAP price requires nonzero configured minimum liquidity, aged observations,
+  spot/TWAP deviation limits, a separately reviewed WETH/USD source, and the PriceHub freshness and
+  optional independent-reference checks. It remains unavailable until the complete TWAP window has
+  elapsed after oracle preparation.
 - The owner loss ceiling covers total before/after oracle-valued portfolio loss as well as adapter
   withdrawals. The guardian has an oracle-independent, paused-state, in-kind emergency exit.
 - An NFT with an active dynamic Delta allocation cannot burn until an owner-approved rebalance has
   removed that allocation. This keeps redemption independent of swaps and pool oracles.
 
-## Remaining activation facts
+## Upgrade and shutdown behavior
 
-The token and pool now have direct live-chain verification, including a successful exact-pool route
-and builder mint test. The pool is not yet activated in a Yield Banks collection because the two
-deployed immutable route addresses, independent price reference, reviewed minimum liquidity,
-adapter cap, position limit, and completed collection release manifest have not been finalized.
-Activation fails closed until those remaining values are manifest-bound and verified.
+If Delta deploys a new factory, manager, or builder, the collection timelock can approve the verified
+dependency graph and binaries without a collection implementation upgrade. A new factory leaves
+existing foundations on other factories unchanged. Replacing dependencies for the same factory
+changes its infrastructure commitment: foundations created under the prior commitment are
+automatically blocked from fresh selection and deposits, while withdrawals, fee collection, and
+emergency exits remain available through their immutable original bindings. Deactivating a factory
+has the same fail-closed deposit behavior. This prevents an infrastructure update from silently
+routing new money through stale dependencies and prevents shutdown from stranding custody.
+
+The `$INJOH` token and pool above have direct live-chain verification, including a successful
+exact-pool route and builder mint test. They are canary inputs for Sinjoh's own collection, not
+protocol defaults. The controller discovers that pool from the approved factory at runtime; it does
+not require an `$INJOH` address or pool address in the release manifest.

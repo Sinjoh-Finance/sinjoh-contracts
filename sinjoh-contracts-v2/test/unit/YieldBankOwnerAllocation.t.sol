@@ -176,6 +176,40 @@ contract MockOwnerDeltaPoolAdapter {
     }
 }
 
+contract MockOwnerDeltaPoolController {
+    struct Foundation {
+        address sleeve;
+        address adapter;
+        bytes32 poolRuntimeCodeHash;
+        bytes32 sleeveRuntimeCodeHash;
+        bytes32 adapterRuntimeCodeHash;
+    }
+
+    mapping(address pool => Foundation foundation) public foundationOf;
+    mapping(address sleeve => address pool) public poolOfSleeve;
+    mapping(address pool => bool selectable) public isSelectablePool;
+
+    function materialize(address pool, address sleeve, address adapter) external {
+        foundationOf[pool] = Foundation({
+            sleeve: sleeve,
+            adapter: adapter,
+            poolRuntimeCodeHash: pool.codehash,
+            sleeveRuntimeCodeHash: sleeve.codehash,
+            adapterRuntimeCodeHash: adapter.codehash
+        });
+        poolOfSleeve[sleeve] = pool;
+        isSelectablePool[pool] = true;
+    }
+
+    function setSelectable(address pool, bool selectable) external {
+        isSelectablePool[pool] = selectable;
+    }
+
+    function isAllocationPool(address pool) external view returns (bool) {
+        return isSelectablePool[pool];
+    }
+}
+
 contract YieldBankOwnerAllocationTest is Test {
     address private constant ALICE = address(0xA11CE);
     uint256 private constant TOKEN_ID = 1;
@@ -189,6 +223,7 @@ contract YieldBankOwnerAllocationTest is Test {
     MockOwnerAllocationSleeve private market;
     MockOwnerAllocationSleeve private usdg;
     CollectionPortfolioAllocator private allocator;
+    MockOwnerDeltaPoolController private deltaPoolController;
     MockYieldBankAllocationRoute private stockEntryRoute;
     MockYieldBankAllocationRoute private stockExitRoute;
     YieldBankAccount private account;
@@ -202,11 +237,13 @@ contract YieldBankOwnerAllocationTest is Test {
         core = new MockOwnerAllocationSleeve(address(stock), "CORE");
         market = new MockOwnerAllocationSleeve(address(weth), "MARKET");
         usdg = new MockOwnerAllocationSleeve(address(weth), "USDG");
+        deltaPoolController = new MockOwnerDeltaPoolController();
         allocator = new CollectionPortfolioAllocator(
             address(collection),
             address(this),
             address(this),
             address(this),
+            address(deltaPoolController),
             address(core),
             address(market),
             address(usdg),
@@ -453,15 +490,7 @@ contract YieldBankOwnerAllocationTest is Test {
         MockOwnerDeltaPoolAdapter adapter =
             new MockOwnerDeltaPoolAdapter(address(poolSleeve), address(pool));
         poolSleeve.activate(address(adapter));
-        collection.registerSleeve(address(poolSleeve));
-        allocator.registerDeltaPool(
-            address(pool),
-            address(poolSleeve),
-            address(adapter),
-            address(pool).codehash,
-            address(poolSleeve).codehash,
-            address(adapter).codehash
-        );
+        deltaPoolController.materialize(address(pool), address(poolSleeve), address(adapter));
 
         uint16[3] memory poolWeights = [uint16(0), uint16(10_000), uint16(0)];
         vm.prank(ALICE);
@@ -503,6 +532,23 @@ contract YieldBankOwnerAllocationTest is Test {
         assertEq(poolSleeve.balanceOf(address(account)), 0);
         assertEq(usdg.balanceOf(address(account)), 1_000 ether);
         assertFalse(account.isTrackedAsset(address(poolSleeve)));
+    }
+
+    function testInfrastructureDeactivationBlocksNewDynamicPoolDeposits() external {
+        MockYieldBankAsset pool = new MockYieldBankAsset("Delta Pool Identity", "POOL-ID");
+        MockOwnerPoolSleeve poolSleeve = new MockOwnerPoolSleeve(address(weth), address(allocator));
+        MockOwnerDeltaPoolAdapter adapter =
+            new MockOwnerDeltaPoolAdapter(address(poolSleeve), address(pool));
+        poolSleeve.activate(address(adapter));
+        deltaPoolController.materialize(address(pool), address(poolSleeve), address(adapter));
+        deltaPoolController.setSelectable(address(pool), false);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CollectionPortfolioAllocator.DeltaPoolUnavailable.selector, address(pool)
+            )
+        );
+        allocator.depositToAdapter(address(poolSleeve), address(adapter), 1, 1, "");
     }
 
     function testTargetCanBeChangedWhilePausedButExecutionCannotRun() external {

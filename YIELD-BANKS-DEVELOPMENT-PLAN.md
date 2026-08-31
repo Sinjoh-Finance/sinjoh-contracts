@@ -38,7 +38,7 @@ These requirements are settled and must not be reinterpreted during implementati
 | Sellout dependency | Fees, backing, transferability, and redemption do not depend on sellout |
 | Transferability | A successfully minted NFT is transferable without waiting for investment allocation |
 | Redemption | A holder can redeem whether the token's primary backing is still pending or has already been invested |
-| Primary economics | Configure backing, creator, Sinjoh, and operations basis points per collection; commit them immutably at deployment; require a positive backing share and an exact 10,000-basis-point sum |
+| Primary economics | Configure backing, creator, and Sinjoh basis points per collection; commit them immutably at deployment; require a positive backing share and an exact 10,000-basis-point sum |
 | OpenSea fee | OpenSea's platform fee is external to the collection-configured split; contracts account from measured proceeds rather than assuming a platform-fee amount |
 | Portfolio weights | Configure positive Core, Market-Making, and USDG weights per collection; commit them immutably at deployment; require an exact 10,000-basis-point sum |
 | Exit tax | Preserve the 5% in-kind exit tax for non-terminal redemption and no exit tax for the final live Yield Bank |
@@ -132,8 +132,9 @@ The initial implementation stays deliberately narrow:
 - Stock Token economic distributions are reflected through the tokens' rebasing multiplier rather
   than modeled as a separate protocol dividend claim;
 - the USDG sleeve holds USDG directly and does not deposit it into a lending venue;
-- the Market-Making sleeve holds `$INJOH`/WETH Delta positions only through a separately reviewed,
-  synchronous adapter;
+- the Market-Making allocation can use any canonical, initialized, unlocked, liquid WETH-paired
+  Delta V3 pool exposed by an approved, source-verified infrastructure generation; neither a token
+  nor a pool is hard-coded or admitted through a per-pool manifest entry;
 - strategy actions are explicit allocation-operator transactions; there is no automatic keeper,
   queued-withdrawal state machine, or strategy action during mint;
 - each sleeve's maximum adapter count, maximum per-adapter allocation, and maximum operator-accepted
@@ -141,13 +142,15 @@ The initial implementation stays deliberately narrow:
 - future venues extend the same small adapter interface and registry/codehash checks without changing
   minting, proceeds custody, NFT ownership, or primary entitlement accounting.
 
-The generic adapter boundary and the concrete `DeltaV3LPAdapter` are part of v1. The Delta adapter
-self-custodies ordinary V3 position NFTs minted through the verified Delta builder, binds the pool,
-factory, position manager, entry route, exit route, sleeve, and PriceHub by address and runtime code
-hash, and implements explicit manual deposit, collection, partial withdrawal, and full in-kind exit.
-The exact `$INJOH` token, `$INJOH`/WETH pool, conversion routes, position limit, allocation cap,
-ladder rungs, tick bounds, deadlines, and slippage floors remain reviewed per-collection or
-per-transaction inputs. They are not guessed or embedded as protocol defaults.
+The generic adapter boundary and the concrete `DeltaV3LPAdapter` are part of v1. The
+`DeltaPoolController` admits a source-verified factory/manager/builder generation once, discovers
+canonical pools onchain, and materializes an isolated route/sleeve/adapter foundation when the
+allocation operator first executes an owner's choice. The adapter self-custodies ordinary V3
+position NFTs minted through the verified Delta builder, binds the selected pool and every
+dependency by address and runtime code hash, and implements explicit manual deposit, collection,
+partial withdrawal, and full in-kind exit. `$INJOH`/WETH is the first collection's canary choice,
+not a protocol default. Position limits, allocation caps, ladder rungs, tick bounds, deadlines, and
+slippage floors remain reviewed per-foundation or per-transaction inputs.
 
 ## 6. Lifecycle and state model
 
@@ -253,7 +256,6 @@ For each mint-receipt tranche:
 - the collection-configured backing basis points become token backing entitlement;
 - the collection-configured creator basis points become creator entitlement;
 - the collection-configured Sinjoh basis points become Sinjoh entitlement;
-- the collection-configured operations basis points become operations entitlement;
 - division remainder is assigned deterministically and total accounting must equal the exact received amount;
 - no asset leaves the vault during this accounting step.
 
@@ -414,7 +416,10 @@ Each collection deployment must produce a signed/reviewed manifest containing:
 
 - chain ID;
 - collection ID and immutable `maxSupply`;
-- collection, NFT, proceeds vault, account implementation, distributor, revenue router, operations reserve, allocator, timelock, guardian, sleeves, WETH, SeaDrop, renderer, strategies, feeds, pools, and routes;
+- collection, NFT, proceeds vault, account implementation, distributor, revenue router, allocator,
+  Delta pool controller, timelock, guardian, base sleeves, WETH, SeaDrop, renderer, strategies,
+  feeds, base routes, and each approved Delta infrastructure generation; dynamic pool foundations
+  are discovered and indexed onchain and are not a release-manifest allowlist;
 - complete address, runtime code hash, version, and provenance for each contract;
 - factory salt, full collection configuration hash, and full system plan hash;
 - allocation operator and all fixed recipients;
@@ -655,7 +660,7 @@ Reuse after correction:
 - deterministic token-bound accounts;
 - ongoing distributor accumulator and final-token dust handling;
 - three sleeve categories and immutable per-collection portfolio weighting;
-- revenue router, operations reserve, timelock, guardian, eligibility policy boundary, renderer, registries, and codehash-binding helpers;
+- revenue router, timelock, guardian, eligibility policy boundary, renderer, registries, and codehash-binding helpers;
 - holder settlement, transfer-bound ownership, in-kind burn, and 5% exit-tax model;
 - SDK manifest foundation, indexer entities, backing API, and Yield Banks UI routes;
 - existing Foundry, TypeScript, API, and UI test infrastructure.

@@ -52,6 +52,21 @@ interface IYieldBankDeltaPoolAdapter {
     function pool() external view returns (address);
 }
 
+interface IYieldBankDeltaPoolController {
+    function isAllocationPool(address pool) external view returns (bool);
+    function poolOfSleeve(address sleeve) external view returns (address);
+    function foundationOf(address pool)
+        external
+        view
+        returns (
+            address sleeve,
+            address adapter,
+            bytes32 poolRuntimeCodeHash,
+            bytes32 sleeveRuntimeCodeHash,
+            bytes32 adapterRuntimeCodeHash
+        );
+}
+
 /// @notice Allocates collection flows at their defaults and executes owner-requested NFT rebalances.
 contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -118,6 +133,7 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
     address public immutable revenueRouter;
     address public immutable timelock;
     address public immutable guardian;
+    IYieldBankDeltaPoolController public immutable deltaPoolController;
     RebalanceValueGuard public immutable rebalanceValueGuard;
     uint16 public immutable coreWeightBps;
     uint16 public immutable marketMakingWeightBps;
@@ -126,8 +142,6 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
     mapping(address inputAsset => mapping(address sleeve => RouteBinding binding)) public
         routeBinding;
     mapping(address inputAsset => RouteBinding binding) public rebalanceRoute;
-    mapping(address pool => DeltaPoolBinding binding) public deltaPoolBinding;
-    mapping(address sleeve => address pool) public deltaPoolOfSleeve;
     mapping(uint256 tokenId => address pool) public activeDeltaPoolOf;
     mapping(uint256 tokenId => AllocationTarget target) private _allocationTargets;
 
@@ -181,14 +195,6 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
         uint16 maximumAdapterLossBps,
         uint48 validUntil
     );
-    event DeltaPoolRegistered(
-        address indexed pool,
-        address indexed sleeve,
-        address indexed adapter,
-        bytes32 poolRuntimeCodeHash,
-        bytes32 sleeveRuntimeCodeHash,
-        bytes32 adapterRuntimeCodeHash
-    );
     event AllocationRebalanced(
         uint256 indexed tokenId,
         address indexed account,
@@ -205,6 +211,7 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
         address revenueRouter_,
         address timelock_,
         address guardian_,
+        address deltaPoolController_,
         address coreSleeve_,
         address marketMakingSleeve_,
         address usdgSleeve_,
@@ -214,15 +221,17 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
     ) {
         if (
             collection_ == address(0) || revenueRouter_ == address(0) || timelock_ == address(0)
-                || guardian_ == address(0) || coreSleeve_.code.length == 0
-                || marketMakingSleeve_.code.length == 0 || usdgSleeve_.code.length == 0
-                || coreWeightBps_ == 0 || marketMakingWeightBps_ == 0 || usdgWeightBps_ == 0
+                || guardian_ == address(0) || deltaPoolController_ == address(0)
+                || coreSleeve_.code.length == 0 || marketMakingSleeve_.code.length == 0
+                || usdgSleeve_.code.length == 0 || coreWeightBps_ == 0
+                || marketMakingWeightBps_ == 0 || usdgWeightBps_ == 0
                 || uint256(coreWeightBps_) + marketMakingWeightBps_ + usdgWeightBps_ != BPS
         ) revert InvalidConfiguration();
         collection = IYieldBankCollection(collection_);
         revenueRouter = revenueRouter_;
         timelock = timelock_;
         guardian = guardian_;
+        deltaPoolController = IYieldBankDeltaPoolController(deltaPoolController_);
         rebalanceValueGuard = new RebalanceValueGuard();
         coreWeightBps = coreWeightBps_;
         marketMakingWeightBps = marketMakingWeightBps_;
@@ -300,48 +309,22 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
         emit RebalanceRouteBound(inputAsset, route, runtimeCodeHash);
     }
 
-    function registerDeltaPool(
-        address pool,
-        address sleeve,
-        address adapter,
-        bytes32 poolRuntimeCodeHash,
-        bytes32 sleeveRuntimeCodeHash,
-        bytes32 adapterRuntimeCodeHash
-    ) external onlyTimelock {
-        if (
-            deltaPoolBinding[pool].sleeve != address(0) || deltaPoolOfSleeve[sleeve] != address(0)
-                || _isBaseSleeve(sleeve) || !collection.isSleeveAsset(sleeve)
-        ) revert InvalidConfiguration();
-        IntegrationBinding.requireBound(pool, poolRuntimeCodeHash);
-        IntegrationBinding.requireBound(sleeve, sleeveRuntimeCodeHash);
-        IntegrationBinding.requireBound(adapter, adapterRuntimeCodeHash);
-        IYieldBankPoolSleeve poolSleeve = IYieldBankPoolSleeve(sleeve);
-        address[] memory configuredAdapters = poolSleeve.adapters();
-        if (
-            poolSleeve.category() != YieldBankIds.MARKET_MAKING
-                || poolSleeve.accountingAsset() != collection.weth()
-                || poolSleeve.allocator() != address(this) || poolSleeve.maximumStrategies() != 1
-                || configuredAdapters.length != 1 || configuredAdapters[0] != adapter
-                || poolSleeve.adapterState(adapter) != YieldBankAdapterState.ACTIVE
-                || IYieldBankDeltaPoolAdapter(adapter).sleeve() != sleeve
-                || IYieldBankDeltaPoolAdapter(adapter).pool() != pool
-        ) revert InvalidConfiguration();
-        deltaPoolBinding[pool] = DeltaPoolBinding({
-            sleeve: sleeve,
-            adapter: adapter,
-            poolRuntimeCodeHash: poolRuntimeCodeHash,
-            sleeveRuntimeCodeHash: sleeveRuntimeCodeHash,
-            adapterRuntimeCodeHash: adapterRuntimeCodeHash
-        });
-        deltaPoolOfSleeve[sleeve] = pool;
-        emit DeltaPoolRegistered(
-            pool,
-            sleeve,
-            adapter,
-            poolRuntimeCodeHash,
-            sleeveRuntimeCodeHash,
-            adapterRuntimeCodeHash
-        );
+    function deltaPoolBinding(address pool) public view returns (DeltaPoolBinding memory binding) {
+        (
+            binding.sleeve,
+            binding.adapter,
+            binding.poolRuntimeCodeHash,
+            binding.sleeveRuntimeCodeHash,
+            binding.adapterRuntimeCodeHash
+        ) = deltaPoolController.foundationOf(pool);
+    }
+
+    function deltaPoolOfSleeve(address sleeve) public view returns (address) {
+        return deltaPoolController.poolOfSleeve(sleeve);
+    }
+
+    function isDeltaPoolSleeve(address sleeve) external view returns (bool) {
+        return deltaPoolController.poolOfSleeve(sleeve) != address(0);
     }
 
     function allocationTargetOf(uint256 tokenId)
@@ -372,7 +355,9 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
         address owner = IYieldBankOwnerNFT(collection.nft()).ownerOf(tokenId);
         if (owner != msg.sender) revert OnlyTokenOwner(tokenId, msg.sender);
         _validateWeights(weights);
-        if (deltaPool != address(0)) _requireActiveDeltaPool(deltaPool);
+        if (deltaPool != address(0) && !deltaPoolController.isAllocationPool(deltaPool)) {
+            revert DeltaPoolUnavailable(deltaPool);
+        }
         if (weights[1] == 0 && deltaPool != address(0)) revert InvalidConfiguration();
         if (maximumAdapterLossBps > BPS) {
             revert OwnerAdapterLossLimitExceeded(BPS, maximumAdapterLossBps);
@@ -547,6 +532,10 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
     {
         if (!_isSleeve(sleeve)) revert InvalidConfiguration();
         _requireSleeveAdapterBinding(sleeve, adapter);
+        if (!_isBaseSleeve(sleeve)) {
+            address pool = deltaPoolController.poolOfSleeve(sleeve);
+            if (!deltaPoolController.isAllocationPool(pool)) revert DeltaPoolUnavailable(pool);
+        }
         return
             IYieldBankManagedSleeve(sleeve)
                 .depositToAdapter(adapter, assets, minPositionUnits, data);
@@ -882,7 +871,7 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
     }
 
     function _isSleeve(address sleeve) private view returns (bool) {
-        return _isBaseSleeve(sleeve) || deltaPoolOfSleeve[sleeve] != address(0);
+        return _isBaseSleeve(sleeve) || deltaPoolController.poolOfSleeve(sleeve) != address(0);
     }
 
     function _isBaseSleeve(address sleeve) private view returns (bool) {
@@ -890,7 +879,8 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
     }
 
     function _requireSleeveAdapterBinding(address sleeve, address adapter) private view {
-        address registeredPool = deltaPoolOfSleeve[sleeve];
+        if (_isBaseSleeve(sleeve)) return;
+        address registeredPool = deltaPoolController.poolOfSleeve(sleeve);
         if (registeredPool == address(0)) return;
         DeltaPoolBinding memory binding = _requireDeltaPool(registeredPool);
         if (binding.adapter != adapter) revert DeltaPoolUnavailable(registeredPool);
@@ -903,8 +893,9 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
     {
         binding = _requireDeltaPool(pool);
         if (
-            IYieldBankPoolSleeve(binding.sleeve).adapterState(binding.adapter)
-                != YieldBankAdapterState.ACTIVE
+            !deltaPoolController.isAllocationPool(pool)
+                || IYieldBankPoolSleeve(binding.sleeve).adapterState(binding.adapter)
+                    != YieldBankAdapterState.ACTIVE
         ) revert DeltaPoolUnavailable(pool);
     }
 
@@ -913,13 +904,13 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
         view
         returns (DeltaPoolBinding memory binding)
     {
-        binding = deltaPoolBinding[pool];
+        binding = deltaPoolBinding(pool);
         if (binding.sleeve == address(0)) revert DeltaPoolUnavailable(pool);
         IntegrationBinding.requireBound(pool, binding.poolRuntimeCodeHash);
         IntegrationBinding.requireBound(binding.sleeve, binding.sleeveRuntimeCodeHash);
         IntegrationBinding.requireBound(binding.adapter, binding.adapterRuntimeCodeHash);
         if (
-            deltaPoolOfSleeve[binding.sleeve] != pool
+            deltaPoolController.poolOfSleeve(binding.sleeve) != pool
                 || IYieldBankPoolSleeve(binding.sleeve).maximumStrategies() != 1
                 || uint8(IYieldBankPoolSleeve(binding.sleeve).adapterState(binding.adapter))
                     < uint8(YieldBankAdapterState.ACTIVE)

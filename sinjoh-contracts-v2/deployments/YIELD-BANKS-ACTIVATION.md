@@ -38,9 +38,9 @@ Still required from the operator and review process:
 1. creator, Sinjoh, allocation-operator, guardian, proposer, and timelock recipients;
 2. the collection's reviewed Robinhood Stock Token contracts, eligibility classification, explicit custody/income model, and HTTPS disclosure;
 3. every Chainlink/reference feed and heartbeat;
-4. every approved pool, allocation route, reverse rebalance route, price feed, and runtime code hash;
-5. for each Delta activation, the exact paired token, paired-token/WETH V3 pool, both exact-direction
-   routes, a direct reviewed USD feed or the guarded pool-TWAP feed, per-adapter position limit, and allocation cap;
+4. every base-sleeve allocation route, reverse rebalance route, price feed, and runtime code hash;
+5. each Delta infrastructure generation's factory, position manager, position builder, runtime
+   hashes, and approved Yield Banks route/sleeve/adapter/feed creation-code hashes;
 6. runtime hashes, source commit, dependency lock hash, deployment transaction hashes, and audit hashes;
 7. immutable collection-specific `maxSupply`, `secondaryRoyaltyBps`, and per-sleeve strategy
    count/cap/operator-loss limits; and
@@ -69,10 +69,15 @@ price.
 `YieldBankSystemFactoryDeployer` uses governance-only CREATE3 so the system-factory address is
 fixed by the reviewed `factorySalt`, independent of factory init code. The system factory then uses
 CREATE3 for the eight collection components, including the separately deployed and codehash-pinned
-account implementation, so constructor wiring can be
-planned without an init-code address cycle. The pinned deployment plan must order dependencies so
-sleeves deploy before the portfolio allocator, and the portfolio allocator deploys before the
-revenue router. The collection follows through CREATE2 after every component runtime hash passes.
+account implementation, so constructor wiring can be planned without an init-code address cycle.
+The pinned deployment plan must order dependencies so the base sleeves deploy before the portfolio
+allocator, the allocator deploys before `DeltaPoolController`, and both deploy before the revenue
+router. The allocator accepts the controller's predicted nonzero CREATE3 address during its
+constructor; the controller then verifies the already-deployed allocator and reads the predicted
+collection address from it. The factory rechecks the allocator/controller relationship against the
+predicted collection before CREATE2 deploys the collection. This ordering breaks the immutable
+address cycle without accepting an unbound component. The collection follows through CREATE2 after
+every component runtime hash passes.
 Direct native or ERC-20 transfers to the revenue router are reserved for royalty synchronization. Only the
 allocation operator may synchronize them, supplying fresh guarded route calldata for the current
 amount; timelock-bound route addresses and runtime hashes cannot be caller-selected.
@@ -87,49 +92,55 @@ YIELD_BANK_DEPLOYMENT_PLAN=/absolute/path/to/reviewed-plan.json \
   --rpc-url "$YIELD_BANK_RPC_URL" --account "$FOUNDRY_ACCOUNT" --broadcast
 ```
 
-For each Delta V3 pool, first deploy its two exact-direction routes and isolated one-adapter sleeve
-from a reviewed plan conforming to `yield-bank-delta-pool-foundation-plan.schema.json`. This is
-intentionally per pool: a sleeve cannot silently switch pools or share an adapter with another pool.
+Configure each source-verified Delta generation once on `DeltaPoolController`. The release manifest
+contains the infrastructure graph and exact creation-code hashes; it contains no pool list. Owners
+may then request any canonical, initialized, unlocked, liquid Delta V3 pool paired with WETH. The
+controller verifies `factory.getPool(token0, token1, fee)` on every selection. This WETH-pair
+constraint belongs to the current adapter generation, not to a hard-coded token or pool.
+The owner UI and allocation workflow use `isAllocationPool`, which additionally rejects an existing
+foundation if its exact manager/builder/binary commitment is no longer the factory's current
+generation. Dynamic foundations do not consume global distribution-asset slots: redemption first
+requires the holder to rebalance fully out of the active pool, so dynamic sleeve shares never enter
+the burn-time distribution loop.
+`isSelectablePool` is the lower-level canonical-pool discovery check.
 
-If the paired token has no direct trusted USD feed, deploy `DeltaV3TwapUsdFeed` from a reviewed plan
-conforming to `yield-bank-delta-twap-feed-plan.schema.json`. Its WETH/USD leg must be a separately
-reviewed Chainlink proxy. `run()` calls `preparePoolOracle()` to request observation cardinality,
-but the feed must not be configured in PriceHub until at least the complete `twapWindow` has elapsed
-and `latestRoundData()` succeeds. The release verifier calls the feed and rejects missing history,
-stale WETH/USD data, codehash or description drift, or excessive spot/TWAP deviation. A direct
-trusted paired-token/USD feed remains preferable; the pool-derived feed inherits economic
-manipulation risk from that exact pool. The plan must set a reviewed nonzero `minimumLiquidity`, and
-the pool-TWAP feed must have a separately manifest-bound `referenceSource`; the same pool-derived
-price cannot be its own sole material-price authority.
+Before enabling a generation, the collection timelock must execute all three setup calls: authorize
+`DeltaPoolController` once with `StrategyRegistry.setRegistrar(controller, true)`, authorize it once
+with `PriceHub.setRegistrar(controller, true)`, and call
+`DeltaPoolController.configureInfrastructure(factory, config)` with the source-verified dependency
+graph and locally built creation-code hashes. These are controller/infrastructure grants, not
+pool-specific grants. The release verifier fails unless both registrar permissions, every runtime
+and creation-code hash, every dependency getter, and the controller's active infrastructure record
+all match the manifest.
 
-Then deploy the pool's Delta adapter from a separately reviewed plan conforming to
-`yield-bank-delta-adapter-plan.schema.json`. The adapter constructor checks the sleeve category,
-WETH, PriceHub, pool pair, pool factory, position manager, Delta position builder, conversion-route
-directions, and every supplied runtime code hash:
+When a requested pool has no materialized foundation, the allocation operator calls
+`MaterializeYieldBankDeltaPool.s.sol`. It submits the selected pool, per-foundation cap/position/loss
+limits, and the locally built creation code. The controller rejects binaries whose creation-code
+hashes differ from governance's infrastructure approval, then deploys and verifies both routes, the
+isolated one-adapter sleeve, and the adapter itself. It also registers the adapter and dynamic sleeve
+atomically. Pool-specific governance and manifest edits are neither required nor available.
 
-First run `preview()` without `--broadcast` against the target RPC using a draft that contains
-`chainId` and `config`, record the returned immutable-aware runtime hash, place that exact hash in
-`expectedRuntimeCodeHash`, validate the completed plan against the schema, and obtain review:
+Set `YIELD_BANK_DELTA_CONTROLLER`, `YIELD_BANK_DELTA_POOL`,
+`YIELD_BANK_DELTA_MAXIMUM_POSITIONS`, `YIELD_BANK_DELTA_ADAPTER_CAP_BPS`, and
+`YIELD_BANK_DELTA_MAXIMUM_LOSS_BPS` to the reviewed values, then execute:
 
 ```sh
-YIELD_BANK_DELTA_ADAPTER_PLAN=/absolute/path/to/draft-delta-adapter-plan.json \
-  forge script script/DeployYieldBankDeltaAdapter.s.sol:DeployYieldBankDeltaAdapter \
-  --sig 'preview()' --rpc-url "$YIELD_BANK_RPC_URL"
-```
-
-The broadcast path rehearses the constructor and checks the reviewed hash before recording any
-broadcast transaction, then checks the deployed contract again after broadcast.
-
-```sh
-YIELD_BANK_DELTA_ADAPTER_PLAN=/absolute/path/to/reviewed-delta-adapter-plan.json \
-  forge script script/DeployYieldBankDeltaAdapter.s.sol:DeployYieldBankDeltaAdapter \
+forge script script/MaterializeYieldBankDeltaPool.s.sol:MaterializeYieldBankDeltaPool \
   --rpc-url "$YIELD_BANK_RPC_URL" --account "$FOUNDRY_ACCOUNT" --broadcast
 ```
 
-Deployment does not authorize the adapter. Governance must separately register its exact runtime
-code hash and `YIELD_BANK_MARKET_MAKING` category in `StrategyRegistry`; the collection timelock must
-then activate it on `MarketMakingSleeve` with the reviewed cap. This separation prevents a deployer
-from silently turning a new venue on.
+If the paired token lacks a direct trusted USD feed, the operator can ask the controller to deploy
+the approved `DeltaV3TwapUsdFeed` binary. It binds the selected pool's actual runtime hash, prepares
+observation history, and configures PriceHub. The quote remains fail-closed until at least the full
+`twapWindow` has elapsed and `latestRoundData()` succeeds. The pool-derived price inherits economic
+manipulation risk from that pool; use a current independent reference source when one exists and set
+nonzero reviewed liquidity and deviation controls. The controller enforces the collection's
+immutable maximum heartbeat, maximum grace period, minimum TWAP window, maximum reference
+deviation, and maximum spot/TWAP deviation so the allocation operator cannot weaken those policy
+bounds. Use
+`script/ConfigureYieldBankDeltaPoolFeed.s.sol` for this controller-mediated path; the old standalone
+pool, adapter, and feed deployers have been removed so production tooling cannot bypass controller
+registration.
 
 Every strategy action remains manual. The allocation operator supplies the WETH conversion amount,
 minimum paired-token output, Delta ladder rungs, current-tick bounds, and deadline when depositing. A
@@ -144,7 +155,8 @@ Owner-selected allocation execution is manual as well. Before activation, the co
 must bind WETH entry routes for the Robinhood Stock Token and USDG sleeves and a reverse-to-WETH route
 for USDG, every reviewed Stock Token, and every Delta paired token. The release manifest's `routeBindings` section
 records each exact address and runtime hash, and the verifier checks the live allocator mappings.
-For each execution the operator must use the SDK's `prepareYieldBankTargetExecution` helper with
+Dynamic pool routes are controller-deployed and bound during materialization; they are not entries in
+the release manifest's base `routeBindings`. For each execution the operator must use the SDK's `prepareYieldBankTargetExecution` helper with
 current per-asset minima, adapter unwind calldata, maximum adapter-withdrawal-loss values, expected
 target revision, and deadline. Holders use `prepareYieldBankTargetAllocation`; that call changes
 only the requested target and never moves backing by itself. Each revision is executable once, and
@@ -190,19 +202,19 @@ object in `YIELD_BANK_OPENSEA_COLLECTIONS_JSON`. The API rejects non-OpenSea hos
 paths, queries, fragments, and invalid collection addresses. It does not invent an asset URL when
 the reviewed slug is absent.
 
-No placeholder address is valid. OpenSea Drop publishing and creator payout configuration must be
+No placeholder address is valid in an actual deployment plan or transaction. OpenSea Drop publishing and creator payout configuration must be
 completed as an operational canary after the custom NFT is deployed. A collection's concrete
-paired token, V3 pool, routes, prices, caps, and transaction parameters are reviewed deployment and
-operation inputs, not protocol defaults. Their absence from this repository prevents production
-activation of that collection but does not require another contract implementation.
+pool prices, caps, and transaction parameters are reviewed operation inputs, not protocol defaults.
+Their absence from the release manifest does not block other pools and does not require another
+contract implementation.
 
 For the first `$INJOH`/WETH collection, the verified `$INJOH` token is
 `0x2cC0FAC44B8252f6B10208B091aFf2c94B4da77D` and the Delta factory returns pool
 `0xB09fa4f04032b9d9e690ac4a1d29523b5f9A72DC` at fee `10000`, with tick spacing `200`.
-Both immutable routes, the independent price reference, and reviewed minimum liquidity remain
-deployment inputs. Do not substitute the USDG/WETH example pool or infer an address from a ticker.
-Activation is blocked until the completed manifest passes the verifier and live Delta fork tests
-using these exact addresses.
+The controller discovers this pool from the verified factory; neither `$INJOH` nor its pool is
+hard-coded or listed in the collection release manifest. A valid PriceHub quote and operator-reviewed
+materialization parameters are still required before funds can enter it. Do not substitute the
+USDG/WETH canary pool or infer an address from a ticker.
 
 The canary must use a positive-priced public, token-gated, or signed SeaDrop stage with fee basis
 points below 10,000. Use signed mint validation for address-gated access. The NFT intentionally

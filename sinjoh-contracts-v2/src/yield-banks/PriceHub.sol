@@ -44,11 +44,13 @@ contract PriceHub is IPriceHub {
     address public immutable timelock;
     address public immutable guardian;
     mapping(address asset => FeedConfig config) public feedConfig;
+    mapping(address registrar => bool allowed) public isRegistrar;
     bool public guardianPaused;
     bool public chainHealthy = true;
 
     error OnlyTimelock(address caller);
     error OnlyGuardian(address caller);
+    error OnlyRegistrar(address caller);
     error InvalidConfiguration();
 
     event FeedConfigured(
@@ -64,6 +66,7 @@ contract PriceHub is IPriceHub {
     event CorporateActionPauseSet(address indexed asset, bool paused);
     event ChainHealthSet(bool healthy);
     event GuardianPauseSet(bool paused);
+    event RegistrarSet(address indexed registrar, bool allowed);
 
     constructor(address timelock_, address guardian_) {
         if (timelock_ == address(0) || guardian_ == address(0)) revert InvalidConfiguration();
@@ -79,6 +82,17 @@ contract PriceHub is IPriceHub {
     modifier onlyGuardian() {
         if (msg.sender != guardian) revert OnlyGuardian(msg.sender);
         _;
+    }
+
+    modifier onlyRegistrar() {
+        if (!isRegistrar[msg.sender]) revert OnlyRegistrar(msg.sender);
+        _;
+    }
+
+    function setRegistrar(address registrar, bool allowed) external onlyTimelock {
+        if (registrar == address(0)) revert InvalidConfiguration();
+        isRegistrar[registrar] = allowed;
+        emit RegistrarSet(registrar, allowed);
     }
 
     function configureFeed(
@@ -100,6 +114,34 @@ contract PriceHub is IPriceHub {
             false,
             maxDeviationBps
         );
+    }
+
+    /// @notice Configures a pool-derived feed through a governance-approved dynamic registrar.
+    /// @dev Registrars are approved once per integration controller, never once per pool.
+    function configureFeedFromRegistrar(
+        address asset,
+        address feed,
+        address referenceSource,
+        uint32 heartbeat,
+        uint32 gracePeriod,
+        bool weekdaysOnly,
+        bool checkAssetOraclePause,
+        uint16 maxDeviationBps
+    ) external onlyRegistrar {
+        _configureFeed(
+            asset,
+            feed,
+            referenceSource,
+            heartbeat,
+            gracePeriod,
+            weekdaysOnly,
+            checkAssetOraclePause,
+            maxDeviationBps
+        );
+    }
+
+    function feedDetails(address asset) external view returns (FeedConfig memory) {
+        return feedConfig[asset];
     }
 
     function configureFeed(

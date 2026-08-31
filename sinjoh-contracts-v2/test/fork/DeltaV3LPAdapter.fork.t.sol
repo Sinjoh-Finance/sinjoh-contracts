@@ -12,6 +12,7 @@ import { DeltaV3LPAdapter } from "../../src/yield-banks/adapters/DeltaV3LPAdapte
 import { DeltaV3SinglePoolRoute } from "../../src/yield-banks/adapters/DeltaV3SinglePoolRoute.sol";
 import { DeltaV3TwapUsdFeed } from "../../src/yield-banks/adapters/DeltaV3TwapUsdFeed.sol";
 import { MarketMakingSleeve } from "../../src/yield-banks/sleeves/MarketMakingSleeve.sol";
+import { DeltaPoolController } from "../../src/yield-banks/DeltaPoolController.sol";
 import { PriceHub } from "../../src/yield-banks/PriceHub.sol";
 import { StrategyRegistry } from "../../src/yield-banks/StrategyRegistry.sol";
 import { YieldBankIds } from "../../src/yield-banks/libraries/YieldBankIds.sol";
@@ -22,6 +23,16 @@ import {
 
 interface IForkWETH is IERC20 {
     function deposit() external payable;
+}
+
+contract ForkDeltaPoolAllocatorSource {
+    address public immutable allocationOperator;
+    address public immutable collection;
+
+    constructor(address allocationOperator_) {
+        allocationOperator = allocationOperator_;
+        collection = address(1);
+    }
 }
 
 /// @notice Opt-in proof against the reviewed live Robinhood mainnet Delta deployment.
@@ -47,6 +58,53 @@ contract DeltaV3LPAdapterForkTest is Test {
         0x0a493d1af3d0f25fed8efa205244ebee14114267a08647fc38c515c7cd6ead4f;
     bytes32 private constant POSITION_BUILDER_CODE_HASH =
         0xb9b462897f26b3d9082e6db057e363ea01cee5931f39bc62d52eeaa4aa7a9039;
+
+    function testLiveControllerDiscoversCanonicalPoolsWithoutSharedPoolHashOrPoolList() external {
+        string memory rpcUrl = vm.envOr("ROBINHOOD_MAINNET_RPC_URL", string(""));
+        if (bytes(rpcUrl).length == 0) vm.skip(true);
+        vm.createSelectFork(rpcUrl);
+
+        PriceHub priceHub = new PriceHub(address(this), address(this));
+        StrategyRegistry registry = new StrategyRegistry(address(this));
+        MockYieldBankEligibilityPolicy eligibility = new MockYieldBankEligibilityPolicy();
+        ForkDeltaPoolAllocatorSource allocator = new ForkDeltaPoolAllocatorSource(address(this));
+        DeltaPoolController controller = new DeltaPoolController(
+            address(allocator),
+            address(this),
+            address(this),
+            WETH,
+            address(priceHub),
+            address(registry),
+            address(eligibility),
+            10_000,
+            1_000,
+            1 days,
+            1 days,
+            5 minutes,
+            1_000,
+            1_000
+        );
+        controller.configureInfrastructure(
+            FACTORY,
+            DeltaPoolController.InfrastructureConfig({
+                positionManager: POSITION_MANAGER,
+                positionBuilder: POSITION_BUILDER,
+                factoryRuntimeCodeHash: FACTORY_CODE_HASH,
+                positionManagerRuntimeCodeHash: POSITION_MANAGER_CODE_HASH,
+                positionBuilderRuntimeCodeHash: POSITION_BUILDER_CODE_HASH,
+                routeCreationCodeHash: keccak256(type(DeltaV3SinglePoolRoute).creationCode),
+                sleeveCreationCodeHash: keccak256(type(MarketMakingSleeve).creationCode),
+                adapterCreationCodeHash: keccak256(type(DeltaV3LPAdapter).creationCode),
+                feedCreationCodeHash: keccak256(type(DeltaV3TwapUsdFeed).creationCode)
+            })
+        );
+
+        assertNotEq(POOL.codehash, INJOH_POOL.codehash);
+        assertTrue(controller.isSelectablePool(POOL));
+        assertTrue(controller.isSelectablePool(INJOH_POOL));
+        assertEq(controller.pairedAssetOf(POOL), USDG);
+        assertEq(controller.pairedAssetOf(INJOH_POOL), INJOH);
+    }
 
     function testLiveBuilderMintsTracksValuesAndExitsPosition() external {
         string memory rpcUrl = vm.envOr("ROBINHOOD_MAINNET_RPC_URL", string(""));

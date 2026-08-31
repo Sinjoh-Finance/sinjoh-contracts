@@ -97,8 +97,8 @@ contract DeployYieldBanks is Script {
         plan.expectedCollection = vm.parseJsonAddress(json, ".expectedCollection");
         plan.collectionCreationCode = vm.parseJsonBytes(json, ".collectionCreationCode");
         plan.collectionSalt = vm.parseJsonBytes32(json, ".collectionSalt");
-        plan.components = new YieldBankSystemFactory.ComponentDeployment[](7);
-        for (uint256 i; i < 7; ++i) {
+        plan.components = new YieldBankSystemFactory.ComponentDeployment[](8);
+        for (uint256 i; i < 8; ++i) {
             string memory base = string.concat(".components[", vm.toString(i), "]");
             plan.components[i] = YieldBankSystemFactory.ComponentDeployment({
                 kind: vm.parseJsonBytes32(json, string.concat(base, ".kind")),

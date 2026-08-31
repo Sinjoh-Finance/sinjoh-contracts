@@ -94,9 +94,11 @@ contract MockYieldBankSeaDrop {
 contract MockYieldBankPrimaryAllocator {
     address[3] public sleeves;
     mapping(uint256 tokenId => address pool) public activeDeltaPoolOf;
+    mapping(address sleeve => bool registered) public deltaPoolSleeve;
     uint16 public immutable coreWeightBps;
     uint16 public immutable marketMakingWeightBps;
     uint16 public immutable usdgWeightBps;
+    address public deltaPoolController;
 
     constructor(
         address[3] memory sleeves_,
@@ -112,6 +114,18 @@ contract MockYieldBankPrimaryAllocator {
 
     function setActiveDeltaPool(uint256 tokenId, address pool) external {
         activeDeltaPoolOf[tokenId] = pool;
+    }
+
+    function setDeltaPoolController(address controller) external {
+        deltaPoolController = controller;
+    }
+
+    function setDeltaPoolSleeve(address sleeve, bool registered) external {
+        deltaPoolSleeve[sleeve] = registered;
+    }
+
+    function isDeltaPoolSleeve(address sleeve) external view returns (bool) {
+        return deltaPoolSleeve[sleeve];
     }
 
     function allocatePrimary(
@@ -303,6 +317,14 @@ contract MockYieldBankPlannedComponent {
 
     function activeDeltaPoolOf(uint256) external pure returns (address) {
         return address(0);
+    }
+
+    function deltaPoolController() external view returns (address) {
+        return dependency;
+    }
+
+    function allocator() external view returns (address) {
+        return dependency;
     }
 }
 

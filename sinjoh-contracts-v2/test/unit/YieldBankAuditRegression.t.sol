@@ -93,6 +93,7 @@ contract YieldBankInvestmentPauseRegressionTest is Test {
             address(this),
             address(this),
             address(this),
+            address(collection),
             address(core),
             address(market),
             address(usdg),
