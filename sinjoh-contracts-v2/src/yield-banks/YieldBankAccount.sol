@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IYieldBankCollection } from "./interfaces/IYieldBankCollection.sol";
+import { IYieldBankRestrictedShare } from "./interfaces/IYieldBankRestrictedShare.sol";
 
 /// @notice Deterministic custody account permanently bound to one Yield Bank token ID.
 /// @dev The implementation is locked in its constructor; only clones may be initialized.
@@ -135,6 +136,25 @@ contract YieldBankAccount {
         beneficiaryAmount = token.balanceOf(address(this));
         if (beneficiaryAmount != 0) token.safeTransfer(beneficiary, beneficiaryAmount);
         uint256 remaining = token.balanceOf(address(this));
+        if (remaining != 0) revert AccountNotEmpty(asset, remaining);
+        emit AssetReleased(asset, beneficiary, beneficiaryAmount, distributedTaxAmount);
+    }
+
+    function releaseRestrictedRemainder(
+        address asset,
+        address beneficiary,
+        uint256 distributedTaxAmount,
+        bytes calldata proof
+    ) external onlyCollection returns (uint256 beneficiaryAmount) {
+        if (closed) revert AccountIsClosed();
+        if (!_isTracked[asset] || beneficiary == address(0)) revert InvalidAsset(asset);
+        beneficiaryAmount = IERC20(asset).balanceOf(address(this));
+        if (beneficiaryAmount != 0) {
+            bool transferred = IYieldBankRestrictedShare(asset)
+                .transferWithProof(beneficiary, beneficiaryAmount, proof);
+            if (!transferred) revert InvalidAsset(asset);
+        }
+        uint256 remaining = IERC20(asset).balanceOf(address(this));
         if (remaining != 0) revert AccountNotEmpty(asset, remaining);
         emit AssetReleased(asset, beneficiary, beneficiaryAmount, distributedTaxAmount);
     }

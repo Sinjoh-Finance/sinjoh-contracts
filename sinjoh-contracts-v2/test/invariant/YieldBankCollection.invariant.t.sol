@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import { StdInvariant } from "forge-std/StdInvariant.sol";
 import { Test } from "forge-std/Test.sol";
 import { YieldBankCollection } from "../../src/yield-banks/YieldBankCollection.sol";
+import { YieldBankAccount } from "../../src/yield-banks/YieldBankAccount.sol";
 import { YieldBankNFT } from "../../src/yield-banks/YieldBankNFT.sol";
 import { YieldBankProceedsVault } from "../../src/yield-banks/YieldBankProceedsVault.sol";
 import {
@@ -118,6 +119,7 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
     MockYieldBankPrimaryAllocator private allocator;
     YieldBankCollection private collection;
     YieldBankProceedsVault private vault;
+    YieldBankAccount private accountImplementation;
 
     function setUp() public {
         weth = new MockYieldBankWETH();
@@ -135,6 +137,7 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
         allocator = new MockYieldBankPrimaryAllocator(
             sleeves, CORE_WEIGHT_BPS, MARKET_MAKING_WEIGHT_BPS, USDG_WEIGHT_BPS
         );
+        accountImplementation = new YieldBankAccount();
         collection = new YieldBankCollection(_config());
         vault = collection.proceedsVault();
         YieldBankInvariantHandler handler = new YieldBankInvariantHandler(collection, seaDrop);
@@ -143,7 +146,11 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
 
     function invariantNativeAndWrappedProceedsConserveEveryWei() public view {
         assertEq(address(vault).balance, vault.accountedNative());
-        assertEq(weth.totalSupply() + vault.accountedNative(), vault.totalNetProceeds());
+        assertEq(
+            weth.totalSupply() + vault.accountedNative() + CREATOR.balance + SINJOH.balance
+                + OPERATIONS.balance,
+            vault.totalNetProceeds()
+        );
     }
 
     function invariantReceiptLiabilitiesReconcileExactly() public view {
@@ -217,6 +224,7 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
         c = YieldBankConfig({
             collectionId: keccak256("SINJOH_YIELD_BANKS_INVARIANT"),
             maxSupply: MAX_SUPPLY,
+            secondaryRoyaltyBps: 500,
             primaryBackingBps: PRIMARY_BACKING_BPS,
             primaryCreatorBps: PRIMARY_CREATOR_BPS,
             primarySinjohBps: PRIMARY_SINJOH_BPS,
@@ -239,6 +247,7 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
             coreSleeve: address(core),
             marketMakingSleeve: address(market),
             usdgSleeve: address(yieldSleeve),
+            accountImplementation: address(accountImplementation),
             integrationCodeHashes: [
                 address(revenueRouter).codehash,
                 address(policy).codehash,

@@ -103,6 +103,13 @@ contract YieldBankProceedsVault is ReentrancyGuard {
         uint256 marketMakingShares,
         uint256 usdgShares
     );
+    event PrimaryFeesReleased(
+        uint256 indexed firstReceiptId,
+        uint256 indexed lastReceiptId,
+        uint256 creatorFee,
+        uint256 sinjohFee,
+        uint256 operationsFee
+    );
     event PrimaryClaimed(
         uint256 indexed tokenId,
         address indexed account,
@@ -251,17 +258,22 @@ contract YieldBankProceedsVault is ReentrancyGuard {
         if (tokenCount > MAX_TOKENS_PER_ALLOCATION) {
             revert InvalidRange(firstReceiptId, lastReceiptId);
         }
-        uint256 totalReleased = backing + creatorFees + sinjohFees + operationsFees;
-        accountedNative -= totalReleased;
-        weth.deposit{ value: totalReleased }();
-        IERC20(address(weth)).safeTransfer(creator, creatorFees);
-        IERC20(address(weth)).safeTransfer(sinjohFeeRecipient, sinjohFees);
-        IERC20(address(weth)).safeTransfer(operationsReserve, operationsFees);
-        if (operationsReserve.code.length != 0 && operationsFees != 0) {
-            IYieldBankCollectionPrimaryNotify(collection).notifyOperationsPrimary(operationsFees);
+        accountedNative -= backing + creatorFees + sinjohFees + operationsFees;
+        _sendNative(creator, creatorFees);
+        _sendNative(sinjohFeeRecipient, sinjohFees);
+        _sendNative(operationsReserve, operationsFees);
+        if (operationsFees != 0) {
+            if (operationsReserve.code.length != 0) {
+                IYieldBankCollectionPrimaryNotify(collection)
+                    .notifyOperationsPrimary(operationsFees);
+            }
         }
+        emit PrimaryFeesReleased(
+            firstReceiptId, lastReceiptId, creatorFees, sinjohFees, operationsFees
+        );
         uint256[3] memory shares;
         if (backing != 0) {
+            weth.deposit{ value: backing }();
             IERC20(address(weth)).forceApprove(allocator, backing);
             (address[] memory assets, uint256[] memory amounts) = CollectionPortfolioAllocator(
                     allocator

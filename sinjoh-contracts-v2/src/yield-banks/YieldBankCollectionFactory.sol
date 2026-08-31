@@ -49,6 +49,7 @@ contract YieldBankCollectionFactory is ReentrancyGuard {
     );
     event CollectionEconomicsRegistered(
         address indexed collection,
+        uint96 secondaryRoyaltyBps,
         uint16 primaryBackingBps,
         uint16 primaryCreatorBps,
         uint16 primarySinjohBps,
@@ -107,6 +108,7 @@ contract YieldBankCollectionFactory is ReentrancyGuard {
         );
         emit CollectionEconomicsRegistered(
             collection,
+            config.secondaryRoyaltyBps,
             config.primaryBackingBps,
             config.primaryCreatorBps,
             config.primarySinjohBps,

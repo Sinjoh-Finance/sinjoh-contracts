@@ -1,0 +1,63 @@
+{
+  "schemaVersion": "1.0",
+  "run": {
+    "id": "20260831-043535",
+    "date": "2026-08-31",
+    "requirements": "Yield Banks OpenSea payout, royalty, and allocation remediation"
+  },
+  "summary": {
+    "building": "Safe SeaDrop primary payout and multi-asset Seaport royalty ingress for Yield Banks",
+    "verdict": "ready",
+    "topRisk": "The existing general SinjohFeeRouter adds a fixed fee and breaks exact mint-receipt accounting",
+    "mustDecideFirst": "Declare the equity custody and income model in the signed collection release manifest",
+    "watchOutFor": "ERC-2981 does not enforce secondary earnings"
+  },
+  "components": [
+    {
+      "name": "OpenSea SeaDrop",
+      "type": "Blockchain",
+      "version": "unversioned",
+      "sourceUrl": "https://raw.githubusercontent.com/ProjectOpenSea/seadrop/main/src/SeaDrop.sol",
+      "status": "fresh",
+      "risks": [{"severity": "critical", "title": "Incompatible payout intermediary", "detail": "A native-rejecting or fee-charging intermediary breaks exact payout accounting."}]
+    },
+    {
+      "name": "OpenSea Seaport",
+      "type": "Blockchain",
+      "version": "unversioned",
+      "sourceUrl": "https://docs.opensea.io/docs/opensea-fees.md",
+      "status": "fresh",
+      "risks": [
+        {"severity": "critical", "title": "Native royalty recipient rejection", "detail": "Native-fee orders cannot pay a receiver that rejects ETH."},
+        {"severity": "high", "title": "Marketplace configuration drift", "detail": "OpenSea fee configuration can differ from the onchain signal."}
+      ]
+    },
+    {
+      "name": "ERC-2981",
+      "type": "Other",
+      "version": "Final",
+      "sourceUrl": "https://eips.ethereum.org/EIPS/eip-2981",
+      "status": "fresh",
+      "risks": [{"severity": "high", "title": "Hard-coded economic policy", "detail": "A source constant cannot represent per-collection royalties."}]
+    },
+    {
+      "name": "OpenZeppelin Contracts",
+      "type": "SDK",
+      "version": "5.6.1",
+      "sourceUrl": "https://docs.openzeppelin.com/contracts/5.x/",
+      "status": "cached",
+      "risks": [{"severity": "low", "title": "Custom behavior around standard primitives", "detail": "Protocol-specific routing and proof transfer logic needs direct tests."}]
+    }
+  ],
+  "riskTotals": {"critical": 2, "high": 2, "medium": 0, "low": 1},
+  "preCodingDecisions": [
+    {"title": "Core asset custody", "detail": "Declare onchain tokenized-equity custody or an offchain custody receipt, plus income behavior and an HTTPS disclosure, in the release manifest.", "immutable": true},
+    {"title": "Primary routing boundary", "detail": "Use the proceeds vault as the collection-specific Sinjoh primary fee router with no additional general-router fee.", "immutable": true}
+  ],
+  "requirementsCorrections": [
+    {"kind": "wrong_assumption", "detail": "The existing general SinjohFeeRouter is not compatible with exact SeaDrop receipt accounting."},
+    {"kind": "missing_constraint", "detail": "Royalty routes must be timelock-bound and codehash-pinned; synchronization must be allocation-operator-only with fresh amount-specific execution data."},
+    {"kind": "immutable_choice", "detail": "The secondary royalty basis points must be configured per collection."}
+  ],
+  "openQuestions": []
+}

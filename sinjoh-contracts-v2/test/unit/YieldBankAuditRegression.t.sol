@@ -44,7 +44,8 @@ contract YieldBankOpenSeaConfigurationRegressionTest is Test {
             address(revenueRouter),
             address(new MockYieldBankRenderer()),
             address(seaDrop),
-            100
+            100,
+            650
         );
     }
 
@@ -62,13 +63,11 @@ contract YieldBankOpenSeaConfigurationRegressionTest is Test {
 
         ISeaDropTokenContractMetadata.SeaDropRoyaltyInfo memory changedReceiver =
             ISeaDropTokenContractMetadata.SeaDropRoyaltyInfo({
-                royaltyAddress: OTHER_RECEIVER, royaltyBps: nft.ROYALTY_BPS()
+                royaltyAddress: OTHER_RECEIVER, royaltyBps: nft.royaltyBps()
             });
         vm.expectRevert(
             abi.encodeWithSelector(
-                YieldBankNFT.ImmutableRoyaltyInfo.selector,
-                OTHER_RECEIVER,
-                uint96(nft.ROYALTY_BPS())
+                YieldBankNFT.ImmutableRoyaltyInfo.selector, OTHER_RECEIVER, uint96(nft.royaltyBps())
             )
         );
         nft.setRoyaltyInfo(changedReceiver);

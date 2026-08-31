@@ -38,6 +38,8 @@ abstract contract BaseSleeve is ERC20, ReentrancyGuard, IYieldBankSleeve {
     uint16 public immutable maximumAdapterCapBps;
     uint16 public immutable maximumOperatorLossBps;
     bool public depositsPaused;
+    address private _proofTransferSender;
+    address private _proofTransferRecipient;
 
     address[] internal _inventoryAssets;
     address[] internal _adapters;
@@ -76,12 +78,16 @@ abstract contract BaseSleeve is ERC20, ReentrancyGuard, IYieldBankSleeve {
     );
     event AdapterDeposit(address indexed adapter, uint256 assets, uint256 positionUnits);
     event AdapterWithdrawal(
-        address indexed adapter, uint256 assetsRequested, uint256 assetsReturned
+        address indexed adapter,
+        uint256 assetsRequested,
+        uint256 assetsReturned,
+        uint256 positionUnitsRemaining
     );
     event AdapterExited(address indexed adapter, address[] assets, uint256[] amounts);
     event AdapterCollected(address indexed adapter, address[] assets, uint256[] amounts);
     event AdapterCapSet(address indexed adapter, uint16 previousCapBps, uint16 newCapBps);
     event DepositsPauseSet(bool paused);
+    event ProofTransfer(address indexed sender, address indexed recipient, uint256 amount);
 
     constructor(
         string memory name_,
@@ -244,13 +250,13 @@ abstract contract BaseSleeve is ERC20, ReentrancyGuard, IYieldBankSleeve {
         address owner,
         YieldBankRedemptionMode mode,
         uint256 minimumOutput,
-        bytes calldata
+        bytes calldata proof
     ) external override nonReentrant returns (address[] memory assets, uint256[] memory amounts) {
         if (mode != YieldBankRedemptionMode.IN_KIND) revert UnsupportedRedemptionMode(mode);
         if (shares == 0 || receiver == address(0) || owner == address(0)) {
             revert InvalidConfiguration();
         }
-        if (!eligibilityPolicy.canRedeem(receiver, "")) revert Ineligible(receiver);
+        if (!eligibilityPolicy.canRedeem(receiver, proof)) revert Ineligible(receiver);
         uint256 adapterLength = _adapters.length;
         for (uint256 i; i < adapterLength; ++i) {
             uint256 managed = IStrategyAdapter(_adapters[i]).totalManagedAssets();
@@ -274,6 +280,26 @@ abstract contract BaseSleeve is ERC20, ReentrancyGuard, IYieldBankSleeve {
         }
         if (aggregate < minimumOutput) revert InsufficientShares(minimumOutput, aggregate);
         emit Redeemed(owner, receiver, shares);
+    }
+
+    function transferWithProof(address recipient, uint256 amount, bytes calldata proof)
+        external
+        nonReentrant
+        returns (bool)
+    {
+        if (
+            recipient == address(0)
+                || !eligibilityPolicy.canReceiveRestrictedShares(recipient, proof)
+        ) {
+            revert Ineligible(recipient);
+        }
+        _proofTransferSender = msg.sender;
+        _proofTransferRecipient = recipient;
+        _transfer(msg.sender, recipient, amount);
+        delete _proofTransferSender;
+        delete _proofTransferRecipient;
+        emit ProofTransfer(msg.sender, recipient, amount);
+        return true;
     }
 
     /// @notice Burns one account's shares and proportionally unwinds every managed adapter.
@@ -362,7 +388,9 @@ abstract contract BaseSleeve is ERC20, ReentrancyGuard, IYieldBankSleeve {
             if (measured < minimum) revert InsufficientAdapterOutput(minimum, measured);
             used[callIndex] = true;
             accountingReturned += measured;
-            emit AdapterWithdrawal(adapter, requested, measured);
+            emit AdapterWithdrawal(
+                adapter, requested, measured, IStrategyAdapter(adapter).totalPositionUnits()
+            );
         }
         for (uint256 i; i < calls.length; ++i) {
             if (!used[i]) revert InvalidAdapter(calls[i].adapter);
@@ -499,7 +527,9 @@ abstract contract BaseSleeve is ERC20, ReentrancyGuard, IYieldBankSleeve {
         if (assetsReturned != measured) revert InexactReceipt(assetsReturned, measured);
         uint256 minimum = Math.mulDiv(assets, BPS - maxLossBps, BPS);
         if (measured < minimum) revert InsufficientAdapterOutput(minimum, measured);
-        emit AdapterWithdrawal(adapter, assets, assetsReturned);
+        emit AdapterWithdrawal(
+            adapter, assets, assetsReturned, IStrategyAdapter(adapter).totalPositionUnits()
+        );
     }
 
     function exitAdapter(address adapter, uint16 maxLossBps, bytes calldata data)
@@ -651,7 +681,11 @@ abstract contract BaseSleeve is ERC20, ReentrancyGuard, IYieldBankSleeve {
     }
 
     function _update(address from, address to, uint256 value) internal override {
-        if (to != address(0) && !eligibilityPolicy.canReceiveRestrictedShares(to, "")) {
+        bool proofAuthorized = from == _proofTransferSender && to == _proofTransferRecipient;
+        if (
+            to != address(0) && !proofAuthorized
+                && !eligibilityPolicy.canReceiveRestrictedShares(to, "")
+        ) {
             revert Ineligible(to);
         }
         super._update(from, to, value);

@@ -191,8 +191,7 @@ contract YieldBankOwnerAllocationTest is Test {
     function testOwnerCanRequestAndOperatorCanFullyRebalanceExistingBacking() external {
         weth.mint(address(account), 10 ether);
         uint16[3] memory weights = [uint16(0), uint16(0), uint16(10_000)];
-        vm.prank(ALICE);
-        uint64 revision = allocator.setTargetAllocation(TOKEN_ID, weights);
+        uint64 revision = _requestTarget(weights);
 
         CollectionPortfolioAllocator.RebalanceExecution memory execution;
         uint256[3] memory existing = [uint256(400 ether), 375 ether, 225 ether];
@@ -224,16 +223,12 @@ contract YieldBankOwnerAllocationTest is Test {
         assertEq(target.executedRevision, revision);
         assertEq(target.usdgWeightBps, 10_000);
 
-        CollectionPortfolioAllocator.RebalanceExecution memory resync;
-        resync.redemptions[2].minimumOutputs = new uint256[](1);
-        resync.redemptions[2].minimumOutputs[0] = 1_010 ether;
-        resync.allocations[2].minimumOutput = 1_010 ether;
-        resync.allocations[2].minimumShares = 1_010 ether;
-        resync.minimumWethRecovered = 1_010 ether;
-        resync.deadline = block.timestamp + 1 hours;
-        (recovered, shares) = allocator.executeTargetAllocation(TOKEN_ID, revision, resync);
-        assertEq(recovered, 1_010 ether);
-        assertEq(shares[2], 1_010 ether);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CollectionPortfolioAllocator.TargetAlreadyExecuted.selector, TOKEN_ID, revision
+            )
+        );
+        allocator.executeTargetAllocation(TOKEN_ID, revision, execution);
     }
 
     function testOnlyCurrentNftOwnerCanSetTargetAndExecutionIsRevisionBound() external {
@@ -243,10 +238,9 @@ contract YieldBankOwnerAllocationTest is Test {
                 CollectionPortfolioAllocator.OnlyTokenOwner.selector, TOKEN_ID, address(this)
             )
         );
-        allocator.setTargetAllocation(TOKEN_ID, weights);
+        allocator.setTargetAllocation(TOKEN_ID, weights, 100, uint48(block.timestamp + 2 hours));
 
-        vm.prank(ALICE);
-        uint64 revision = allocator.setTargetAllocation(TOKEN_ID, weights);
+        uint64 revision = _requestTarget(weights);
         CollectionPortfolioAllocator.RebalanceExecution memory execution;
         execution.deadline = block.timestamp + 1 hours;
         vm.expectRevert(
@@ -262,8 +256,7 @@ contract YieldBankOwnerAllocationTest is Test {
 
     function testUnexecutedRequestCannotFollowNftToANewOwner() external {
         uint16[3] memory weights = [uint16(0), uint16(10_000), uint16(0)];
-        vm.prank(ALICE);
-        uint64 revision = allocator.setTargetAllocation(TOKEN_ID, weights);
+        uint64 revision = _requestTarget(weights);
         address bob = address(0xB0B);
         nft.transfer(TOKEN_ID, bob);
 
@@ -279,8 +272,7 @@ contract YieldBankOwnerAllocationTest is Test {
 
     function testExecutionRejectsExpiredInstructionsAndPendingPrimaryBacking() external {
         uint16[3] memory weights = [uint16(0), uint16(10_000), uint16(0)];
-        vm.prank(ALICE);
-        uint64 revision = allocator.setTargetAllocation(TOKEN_ID, weights);
+        uint64 revision = _requestTarget(weights);
         CollectionPortfolioAllocator.RebalanceExecution memory execution;
         execution.deadline = block.timestamp - 1;
         vm.expectRevert(
@@ -300,6 +292,34 @@ contract YieldBankOwnerAllocationTest is Test {
         allocator.executeTargetAllocation(TOKEN_ID, revision, execution);
     }
 
+    function testOwnerAdapterLossAndExpiryLimitsCannotBeExceeded() external {
+        uint16[3] memory weights = [uint16(0), uint16(10_000), uint16(0)];
+        uint64 revision = _requestTarget(weights);
+        CollectionPortfolioAllocator.RebalanceExecution memory execution;
+        execution.deadline = block.timestamp + 1 hours;
+        execution.redemptions[0].adapterCalls = new YieldBankAdapterRedemptionCall[](1);
+        execution.redemptions[0].adapterCalls[0] = YieldBankAdapterRedemptionCall({
+            adapter: address(0xA11CE), maxLossBps: 101, data: ""
+        });
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CollectionPortfolioAllocator.OwnerAdapterLossLimitExceeded.selector, 100, 101
+            )
+        );
+        allocator.executeTargetAllocation(TOKEN_ID, revision, execution);
+
+        uint256 targetExpiry = block.timestamp + 2 hours;
+        vm.warp(targetExpiry + 1);
+        execution.deadline = block.timestamp;
+        execution.redemptions[0].adapterCalls[0].maxLossBps = 100;
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CollectionPortfolioAllocator.RebalanceExpired.selector, targetExpiry
+            )
+        );
+        allocator.executeTargetAllocation(TOKEN_ID, revision, execution);
+    }
+
     function testFuzzOwnerSelectedWeightsConserveAllBacking(uint16 rawCore, uint16 rawMarket)
         external
     {
@@ -308,8 +328,7 @@ contract YieldBankOwnerAllocationTest is Test {
         uint16 marketWeight = rawMarket % (remaining + 1);
         uint16 usdgWeight = remaining - marketWeight;
         uint16[3] memory weights = [coreWeight, marketWeight, usdgWeight];
-        vm.prank(ALICE);
-        uint64 revision = allocator.setTargetAllocation(TOKEN_ID, weights);
+        uint64 revision = _requestTarget(weights);
 
         CollectionPortfolioAllocator.RebalanceExecution memory execution;
         uint256[3] memory existing = [uint256(400 ether), 375 ether, 225 ether];
@@ -349,8 +368,7 @@ contract YieldBankOwnerAllocationTest is Test {
     function testTargetCanBeChangedWhilePausedButExecutionCannotRun() external {
         collection.setState(YieldBankCollectionState.INVESTMENT_PAUSED);
         uint16[3] memory weights = [uint16(0), uint16(10_000), uint16(0)];
-        vm.prank(ALICE);
-        uint64 revision = allocator.setTargetAllocation(TOKEN_ID, weights);
+        uint64 revision = _requestTarget(weights);
         CollectionPortfolioAllocator.RebalanceExecution memory execution;
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -359,5 +377,11 @@ contract YieldBankOwnerAllocationTest is Test {
             )
         );
         allocator.executeTargetAllocation(TOKEN_ID, revision, execution);
+    }
+
+    function _requestTarget(uint16[3] memory weights) private returns (uint64 revision) {
+        vm.prank(ALICE);
+        return
+            allocator.setTargetAllocation(TOKEN_ID, weights, 100, uint48(block.timestamp + 2 hours));
     }
 }

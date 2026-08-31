@@ -11,7 +11,7 @@ import { IPriceHub } from "../interfaces/IPriceHub.sol";
 import { IntegrationBinding } from "../libraries/IntegrationBinding.sol";
 import { YieldBankIds } from "../libraries/YieldBankIds.sol";
 
-/// @notice Directly holds a collection-configured set of approved Robinhood Stock Tokens.
+/// @notice Directly holds a collection-configured set of reviewed tokenized-equity assets.
 contract CoreStockTokenSleeve is BaseSleeve {
     using SafeERC20 for IERC20;
 
@@ -52,7 +52,7 @@ contract CoreStockTokenSleeve is BaseSleeve {
         uint16 maximumOperatorLossBps_
     )
         BaseSleeve(
-            "Sinjoh Yield Banks Core Stock Token Sleeve",
+            "Sinjoh Yield Banks Tokenized Equity Sleeve",
             "sybCORE",
             YieldBankIds.CORE,
             accountingAsset_,

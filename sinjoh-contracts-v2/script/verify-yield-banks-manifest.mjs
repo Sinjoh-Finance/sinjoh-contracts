@@ -37,6 +37,7 @@ assert(Number.isSafeInteger(manifest.economics.maxSupply) && manifest.economics.
   "maxSupply must be a positive safe integer");
 const isBps = (value) => Number.isInteger(value) && value >= 0 && value <= 10_000;
 for (const key of [
+  "secondaryRoyaltyBps",
   "primaryBackingBps", "primaryCreatorBps", "primarySinjohBps", "primaryOperationsBps",
   "royaltyBackingBps", "royaltyCreatorBps", "royaltySinjohBps", "royaltyOperationsBps",
   "coreWeightBps", "marketMakingWeightBps", "usdgWeightBps",
@@ -60,7 +61,13 @@ for (const [key, address] of Object.entries(expectedDependencies)) {
   assert(manifest.dependencies[key], `dependencies.${key} missing`);
   assert(sameAddress(manifest.dependencies[key].address, address), `dependencies.${key} mismatch`);
 }
-assert(manifest.stockTokens.length >= 1, "at least one reviewed Stock Token is required");
+assert(manifest.equityModel
+  && ["onchain-tokenized-equity", "offchain-custody-receipt"].includes(manifest.equityModel.custody)
+  && ["balance-appreciation", "cash-distribution", "mixed"].includes(manifest.equityModel.income),
+"equityModel must explicitly describe custody and income behavior");
+assert(new URL(manifest.equityModel.disclosureUri).protocol === "https:",
+  "equityModel.disclosureUri must be HTTPS");
+assert(manifest.equityAssets.length >= 1, "at least one reviewed equity asset is required");
 assert(Object.keys(manifest.feeds).length >= 1, "at least one reviewed feed is required");
 assert(manifest.delta && Number.isInteger(manifest.delta.maximumPositions)
   && manifest.delta.maximumPositions >= 1 && manifest.delta.maximumPositions <= 64,
@@ -84,7 +91,7 @@ assert(!sameAddress(manifest.delta.injoh, manifest.dependencies.WETH.address),
 assert(manifest.routeBindings && Array.isArray(manifest.routeBindings.allocations)
   && Array.isArray(manifest.routeBindings.rebalances), "routeBindings are required");
 const allManifestEntries = [
-  ...Object.values(manifest.dependencies), ...manifest.stockTokens,
+  ...Object.values(manifest.dependencies), ...manifest.equityAssets,
   ...Object.values(manifest.adapters), ...Object.values(manifest.pools),
 ];
 const manifestEntryFor = (address) => allManifestEntries.find((entry) => sameAddress(entry.address, address));
@@ -103,7 +110,7 @@ for (const sleeve of [manifest.contracts.coreSleeve.address, manifest.contracts.
 }
 const rebalanceAssets = [
   manifest.dependencies.USDG.address, manifest.delta.injoh,
-  ...manifest.stockTokens.map((entry) => entry.address),
+  ...manifest.equityAssets.map((entry) => entry.address),
 ];
 const rebalanceKeys = new Set();
 for (const binding of manifest.routeBindings.rebalances) {
@@ -144,6 +151,12 @@ assert(manifest.openSea.collectionUrl
 "OpenSea collection URL mismatch");
 assert(sameAddress(manifest.openSea.creatorPayoutAddress, manifest.contracts.proceedsVault.address),
   "OpenSea creator payout must be the proceeds vault");
+assert(manifest.openSea.observedSecondaryRoyaltyBps === manifest.economics.secondaryRoyaltyBps,
+  "OpenSea secondary royalty rate must match the immutable collection rate");
+assert(sameAddress(
+  manifest.openSea.observedSecondaryRoyaltyRecipient,
+  manifest.contracts.revenueRouter.address,
+), "OpenSea secondary royalty recipient must be the collection revenue router");
 
 const entries = [];
 for (const [group, records] of Object.entries({
@@ -153,7 +166,7 @@ for (const [group, records] of Object.entries({
   feeds: manifest.feeds,
   pools: manifest.pools,
 })) for (const [key, entry] of Object.entries(records)) entries.push([`${group}.${key}`, entry]);
-manifest.stockTokens.forEach((entry, index) => entries.push([`stockTokens.${index}`, entry]));
+manifest.equityAssets.forEach((entry, index) => entries.push([`equityAssets.${index}`, entry]));
 for (const [path, entry] of entries) {
   getAddress(entry.address);
   assert(bytes32.test(entry.runtimeCodeHash), `${path}.runtimeCodeHash must be bytes32`);
@@ -181,6 +194,8 @@ const collectionAbi = [
   { type: "function", name: "distributor", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "proceedsVault", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "portfolioAllocator", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+  { type: "function", name: "accountImplementation", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+  { type: "function", name: "secondaryRoyaltyBps", stateMutability: "view", inputs: [], outputs: [{ type: "uint96" }] },
   ...[
     "primaryBackingBps", "primaryCreatorBps", "primarySinjohBps", "primaryOperationsBps",
     "coreWeightBps", "marketMakingWeightBps", "usdgWeightBps",
@@ -191,10 +206,15 @@ const nftAbi = [
   { type: "function", name: "seaDrop", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "collection", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "royaltyReceiver", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
-  { type: "function", name: "ROYALTY_BPS", stateMutability: "view", inputs: [], outputs: [{ type: "uint96" }] },
+  { type: "function", name: "royaltyBps", stateMutability: "view", inputs: [], outputs: [{ type: "uint96" }] },
 ];
 const vaultAbi = [
   { type: "function", name: "allocationOperator", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+];
+const sleeveAbi = [
+  { type: "function", name: "maximumStrategies", stateMutability: "view", inputs: [], outputs: [{ type: "uint8" }] },
+  { type: "function", name: "maximumAdapterCapBps", stateMutability: "view", inputs: [], outputs: [{ type: "uint16" }] },
+  { type: "function", name: "maximumOperatorLossBps", stateMutability: "view", inputs: [], outputs: [{ type: "uint16" }] },
 ];
 const revenueRouterAbi = [
   ...[
@@ -239,7 +259,7 @@ const read = (address, abi, functionName, args = []) => client.readContract({
 const factory = manifest.contracts.factory.address;
 const [predictedFactory, factoryVersion, collectionCodeHash, systemPlanHash,
   collectionId, collectionMaxSupply, collectionNft, collectionDistributor,
-  collectionProceedsVault, nftMaxSupply, nftSeaDrop, nftCollection, nftRoyaltyReceiver,
+  collectionProceedsVault, collectionAccountImplementation, collectionSecondaryRoyaltyBps, nftMaxSupply, nftSeaDrop, nftCollection, nftRoyaltyReceiver,
   nftRoyaltyBps, allocationOperator, collectionRecord, ...onchainEconomicValues] = await Promise.all([
   read(manifest.contracts.factoryDeployer.address, deployerAbi, "predict", [manifest.deployment.factorySalt]),
   read(factory, factoryAbi, "factoryVersion"),
@@ -250,11 +270,13 @@ const [predictedFactory, factoryVersion, collectionCodeHash, systemPlanHash,
   read(manifest.contracts.collection.address, collectionAbi, "nft"),
   read(manifest.contracts.collection.address, collectionAbi, "distributor"),
   read(manifest.contracts.collection.address, collectionAbi, "proceedsVault"),
+  read(manifest.contracts.collection.address, collectionAbi, "accountImplementation"),
+  read(manifest.contracts.collection.address, collectionAbi, "secondaryRoyaltyBps"),
   read(manifest.contracts.nft.address, nftAbi, "maxSupply"),
   read(manifest.contracts.nft.address, nftAbi, "seaDrop"),
   read(manifest.contracts.nft.address, nftAbi, "collection"),
   read(manifest.contracts.nft.address, nftAbi, "royaltyReceiver"),
-  read(manifest.contracts.nft.address, nftAbi, "ROYALTY_BPS"),
+  read(manifest.contracts.nft.address, nftAbi, "royaltyBps"),
   read(manifest.contracts.proceedsVault.address, vaultAbi, "allocationOperator"),
   read(manifest.contracts.registry.address, registryAbi, "collections", [manifest.contracts.collection.address]),
   ...[
@@ -280,8 +302,12 @@ assert(sameAddress(collectionRecord[0], factory)
 assert(collectionId.toLowerCase() === manifest.collectionId.toLowerCase(), "collectionId mismatch");
 assert(collectionMaxSupply === BigInt(manifest.economics.maxSupply)
   && nftMaxSupply === BigInt(manifest.economics.maxSupply), "onchain maxSupply mismatch");
+assert(collectionSecondaryRoyaltyBps === BigInt(manifest.economics.secondaryRoyaltyBps),
+  "collection secondary royalty mismatch");
 assert(sameAddress(collectionProceedsVault, manifest.contracts.proceedsVault.address),
   "collection proceeds vault mismatch");
+assert(sameAddress(collectionAccountImplementation, manifest.contracts.accountImplementation.address),
+  "collection account implementation mismatch");
 assert(sameAddress(
   await read(manifest.contracts.collection.address, collectionAbi, "portfolioAllocator"),
   manifest.contracts.allocator.address,
@@ -292,7 +318,8 @@ assert(sameAddress(collectionDistributor, manifest.contracts.distributor.address
 assert(sameAddress(nftSeaDrop, manifest.dependencies.seaDrop.address), "NFT SeaDrop mismatch");
 assert(sameAddress(nftCollection, manifest.contracts.collection.address), "NFT collection mismatch");
 assert(sameAddress(nftRoyaltyReceiver, manifest.contracts.revenueRouter.address)
-  && Number(nftRoyaltyBps) === 500, "NFT royalty receiver or rate mismatch");
+  && Number(nftRoyaltyBps) === manifest.economics.secondaryRoyaltyBps,
+"NFT royalty receiver or rate mismatch");
 assert(sameAddress(allocationOperator, manifest.roles.allocationOperator),
   "allocation operator mismatch");
 const collectionEconomicKeys = [
@@ -309,6 +336,25 @@ royaltyEconomicKeys.forEach((key, index) => assert(
   onchainEconomicValues[collectionEconomicKeys.length + index]
     === BigInt(manifest.economics[key]), `onchain ${key} mismatch`,
 ));
+for (const [key, contractKey] of [
+  ["core", "coreSleeve"],
+  ["marketMaking", "marketMakingSleeve"],
+  ["usdg", "usdgSleeve"],
+]) {
+  const policy = manifest.policyCaps[key];
+  const sleeve = manifest.contracts[contractKey].address;
+  const [maximumStrategies, maximumAdapterCapBps, maximumOperatorLossBps] = await Promise.all([
+    read(sleeve, sleeveAbi, "maximumStrategies"),
+    read(sleeve, sleeveAbi, "maximumAdapterCapBps"),
+    read(sleeve, sleeveAbi, "maximumOperatorLossBps"),
+  ]);
+  assert(Number(maximumStrategies) === policy.maximumStrategies,
+    `${key} maximumStrategies mismatch`);
+  assert(Number(maximumAdapterCapBps) === policy.maximumAdapterCapBps,
+    `${key} maximumAdapterCapBps mismatch`);
+  assert(Number(maximumOperatorLossBps) === policy.maximumOperatorLossBps,
+    `${key} maximumOperatorLossBps mismatch`);
+}
 
 const deltaAddressFields = [
   ["sleeve", manifest.contracts.marketMakingSleeve.address],

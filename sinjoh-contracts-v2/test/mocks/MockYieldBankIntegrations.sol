@@ -30,6 +30,14 @@ contract MockYieldBankAsset is ERC20 {
     function mint(address recipient, uint256 amount) external {
         _mint(recipient, amount);
     }
+
+    function transferWithProof(address recipient, uint256 amount, bytes calldata)
+        external
+        returns (bool)
+    {
+        _transfer(msg.sender, recipient, amount);
+        return true;
+    }
 }
 
 contract MockYieldBankWETH is ERC20 {
@@ -170,9 +178,18 @@ contract MockYieldBankSleeve is ERC20 {
 
 contract MockYieldBankEligibilityPolicy is IYieldBankEligibilityPolicy {
     mapping(address account => bool blocked) public blocked;
+    bytes32 public restrictedProofHash;
+    bytes32 public redemptionProofHash;
 
     function setBlocked(address account, bool blocked_) external {
         blocked[account] = blocked_;
+    }
+
+    function setRequiredProofs(bytes calldata restrictedProof, bytes calldata redemptionProof)
+        external
+    {
+        restrictedProofHash = keccak256(restrictedProof);
+        redemptionProofHash = keccak256(redemptionProof);
     }
 
     function canMint(address account, bytes calldata) external view returns (bool) {
@@ -183,16 +200,18 @@ contract MockYieldBankEligibilityPolicy is IYieldBankEligibilityPolicy {
         return !blocked[account];
     }
 
-    function canReceiveRestrictedShares(address account, bytes calldata)
+    function canReceiveRestrictedShares(address account, bytes calldata proof)
         external
         view
         returns (bool)
     {
-        return !blocked[account];
+        return !blocked[account]
+            && (restrictedProofHash == bytes32(0) || keccak256(proof) == restrictedProofHash);
     }
 
-    function canRedeem(address account, bytes calldata) external view returns (bool) {
-        return !blocked[account];
+    function canRedeem(address account, bytes calldata proof) external view returns (bool) {
+        return !blocked[account]
+            && (redemptionProofHash == bytes32(0) || keccak256(proof) == redemptionProofHash);
     }
 }
 
@@ -301,6 +320,10 @@ contract MockSynchronousYieldBankAdapter is IStrategyAdapter {
     }
 
     function totalManagedAssets() external view returns (uint256) {
+        return managed;
+    }
+
+    function totalPositionUnits() external view returns (uint256) {
         return managed;
     }
 
@@ -430,6 +453,7 @@ contract MockYieldBankAllocationRoute is IYieldBankAllocationRoute {
 }
 
 contract MockYieldBankAllocationReceiver is IYieldBankAllocationReceiver {
+    address public immutable allocationOperator = msg.sender;
     bool public shouldFail;
     address[3] public outputs;
 
@@ -462,11 +486,16 @@ contract MockYieldBankAllocationReceiver is IYieldBankAllocationReceiver {
 contract MockYieldBankCollectionReceiver {
     bytes32 public immutable collectionId;
     address public immutable distributor = address(this);
+    address public weth;
     uint256 public liveSupply = 7;
     mapping(address asset => uint256 amount) public received;
 
     constructor(bytes32 collectionId_) {
         collectionId = collectionId_;
+    }
+
+    function setWeth(address weth_) external {
+        weth = weth_;
     }
 
     function accountOf(uint256) external pure returns (address) {

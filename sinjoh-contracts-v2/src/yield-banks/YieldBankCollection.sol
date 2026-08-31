@@ -44,6 +44,7 @@ contract YieldBankCollection is ReentrancyGuard {
 
     bytes32 public immutable collectionId;
     uint256 public immutable maxSupply;
+    uint96 public immutable secondaryRoyaltyBps;
     uint16 public immutable primaryBackingBps;
     uint16 public immutable primaryCreatorBps;
     uint16 public immutable primarySinjohBps;
@@ -110,6 +111,7 @@ contract YieldBankCollection is ReentrancyGuard {
         _validateConfig(config);
         collectionId = config.collectionId;
         maxSupply = config.maxSupply;
+        secondaryRoyaltyBps = config.secondaryRoyaltyBps;
         primaryBackingBps = config.primaryBackingBps;
         primaryCreatorBps = config.primaryCreatorBps;
         primarySinjohBps = config.primarySinjohBps;
@@ -137,11 +139,11 @@ contract YieldBankCollection is ReentrancyGuard {
             config.revenueRouter,
             config.renderer,
             config.seaDrop,
-            config.maxSupply
+            config.maxSupply,
+            config.secondaryRoyaltyBps
         );
         nft = nft_;
-        YieldBankAccount accountImplementation_ = new YieldBankAccount();
-        accountImplementation = address(accountImplementation_);
+        accountImplementation = config.accountImplementation;
         address[3] memory sleeveList =
             [config.coreSleeve, config.marketMakingSleeve, config.usdgSleeve];
         YieldBankProceedsVault proceedsVault_ = new YieldBankProceedsVault(
@@ -173,7 +175,7 @@ contract YieldBankCollection is ReentrancyGuard {
             address(nft_),
             address(proceedsVault_),
             address(distributor_),
-            address(accountImplementation_)
+            config.accountImplementation
         );
         state = YieldBankCollectionState.ACTIVE;
         emit CollectionStateChanged(YieldBankCollectionState.DEPLOYED, state);
@@ -233,7 +235,10 @@ contract YieldBankCollection is ReentrancyGuard {
         if (pendingMintQuantity != 0) revert PrimaryPayoutPending();
         if (nft.ownerOf(tokenId) != msg.sender) revert InvalidTokenOwner(tokenId, msg.sender);
         if (!eligibilityPolicy.canRedeem(msg.sender, proof)) revert Ineligible(msg.sender);
-        _burnOwned(tokenId, msg.sender);
+        if (!eligibilityPolicy.canReceiveRestrictedShares(msg.sender, proof)) {
+            revert Ineligible(msg.sender);
+        }
+        _burnOwned(tokenId, msg.sender, proof);
     }
 
     function accrueDistribution(address asset, uint256 amount) external nonReentrant {
@@ -308,7 +313,7 @@ contract YieldBankCollection is ReentrancyGuard {
         emit PrimarySharesClaimed(tokenId, address(account));
     }
 
-    function _burnOwned(uint256 tokenId, address beneficiary) private {
+    function _burnOwned(uint256 tokenId, address beneficiary, bytes calldata proof) private {
         if (_tokenStates[tokenId] != YieldBankTokenState.ACTIVE) {
             revert InvalidTokenState(tokenId, _tokenStates[tokenId]);
         }
@@ -332,7 +337,11 @@ contract YieldBankCollection is ReentrancyGuard {
                 distributor.accrueFrom(asset, address(account), tax, liveSupply);
                 account.clearDistributionApproval(asset);
             }
-            account.releaseRemainder(asset, beneficiary, tax);
+            if (isSleeveAsset[asset]) {
+                account.releaseRestrictedRemainder(asset, beneficiary, tax, proof);
+            } else {
+                account.releaseRemainder(asset, beneficiary, tax);
+            }
         }
         if (primaryState == proceedsVault.PRIMARY_PENDING()) {
             uint256 released = proceedsVault.releasePendingBacking(tokenId, address(this));
@@ -369,14 +378,15 @@ contract YieldBankCollection is ReentrancyGuard {
     function _validateConfig(YieldBankConfig memory c) private view {
         if (
             c.collectionId == bytes32(0) || c.maxSupply == 0 || c.maxSupply > type(uint64).max
-                || c.creator == address(0) || c.sinjohFeeRecipient == address(0)
-                || c.operationsReserve == address(0) || c.revenueRouter.code.length == 0
-                || c.eligibilityPolicy.code.length == 0 || c.portfolioAllocator.code.length == 0
-                || c.allocationOperator == address(0) || c.collectionTimelock.code.length == 0
-                || c.guardian == address(0) || c.renderer.code.length == 0
-                || c.weth.code.length == 0 || c.seaDrop.code.length == 0
-                || c.coreSleeve.code.length == 0 || c.marketMakingSleeve.code.length == 0
-                || c.usdgSleeve.code.length == 0 || c.coreSleeve == c.marketMakingSleeve
+                || c.secondaryRoyaltyBps > BPS || c.creator == address(0)
+                || c.sinjohFeeRecipient == address(0) || c.operationsReserve == address(0)
+                || c.revenueRouter.code.length == 0 || c.eligibilityPolicy.code.length == 0
+                || c.portfolioAllocator.code.length == 0 || c.allocationOperator == address(0)
+                || c.collectionTimelock.code.length == 0 || c.guardian == address(0)
+                || c.renderer.code.length == 0 || c.weth.code.length == 0
+                || c.seaDrop.code.length == 0 || c.coreSleeve.code.length == 0
+                || c.marketMakingSleeve.code.length == 0 || c.usdgSleeve.code.length == 0
+                || c.accountImplementation.code.length == 0 || c.coreSleeve == c.marketMakingSleeve
                 || c.coreSleeve == c.usdgSleeve || c.marketMakingSleeve == c.usdgSleeve
                 || c.primaryBackingBps == 0
                 || uint256(c.primaryBackingBps) + c.primaryCreatorBps + c.primarySinjohBps

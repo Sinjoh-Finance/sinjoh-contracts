@@ -29,6 +29,7 @@ enum YieldBankRedemptionMode {
 struct YieldBankConfig {
     bytes32 collectionId;
     uint256 maxSupply;
+    uint96 secondaryRoyaltyBps;
     uint16 primaryBackingBps;
     uint16 primaryCreatorBps;
     uint16 primarySinjohBps;
@@ -51,5 +52,6 @@ struct YieldBankConfig {
     address coreSleeve;
     address marketMakingSleeve;
     address usdgSleeve;
+    address accountImplementation;
     bytes32[10] integrationCodeHashes;
 }

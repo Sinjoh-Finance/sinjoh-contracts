@@ -30,11 +30,11 @@ interface IYieldBankSeaDropCollection {
 contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungibleSeaDropToken {
     uint256 public constant MAX_MINT_QUANTITY = 20;
     uint16 private constant BPS = 10_000;
-    uint96 public constant ROYALTY_BPS = 500;
     address public immutable collection;
     address public immutable renderer;
     address public immutable seaDrop;
     address public immutable royaltyReceiver;
+    uint96 public immutable royaltyBps;
     uint256 public immutable override maxSupply;
     uint256 public totalMinted;
     mapping(address => uint256) public numberMinted;
@@ -73,19 +73,21 @@ contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungi
         address revenueRouter_,
         address renderer_,
         address seaDrop_,
-        uint256 maxSupply_
+        uint256 maxSupply_,
+        uint96 royaltyBps_
     ) ERC721("Sinjoh Yield Banks", "SYB") Ownable(owner_) {
         if (
             collection_ == address(0) || owner_ == address(0) || revenueRouter_ == address(0)
                 || renderer_.code.length == 0 || seaDrop_.code.length == 0 || maxSupply_ == 0
-                || maxSupply_ > type(uint64).max
+                || maxSupply_ > type(uint64).max || royaltyBps_ > BPS
         ) revert InvalidConfiguration();
         collection = collection_;
         renderer = renderer_;
         seaDrop = seaDrop_;
         royaltyReceiver = revenueRouter_;
+        royaltyBps = royaltyBps_;
         maxSupply = maxSupply_;
-        _setDefaultRoyalty(revenueRouter_, ROYALTY_BPS);
+        _setDefaultRoyalty(revenueRouter_, royaltyBps_);
         address[] memory allowed = new address[](1);
         allowed[0] = seaDrop_;
         emit AllowedSeaDropUpdated(allowed);
@@ -226,7 +228,7 @@ contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungi
         override
         onlyOwner
     {
-        if (value.royaltyAddress != royaltyReceiver || value.royaltyBps != ROYALTY_BPS) {
+        if (value.royaltyAddress != royaltyReceiver || value.royaltyBps != royaltyBps) {
             revert ImmutableRoyaltyInfo(value.royaltyAddress, value.royaltyBps);
         }
         _setDefaultRoyalty(value.royaltyAddress, value.royaltyBps);

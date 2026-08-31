@@ -4,7 +4,7 @@
   "title": "Sinjoh Yield Banks release manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "chainId", "collectionId", "factoryVersion", "compiler", "deployment", "economics", "policyCaps", "openSea", "contracts", "dependencies", "stockTokens", "adapters", "feeds", "pools", "delta", "routeBindings", "roles", "auditHashes"],
+  "required": ["schemaVersion", "chainId", "collectionId", "factoryVersion", "compiler", "deployment", "economics", "equityModel", "policyCaps", "openSea", "contracts", "dependencies", "equityAssets", "adapters", "feeds", "pools", "delta", "routeBindings", "roles", "auditHashes"],
   "properties": {
     "schemaVersion": { "const": "1.0" },
     "chainId": { "enum": [4663, 46630] },
@@ -40,9 +40,10 @@
     "economics": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["maxSupply", "primaryBackingBps", "primaryCreatorBps", "primarySinjohBps", "primaryOperationsBps", "royaltyBackingBps", "royaltyCreatorBps", "royaltySinjohBps", "royaltyOperationsBps", "exitTaxBps", "coreWeightBps", "marketMakingWeightBps", "usdgWeightBps"],
+      "required": ["maxSupply", "secondaryRoyaltyBps", "primaryBackingBps", "primaryCreatorBps", "primarySinjohBps", "primaryOperationsBps", "royaltyBackingBps", "royaltyCreatorBps", "royaltySinjohBps", "royaltyOperationsBps", "exitTaxBps", "coreWeightBps", "marketMakingWeightBps", "usdgWeightBps"],
       "properties": {
         "maxSupply": { "type": "integer", "minimum": 1, "maximum": 18446744073709551615 },
+        "secondaryRoyaltyBps": { "$ref": "#/$defs/bps" },
         "primaryBackingBps": { "$ref": "#/$defs/positiveBps" },
         "primaryCreatorBps": { "$ref": "#/$defs/bps" },
         "primarySinjohBps": { "$ref": "#/$defs/bps" },
@@ -55,6 +56,16 @@
         "coreWeightBps": { "$ref": "#/$defs/positiveBps" },
         "marketMakingWeightBps": { "$ref": "#/$defs/positiveBps" },
         "usdgWeightBps": { "$ref": "#/$defs/positiveBps" }
+      }
+    },
+    "equityModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["custody", "income", "disclosureUri"],
+      "properties": {
+        "custody": { "enum": ["onchain-tokenized-equity", "offchain-custody-receipt"] },
+        "income": { "enum": ["balance-appreciation", "cash-distribution", "mixed"] },
+        "disclosureUri": { "type": "string", "format": "uri", "pattern": "^https://" }
       }
     },
     "policyCaps": {
@@ -70,13 +81,15 @@
     "openSea": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["collectionSlug", "collectionUrl", "mintStagesHash", "creatorPayoutAddress", "observedPrimaryPlatformFeeBps", "observedAt"],
+      "required": ["collectionSlug", "collectionUrl", "mintStagesHash", "creatorPayoutAddress", "observedPrimaryPlatformFeeBps", "observedSecondaryRoyaltyBps", "observedSecondaryRoyaltyRecipient", "observedAt"],
       "properties": {
         "collectionSlug": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
         "collectionUrl": { "type": "string", "format": "uri", "pattern": "^https://opensea\\.io/collection/[a-z0-9][a-z0-9-]*/overview$" },
         "mintStagesHash": { "$ref": "#/$defs/bytes32" },
         "creatorPayoutAddress": { "$ref": "#/$defs/address" },
         "observedPrimaryPlatformFeeBps": { "type": "integer", "minimum": 0, "maximum": 10000 },
+        "observedSecondaryRoyaltyBps": { "$ref": "#/$defs/bps" },
+        "observedSecondaryRoyaltyRecipient": { "$ref": "#/$defs/address" },
         "observedAt": { "type": "string", "format": "date-time" }
       }
     },
@@ -90,7 +103,7 @@
       "additionalProperties": { "$ref": "#/$defs/deployment" },
       "required": ["WETH", "USDG", "seaDrop", "seaport"]
     },
-    "stockTokens": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/deployment" } },
+    "equityAssets": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/deployment" } },
     "adapters": { "type": "object", "additionalProperties": { "$ref": "#/$defs/deployment" } },
     "feeds": { "type": "object", "minProperties": 1, "additionalProperties": { "$ref": "#/$defs/deployment" } },
     "pools": { "type": "object", "additionalProperties": { "$ref": "#/$defs/deployment" } },

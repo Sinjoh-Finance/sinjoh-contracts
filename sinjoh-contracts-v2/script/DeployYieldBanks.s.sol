@@ -97,8 +97,8 @@ contract DeployYieldBanks is Script {
         plan.expectedCollection = vm.parseJsonAddress(json, ".expectedCollection");
         plan.collectionCreationCode = vm.parseJsonBytes(json, ".collectionCreationCode");
         plan.collectionSalt = vm.parseJsonBytes32(json, ".collectionSalt");
-        plan.components = new YieldBankSystemFactory.ComponentDeployment[](7);
-        for (uint256 i; i < 7; ++i) {
+        plan.components = new YieldBankSystemFactory.ComponentDeployment[](8);
+        for (uint256 i; i < 8; ++i) {
             string memory base = string.concat(".components[", vm.toString(i), "]");
             plan.components[i] = YieldBankSystemFactory.ComponentDeployment({
                 kind: vm.parseJsonBytes32(json, string.concat(base, ".kind")),
@@ -119,6 +119,7 @@ contract DeployYieldBanks is Script {
         plan.config = YieldBankConfig({
             collectionId: vm.parseJsonBytes32(json, ".config.collectionId"),
             maxSupply: vm.parseJsonUint(json, ".config.maxSupply"),
+            secondaryRoyaltyBps: uint96(_parseBps(json, ".config.secondaryRoyaltyBps")),
             primaryBackingBps: _parseBps(json, ".config.primaryBackingBps"),
             primaryCreatorBps: _parseBps(json, ".config.primaryCreatorBps"),
             primarySinjohBps: _parseBps(json, ".config.primarySinjohBps"),
@@ -141,6 +142,7 @@ contract DeployYieldBanks is Script {
             coreSleeve: vm.parseJsonAddress(json, ".config.coreSleeve"),
             marketMakingSleeve: vm.parseJsonAddress(json, ".config.marketMakingSleeve"),
             usdgSleeve: vm.parseJsonAddress(json, ".config.usdgSleeve"),
+            accountImplementation: vm.parseJsonAddress(json, ".config.accountImplementation"),
             integrationCodeHashes: pinnedHashes
         });
     }

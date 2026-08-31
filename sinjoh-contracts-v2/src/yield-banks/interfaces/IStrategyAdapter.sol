@@ -6,6 +6,7 @@ interface IStrategyAdapter {
     function accountingAsset() external view returns (address);
     function positionAssets() external view returns (address[] memory);
     function totalManagedAssets() external view returns (uint256);
+    function totalPositionUnits() external view returns (uint256);
     function deposit(uint256 assets, uint256 minPositionUnits, bytes calldata data)
         external
         returns (uint256 positionUnits);

@@ -226,6 +226,13 @@ contract DeltaV3LPAdapter is IStrategyAdapter, IERC721Receiver, ReentrancyGuard 
         return Math.mulDiv(valueUsd18, 10 ** wethDecimals, wethPrice);
     }
 
+    function totalPositionUnits() external view returns (uint256 units) {
+        for (uint256 i; i < _positionIds.length; ++i) {
+            (,,, uint128 liquidity) = _positionIdentity(_positionIds[i]);
+            units += liquidity;
+        }
+    }
+
     function deposit(uint256 assets, uint256 minPositionUnits, bytes calldata data)
         external
         onlySleeve

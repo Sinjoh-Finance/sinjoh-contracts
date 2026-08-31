@@ -18,25 +18,28 @@ Verified chain constants that must appear by their complete address:
 Still required from the operator and review process:
 
 1. creator, Sinjoh, operations, allocation-operator, guardian, proposer, and timelock recipients;
-2. the collection's selected Stock Token contracts and their eligibility classification;
+2. the collection's reviewed tokenized-equity contracts, eligibility classification, explicit custody/income model, and HTTPS disclosure;
 3. every Chainlink/reference feed and heartbeat;
 4. every approved pool, allocation route, reverse rebalance route, price feed, and runtime code hash;
 5. for Delta activation, the exact `$INJOH` token, `$INJOH`/WETH pool, WETH-to-`$INJOH` entry
    route, `$INJOH`-to-WETH exit route, per-adapter position limit and allocation cap;
 6. runtime hashes, source commit, dependency lock hash, deployment transaction hashes, and audit hashes;
-7. immutable collection-specific `maxSupply`, per-sleeve strategy count/cap/operator-loss limits,
-   and the disclosed reserve sunset; and
+7. immutable collection-specific `maxSupply`, `secondaryRoyaltyBps`, per-sleeve strategy
+   count/cap/operator-loss limits, and the disclosed reserve sunset; and
 8. timelock authorization of the operations reserve for `YIELD_BANK_OPERATIONS_RESERVE_SWEEP`
    and each Project V2 revenue bridge for `YIELD_BANK_PROJECT_REVENUE`.
 
 `YieldBankSystemFactoryDeployer` uses governance-only CREATE3 so the system-factory address is
 fixed by the reviewed `factorySalt`, independent of factory init code. The system factory then uses
-CREATE3 for the seven collection components so constructor wiring can be
+CREATE3 for the eight collection components, including the separately deployed and codehash-pinned
+account implementation, so constructor wiring can be
 planned without an init-code address cycle. The pinned deployment plan must order dependencies so
 sleeves deploy before the portfolio allocator, and the portfolio allocator deploys before the
 revenue router. The collection follows through CREATE2 after every component runtime hash passes.
-The reserve sweep must call `sweepExpiredPrimary` with current reviewed allocation calldata; direct
-ERC-20 transfers to the revenue router are reserved for EIP-2981 royalty synchronization.
+The reserve sweep must call `sweepExpiredPrimary` with current reviewed allocation calldata. Direct
+native or ERC-20 transfers to the revenue router are reserved for royalty synchronization. Only the
+allocation operator may synchronize them, supplying fresh guarded route calldata for the current
+amount; timelock-bound route addresses and runtime hashes cannot be caller-selected.
 
 The deployment input must validate against `yield-banks-deployment-plan.schema.json`. It must
 contain the full encoded component init code and collection configuration—never environment-derived
@@ -87,17 +90,23 @@ SDK's `encodeYieldBankDeltaDepositData`, `encodeYieldBankDeltaWithdrawalData`,
 operator calldata.
 
 Owner-selected allocation execution is manual as well. Before activation, the collection timelock
-must bind WETH entry routes for the Core Stock Token and USDG sleeves and a reverse-to-WETH route
-for USDG, every reviewed Stock Token, and `$INJOH`. The release manifest's `routeBindings` section
+must bind WETH entry routes for the tokenized-equity and USDG sleeves and a reverse-to-WETH route
+for USDG, every reviewed equity asset, and `$INJOH`. The release manifest's `routeBindings` section
 records each exact address and runtime hash, and the verifier checks the live allocator mappings.
 For each execution the operator must use the SDK's `prepareYieldBankTargetExecution` helper with
-current per-asset minima, adapter unwind calldata, maximum loss values, expected target revision,
-and deadline. Holders use `prepareYieldBankTargetAllocation`; that call changes only the requested
-target and never moves backing by itself.
+current per-asset minima, adapter unwind calldata, maximum adapter-withdrawal-loss values, expected
+target revision, and deadline. Holders use `prepareYieldBankTargetAllocation`; that call changes
+only the requested target and never moves backing by itself. Each revision is executable once, and
+any later rebalance requires another owner request.
 
 After source verification and OpenSea configuration, complete every provenance and transaction
 field in a manifest conforming to `yield-banks-manifest.schema.json`, then verify all runtime code,
-factory/configuration commitments, supply, SeaDrop, proceeds-vault, and operator bindings:
+factory/configuration commitments, account implementation, supply, royalty percentage, SeaDrop,
+proceeds-vault, and operator bindings:
+
+The manifest must record the OpenSea-observed secondary royalty percentage and recipient. They must
+match the collection's immutable `secondaryRoyaltyBps` and revenue router exactly; a configuration
+drift blocks release even though ERC-2981 itself cannot force a marketplace to pay.
 
 ```sh
 node script/verify-yield-banks-manifest.mjs \

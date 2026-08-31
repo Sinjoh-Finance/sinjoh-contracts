@@ -79,6 +79,7 @@ contract YieldBankCollectionTest is Test {
     MockYieldBankSeaDrop private seaDrop;
     MockYieldBankPrimaryAllocator private allocator;
     YieldBankCollection private collection;
+    YieldBankAccount private accountImplementation;
 
     function setUp() public {
         weth = new MockYieldBankWETH();
@@ -96,6 +97,7 @@ contract YieldBankCollectionTest is Test {
         allocator = new MockYieldBankPrimaryAllocator(
             sleeves, CORE_WEIGHT_BPS, MARKET_MAKING_WEIGHT_BPS, USDG_WEIGHT_BPS
         );
+        accountImplementation = new YieldBankAccount();
         collection = new YieldBankCollection(_config(7));
         vm.deal(ALICE, 100 ether);
     }
@@ -145,11 +147,17 @@ contract YieldBankCollectionTest is Test {
         _mint(ALICE, 2, 1 ether);
         CollectionPortfolioAllocator.AllocationCall[3] memory calls;
         YieldBankProceedsVault vault = collection.proceedsVault();
+        uint256 creatorBefore = CREATOR.balance;
+        uint256 sinjohBefore = SINJOH.balance;
+        uint256 operationsBefore = OPERATIONS.balance;
         vm.prank(OPERATOR);
         vault.allocateReceipts(1, 1, calls);
-        assertEq(weth.balanceOf(CREATOR), 0.12 ether);
-        assertEq(weth.balanceOf(SINJOH), 0.08 ether);
-        assertEq(weth.balanceOf(OPERATIONS), 0.05 ether);
+        assertEq(CREATOR.balance - creatorBefore, 0.12 ether);
+        assertEq(SINJOH.balance - sinjohBefore, 0.08 ether);
+        assertEq(OPERATIONS.balance - operationsBefore, 0.05 ether);
+        assertEq(weth.balanceOf(CREATOR), 0);
+        assertEq(weth.balanceOf(SINJOH), 0);
+        assertEq(weth.balanceOf(OPERATIONS), 0);
         assertEq(collection.proceedsVault().totalAllocatedBacking(), 0.75 ether);
         collection.claimPrimary(1);
         collection.claimPrimary(2);
@@ -235,6 +243,25 @@ contract YieldBankCollectionTest is Test {
         vm.prank(BOB);
         collection.burnToken(1, "");
         assertGt(core.balanceOf(BOB), 0);
+        assertEq(collection.tokenState(1), uint8(YieldBankTokenState.BURNED));
+    }
+
+    function testRedemptionUsesOneProofForEligibilityAndRestrictedShareReceipt() public {
+        _mint(ALICE, 2, 1 ether);
+        CollectionPortfolioAllocator.AllocationCall[3] memory calls;
+        YieldBankProceedsVault vault = collection.proceedsVault();
+        vm.prank(OPERATOR);
+        vault.allocateReceipts(1, 1, calls);
+        bytes memory validProof = abi.encodePacked("eligible-holder");
+        policy.setRequiredProofs(validProof, validProof);
+
+        vm.expectRevert(abi.encodeWithSelector(YieldBankCollection.Ineligible.selector, ALICE));
+        vm.prank(ALICE);
+        collection.burnToken(1, "wrong-proof");
+
+        vm.prank(ALICE);
+        collection.burnToken(1, validProof);
+        assertGt(core.balanceOf(ALICE), 0);
         assertEq(collection.tokenState(1), uint8(YieldBankTokenState.BURNED));
     }
 
@@ -402,6 +429,7 @@ contract YieldBankCollectionTest is Test {
         c = YieldBankConfig({
             collectionId: keccak256("SINJOH_YIELD_BANKS_TEST"),
             maxSupply: supply,
+            secondaryRoyaltyBps: 500,
             primaryBackingBps: PRIMARY_BACKING_BPS,
             primaryCreatorBps: PRIMARY_CREATOR_BPS,
             primarySinjohBps: PRIMARY_SINJOH_BPS,
@@ -424,6 +452,7 @@ contract YieldBankCollectionTest is Test {
             coreSleeve: address(core),
             marketMakingSleeve: address(market),
             usdgSleeve: address(yieldSleeve),
+            accountImplementation: address(accountImplementation),
             integrationCodeHashes: [
                 address(revenueRouter).codehash,
                 address(policy).codehash,

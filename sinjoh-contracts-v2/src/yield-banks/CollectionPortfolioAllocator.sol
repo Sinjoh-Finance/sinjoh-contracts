@@ -56,9 +56,11 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
         uint16 coreWeightBps;
         uint16 marketMakingWeightBps;
         uint16 usdgWeightBps;
+        uint16 maximumAdapterLossBps;
         uint64 revision;
         uint64 executedRevision;
         uint48 requestedAt;
+        uint48 validUntil;
         uint48 executedAt;
     }
 
@@ -109,6 +111,9 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
     error OnlyTokenOwner(uint256 tokenId, address caller);
     error TargetOwnerChanged(uint256 tokenId, address requester, address currentOwner);
     error InvalidTargetRevision(uint256 tokenId, uint64 expected, uint64 actual);
+    error TargetAlreadyExecuted(uint256 tokenId, uint64 revision);
+    error InvalidTargetExpiry(uint256 validUntil);
+    error OwnerAdapterLossLimitExceeded(uint16 maximum, uint16 supplied);
     error RebalanceExpired(uint256 deadline);
     error PrimaryAllocationPending(uint256 tokenId);
     error MissingConversionRoute(address asset);
@@ -137,7 +142,9 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
         uint64 indexed revision,
         uint16 coreWeightBps,
         uint16 marketMakingWeightBps,
-        uint16 usdgWeightBps
+        uint16 usdgWeightBps,
+        uint16 maximumAdapterLossBps,
+        uint48 validUntil
     );
     event AllocationRebalanced(
         uint256 indexed tokenId,
@@ -261,10 +268,12 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
         }
     }
 
-    function setTargetAllocation(uint256 tokenId, uint16[3] calldata weights)
-        external
-        returns (uint64 revision)
-    {
+    function setTargetAllocation(
+        uint256 tokenId,
+        uint16[3] calldata weights,
+        uint16 maximumAdapterLossBps,
+        uint48 validUntil
+    ) external returns (uint64 revision) {
         YieldBankCollectionState current = collection.state();
         if (
             current != YieldBankCollectionState.ACTIVE
@@ -273,15 +282,30 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
         address owner = IYieldBankOwnerNFT(collection.nft()).ownerOf(tokenId);
         if (owner != msg.sender) revert OnlyTokenOwner(tokenId, msg.sender);
         _validateWeights(weights);
+        if (maximumAdapterLossBps > BPS) {
+            revert OwnerAdapterLossLimitExceeded(BPS, maximumAdapterLossBps);
+        }
+        if (validUntil <= block.timestamp) revert InvalidTargetExpiry(validUntil);
         AllocationTarget storage target = _allocationTargets[tokenId];
         revision = target.revision + 1;
         target.coreWeightBps = weights[0];
         target.marketMakingWeightBps = weights[1];
         target.usdgWeightBps = weights[2];
+        target.maximumAdapterLossBps = maximumAdapterLossBps;
         target.revision = revision;
         target.requester = owner;
         target.requestedAt = block.timestamp.toUint48();
-        emit AllocationTargetUpdated(tokenId, owner, revision, weights[0], weights[1], weights[2]);
+        target.validUntil = validUntil;
+        emit AllocationTargetUpdated(
+            tokenId,
+            owner,
+            revision,
+            weights[0],
+            weights[1],
+            weights[2],
+            maximumAdapterLossBps,
+            validUntil
+        );
     }
 
     function executeTargetAllocation(
@@ -302,6 +326,12 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
         if (target.revision == 0 || target.revision != expectedRevision) {
             revert InvalidTargetRevision(tokenId, expectedRevision, target.revision);
         }
+        if (target.executedRevision >= expectedRevision) {
+            revert TargetAlreadyExecuted(tokenId, expectedRevision);
+        }
+        if (block.timestamp > target.validUntil || execution.deadline > target.validUntil) {
+            revert RebalanceExpired(target.validUntil);
+        }
         address currentOwner = IYieldBankOwnerNFT(collection.nft()).ownerOf(tokenId);
         if (target.requester != currentOwner) {
             revert TargetOwnerChanged(tokenId, target.requester, currentOwner);
@@ -317,12 +347,27 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
 
         uint16[3] memory weights =
             [target.coreWeightBps, target.marketMakingWeightBps, target.usdgWeightBps];
+        _validateOwnerLossLimits(execution, target.maximumAdapterLossBps);
         (wethRecovered, shares) = _rebalanceAccount(account, weights, execution);
         target.executedRevision = expectedRevision;
         target.executedAt = block.timestamp.toUint48();
         emit AllocationRebalanced(
             tokenId, account, expectedRevision, wethRecovered, shares[0], shares[1], shares[2]
         );
+    }
+
+    function _validateOwnerLossLimits(
+        RebalanceExecution calldata execution,
+        uint16 maximumAdapterLossBps
+    ) private pure {
+        for (uint256 i; i < 3; ++i) {
+            YieldBankAdapterRedemptionCall[] calldata calls = execution.redemptions[i].adapterCalls;
+            for (uint256 j; j < calls.length; ++j) {
+                if (calls[j].maxLossBps > maximumAdapterLossBps) {
+                    revert OwnerAdapterLossLimitExceeded(maximumAdapterLossBps, calls[j].maxLossBps);
+                }
+            }
+        }
     }
 
     function allocate(address asset, uint256 amount, bytes calldata data)

@@ -36,7 +36,8 @@ forge test
 
 Yield Banks uses collection-configured supply and economics, OpenSea/SeaDrop primary minting,
 idle proceeds custody, and a separate manual allocation transaction. The initial portfolio model
-directly holds the collection's selected Robinhood Stock Tokens and USDG. Market-making exposure is
+directly holds the collection's reviewed tokenized-equity assets and USDG. Each release manifest
+must state the equity custody and income model and link its disclosure. Market-making exposure is
 entered only through a registry-reviewed, runtime-codehash-bound synchronous adapter invoked by the
 collection's allocation operator. Adapter count, per-adapter cap, and operator loss limits are
 constructor configuration—not protocol constants. No mint, sellout threshold, deadline, or

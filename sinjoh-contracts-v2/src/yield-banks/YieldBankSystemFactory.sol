@@ -32,7 +32,8 @@ contract YieldBankSystemFactory is ReentrancyGuard {
     bytes32 public constant KIND_CORE_SLEEVE = keccak256("CORE_SLEEVE");
     bytes32 public constant KIND_MARKET_MAKING_SLEEVE = keccak256("MARKET_MAKING_SLEEVE");
     bytes32 public constant KIND_USDG_SLEEVE = keccak256("USDG_SLEEVE");
-    uint256 public constant COMPONENT_COUNT = 7;
+    bytes32 public constant KIND_ACCOUNT_IMPLEMENTATION = keccak256("ACCOUNT_IMPLEMENTATION");
+    uint256 public constant COMPONENT_COUNT = 8;
 
     YieldBankProtocolRegistry public immutable registry;
     bytes32 public immutable factoryVersion;
@@ -79,6 +80,7 @@ contract YieldBankSystemFactory is ReentrancyGuard {
     );
     event CollectionEconomicsRegistered(
         address indexed collection,
+        uint96 secondaryRoyaltyBps,
         uint16 primaryBackingBps,
         uint16 primaryCreatorBps,
         uint16 primarySinjohBps,
@@ -122,7 +124,7 @@ contract YieldBankSystemFactory is ReentrancyGuard {
         if (actualPlanHash != systemPlanHash) {
             revert SystemPlanHashMismatch(systemPlanHash, actualPlanHash);
         }
-        address[7] memory deployed;
+        address[8] memory deployed;
         uint256 seen;
         for (uint256 i; i < COMPONENT_COUNT; ++i) {
             ComponentDeployment calldata component = components[i];
@@ -132,7 +134,7 @@ contract YieldBankSystemFactory is ReentrancyGuard {
             bytes memory initCode = component.initCode;
             address instance = Create3V2.deploy(component.salt, initCode);
             bytes32 runtimeCodeHash = instance.codehash;
-            if (runtimeCodeHash != component.expectedRuntimeCodeHash) {
+            if (instance.code.length == 0 || runtimeCodeHash != component.expectedRuntimeCodeHash) {
                 revert RuntimeCodeHashMismatch(
                     component.kind, component.expectedRuntimeCodeHash, runtimeCodeHash
                 );
@@ -184,6 +186,7 @@ contract YieldBankSystemFactory is ReentrancyGuard {
         );
         emit CollectionEconomicsRegistered(
             collection,
+            config.secondaryRoyaltyBps,
             config.primaryBackingBps,
             config.primaryCreatorBps,
             config.primarySinjohBps,
@@ -232,7 +235,7 @@ contract YieldBankSystemFactory is ReentrancyGuard {
             _predict(salt, keccak256(abi.encodePacked(collectionCreationCode, abi.encode(config))));
     }
 
-    function _validateDeployedConfig(YieldBankConfig calldata config, address[7] memory deployed)
+    function _validateDeployedConfig(YieldBankConfig calldata config, address[8] memory deployed)
         private
         pure
     {
@@ -241,6 +244,7 @@ contract YieldBankSystemFactory is ReentrancyGuard {
                 || config.portfolioAllocator != deployed[2]
                 || config.collectionTimelock != deployed[3] || config.coreSleeve != deployed[4]
                 || config.marketMakingSleeve != deployed[5] || config.usdgSleeve != deployed[6]
+                || config.accountImplementation != deployed[7]
         ) revert InvalidConfiguration();
     }
 
@@ -252,6 +256,7 @@ contract YieldBankSystemFactory is ReentrancyGuard {
         if (kind == KIND_CORE_SLEEVE) return 4;
         if (kind == KIND_MARKET_MAKING_SLEEVE) return 5;
         if (kind == KIND_USDG_SLEEVE) return 6;
+        if (kind == KIND_ACCOUNT_IMPLEMENTATION) return 7;
         revert InvalidConfiguration();
     }
 

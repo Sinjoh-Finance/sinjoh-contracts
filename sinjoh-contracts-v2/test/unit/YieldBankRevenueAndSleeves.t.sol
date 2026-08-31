@@ -10,6 +10,8 @@ import {
     YieldBankProjectRevenueBridge
 } from "../../src/yield-banks/YieldBankProjectRevenueBridge.sol";
 import { CoreStockTokenSleeve } from "../../src/yield-banks/sleeves/CoreStockTokenSleeve.sol";
+import { BaseSleeve } from "../../src/yield-banks/sleeves/BaseSleeve.sol";
+import { YieldBankRedemptionMode } from "../../src/yield-banks/YieldBankTypes.sol";
 import { YieldBankIds } from "../../src/yield-banks/libraries/YieldBankIds.sol";
 import {
     MockYieldBankAggregator,
@@ -19,8 +21,21 @@ import {
     MockYieldBankCollectionReceiver,
     MockYieldBankEligibilityPolicy,
     MockYieldBankFundableReceiver,
+    MockYieldBankWETH,
     MockYieldBankTimelock
 } from "../mocks/MockYieldBankIntegrations.sol";
+
+contract ToggleNativeReceiver {
+    bool public acceptsNative;
+
+    receive() external payable {
+        if (!acceptsNative) revert();
+    }
+
+    function setAcceptsNative(bool value) external {
+        acceptsNative = value;
+    }
+}
 
 contract YieldBankRevenueAndSleevesTest is Test {
     address private constant SOURCE = address(0x501);
@@ -123,6 +138,11 @@ contract YieldBankRevenueAndSleevesTest is Test {
         vm.prank(SOURCE);
         assertTrue(input.transfer(address(router), 1_000e18));
 
+        vm.prank(SOURCE);
+        vm.expectRevert(
+            abi.encodeWithSelector(CollectionRevenueRouter.OnlyAllocationOperator.selector, SOURCE)
+        );
+        router.syncRoyalty(address(input), "route");
         assertEq(router.syncRoyalty(address(input), "route"), 1_000e18);
         assertEq(input.balanceOf(CREATOR), 200e18);
         assertEq(input.balanceOf(SINJOH), 100e18);
@@ -132,6 +152,100 @@ contract YieldBankRevenueAndSleevesTest is Test {
         }
         vm.expectRevert(CollectionRevenueRouter.NothingToRetry.selector);
         router.syncRoyalty(address(input), "route");
+    }
+
+    function testNativeRoyaltyIsAcceptedAndOnlyBackingIsWrapped() external {
+        MockYieldBankWETH weth = new MockYieldBankWETH();
+        address[3] memory outputAddresses;
+        for (uint256 i; i < 3; ++i) {
+            outputAddresses[i] = address(new MockYieldBankAsset("Sleeve", "SLV"));
+        }
+        MockYieldBankAllocationReceiver allocator =
+            new MockYieldBankAllocationReceiver(outputAddresses);
+        MockYieldBankCollectionReceiver collection =
+            new MockYieldBankCollectionReceiver(keccak256("COLLECTION"));
+        collection.setWeth(address(weth));
+        CollectionRevenueRouter router = new CollectionRevenueRouter(
+            address(collection),
+            address(allocator),
+            address(this),
+            CREATOR,
+            SINJOH,
+            OPERATIONS,
+            PROJECT_NFT_BPS,
+            PROJECT_CREATOR_BPS,
+            PROJECT_SINJOH_BPS,
+            PROJECT_OPERATIONS_BPS,
+            ROYALTY_NFT_BPS,
+            ROYALTY_CREATOR_BPS,
+            ROYALTY_SINJOH_BPS,
+            ROYALTY_OPERATIONS_BPS
+        );
+        vm.deal(SOURCE, 1 ether);
+        vm.prank(SOURCE);
+        (bool paid,) = payable(address(router)).call{ value: 1 ether }("");
+        assertTrue(paid);
+
+        uint256 creatorBefore = CREATOR.balance;
+        uint256 sinjohBefore = SINJOH.balance;
+        uint256 operationsBefore = OPERATIONS.balance;
+        assertEq(router.syncNativeRoyalty("route"), 1 ether);
+        assertEq(CREATOR.balance - creatorBefore, 0.2 ether);
+        assertEq(SINJOH.balance - sinjohBefore, 0.1 ether);
+        assertEq(OPERATIONS.balance - operationsBefore, 0.1 ether);
+        assertEq(address(router).balance, 0);
+        assertEq(weth.balanceOf(address(router)), 0);
+        for (uint256 i; i < 3; ++i) {
+            assertEq(collection.received(outputAddresses[i]), uint256(0.6 ether) / 3);
+        }
+    }
+
+    function testNativeRoyaltyFailedLegRemainsExactAndRetryable() external {
+        MockYieldBankWETH weth = new MockYieldBankWETH();
+        address[3] memory outputAddresses;
+        for (uint256 i; i < 3; ++i) {
+            outputAddresses[i] = address(new MockYieldBankAsset("Sleeve", "SLV"));
+        }
+        MockYieldBankAllocationReceiver allocator =
+            new MockYieldBankAllocationReceiver(outputAddresses);
+        MockYieldBankCollectionReceiver collection =
+            new MockYieldBankCollectionReceiver(keccak256("COLLECTION"));
+        collection.setWeth(address(weth));
+        ToggleNativeReceiver creator = new ToggleNativeReceiver();
+        CollectionRevenueRouter router = new CollectionRevenueRouter(
+            address(collection),
+            address(allocator),
+            address(this),
+            address(creator),
+            SINJOH,
+            OPERATIONS,
+            PROJECT_NFT_BPS,
+            PROJECT_CREATOR_BPS,
+            PROJECT_SINJOH_BPS,
+            PROJECT_OPERATIONS_BPS,
+            ROYALTY_NFT_BPS,
+            ROYALTY_CREATOR_BPS,
+            ROYALTY_SINJOH_BPS,
+            ROYALTY_OPERATIONS_BPS
+        );
+        vm.deal(SOURCE, 2 ether);
+        vm.prank(SOURCE);
+        (bool firstPaid,) = payable(address(router)).call{ value: 1 ether }("");
+        assertTrue(firstPaid);
+        assertEq(router.syncNativeRoyalty("route"), 1 ether);
+        assertEq(router.failedTransfer(address(0), address(creator)), 0.2 ether);
+        assertEq(router.accountedEscrow(address(0)), 0.2 ether);
+
+        vm.prank(SOURCE);
+        (bool secondPaid,) = payable(address(router)).call{ value: 1 ether }("");
+        assertTrue(secondPaid);
+        assertEq(router.syncNativeRoyalty("route"), 1 ether);
+        assertEq(router.failedTransfer(address(0), address(creator)), 0.4 ether);
+        creator.setAcceptsNative(true);
+        router.retryTransfer(address(0), address(creator));
+        assertEq(address(creator).balance, 0.4 ether);
+        assertEq(router.accountedEscrow(address(0)), 0);
+        assertEq(address(router).balance, 0);
     }
 
     function testOperationsReserveSourceAllocatesOneHundredPercentToNfts() external {
@@ -182,7 +296,7 @@ contract YieldBankRevenueAndSleevesTest is Test {
     }
 
     function testOperationsPrimaryReserveIsProtectedUntilPermissionlessSunset() external {
-        MockYieldBankAsset asset = new MockYieldBankAsset("WETH", "WETH");
+        MockYieldBankWETH asset = new MockYieldBankWETH();
         // Reserve lifecycle test uses a fixed future product sunset.
         // forge-lint: disable-next-line(block-timestamp)
         uint48 sunset = uint48(block.timestamp + 30 days);
@@ -195,15 +309,18 @@ contract YieldBankRevenueAndSleevesTest is Test {
             address(this),
             sunset
         );
-        asset.mint(address(reserve), 150e18);
-        reserve.notifyPrimary(100e18);
+        vm.deal(address(this), 250 ether);
+        asset.deposit{ value: 150 ether }();
+        asset.transfer(address(reserve), 150 ether);
+        payable(address(reserve)).transfer(100 ether);
+        reserve.notifyPrimary(100 ether);
         reserve.spend(OPERATIONS, 50e18, keccak256("audit"));
         assertEq(asset.balanceOf(OPERATIONS), 50e18);
-        vm.expectRevert();
-        reserve.spend(OPERATIONS, 1, keccak256("keeper"));
+        reserve.spendPrimary(payable(OPERATIONS), 1 ether, keccak256("keeper"));
+        assertEq(reserve.primaryReserve(), 99 ether);
         vm.warp(sunset);
         reserve.sweepExpiredPrimary("reviewed route");
-        assertEq(receiver.received(), 100e18);
+        assertEq(receiver.received(), 99 ether);
         assertEq(asset.allowance(address(reserve), address(receiver)), 0);
     }
 
@@ -320,5 +437,24 @@ contract YieldBankRevenueAndSleevesTest is Test {
             assertEq(weth.allowance(address(sleeve), address(routes[i])), 0);
             assertEq(stocks[i].balanceOf(address(sleeve)), uint256(weights[i]) * 1e18);
         }
+        bytes memory proof = abi.encodePacked("restricted-holder");
+        policy.setRequiredProofs(proof, proof);
+        address recipient = address(0xB0B);
+        vm.expectRevert(abi.encodeWithSelector(BaseSleeve.Ineligible.selector, recipient));
+        sleeve.transfer(recipient, 1);
+        uint256 restrictedShares = shares / 2;
+        assertTrue(sleeve.transferWithProof(recipient, restrictedShares, proof));
+        assertEq(sleeve.balanceOf(recipient), restrictedShares);
+
+        vm.startPrank(recipient);
+        vm.expectRevert(abi.encodeWithSelector(BaseSleeve.Ineligible.selector, recipient));
+        sleeve.redeem(
+            restrictedShares, recipient, recipient, YieldBankRedemptionMode.IN_KIND, 0, ""
+        );
+        sleeve.redeem(
+            restrictedShares, recipient, recipient, YieldBankRedemptionMode.IN_KIND, 0, proof
+        );
+        vm.stopPrank();
+        assertEq(sleeve.balanceOf(recipient), 0);
     }
 }

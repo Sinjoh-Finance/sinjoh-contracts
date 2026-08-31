@@ -16,8 +16,8 @@
     "expectedCollection": { "$ref": "#/$defs/address" },
     "components": {
       "type": "array",
-      "minItems": 7,
-      "maxItems": 7,
+      "minItems": 8,
+      "maxItems": 8,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -34,10 +34,11 @@
     "config": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["collectionId", "maxSupply", "primaryBackingBps", "primaryCreatorBps", "primarySinjohBps", "primaryOperationsBps", "coreWeightBps", "marketMakingWeightBps", "usdgWeightBps", "creator", "sinjohFeeRecipient", "operationsReserve", "revenueRouter", "eligibilityPolicy", "portfolioAllocator", "allocationOperator", "collectionTimelock", "guardian", "renderer", "weth", "seaDrop", "coreSleeve", "marketMakingSleeve", "usdgSleeve", "integrationCodeHashes"],
+      "required": ["collectionId", "maxSupply", "secondaryRoyaltyBps", "primaryBackingBps", "primaryCreatorBps", "primarySinjohBps", "primaryOperationsBps", "coreWeightBps", "marketMakingWeightBps", "usdgWeightBps", "creator", "sinjohFeeRecipient", "operationsReserve", "revenueRouter", "eligibilityPolicy", "portfolioAllocator", "allocationOperator", "collectionTimelock", "guardian", "renderer", "weth", "seaDrop", "coreSleeve", "marketMakingSleeve", "usdgSleeve", "accountImplementation", "integrationCodeHashes"],
       "properties": {
         "collectionId": { "$ref": "#/$defs/nonzeroBytes32" },
         "maxSupply": { "type": "integer", "minimum": 1, "maximum": 18446744073709551615 },
+        "secondaryRoyaltyBps": { "$ref": "#/$defs/bps" },
         "primaryBackingBps": { "$ref": "#/$defs/positiveBps" },
         "primaryCreatorBps": { "$ref": "#/$defs/bps" },
         "primarySinjohBps": { "$ref": "#/$defs/bps" },
@@ -60,6 +61,7 @@
         "coreSleeve": { "$ref": "#/$defs/address" },
         "marketMakingSleeve": { "$ref": "#/$defs/address" },
         "usdgSleeve": { "$ref": "#/$defs/address" },
+        "accountImplementation": { "$ref": "#/$defs/address" },
         "integrationCodeHashes": {
           "type": "array",
           "minItems": 10,

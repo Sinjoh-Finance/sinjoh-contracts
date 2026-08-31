@@ -10,6 +10,14 @@ import { IYieldBankFundable } from "./interfaces/IYieldBankFundable.sol";
 import { IYieldBankAllocationReceiver } from "./interfaces/IYieldBankAllocationReceiver.sol";
 import { YieldBankIds } from "./libraries/YieldBankIds.sol";
 
+interface IYieldBankRoyaltyWETH is IERC20 {
+    function deposit() external payable;
+}
+
+interface IYieldBankRoyaltyOperator {
+    function allocationOperator() external view returns (address);
+}
+
 /// @notice Authenticated revenue ingress with immutable per-collection project-revenue weights.
 contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -44,6 +52,7 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
     error NothingToRetry();
     error OnlyProposedRecipient(address caller);
     error OnlySelf(address caller);
+    error OnlyAllocationOperator(address caller);
 
     event SourceAuthorizationSet(address indexed source, bytes32 indexed sourceType, bool allowed);
     event RevenueFunded(
@@ -62,6 +71,7 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
         uint256 amount
     );
     event RoyaltySynced(address indexed caller, address indexed asset, uint256 amount);
+    event NativeRoyaltyReceived(address indexed sender, uint256 amount);
     event FailedLegRetried(address indexed asset, address indexed recipient, uint256 amount);
     event RecipientProposed(address indexed currentRecipient, address indexed proposedRecipient);
     event RecipientAccepted(address indexed previousRecipient, address indexed newRecipient);
@@ -112,6 +122,17 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
         _;
     }
 
+    modifier onlyAllocationOperator() {
+        if (msg.sender != IYieldBankRoyaltyOperator(address(allocator)).allocationOperator()) {
+            revert OnlyAllocationOperator(msg.sender);
+        }
+        _;
+    }
+
+    receive() external payable {
+        emit NativeRoyaltyReceived(msg.sender, msg.value);
+    }
+
     function setSourceAuthorization(address source, bytes32 sourceType, bool allowed)
         external
         onlyTimelock
@@ -150,6 +171,7 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
 
     function syncRoyalty(address asset, bytes calldata sourceData)
         external
+        onlyAllocationOperator
         nonReentrant
         returns (uint256 amount)
     {
@@ -163,24 +185,40 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
         emit RoyaltySynced(msg.sender, asset, amount);
     }
 
+    function syncNativeRoyalty(bytes calldata sourceData)
+        external
+        onlyAllocationOperator
+        nonReentrant
+        returns (uint256 amount)
+    {
+        uint256 escrow = accountedEscrow[address(0)];
+        uint256 balance = address(this).balance;
+        if (balance < escrow) revert InvalidConfiguration();
+        amount = balance - escrow;
+        if (amount == 0) revert NothingToRetry();
+
+        address weth = collection.weth();
+        (uint256 nftAmount, uint256 creatorAmount, uint256 sinjohAmount, uint256 operationsAmount) =
+            _splitAmounts(amount, YieldBankIds.ROYALTY_REVENUE);
+        _tryLeg(address(0), creatorRecipient, creatorAmount);
+        _tryLeg(address(0), sinjohRecipient, sinjohAmount);
+        _tryLeg(address(0), operationsRecipient, operationsAmount);
+        IYieldBankRoyaltyWETH(weth).deposit{ value: nftAmount }();
+        _tryNftAllocation(weth, nftAmount, sourceData);
+        emit RoyaltySynced(msg.sender, address(0), amount);
+    }
+
     function _routeReceived(
         address sourceAsset,
         uint256 received,
         bytes32 sourceType,
-        bytes calldata sourceData
+        bytes memory sourceData
     ) private returns (uint256 nftAmount) {
-        (uint16 nftBps, uint16 creatorBps, uint16 sinjohBps, uint16 operationsBps) =
-            _split(sourceType);
-        if (nftBps == 0 || uint256(nftBps) + creatorBps + sinjohBps + operationsBps != BPS) {
-            revert InvalidConfiguration();
-        }
-        nftAmount = Math.mulDiv(received, nftBps, BPS);
-        uint256 creatorCumulative = Math.mulDiv(received, uint256(nftBps) + creatorBps, BPS);
-        uint256 creatorAmount = creatorCumulative - nftAmount;
-        uint256 sinjohCumulative =
-            Math.mulDiv(received, uint256(nftBps) + creatorBps + sinjohBps, BPS);
-        uint256 sinjohAmount = sinjohCumulative - creatorCumulative;
-        uint256 operationsAmount = received - sinjohCumulative;
+        uint256 creatorAmount;
+        uint256 sinjohAmount;
+        uint256 operationsAmount;
+        (nftAmount, creatorAmount, sinjohAmount, operationsAmount) =
+            _splitAmounts(received, sourceType);
         _tryLeg(sourceAsset, creatorRecipient, creatorAmount);
         _tryLeg(sourceAsset, sinjohRecipient, sinjohAmount);
         _tryLeg(sourceAsset, operationsRecipient, operationsAmount);
@@ -292,7 +330,7 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
         }
     }
 
-    function _tryNftAllocation(address asset, uint256 amount, bytes calldata sourceData) private {
+    function _tryNftAllocation(address asset, uint256 amount, bytes memory sourceData) private {
         if (amount == 0) return;
         try this.executeNftAllocation(asset, amount, sourceData) { }
         catch {
@@ -307,6 +345,10 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
         private
         returns (bool ok)
     {
+        if (asset == address(0)) {
+            (ok,) = payable(recipient).call{ value: amount }("");
+            return ok;
+        }
         (bool success, bytes memory result) =
             asset.call(abi.encodeCall(IERC20.transfer, (recipient, amount)));
         return
@@ -316,5 +358,29 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
     function _isCurrentRecipient(address recipient) private view returns (bool) {
         return recipient == creatorRecipient || recipient == sinjohRecipient
             || recipient == operationsRecipient;
+    }
+
+    function _splitAmounts(uint256 received, bytes32 sourceType)
+        private
+        view
+        returns (
+            uint256 nftAmount,
+            uint256 creatorAmount,
+            uint256 sinjohAmount,
+            uint256 operationsAmount
+        )
+    {
+        (uint16 nftBps, uint16 creatorBps, uint16 sinjohBps, uint16 operationsBps) =
+            _split(sourceType);
+        if (nftBps == 0 || uint256(nftBps) + creatorBps + sinjohBps + operationsBps != BPS) {
+            revert InvalidConfiguration();
+        }
+        nftAmount = Math.mulDiv(received, nftBps, BPS);
+        uint256 creatorCumulative = Math.mulDiv(received, uint256(nftBps) + creatorBps, BPS);
+        creatorAmount = creatorCumulative - nftAmount;
+        uint256 sinjohCumulative =
+            Math.mulDiv(received, uint256(nftBps) + creatorBps + sinjohBps, BPS);
+        sinjohAmount = sinjohCumulative - creatorCumulative;
+        operationsAmount = received - sinjohCumulative;
     }
 }

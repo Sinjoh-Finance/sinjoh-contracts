@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import { Test } from "forge-std/Test.sol";
 import { Create3V2 } from "../../src/libraries/Create3V2.sol";
 import { YieldBankCollection } from "../../src/yield-banks/YieldBankCollection.sol";
+import { YieldBankAccount } from "../../src/yield-banks/YieldBankAccount.sol";
 import { YieldBankProtocolRegistry } from "../../src/yield-banks/YieldBankProtocolRegistry.sol";
 import { YieldBankSystemFactory } from "../../src/yield-banks/YieldBankSystemFactory.sol";
 import {
@@ -68,9 +69,9 @@ contract YieldBankSystemFactoryTest is Test {
 
         address predictedFactory =
             vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
-        bytes32[7] memory salts;
-        address[7] memory predicted;
-        for (uint256 i; i < 7; ++i) {
+        bytes32[8] memory salts;
+        address[8] memory predicted;
+        for (uint256 i; i < 8; ++i) {
             salts[i] = keccak256(abi.encode("YIELD_BANK_COMPONENT", i));
             predicted[i] = Create3V2.predict(predictedFactory, salts[i]);
         }
@@ -84,15 +85,16 @@ contract YieldBankSystemFactoryTest is Test {
         );
         bytes32 expectedRuntimeHash = keccak256(type(MockYieldBankPlannedComponent).runtimeCode);
         YieldBankSystemFactory.ComponentDeployment[] memory components =
-            new YieldBankSystemFactory.ComponentDeployment[](7);
-        bytes32[7] memory kinds = [
+            new YieldBankSystemFactory.ComponentDeployment[](8);
+        bytes32[8] memory kinds = [
             keccak256("OPERATIONS_RESERVE"),
             keccak256("REVENUE_ROUTER"),
             keccak256("PORTFOLIO_ALLOCATOR"),
             keccak256("COLLECTION_TIMELOCK"),
             keccak256("CORE_SLEEVE"),
             keccak256("MARKET_MAKING_SLEEVE"),
-            keccak256("USDG_SLEEVE")
+            keccak256("USDG_SLEEVE"),
+            keccak256("ACCOUNT_IMPLEMENTATION")
         ];
         uint16[7] memory economics = [
             uint16(7_500),
@@ -114,6 +116,12 @@ contract YieldBankSystemFactoryTest is Test {
                 expectedRuntimeCodeHash: expectedRuntimeHash
             });
         }
+        components[7] = YieldBankSystemFactory.ComponentDeployment({
+            kind: kinds[7],
+            salt: salts[7],
+            initCode: type(YieldBankAccount).creationCode,
+            expectedRuntimeCodeHash: keccak256(type(YieldBankAccount).runtimeCode)
+        });
 
         bytes32 plan = _planHash(
             components,
@@ -136,6 +144,8 @@ contract YieldBankSystemFactoryTest is Test {
             assertEq(component.collection(), predictedCollection);
             assertEq(component.dependency(), predicted[(i + 1) % 7]);
         }
+        assertEq(factory.predictComponent(salts[7]), predicted[7]);
+        assertEq(predicted[7].codehash, keccak256(type(YieldBankAccount).runtimeCode));
         (address recordedFactory,,,,, bool registered) = registry.collections(deployed);
         assertEq(recordedFactory, address(factory));
         assertTrue(registered);
@@ -145,11 +155,12 @@ contract YieldBankSystemFactoryTest is Test {
         MockYieldBankAsset weth,
         MockYieldBankEligibilityPolicy policy,
         MockYieldBankRenderer renderer,
-        address[7] memory predicted
+        address[8] memory predicted
     ) private view returns (YieldBankConfig memory config) {
         config = YieldBankConfig({
             collectionId: COLLECTION_ID,
             maxSupply: 777,
+            secondaryRoyaltyBps: 500,
             primaryBackingBps: 7_500,
             primaryCreatorBps: 1_200,
             primarySinjohBps: 800,
@@ -172,6 +183,7 @@ contract YieldBankSystemFactoryTest is Test {
             coreSleeve: predicted[4],
             marketMakingSleeve: predicted[5],
             usdgSleeve: predicted[6],
+            accountImplementation: predicted[7],
             integrationCodeHashes: [
                 keccak256(type(MockYieldBankPlannedComponent).runtimeCode),
                 address(policy).codehash,
