@@ -34,7 +34,7 @@
     "config": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["collectionId", "maxSupply", "secondaryRoyaltyBps", "primaryBackingBps", "primaryCreatorBps", "primarySinjohBps", "primaryOperationsBps", "coreWeightBps", "marketMakingWeightBps", "usdgWeightBps", "creator", "sinjohFeeRecipient", "operationsReserve", "revenueRouter", "eligibilityPolicy", "portfolioAllocator", "allocationOperator", "collectionTimelock", "guardian", "renderer", "weth", "seaDrop", "coreSleeve", "marketMakingSleeve", "usdgSleeve", "accountImplementation", "integrationCodeHashes"],
+      "required": ["collectionId", "maxSupply", "secondaryRoyaltyBps", "primaryBackingBps", "primaryCreatorBps", "primarySinjohBps", "primaryOperationsBps", "coreWeightBps", "marketMakingWeightBps", "usdgWeightBps", "creator", "openSeaManager", "sinjohFeeRecipient", "operationsReserve", "revenueRouter", "eligibilityPolicy", "portfolioAllocator", "allocationOperator", "collectionTimelock", "guardian", "renderer", "weth", "seaDrop", "coreSleeve", "marketMakingSleeve", "usdgSleeve", "accountImplementation", "integrationCodeHashes"],
       "properties": {
         "collectionId": { "$ref": "#/$defs/nonzeroBytes32" },
         "maxSupply": { "type": "integer", "minimum": 1, "maximum": 18446744073709551615 },
@@ -47,6 +47,7 @@
         "marketMakingWeightBps": { "$ref": "#/$defs/positiveBps" },
         "usdgWeightBps": { "$ref": "#/$defs/positiveBps" },
         "creator": { "$ref": "#/$defs/address" },
+        "openSeaManager": { "$ref": "#/$defs/address" },
         "sinjohFeeRecipient": { "$ref": "#/$defs/address" },
         "operationsReserve": { "$ref": "#/$defs/address" },
         "revenueRouter": { "$ref": "#/$defs/address" },

@@ -233,6 +233,7 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
             marketMakingWeightBps: MARKET_MAKING_WEIGHT_BPS,
             usdgWeightBps: USDG_WEIGHT_BPS,
             creator: CREATOR,
+            openSeaManager: CREATOR,
             sinjohFeeRecipient: SINJOH,
             operationsReserve: OPERATIONS,
             revenueRouter: address(revenueRouter),

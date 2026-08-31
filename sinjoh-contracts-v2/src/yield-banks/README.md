@@ -34,8 +34,16 @@ The burn proof is checked for both redemption and restricted-share receipt, and 
 redemption forwards its proof to the same eligibility policy instead of silently substituting an
 empty proof. Standard NFT transfers remain address-state-only so Seaport can execute them.
 
-Every configured external contract and asset is bound by address and runtime code hash. The account
+Every configured external contract and asset is bound by address and runtime code hash. Release
+verification additionally follows USDG's EIP-1967 implementation slot and each Robinhood Stock
+Token's beacon slot through the beacon's active implementation, checking every address and runtime
+hash in that chain. The account
 salt binds the chain ID, collection address, collection ID, and token ID.
+
+The NFT starts with the manifest-declared OpenSea manager so a wallet can configure and publish the
+custom SeaDrop collection in OpenSea Studio. Before activation, ownership must be transferred and
+accepted by the collection timelock; the live verifier rejects a collection that has not completed
+that handoff.
 Only the configured allocation operator can enter or collect from adapters; the operator or guardian
 can withdraw and exit. Calls cannot accept a loss above the immutable `maximumOperatorLossBps`
 recorded for that sleeve in the release manifest.

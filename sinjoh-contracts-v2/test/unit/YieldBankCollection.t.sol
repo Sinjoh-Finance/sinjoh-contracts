@@ -204,7 +204,7 @@ contract YieldBankCollectionTest is Test {
         vm.prank(ALICE);
         seaDrop.mint{ value: 0.5 ether }(nft, ALICE, 1);
         vm.expectRevert(abi.encodeWithSelector(YieldBankNFT.ImmutableMaxSupply.selector, 8));
-        vm.prank(address(timelock));
+        vm.prank(CREATOR);
         nft.setMaxSupply(8);
     }
 
@@ -350,7 +350,7 @@ contract YieldBankCollectionTest is Test {
             restrictFeeRecipients: true
         });
         vm.expectRevert(YieldBankNFT.PaidMintRequired.selector);
-        vm.prank(address(timelock));
+        vm.prank(CREATOR);
         nft.updatePublicDrop(address(seaDrop), publicDrop);
 
         string[] memory uris = new string[](0);
@@ -358,7 +358,7 @@ contract YieldBankCollectionTest is Test {
             merkleRoot: keccak256("free-leaf"), publicKeyURIs: uris, allowListURI: ""
         });
         vm.expectRevert(YieldBankNFT.PaidMintRequired.selector);
-        vm.prank(address(timelock));
+        vm.prank(CREATOR);
         nft.updateAllowList(address(seaDrop), allowList);
 
         TokenGatedDropStage memory gated = TokenGatedDropStage({
@@ -372,7 +372,7 @@ contract YieldBankCollectionTest is Test {
             restrictFeeRecipients: true
         });
         vm.expectRevert(YieldBankNFT.PaidMintRequired.selector);
-        vm.prank(address(timelock));
+        vm.prank(CREATOR);
         nft.updateTokenGatedDrop(address(seaDrop), address(core), gated);
 
         SignedMintValidationParams memory signed = SignedMintValidationParams({
@@ -385,8 +385,35 @@ contract YieldBankCollectionTest is Test {
             maxFeeBps: 10_000
         });
         vm.expectRevert(YieldBankNFT.PaidMintRequired.selector);
-        vm.prank(address(timelock));
+        vm.prank(CREATOR);
         nft.updateSignedMintValidationParams(address(seaDrop), ALICE, signed);
+    }
+
+    function testOpenSeaManagerCanConfigureThenHandOwnershipToTimelock() public {
+        YieldBankNFT nft = collection.nft();
+        assertEq(nft.owner(), CREATOR);
+        address payout = address(collection.proceedsVault());
+        PublicDrop memory stage = PublicDrop({
+            mintPrice: 0.1 ether,
+            startTime: 1,
+            endTime: type(uint48).max,
+            maxTotalMintableByWallet: 7,
+            feeBps: 1_000,
+            restrictFeeRecipients: false
+        });
+        vm.startPrank(CREATOR);
+        nft.updateCreatorPayoutAddress(address(seaDrop), payout);
+        nft.updatePublicDrop(address(seaDrop), stage);
+        vm.stopPrank();
+        assertEq(seaDrop.creatorPayoutAddress(address(nft)), payout);
+        assertEq(seaDrop.getPublicDrop(address(nft)).mintPrice, stage.mintPrice);
+        vm.prank(CREATOR);
+        nft.transferOwnership(address(timelock));
+        assertEq(nft.pendingOwner(), address(timelock));
+        vm.prank(address(timelock));
+        nft.acceptOwnership();
+        assertEq(nft.owner(), address(timelock));
+        assertEq(nft.pendingOwner(), address(0));
     }
 
     function testGuardianPauseBlocksInvestmentButNotTransferOrBurn() public {
@@ -438,6 +465,7 @@ contract YieldBankCollectionTest is Test {
             marketMakingWeightBps: MARKET_MAKING_WEIGHT_BPS,
             usdgWeightBps: USDG_WEIGHT_BPS,
             creator: CREATOR,
+            openSeaManager: CREATOR,
             sinjohFeeRecipient: SINJOH,
             operationsReserve: OPERATIONS,
             revenueRouter: address(revenueRouter),

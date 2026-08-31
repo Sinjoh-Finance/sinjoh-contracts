@@ -7,7 +7,7 @@
   "required": ["schemaVersion", "chainId", "collectionId", "factoryVersion", "compiler", "deployment", "economics", "equityModel", "policyCaps", "openSea", "contracts", "dependencies", "equityAssets", "adapters", "feeds", "pools", "delta", "routeBindings", "roles", "auditHashes"],
   "properties": {
     "schemaVersion": { "const": "1.0" },
-    "chainId": { "enum": [4663, 46630] },
+    "chainId": { "const": 4663 },
     "collectionId": { "$ref": "#/$defs/bytes32" },
     "factoryVersion": { "$ref": "#/$defs/bytes32" },
     "compiler": {
@@ -81,11 +81,33 @@
     "openSea": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["collectionSlug", "collectionUrl", "mintStagesHash", "creatorPayoutAddress", "observedPrimaryPlatformFeeBps", "observedSecondaryRoyaltyBps", "observedSecondaryRoyaltyRecipient", "observedAt"],
+      "required": ["collectionSlug", "collectionUrl", "mintStagesHash", "publicDrop", "allowListMerkleRoot", "allowedFeeRecipients", "allowedPayers", "tokenGatedDrops", "signedMintValidations", "creatorPayoutAddress", "observedPrimaryPlatformFeeBps", "observedSecondaryRoyaltyBps", "observedSecondaryRoyaltyRecipient", "observedAt"],
       "properties": {
         "collectionSlug": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
         "collectionUrl": { "type": "string", "format": "uri", "pattern": "^https://opensea\\.io/collection/[a-z0-9][a-z0-9-]*/overview$" },
         "mintStagesHash": { "$ref": "#/$defs/bytes32" },
+        "publicDrop": { "$ref": "#/$defs/publicDrop" },
+        "allowListMerkleRoot": { "const": "0x0000000000000000000000000000000000000000000000000000000000000000" },
+        "allowedFeeRecipients": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/address" }
+        },
+        "allowedPayers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/address" }
+        },
+        "tokenGatedDrops": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/tokenGatedDrop" }
+        },
+        "signedMintValidations": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/signedMintValidation" }
+        },
         "creatorPayoutAddress": { "$ref": "#/$defs/address" },
         "observedPrimaryPlatformFeeBps": { "type": "integer", "minimum": 0, "maximum": 10000 },
         "observedSecondaryRoyaltyBps": { "$ref": "#/$defs/bps" },
@@ -101,7 +123,7 @@
     "dependencies": {
       "type": "object",
       "additionalProperties": { "$ref": "#/$defs/deployment" },
-      "required": ["WETH", "USDG", "seaDrop", "seaport"]
+      "required": ["WETH", "USDG", "seaDrop", "seaport", "eligibilityPolicy"]
     },
     "equityAssets": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/deployment" } },
     "adapters": { "type": "object", "additionalProperties": { "$ref": "#/$defs/deployment" } },
@@ -146,9 +168,10 @@
     "roles": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["creator", "sinjoh", "operations", "allocationOperator", "guardian", "timelock"],
+      "required": ["creator", "openSeaManager", "sinjoh", "operations", "allocationOperator", "guardian", "timelock"],
       "properties": {
         "creator": { "$ref": "#/$defs/address" },
+        "openSeaManager": { "$ref": "#/$defs/address" },
         "sinjoh": { "$ref": "#/$defs/address" },
         "operations": { "$ref": "#/$defs/address" },
         "allocationOperator": { "$ref": "#/$defs/address" },
@@ -160,7 +183,52 @@
   },
   "$defs": {
     "bps": { "type": "integer", "minimum": 0, "maximum": 10000 },
+    "seaDropFeeBps": { "type": "integer", "minimum": 0, "maximum": 9999 },
     "positiveBps": { "type": "integer", "minimum": 1, "maximum": 10000 },
+    "publicDrop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mintPrice", "startTime", "endTime", "maxTotalMintableByWallet", "feeBps", "restrictFeeRecipients"],
+      "properties": {
+        "mintPrice": { "type": "string", "pattern": "^[0-9]+$" },
+        "startTime": { "type": "integer", "minimum": 0, "maximum": 281474976710655 },
+        "endTime": { "type": "integer", "minimum": 1, "maximum": 281474976710655 },
+        "maxTotalMintableByWallet": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "feeBps": { "$ref": "#/$defs/seaDropFeeBps" },
+        "restrictFeeRecipients": { "type": "boolean" }
+      }
+    },
+    "tokenGatedDrop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowedNftToken", "mintPrice", "maxTotalMintableByWallet", "startTime", "endTime", "dropStageIndex", "maxTokenSupplyForStage", "feeBps", "restrictFeeRecipients"],
+      "properties": {
+        "allowedNftToken": { "$ref": "#/$defs/address" },
+        "mintPrice": { "type": "string", "pattern": "^[0-9]+$" },
+        "maxTotalMintableByWallet": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "startTime": { "type": "integer", "minimum": 0, "maximum": 281474976710655 },
+        "endTime": { "type": "integer", "minimum": 1, "maximum": 281474976710655 },
+        "dropStageIndex": { "type": "integer", "minimum": 0, "maximum": 255 },
+        "maxTokenSupplyForStage": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
+        "feeBps": { "$ref": "#/$defs/seaDropFeeBps" },
+        "restrictFeeRecipients": { "type": "boolean" }
+      }
+    },
+    "signedMintValidation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["signer", "minMintPrice", "maxMaxTotalMintableByWallet", "minStartTime", "maxEndTime", "maxMaxTokenSupplyForStage", "minFeeBps", "maxFeeBps"],
+      "properties": {
+        "signer": { "$ref": "#/$defs/address" },
+        "minMintPrice": { "type": "string", "pattern": "^[0-9]+$" },
+        "maxMaxTotalMintableByWallet": { "type": "integer", "minimum": 1, "maximum": 16777215 },
+        "minStartTime": { "type": "integer", "minimum": 0, "maximum": 1099511627775 },
+        "maxEndTime": { "type": "integer", "minimum": 1, "maximum": 1099511627775 },
+        "maxMaxTokenSupplyForStage": { "type": "integer", "minimum": 1, "maximum": 1099511627775 },
+        "minFeeBps": { "$ref": "#/$defs/seaDropFeeBps" },
+        "maxFeeBps": { "$ref": "#/$defs/seaDropFeeBps" }
+      }
+    },
     "sleevePolicy": {
       "type": "object",
       "additionalProperties": false,
@@ -205,8 +273,41 @@
         "provenance": { "type": "string", "minLength": 1 },
         "deploymentTransaction": { "$ref": "#/$defs/bytes32" },
         "verificationTransaction": { "$ref": "#/$defs/bytes32" },
-        "auditHash": { "$ref": "#/$defs/bytes32" }
+        "auditHash": { "$ref": "#/$defs/bytes32" },
+        "implementationBinding": { "$ref": "#/$defs/implementationBinding" }
       }
+    },
+    "implementationBinding": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": { "kind": { "const": "immutable" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "implementation", "implementationRuntimeCodeHash"],
+          "properties": {
+            "kind": { "const": "eip1967" },
+            "implementation": { "$ref": "#/$defs/address" },
+            "implementationRuntimeCodeHash": { "$ref": "#/$defs/bytes32" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "beacon", "beaconRuntimeCodeHash", "implementation", "implementationRuntimeCodeHash"],
+          "properties": {
+            "kind": { "const": "beacon" },
+            "beacon": { "$ref": "#/$defs/address" },
+            "beaconRuntimeCodeHash": { "$ref": "#/$defs/bytes32" },
+            "implementation": { "$ref": "#/$defs/address" },
+            "implementationRuntimeCodeHash": { "$ref": "#/$defs/bytes32" }
+          }
+        }
+      ]
     }
   }
 }

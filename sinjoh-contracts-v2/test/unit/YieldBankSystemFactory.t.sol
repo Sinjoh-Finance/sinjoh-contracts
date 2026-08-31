@@ -169,6 +169,7 @@ contract YieldBankSystemFactoryTest is Test {
             marketMakingWeightBps: 3_750,
             usdgWeightBps: 2_250,
             creator: address(0xC0FFEE),
+            openSeaManager: address(0xC0FFEE),
             sinjohFeeRecipient: address(0x51A70A),
             operationsReserve: predicted[0],
             revenueRouter: predicted[1],

@@ -53,6 +53,7 @@ contract YieldBankCollection is ReentrancyGuard {
     uint16 public immutable marketMakingWeightBps;
     uint16 public immutable usdgWeightBps;
     address public immutable creator;
+    address public immutable openSeaManager;
     address public immutable sinjohFeeRecipient;
     address public immutable operationsReserve;
     address public immutable revenueRouter;
@@ -120,6 +121,7 @@ contract YieldBankCollection is ReentrancyGuard {
         marketMakingWeightBps = config.marketMakingWeightBps;
         usdgWeightBps = config.usdgWeightBps;
         creator = config.creator;
+        openSeaManager = config.openSeaManager;
         sinjohFeeRecipient = config.sinjohFeeRecipient;
         operationsReserve = config.operationsReserve;
         revenueRouter = config.revenueRouter;
@@ -135,7 +137,7 @@ contract YieldBankCollection is ReentrancyGuard {
         distributor = distributor_;
         YieldBankNFT nft_ = new YieldBankNFT(
             address(this),
-            config.collectionTimelock,
+            config.openSeaManager,
             config.revenueRouter,
             config.renderer,
             config.seaDrop,
@@ -379,16 +381,16 @@ contract YieldBankCollection is ReentrancyGuard {
         if (
             c.collectionId == bytes32(0) || c.maxSupply == 0 || c.maxSupply > type(uint64).max
                 || c.secondaryRoyaltyBps > BPS || c.creator == address(0)
-                || c.sinjohFeeRecipient == address(0) || c.operationsReserve == address(0)
-                || c.revenueRouter.code.length == 0 || c.eligibilityPolicy.code.length == 0
-                || c.portfolioAllocator.code.length == 0 || c.allocationOperator == address(0)
-                || c.collectionTimelock.code.length == 0 || c.guardian == address(0)
-                || c.renderer.code.length == 0 || c.weth.code.length == 0
-                || c.seaDrop.code.length == 0 || c.coreSleeve.code.length == 0
-                || c.marketMakingSleeve.code.length == 0 || c.usdgSleeve.code.length == 0
-                || c.accountImplementation.code.length == 0 || c.coreSleeve == c.marketMakingSleeve
-                || c.coreSleeve == c.usdgSleeve || c.marketMakingSleeve == c.usdgSleeve
-                || c.primaryBackingBps == 0
+                || c.openSeaManager == address(0) || c.sinjohFeeRecipient == address(0)
+                || c.operationsReserve == address(0) || c.revenueRouter.code.length == 0
+                || c.eligibilityPolicy.code.length == 0 || c.portfolioAllocator.code.length == 0
+                || c.allocationOperator == address(0) || c.collectionTimelock.code.length == 0
+                || c.guardian == address(0) || c.renderer.code.length == 0
+                || c.weth.code.length == 0 || c.seaDrop.code.length == 0
+                || c.coreSleeve.code.length == 0 || c.marketMakingSleeve.code.length == 0
+                || c.usdgSleeve.code.length == 0 || c.accountImplementation.code.length == 0
+                || c.coreSleeve == c.marketMakingSleeve || c.coreSleeve == c.usdgSleeve
+                || c.marketMakingSleeve == c.usdgSleeve || c.primaryBackingBps == 0
                 || uint256(c.primaryBackingBps) + c.primaryCreatorBps + c.primarySinjohBps
                         + c.primaryOperationsBps != BPS || c.coreWeightBps == 0
                 || c.marketMakingWeightBps == 0 || c.usdgWeightBps == 0

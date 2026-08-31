@@ -38,6 +38,7 @@ struct YieldBankConfig {
     uint16 marketMakingWeightBps;
     uint16 usdgWeightBps;
     address creator;
+    address openSeaManager;
     address sinjohFeeRecipient;
     address operationsReserve;
     address revenueRouter;

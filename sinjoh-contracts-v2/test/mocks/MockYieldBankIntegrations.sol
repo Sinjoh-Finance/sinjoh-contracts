@@ -22,6 +22,7 @@ import {
     IYieldBankAllocationRoute
 } from "../../src/yield-banks/interfaces/IYieldBankAllocationRoute.sol";
 import { IStrategyAdapter } from "../../src/yield-banks/interfaces/IStrategyAdapter.sol";
+import { PublicDrop } from "../../src/yield-banks/interfaces/SeaDropStructs.sol";
 import { YieldBankCollectionState } from "../../src/yield-banks/YieldBankTypes.sol";
 
 contract MockYieldBankAsset is ERC20 {
@@ -59,6 +60,21 @@ contract MockYieldBankWETH is ERC20 {
 }
 
 contract MockYieldBankSeaDrop {
+    mapping(address nft => address payout) public creatorPayoutAddress;
+    mapping(address nft => PublicDrop stage) private _publicDrops;
+
+    function updateCreatorPayoutAddress(address value) external {
+        creatorPayoutAddress[msg.sender] = value;
+    }
+
+    function updatePublicDrop(PublicDrop calldata value) external {
+        _publicDrops[msg.sender] = value;
+    }
+
+    function getPublicDrop(address nft) external view returns (PublicDrop memory) {
+        return _publicDrops[nft];
+    }
+
     function mint(YieldBankNFT nft, address minter, uint256 quantity) external payable {
         nft.mintSeaDrop(minter, quantity);
         (bool ok,) = payable(nft.proceedsVault()).call{ value: msg.value }("");

@@ -29,7 +29,7 @@ contract YieldBankOnchainRenderer is IYieldBankRenderer {
             '<text x="90" y="150" fill="#70e1b2" font-family="monospace" font-size="42">SINJOH</text>',
             '<text x="90" y="245" fill="white" font-family="sans-serif" font-size="76" font-weight="700">YIELD BANK #',
             id,
-            '</text><text x="90" y="340" fill="#b7c8c2" font-family="sans-serif" font-size="34">Collection-configured Core / Market Making / USDG sleeves</text>',
+            '</text><text x="90" y="340" fill="#b7c8c2" font-family="sans-serif" font-size="34">Collection-configured Stock Token / Market Making / USDG sleeves</text>',
             '<text x="90" y="840" fill="#70e1b2" font-family="monospace" font-size="30">STATE  ',
             stateName,
             '</text><text x="90" y="920" fill="#b7c8c2" font-family="monospace" font-size="23">ACCOUNT</text>',
@@ -44,7 +44,7 @@ contract YieldBankOnchainRenderer is IYieldBankRenderer {
         bytes memory json = abi.encodePacked(
             '{"name":"Sinjoh Yield Bank #',
             id,
-            '","description":"A bearer claim on a deterministic treasury holding shares in permanent Tokenized Equity, Market-Making, and USDG sleeves.","image":"',
+            '","description":"A bearer claim on a deterministic treasury holding shares in permanent Stock Token, Market-Making, and USDG sleeves.","image":"',
             image,
             '","attributes":[{"trait_type":"Token ID","value":"',
             id,

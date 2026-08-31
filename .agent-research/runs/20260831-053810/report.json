@@ -1,0 +1,166 @@
+{
+  "schemaVersion": "1.0",
+  "run": {
+    "id": "20260831-053810",
+    "date": "2026-08-31",
+    "requirements": ".agent-research/runs/20260831-053810/requirements.md"
+  },
+  "summary": {
+    "building": "Configurable OpenSea-minted Yield Banks with manually allocated Stock Token, USDG, and Delta v3 backing",
+    "verdict": "caution",
+    "topRisk": "Mutable external SeaDrop, asset implementation, oracle, route, and indexer configuration must remain release-bound and monitored",
+    "mustDecideFirst": "The first collection's supply, economics, eligibility policy, assets, feeds, pool, and role addresses",
+    "watchOutFor": "Creator royalties are optional, Stock Token eligibility is external, and no audit can guarantee zero defects"
+  },
+  "components": [
+    {
+      "name": "OpenSea SeaDrop",
+      "type": "API",
+      "version": "unversioned",
+      "sourceUrl": "https://docs.opensea.io/docs/seadrop",
+      "status": "fresh",
+      "risks": [
+        {"severity":"high","title":"Alternate mint path or wrong payout","detail":"Every enumerable mint authorization and the proceeds-vault payout must match the manifest."},
+        {"severity":"high","title":"Premature ownership handoff","detail":"OpenSea Studio setup must finish before Ownable2Step control is accepted by the timelock."}
+      ]
+    },
+    {
+      "name": "OpenSea Seaport",
+      "type": "Other",
+      "version": "1.6-deployed",
+      "sourceUrl": "https://support.opensea.io/en/articles/8867026-how-do-i-set-creator-earnings-on-opensea",
+      "status": "fresh",
+      "risks": [
+        {"severity":"high","title":"Optional secondary royalties","detail":"ERC-2981 and an OpenSea setting do not enforce payment across marketplaces."}
+      ]
+    },
+    {
+      "name": "Robinhood Chain",
+      "type": "Blockchain",
+      "version": "4663",
+      "sourceUrl": "https://docs.robinhood.com/chain/connecting/",
+      "status": "fresh",
+      "risks": [
+        {"severity":"high","title":"Network and dependency mixing","detail":"A testnet RPC with mainnet dependency addresses targets the wrong system."},
+        {"severity":"medium","title":"Public RPC throttling","detail":"Rate limits can cause incomplete reads and monitoring failures."}
+      ]
+    },
+    {
+      "name": "Robinhood Stock Tokens",
+      "type": "Blockchain",
+      "version": "unversioned",
+      "sourceUrl": "https://docs.robinhood.com/chain/stock-tokens/",
+      "status": "fresh",
+      "risks": [
+        {"severity":"high","title":"Multiplier accounting error","detail":"Raw balances stay static while corporate actions change uiMultiplier and the adjusted onchain price."},
+        {"severity":"high","title":"External eligibility restrictions","detail":"Securities eligibility and jurisdiction rules require an explicit reviewed policy."},
+        {"severity":"medium","title":"REST and onchain price mismatch","detail":"REST prices are unadjusted while onchain feeds are multiplier-adjusted."},
+        {"severity":"low","title":"Public terminology restriction","detail":"External copy must say Stock Tokens rather than tokenized stocks or equities."}
+      ]
+    },
+    {
+      "name": "Paxos USDG",
+      "type": "Blockchain",
+      "version": "unversioned-eip1967",
+      "sourceUrl": "https://docs.robinhood.com/chain/contracts/",
+      "status": "fresh",
+      "risks": [
+        {"severity":"high","title":"Implementation drift","detail":"Proxy runtime alone does not identify active USDG behavior."}
+      ]
+    },
+    {
+      "name": "Delta v3",
+      "type": "Blockchain",
+      "version": "unversioned",
+      "sourceUrl": "https://robinhoodchain.blockscout.com/address/0x6235cF6bd8419b34942F4EDDB39C880BD96dD700",
+      "status": "fresh",
+      "risks": [
+        {"severity":"high","title":"Slippage and tick manipulation","detail":"Manual position operations require protected floors, ranges, and deadlines."},
+        {"severity":"high","title":"Dependency or route drift","detail":"Builder, factory, manager, pool, and routes must match reviewed runtime hashes."},
+        {"severity":"medium","title":"Position NFT custody","detail":"Untracked or unsolicited position NFTs can strand backing."}
+      ]
+    },
+    {
+      "name": "Chainlink-compatible feeds",
+      "type": "Blockchain",
+      "version": "unversioned",
+      "sourceUrl": "https://docs.robinhood.com/chain/stock-tokens/",
+      "status": "fresh",
+      "risks": [
+        {"severity":"high","title":"Invalid or stale price","detail":"Incomplete, nonpositive, future, or stale rounds corrupt NAV and safety floors."},
+        {"severity":"medium","title":"Feed binding drift","detail":"A changed feed address can price the wrong asset."}
+      ]
+    },
+    {
+      "name": "OpenZeppelin Contracts",
+      "type": "SDK",
+      "version": "5.6.1",
+      "sourceUrl": "https://docs.openzeppelin.com/contracts/5.x/",
+      "status": "cached",
+      "risks": [
+        {"severity":"medium","title":"Clone initialization or salt mistake","detail":"Incorrect initialization can bind the wrong NFT account."},
+        {"severity":"low","title":"Custom ERC721 hook behavior","detail":"Mint, transfer, and burn paths require lifecycle tests."}
+      ]
+    },
+    {
+      "name": "Viem",
+      "type": "SDK",
+      "version": "2.55.19-ui-2.55.10-sdk",
+      "sourceUrl": "https://viem.sh/docs/contract/simulateContract",
+      "status": "cached",
+      "risks": [
+        {"severity":"high","title":"Unsimulated calldata","detail":"Typed data can still revert unless simulated with the actual account and value."},
+        {"severity":"medium","title":"Receipt or replacement misclassification","detail":"A transaction hash alone is not successful execution."}
+      ]
+    },
+    {
+      "name": "Wagmi",
+      "type": "SDK",
+      "version": "2.19.5",
+      "sourceUrl": "https://wagmi.sh/react/api/createConfig",
+      "status": "cached",
+      "risks": [
+        {"severity":"high","title":"Wrong connected wallet chain","detail":"Configured default chain does not prove the wallet's current chain."},
+        {"severity":"medium","title":"Stale WalletConnect session","detail":"Older sessions may not authorize Robinhood Chain."}
+      ]
+    },
+    {
+      "name": "Envio HyperIndex",
+      "type": "Infra",
+      "version": "3.2.1",
+      "sourceUrl": "https://docs.envio.dev/docs/HyperIndex/configuration-file.md",
+      "status": "cached",
+      "risks": [
+        {"severity":"high","title":"Missing event declaration","detail":"Unconfigured events are silently absent from indexed state."},
+        {"severity":"high","title":"Wrong address or start block","detail":"History remains incomplete after a full reindex."},
+        {"severity":"medium","title":"RPC auth limitation","detail":"Pinned 3.2.1 lacks documented v3.3 custom-header support."}
+      ]
+    },
+    {
+      "name": "Uniswap v3/v4",
+      "type": "Blockchain",
+      "version": "v3-unversioned-v4-core-1.0.2",
+      "sourceUrl": "https://docs.uniswap.org/contracts/v3/guides/providing-liquidity/mint-a-position",
+      "status": "cached",
+      "risks": [
+        {"severity":"high","title":"Concentrated liquidity slippage","detail":"Zero or weak minimum amounts expose LP operations to value loss."},
+        {"severity":"medium","title":"Position custody","detail":"The ERC721 position ID and approvals must remain tracked."},
+        {"severity":"medium","title":"Out-of-range exposure drift","detail":"Positions become single-sided and stop earning when out of range."}
+      ]
+    }
+  ],
+  "riskTotals": {"critical":0,"high":15,"medium":10,"low":2},
+  "preCodingDecisions": [
+    {"title":"Collection configuration","detail":"Choose supply, prices, proceeds splits, sleeve weights, royalty rate, roles, and policy caps per collection.","immutable":true},
+    {"title":"Eligibility and assets","detail":"Choose the reviewed eligibility policy, Stock Tokens, feeds, USDG, INJOH, and Delta pool.","immutable":true},
+    {"title":"Operational infrastructure","detail":"Choose managed RPCs, Envio deployment/start block, and monitoring thresholds.","immutable":false},
+    {"title":"Independent audit","detail":"Complete an external audit and record its hash before activation.","immutable":false}
+  ],
+  "requirementsCorrections": [
+    {"kind":"wrong_assumption","detail":"SeaDrop buyers pay native ETH; WETH is used after payout for internal backing allocation."},
+    {"kind":"missing_constraint","detail":"Secondary royalties are optional and cannot be represented as guaranteed revenue."},
+    {"kind":"underspecified","detail":"The first collection still needs explicit eligibility, assets, feeds, pool, routes, roles, and economics."},
+    {"kind":"immutable_choice","detail":"Supply, economics, policy caps, royalties, and deterministic deployment bindings are fixed per deployed collection."}
+  ],
+  "openQuestions": []
+}

@@ -128,6 +128,7 @@ contract DeployYieldBanks is Script {
             marketMakingWeightBps: _parseBps(json, ".config.marketMakingWeightBps"),
             usdgWeightBps: _parseBps(json, ".config.usdgWeightBps"),
             creator: vm.parseJsonAddress(json, ".config.creator"),
+            openSeaManager: vm.parseJsonAddress(json, ".config.openSeaManager"),
             sinjohFeeRecipient: vm.parseJsonAddress(json, ".config.sinjohFeeRecipient"),
             operationsReserve: vm.parseJsonAddress(json, ".config.operationsReserve"),
             revenueRouter: vm.parseJsonAddress(json, ".config.revenueRouter"),
