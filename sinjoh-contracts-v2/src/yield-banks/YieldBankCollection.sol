@@ -212,6 +212,12 @@ contract YieldBankCollection is ReentrancyGuard {
                 Clones.cloneDeterministic(accountImplementation, _accountSalt(tokenId));
             YieldBankAccount(account)
                 .initialize(address(this), address(nft), tokenId, address(distributor));
+            // Sleeve shares are transferred to this account without an end-user proof during
+            // primary claims, revenue settlement, and rebalances. Fail the atomic mint before
+            // accepting proceeds if the configured policy cannot receive those shares.
+            if (!eligibilityPolicy.canReceiveRestrictedShares(account, "")) {
+                revert Ineligible(account);
+            }
             accountOf[tokenId] = account;
             _tokenStates[tokenId] = YieldBankTokenState.ACTIVE;
             distributor.initializeTokenDebt(tokenId);

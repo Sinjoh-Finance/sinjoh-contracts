@@ -43,6 +43,9 @@ unit. It does not call an oracle, swap, lending market, or strategy adapter.
 The burn proof is checked for both redemption and restricted-share receipt, and ordinary sleeve
 redemption forwards its proof to the same eligibility policy instead of silently substituting an
 empty proof. Standard NFT transfers remain address-state-only so Seaport can execute them.
+Every deterministic NFT treasury is deployed and checked against that policy during the atomic
+SeaDrop mint. If the treasury cannot receive restricted shares with the empty proof used by
+protocol custody flows, the mint reverts before proceeds can be accepted.
 An NFT with an active dynamic Delta allocation must first execute an owner-approved rebalance out
 of that pool. This keeps the normal burn path oracle- and swap-independent. Materialized pool
 sleeves are marked as restricted backing but are not registered as global distribution assets,

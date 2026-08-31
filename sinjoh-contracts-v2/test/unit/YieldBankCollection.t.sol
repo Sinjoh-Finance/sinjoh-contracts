@@ -194,6 +194,30 @@ contract YieldBankCollectionTest is Test {
         assertEq(core.balanceOf(account), claimableCore);
     }
 
+    function testMintFailsAtomicallyWhenTreasuryCannotReceiveRestrictedShares() public {
+        address predictedAccount = collection.predictAccount(1);
+        policy.setBlocked(predictedAccount, true);
+        YieldBankNFT nft = collection.nft();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(YieldBankCollection.Ineligible.selector, predictedAccount)
+        );
+        vm.prank(ALICE);
+        seaDrop.mint{ value: 1 ether }(nft, ALICE, 1);
+
+        assertEq(predictedAccount.code.length, 0);
+        assertEq(collection.mintedSupply(), 0);
+        assertEq(collection.liveSupply(), 0);
+        assertEq(collection.accountOf(1), address(0));
+        assertEq(collection.nft().totalMinted(), 0);
+        assertEq(address(collection.proceedsVault()).balance, 0);
+
+        policy.setBlocked(predictedAccount, false);
+        _mint(ALICE, 1, 1 ether);
+        assertEq(collection.accountOf(1), predictedAccount);
+        assertTrue(policy.canReceiveRestrictedShares(predictedAccount, ""));
+    }
+
     function testPositiveTinyMintWithZeroRoundedBackingCanStillRedeem() public {
         _mint(ALICE, 1, 1 wei);
         YieldBankProceedsVault vault = collection.proceedsVault();
