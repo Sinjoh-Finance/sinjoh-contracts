@@ -8,6 +8,7 @@ import { DeltaV3LPAdapter } from "../../src/yield-banks/adapters/DeltaV3LPAdapte
 import { PriceHub } from "../../src/yield-banks/PriceHub.sol";
 import { StrategyRegistry } from "../../src/yield-banks/StrategyRegistry.sol";
 import { MarketMakingSleeve } from "../../src/yield-banks/sleeves/MarketMakingSleeve.sol";
+import { YieldBankRedemptionMode } from "../../src/yield-banks/YieldBankTypes.sol";
 import { YieldBankIds } from "../../src/yield-banks/libraries/YieldBankIds.sol";
 import {
     MockYieldBankAggregator,
@@ -24,6 +25,8 @@ import {
 } from "../mocks/MockDeltaIntegrations.sol";
 
 contract DeltaV3LPAdapterTest is Test {
+    address private constant HOLDER = address(0xB0B);
+
     MockYieldBankAsset private weth;
     MockYieldBankAsset private pairedAsset;
     MockYieldBankEligibilityPolicy private eligibility;
@@ -200,6 +203,46 @@ contract DeltaV3LPAdapterTest is Test {
         assertEq(pairedAsset.balanceOf(address(sleeve)) - pairedAssetBefore, amounts[1]);
         assertEq(adapter.positionIds().length, 0);
         assertEq(adapter.totalManagedAssets(), 0);
+    }
+
+    function testHolderRedeemsProRataAssetsIncludingAccruedDeltaFees() external {
+        _depositPosition();
+        uint256 tokenId = adapter.positionIds()[0];
+        uint256 managedBeforeFees = adapter.totalManagedAssets();
+        manager.addFees(tokenId, 12e18, 8e18);
+        assertEq(adapter.totalManagedAssets() - managedBeforeFees, 20e18);
+
+        (,,, uint128 liquidity,,,,) = _position(tokenId);
+        sleeve.pauseAdapterDeposits(address(adapter));
+        sleeve.setExitOnly(address(adapter));
+        DeltaV3LPAdapter.LiquidityAction[] memory actions =
+            new DeltaV3LPAdapter.LiquidityAction[](1);
+        actions[0] = DeltaV3LPAdapter.LiquidityAction(tokenId, liquidity, 1, 1);
+        DeltaV3LPAdapter.ExitParams memory params = DeltaV3LPAdapter.ExitParams({
+            actions: actions,
+            // Test execution uses the current timestamp as an explicit operator deadline.
+            // forge-lint: disable-next-line(block-timestamp)
+            deadline: block.timestamp
+        });
+        sleeve.exitAdapter(address(adapter), 1, abi.encode(params));
+
+        uint256 supply = sleeve.totalSupply();
+        uint256 holderShares = supply / 2;
+        sleeve.transferWithProof(HOLDER, holderShares, "");
+        uint256 expectedWeth = weth.balanceOf(address(sleeve)) * holderShares / supply;
+        uint256 expectedPaired = pairedAsset.balanceOf(address(sleeve)) * holderShares / supply;
+        uint256[] memory minimumOutputs = new uint256[](2);
+        minimumOutputs[0] = expectedWeth;
+        minimumOutputs[1] = expectedPaired;
+
+        vm.prank(HOLDER);
+        sleeve.redeem(
+            holderShares, HOLDER, HOLDER, YieldBankRedemptionMode.IN_KIND, minimumOutputs, ""
+        );
+
+        assertEq(weth.balanceOf(HOLDER), expectedWeth);
+        assertEq(pairedAsset.balanceOf(HOLDER), expectedPaired);
+        assertGt(expectedWeth + expectedPaired, 500e18);
     }
 
     function testGuardianInKindExitStillWorksWhenPriceHubIsPaused() external {

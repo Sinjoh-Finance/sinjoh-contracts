@@ -603,6 +603,10 @@ contract MockYieldBankDistributorHarness {
         distributor.settle(tokenId, account, terminal);
     }
 
+    function trackAccountAsset(address account, address asset) external {
+        YieldBankAccount(account).trackAsset(asset);
+    }
+
     function retire(uint256 tokenId) external {
         distributor.retireToken(tokenId);
     }

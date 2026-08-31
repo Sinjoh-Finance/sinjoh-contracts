@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import { Test } from "forge-std/Test.sol";
 import { IERC721Receiver } from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { YieldBankCollection } from "../../src/yield-banks/YieldBankCollection.sol";
 import { YieldBankNFT } from "../../src/yield-banks/YieldBankNFT.sol";
 import { YieldBankAccount } from "../../src/yield-banks/YieldBankAccount.sol";
@@ -165,6 +166,34 @@ contract YieldBankCollectionTest is Test {
         collection.claimPrimary(1);
     }
 
+    function testPrimaryClaimFailureRollsBackAndCanBeRetriedExactly() public {
+        _mint(ALICE, 2, 1 ether);
+        CollectionPortfolioAllocator.AllocationCall[3] memory calls;
+        YieldBankProceedsVault vault = collection.proceedsVault();
+        vm.prank(OPERATOR);
+        vault.allocateReceipts(1, 1, calls);
+        address account = collection.accountOf(1);
+        uint256 claimableCore = vault.claimableShares(1, address(core));
+
+        vm.mockCallRevert(
+            address(core),
+            abi.encodeWithSelector(IERC20.transfer.selector, account, claimableCore),
+            abi.encodeWithSignature("Error(string)", "temporarily blocked")
+        );
+        vm.expectRevert();
+        collection.claimPrimary(1);
+        vm.clearMockedCalls();
+
+        assertEq(vault.primaryStateOf(1), vault.PRIMARY_ALLOCATED());
+        assertEq(vault.claimableShares(1, address(core)), claimableCore);
+        assertEq(core.balanceOf(account), 0);
+
+        collection.claimPrimary(1);
+        assertEq(vault.primaryStateOf(1), vault.PRIMARY_CLAIMED());
+        assertEq(vault.claimableShares(1, address(core)), 0);
+        assertEq(core.balanceOf(account), claimableCore);
+    }
+
     function testPositiveTinyMintWithZeroRoundedBackingCanStillRedeem() public {
         _mint(ALICE, 1, 1 wei);
         YieldBankProceedsVault vault = collection.proceedsVault();
@@ -269,6 +298,41 @@ contract YieldBankCollectionTest is Test {
         collection.burnToken(1, "");
         assertGt(core.balanceOf(BOB), 0);
         assertEq(collection.tokenState(1), uint8(YieldBankTokenState.BURNED));
+    }
+
+    function testSettledAndUnsettledYieldFollowNftAndReachCurrentOwners() public {
+        _mint(ALICE, 2, 1 ether);
+        CollectionPortfolioAllocator.AllocationCall[3] memory calls;
+        YieldBankProceedsVault vault = collection.proceedsVault();
+        vm.prank(OPERATOR);
+        vault.allocateReceipts(1, 1, calls);
+
+        _accrueCoreDistribution(20 ether);
+        collection.settle(1);
+        assertEq(core.balanceOf(collection.accountOf(1)), 10 ether);
+
+        YieldBankNFT nft = collection.nft();
+        vm.prank(ALICE);
+        nft.transferFrom(ALICE, BOB, 1);
+        _accrueCoreDistribution(10 ether);
+
+        vm.prank(BOB);
+        collection.burnToken(1, "");
+
+        uint256 tokenOneGrossCore = 15 ether + 0.15 ether;
+        uint256 tokenOneTax = tokenOneGrossCore * collection.EXIT_TAX_BPS() / 10_000;
+        assertEq(core.balanceOf(BOB), tokenOneGrossCore - tokenOneTax);
+        assertEq(core.balanceOf(ALICE), 0);
+        assertEq(collection.distributor().accountedBalance(address(core)), 15 ether + tokenOneTax);
+
+        vm.prank(ALICE);
+        collection.burnToken(2, "");
+
+        assertEq(core.balanceOf(ALICE), 15 ether + tokenOneTax + 0.15 ether);
+        assertEq(core.balanceOf(BOB) + core.balanceOf(ALICE), 30.3 ether);
+        assertEq(collection.distributor().accountedBalance(address(core)), 0);
+        assertEq(collection.distributor().totalReceived(address(core)), 30 ether + tokenOneTax);
+        assertEq(collection.distributor().totalSettled(address(core)), 30 ether + tokenOneTax);
     }
 
     function testRedemptionUsesOneProofForEligibilityAndRestrictedShareReceipt() public {
@@ -524,6 +588,14 @@ contract YieldBankCollectionTest is Test {
         YieldBankNFT nft = collection.nft();
         vm.prank(ALICE);
         seaDrop.mint{ value: netProceeds }(nft, minter, quantity);
+    }
+
+    function _accrueCoreDistribution(uint256 amount) private {
+        core.mint(address(revenueRouter), amount);
+        vm.startPrank(address(revenueRouter));
+        core.approve(address(collection.distributor()), amount);
+        collection.accrueDistribution(address(core), amount);
+        vm.stopPrank();
     }
 
     function _config(uint256 supply) private view returns (YieldBankConfig memory c) {

@@ -31,12 +31,18 @@ contract YieldBankInvariantHandler is Test {
     YieldBankNFT public immutable nft;
     YieldBankProceedsVault public immutable vault;
     MockYieldBankSeaDrop public immutable seaDrop;
+    MockYieldBankAsset public immutable distributionAsset;
 
-    constructor(YieldBankCollection collection_, MockYieldBankSeaDrop seaDrop_) {
+    constructor(
+        YieldBankCollection collection_,
+        MockYieldBankSeaDrop seaDrop_,
+        MockYieldBankAsset distributionAsset_
+    ) {
         collection = collection_;
         nft = collection_.nft();
         vault = collection_.proceedsVault();
         seaDrop = seaDrop_;
+        distributionAsset = distributionAsset_;
     }
 
     function mint(uint256 rawQuantity, uint96 rawValue) external {
@@ -67,6 +73,26 @@ contract YieldBankInvariantHandler is Test {
         if (collection.tokenState(tokenId) != uint8(YieldBankTokenState.ACTIVE)) return;
         if (vault.primaryStateOf(tokenId) != vault.PRIMARY_ALLOCATED()) return;
         collection.claimPrimary(tokenId);
+    }
+
+    function distribute(uint96 rawAmount) external {
+        uint256 supply = collection.liveSupply();
+        if (supply == 0) return;
+        uint256 amount = bound(uint256(rawAmount), 1, 100 ether);
+        address source = collection.revenueRouter();
+        distributionAsset.mint(source, amount);
+        vm.startPrank(source);
+        distributionAsset.approve(address(collection.distributor()), amount);
+        collection.accrueDistribution(address(distributionAsset), amount);
+        vm.stopPrank();
+    }
+
+    function settle(uint256 rawTokenId) external {
+        uint256 minted = collection.mintedSupply();
+        if (minted == 0) return;
+        uint256 tokenId = bound(rawTokenId, 1, minted);
+        if (collection.tokenState(tokenId) != uint8(YieldBankTokenState.ACTIVE)) return;
+        collection.settle(tokenId);
     }
 
     function transfer(uint256 rawTokenId, bool toBob) external {
@@ -109,6 +135,7 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
     MockYieldBankAsset private core;
     MockYieldBankAsset private market;
     MockYieldBankAsset private yieldSleeve;
+    MockYieldBankAsset private distributionAsset;
     MockYieldBankEligibilityPolicy private policy;
     MockYieldBankRenderer private renderer;
     MockYieldBankRevenueRouter private revenueRouter;
@@ -124,6 +151,7 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
         core = new MockYieldBankAsset("Core", "CORE");
         market = new MockYieldBankAsset("Market", "MM");
         yieldSleeve = new MockYieldBankAsset("USDG", "YLD");
+        distributionAsset = new MockYieldBankAsset("Revenue distribution", "REVENUE");
         policy = new MockYieldBankEligibilityPolicy();
         renderer = new MockYieldBankRenderer();
         revenueRouter = new MockYieldBankRevenueRouter(
@@ -138,7 +166,10 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
         accountImplementation = new YieldBankAccount();
         collection = new YieldBankCollection(_config());
         vault = collection.proceedsVault();
-        YieldBankInvariantHandler handler = new YieldBankInvariantHandler(collection, seaDrop);
+        vm.prank(address(timelock));
+        collection.registerDistributionAsset(address(distributionAsset));
+        YieldBankInvariantHandler handler =
+            new YieldBankInvariantHandler(collection, seaDrop, distributionAsset);
         targetContract(address(handler));
     }
 
@@ -214,6 +245,21 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
             core.totalSupply() + market.totalSupply() + yieldSleeve.totalSupply(),
             vault.totalAllocatedBacking()
         );
+    }
+
+    function invariantEveryDistributionAssetIsSolventAndConserved() public view {
+        address[] memory assets = collection.distributor().distributionAssets();
+        for (uint256 i; i < assets.length; ++i) {
+            address asset = assets[i];
+            uint256 accounted = collection.distributor().accountedBalance(asset);
+            assertGe(
+                MockYieldBankAsset(asset).balanceOf(address(collection.distributor())), accounted
+            );
+            assertEq(
+                collection.distributor().totalReceived(asset),
+                collection.distributor().totalSettled(asset) + accounted
+            );
+        }
     }
 
     function _config() private view returns (YieldBankConfig memory c) {

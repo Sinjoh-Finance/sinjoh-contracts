@@ -14,8 +14,8 @@ contract, API, SDK, indexer, keeper, and UI naming consistently uses **Yield Ban
 - `YieldBankCollection`: configurable immutable supply, SeaDrop mint coordination, settlement, and redemption.
 - `YieldBankNFT`: OpenSea SeaDrop-compatible ERC-721 with standard Seaport approvals and EIP-2981.
 - `YieldBankOnchainRenderer`: immutable data-URI metadata and SVG artwork using Yield Banks terminology.
-- `YieldBankAccount`: deterministic, token-bound treasury clone with the same 64-asset bound as the
-  distributor.
+- `YieldBankAccount`: deterministic, token-bound treasury clone bounded to 65 assets: the
+  distributor's 64 collection-wide assets plus one owner-selected dynamic Delta sleeve.
 - `YieldBankProceedsVault`: the collection-specific Sinjoh primary fee router and holding contract, with exact native-proceeds receipt accounting, immutable per-collection economics, no additional general-router fee, and operator-only manual allocation.
 - `YieldBankDistributor`: RAY-precision per-live-token distributions without supply-sized loops.
 - `CollectionRevenueRouter`: authenticated project revenue plus native/ERC-20 royalty ingress using immutable per-collection economics, retryable fee legs, and allocation-operator-only synchronization with fresh guarded route data.

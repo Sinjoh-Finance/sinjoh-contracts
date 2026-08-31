@@ -11,7 +11,9 @@ import { IYieldBankRestrictedShare } from "./interfaces/IYieldBankRestrictedShar
 contract YieldBankAccount {
     using SafeERC20 for IERC20;
 
-    uint256 public constant MAX_TRACKED_ASSETS = 64;
+    // The distributor supports 64 collection-wide assets. An owner may also hold one
+    // isolated, pool-specific Delta sleeve while those assets are being settled.
+    uint256 public constant MAX_TRACKED_ASSETS = 65;
 
     address public collection;
     address public nft;
