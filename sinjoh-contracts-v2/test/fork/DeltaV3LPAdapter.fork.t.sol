@@ -31,12 +31,16 @@ contract DeltaV3LPAdapterForkTest is Test {
     address private constant WETH = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
     address private constant USDG = 0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168;
     address private constant POOL = 0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca;
+    address private constant INJOH = 0x2cC0FAC44B8252f6B10208B091aFf2c94B4da77D;
+    address private constant INJOH_POOL = 0xB09fa4f04032b9d9e690ac4a1d29523b5f9A72DC;
     address private constant FACTORY = 0x1f7d7550B1b028f7571E69A784071F0205FD2EfA;
     address private constant POSITION_MANAGER = 0x73991a25C818Bf1f1128dEAaB1492D45638DE0D3;
     address private constant POSITION_BUILDER = 0x6235cF6bd8419b34942F4EDDB39C880BD96dD700;
 
     bytes32 private constant POOL_CODE_HASH =
         0x3298b5dd4e6f115074c526a55ad05a36fd73a0034ac22ec6cbaab32cc9c1e8d2;
+    bytes32 private constant INJOH_POOL_CODE_HASH =
+        0xfae0473dfc8dbfe849e964297fb68e7bbb2a0d588c457f0b74d2e93572c08eb0;
     bytes32 private constant FACTORY_CODE_HASH =
         0xec72b1abd1f2faee020cfea9c646bd8994f9fb389054f6e574f103a895091739;
     bytes32 private constant POSITION_MANAGER_CODE_HASH =
@@ -191,5 +195,77 @@ contract DeltaV3LPAdapterForkTest is Test {
         sleeve.exitAdapter(address(adapter), 100, abi.encode(exitParams));
         assertEq(adapter.positionIds().length, 0);
         assertEq(adapter.totalManagedAssets(), 0);
+    }
+
+    function testLiveInjohPoolIdentityRouteAndBuilderMint() external {
+        string memory rpcUrl = vm.envOr("ROBINHOOD_MAINNET_RPC_URL", string(""));
+        if (bytes(rpcUrl).length == 0) vm.skip(true);
+        vm.createSelectFork(rpcUrl);
+        assertEq(block.chainid, ROBINHOOD_MAINNET_CHAIN_ID);
+
+        IYieldBankV3Pool injohPool = IYieldBankV3Pool(INJOH_POOL);
+        assertEq(INJOH_POOL.codehash, INJOH_POOL_CODE_HASH);
+        assertEq(injohPool.factory(), FACTORY);
+        assertEq(injohPool.token0(), WETH);
+        assertEq(injohPool.token1(), INJOH);
+        assertEq(injohPool.fee(), 10_000);
+        assertEq(injohPool.tickSpacing(), 200);
+        assertGt(injohPool.liquidity(), 0);
+        (, int24 currentTick,,,,, bool unlocked) = injohPool.slot0();
+        assertTrue(unlocked);
+
+        DeltaV3SinglePoolRoute entryRoute = new DeltaV3SinglePoolRoute(
+            INJOH_POOL, FACTORY, WETH, INJOH, INJOH_POOL_CODE_HASH, FACTORY_CODE_HASH
+        );
+        vm.deal(address(this), 0.01 ether);
+        IForkWETH(WETH).deposit{ value: 0.004 ether }();
+        IERC20(WETH).approve(address(entryRoute), 0.001 ether);
+        uint256 injohAmount = entryRoute.convert(0.001 ether, 1, address(this), "");
+        assertGt(injohAmount, 0);
+
+        IERC20(WETH).approve(POSITION_BUILDER, 0.002 ether);
+        IERC20(INJOH).approve(POSITION_BUILDER, injohAmount);
+        int24 alignedTick = currentTick / 200 * 200;
+        IDeltaPositionBuilder.Rung[] memory rungs = new IDeltaPositionBuilder.Rung[](1);
+        rungs[0] = IDeltaPositionBuilder.Rung({
+            tickLower: alignedTick - 200,
+            tickUpper: alignedTick + 400,
+            amount0: 0.002 ether,
+            amount1: injohAmount,
+            amount0Min: 1,
+            amount1Min: 1
+        });
+        // forge-lint: disable-next-line(block-timestamp)
+        uint256 deadline = block.timestamp + 5 minutes;
+        uint256[] memory tokenIds = IDeltaPositionBuilder(POSITION_BUILDER)
+            .mintLadder(INJOH_POOL, rungs, currentTick - 5, currentTick + 5, deadline);
+        assertEq(tokenIds.length, 1);
+        IYieldBankV3PositionManager manager = IYieldBankV3PositionManager(POSITION_MANAGER);
+        assertEq(manager.ownerOf(tokenIds[0]), address(this));
+        (,, address token0, address token1, uint24 fee,,, uint128 liquidity,,,,) =
+            manager.positions(tokenIds[0]);
+        assertEq(token0, WETH);
+        assertEq(token1, INJOH);
+        assertEq(fee, 10_000);
+        assertGt(liquidity, 0);
+
+        manager.decreaseLiquidity(
+            IYieldBankV3PositionManager.DecreaseLiquidityParams({
+                tokenId: tokenIds[0],
+                liquidity: liquidity,
+                amount0Min: 1,
+                amount1Min: 1,
+                deadline: deadline
+            })
+        );
+        manager.collect(
+            IYieldBankV3PositionManager.CollectParams({
+                tokenId: tokenIds[0],
+                recipient: address(this),
+                amount0Max: type(uint128).max,
+                amount1Max: type(uint128).max
+            })
+        );
+        manager.burn(tokenIds[0]);
     }
 }

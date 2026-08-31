@@ -55,7 +55,7 @@
   "requirementsCorrections": [
     {"kind":"wrong_assumption","detail":"The live builder does not require $INJOH; the paired asset is pool-specific."},
     {"kind":"missing_constraint","detail":"Existing pools require factory, token, route, oracle, liquidity, cap, and codehash validation."},
-    {"kind":"underspecified","detail":"Production $INJOH token, pool, routes, feed, and threshold values have not yet been provided."},
+    {"kind":"underspecified","detail":"The live $INJOH token and Delta pool are verified; deployed Yield Banks routes, independent feed, minimum liquidity, and caps remain activation inputs."},
     {"kind":"wrong_assumption","detail":"The operations reserve and its fee legs were not requested and were removed."}
   ],
   "openQuestions": []

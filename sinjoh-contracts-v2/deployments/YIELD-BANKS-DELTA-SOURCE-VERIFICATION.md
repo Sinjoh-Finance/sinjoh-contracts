@@ -28,9 +28,16 @@ at fee `100`. The pool reported the same factory, token pair, fee `100`, tick sp
 liquidity value, and an unlocked `slot0`. Its observed runtime hash was
 `0x3298b5dd4e6f115074c526a55ad05a36fd73a0034ac22ec6cbaab32cc9c1e8d2`.
 
-This pool is not a protocol default and is not a substitute for the future `$INJOH`/WETH pool. Its
+This pool is not a protocol default and is not a substitute for the live `$INJOH`/WETH pool. Its
 liquidity changed during this review, which is why liquidity is a live activation/operation check,
 not a copied constant.
+
+The `$INJOH` token is `0x2cC0FAC44B8252f6B10208B091aFf2c94B4da77D`, with observed runtime
+hash `0x7e6ca88b216c0b26c5f8497f3e7106648f4bcd8ed41eedfa1c80787fb407f4e2`.
+The Delta factory returns `$INJOH`/WETH pool
+`0xB09fa4f04032b9d9e690ac4a1d29523b5f9A72DC` at fee `10000`. The pool reports
+WETH as token 0, `$INJOH` as token 1, tick spacing `200`, nonzero liquidity, an unlocked `slot0`,
+and runtime hash `0xfae0473dfc8dbfe849e964297fb68e7bbb2a0d588c457f0b74d2e93572c08eb0`.
 
 ## Transaction ABI and custody proof
 
@@ -64,10 +71,10 @@ builder, recorded and valued the returned position, and completely exited it.
 - An NFT with an active dynamic Delta allocation cannot burn until an owner-approved rebalance has
   removed that allocation. This keeps redemption independent of swaps and pool oracles.
 
-## Explicitly unresolved deployment facts
+## Remaining activation facts
 
-No `$INJOH` token address or `$INJOH`/WETH pool was supplied or deployed during this review. The
-protocol therefore contains no guessed `$INJOH` address, pool, fee, tick spacing, price source, or
-liquidity threshold. Those are mandatory collection-release inputs and activation must fail until
-the exact deployed graph is source-verified, manifest-bound, SDK-verified, and exercised by the
-live fork test.
+The token and pool now have direct live-chain verification, including a successful exact-pool route
+and builder mint test. The pool is not yet activated in a Yield Banks collection because the two
+deployed immutable route addresses, independent price reference, reviewed minimum liquidity,
+adapter cap, position limit, and completed collection release manifest have not been finalized.
+Activation fails closed until those remaining values are manifest-bound and verified.

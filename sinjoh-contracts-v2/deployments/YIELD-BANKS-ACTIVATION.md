@@ -196,11 +196,13 @@ paired token, V3 pool, routes, prices, caps, and transaction parameters are revi
 operation inputs, not protocol defaults. Their absence from this repository prevents production
 activation of that collection but does not require another contract implementation.
 
-For the first `$INJOH`/WETH collection, the `$INJOH` token, exact factory-returned pool, fee,
-tick spacing, pool and token runtime hashes, both immutable routes, independent price reference,
-and reviewed minimum liquidity remain deployment inputs. Do not substitute the USDG/WETH example
-pool or infer any of these values from a ticker. Activation is blocked until the completed manifest
-passes the verifier and the live Delta fork test using those exact addresses.
+For the first `$INJOH`/WETH collection, the verified `$INJOH` token is
+`0x2cC0FAC44B8252f6B10208B091aFf2c94B4da77D` and the Delta factory returns pool
+`0xB09fa4f04032b9d9e690ac4a1d29523b5f9A72DC` at fee `10000`, with tick spacing `200`.
+Both immutable routes, the independent price reference, and reviewed minimum liquidity remain
+deployment inputs. Do not substitute the USDG/WETH example pool or infer an address from a ticker.
+Activation is blocked until the completed manifest passes the verifier and live Delta fork tests
+using these exact addresses.
 
 The canary must use a positive-priced public, token-gated, or signed SeaDrop stage with fee basis
 points below 10,000. Use signed mint validation for address-gated access. The NFT intentionally

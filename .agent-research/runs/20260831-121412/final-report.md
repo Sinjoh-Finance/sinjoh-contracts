@@ -8,9 +8,9 @@
 
 - **Building:** A pool-neutral Delta V3 strategy layer where each Yield Bank owner can select one
   admitted pool without sharing that selected exposure with unrelated owners.
-- **Verdict:** Build with caution. The implementation and live canary pass; production activation
-  remains intentionally blocked until the exact `$INJOH` token, pool, feeds, routes, thresholds,
-  and hashes exist in a completed release manifest.
+- **Verdict:** Build with caution. The implementation and exact `$INJOH` pool live canary pass;
+  production activation remains intentionally blocked until its feeds, deployed routes,
+  thresholds, and hashes exist in a completed release manifest.
 - **Top risk:** Proxy implementations and pool state can change after review.
 - **Must decide first:** Every pool needs a separate restricted sleeve and adapter plus an
   independent, manifest-bound price reference.
@@ -60,6 +60,10 @@ manipulable pool pricing.
    path. The API, indexer, SDK, and UI use the canonical active pool field.
 9. The live fork minted, tracked, valued, and completely exited a real position through the
    deployed builder.
+10. The Delta factory returns `$INJOH`/WETH pool
+    `0xB09fa4f04032b9d9e690ac4a1d29523b5f9A72DC` for token
+    `0x2cC0FAC44B8252f6B10208B091aFf2c94B4da77D` at fee `10000`; the exact pool route and builder
+    mint also pass on a live fork.
 
 ## Pre-coding and activation decisions
 
@@ -80,9 +84,10 @@ manipulable pool pricing.
 
 ## Residual external condition
 
-No `$INJOH` token or `$INJOH`/WETH pool address was provided. No value was guessed. The generic
-protocol implementation is complete, but a production collection cannot activate that sleeve until
-those deployed facts and independent price inputs pass the same-block manifest verifier and fork
-test. This is an explicit release gate rather than an assumption embedded in code.
+The `$INJOH` token and Delta pool are now verified directly onchain. The generic protocol
+implementation is complete, but a production collection cannot activate that sleeve until its
+deployed route addresses, independent price inputs, reviewed minimum liquidity and caps pass the
+same-block manifest verifier. This is an explicit release gate rather than an assumption embedded
+in code.
 
 Run summary: 3 components researched fresh, 0 reused. `--fresh` forces a full re-research.
