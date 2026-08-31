@@ -37,7 +37,6 @@ contract YieldBankCollectionFactory is ReentrancyGuard {
         address proceedsVault,
         address accountImplementation,
         address revenueRouter,
-        address operationsReserve,
         address portfolioAllocator,
         address collectionTimelock,
         address seaDrop,
@@ -53,10 +52,15 @@ contract YieldBankCollectionFactory is ReentrancyGuard {
         uint16 primaryBackingBps,
         uint16 primaryCreatorBps,
         uint16 primarySinjohBps,
-        uint16 primaryOperationsBps,
         uint16 coreWeightBps,
         uint16 marketMakingWeightBps,
         uint16 usdgWeightBps
+    );
+    event CollectionRedemptionRequirementRegistered(
+        address indexed collection,
+        address indexed redemptionToken,
+        uint256 redemptionTokenAmount,
+        bytes32 redemptionTokenCodeHash
     );
 
     constructor(address registry_, bytes32 factoryVersion_, bytes32 collectionCreationCodeHash_) {
@@ -96,7 +100,6 @@ contract YieldBankCollectionFactory is ReentrancyGuard {
             components.proceedsVault(),
             components.accountImplementation(),
             config.revenueRouter,
-            config.operationsReserve,
             config.portfolioAllocator,
             config.collectionTimelock,
             config.seaDrop,
@@ -112,10 +115,15 @@ contract YieldBankCollectionFactory is ReentrancyGuard {
             config.primaryBackingBps,
             config.primaryCreatorBps,
             config.primarySinjohBps,
-            config.primaryOperationsBps,
             config.coreWeightBps,
             config.marketMakingWeightBps,
             config.usdgWeightBps
+        );
+        emit CollectionRedemptionRequirementRegistered(
+            collection,
+            config.redemptionToken,
+            config.redemptionTokenAmount,
+            config.redemptionTokenCodeHash
         );
     }
 

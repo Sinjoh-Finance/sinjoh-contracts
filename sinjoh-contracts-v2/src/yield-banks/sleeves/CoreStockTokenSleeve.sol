@@ -11,7 +11,7 @@ import { IPriceHub } from "../interfaces/IPriceHub.sol";
 import { IntegrationBinding } from "../libraries/IntegrationBinding.sol";
 import { YieldBankIds } from "../libraries/YieldBankIds.sol";
 
-/// @notice Directly holds a collection-configured set of reviewed tokenized-equity assets.
+/// @notice Directly holds a collection-configured set of reviewed Robinhood Stock Tokens.
 contract CoreStockTokenSleeve is BaseSleeve {
     using SafeERC20 for IERC20;
 
@@ -27,16 +27,13 @@ contract CoreStockTokenSleeve is BaseSleeve {
         bytes routeData;
     }
 
-    uint256 public constant MAX_CONSTITUENTS = MAX_INVENTORY_ASSETS - 1;
+    uint256 private constant MAX_CONSTITUENTS = MAX_INVENTORY_ASSETS - 1;
     Constituent[] private _constituents;
-    mapping(address asset => bool constituent) public isConstituent;
+    mapping(address asset => bool constituent) private _isConstituent;
     uint16 public constituentWeightTotal;
 
-    error ConstituentStillHeld(address asset, uint256 balance);
-
-    event ConstituentAdded(address indexed asset, address indexed route, uint16 weightBps);
-    event ConstituentReplaced(
-        address indexed previousAsset, address indexed replacementAsset, address indexed route
+    event ConstituentRouteUpdated(
+        address indexed asset, address indexed route, bytes32 runtimeCodeHash
     );
 
     constructor(
@@ -52,7 +49,7 @@ contract CoreStockTokenSleeve is BaseSleeve {
         uint16 maximumOperatorLossBps_
     )
         BaseSleeve(
-            "Sinjoh Yield Banks Tokenized Equity Sleeve",
+            "Sinjoh Yield Banks Stock Token Sleeve",
             "sybCORE",
             YieldBankIds.CORE,
             accountingAsset_,
@@ -79,17 +76,16 @@ contract CoreStockTokenSleeve is BaseSleeve {
         uint16 weightBps
     ) external onlyTimelock {
         if (
-            totalSupply() != 0 || isConstituent[asset] || _constituents.length >= MAX_CONSTITUENTS
+            totalSupply() != 0 || _isConstituent[asset] || _constituents.length >= MAX_CONSTITUENTS
                 || weightBps == 0 || constituentWeightTotal + weightBps > BPS
         ) {
             revert InvalidConfiguration();
         }
         _validateRoute(asset, route, routeRuntimeCodeHash);
         _addInventoryAsset(asset);
-        isConstituent[asset] = true;
+        _isConstituent[asset] = true;
         constituentWeightTotal += weightBps;
         _constituents.push(Constituent(asset, route, routeRuntimeCodeHash, weightBps));
-        emit ConstituentAdded(asset, route, weightBps);
     }
 
     function replaceConstituent(
@@ -99,23 +95,21 @@ contract CoreStockTokenSleeve is BaseSleeve {
         bytes32 routeRuntimeCodeHash
     ) external onlyTimelock {
         if (
-            index >= _constituents.length || isConstituent[replacement]
+            index >= _constituents.length || _isConstituent[replacement]
                 || activeStrategyCount() != 0
         ) {
             revert InvalidConfiguration();
         }
         Constituent storage current = _constituents[index];
         address previous = current.asset;
-        uint256 balance = IERC20(previous).balanceOf(address(this));
-        if (balance != 0) revert ConstituentStillHeld(previous, balance);
+        if (IERC20(previous).balanceOf(address(this)) != 0) revert InvalidConfiguration();
         _validateRoute(replacement, route, routeRuntimeCodeHash);
         _replaceInventoryAsset(previous, replacement);
-        isConstituent[previous] = false;
-        isConstituent[replacement] = true;
+        _isConstituent[previous] = false;
+        _isConstituent[replacement] = true;
         current.asset = replacement;
         current.route = route;
         current.routeRuntimeCodeHash = routeRuntimeCodeHash;
-        emit ConstituentReplaced(previous, replacement, route);
     }
 
     function updateConstituentRoute(uint256 index, address route, bytes32 routeRuntimeCodeHash)
@@ -127,6 +121,7 @@ contract CoreStockTokenSleeve is BaseSleeve {
         _validateRoute(current.asset, route, routeRuntimeCodeHash);
         current.route = route;
         current.routeRuntimeCodeHash = routeRuntimeCodeHash;
+        emit ConstituentRouteUpdated(current.asset, route, routeRuntimeCodeHash);
     }
 
     function _afterDeposit(uint256 assets, bytes calldata data, uint256)

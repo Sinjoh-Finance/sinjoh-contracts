@@ -18,13 +18,17 @@ contract, API, SDK, indexer, keeper, and UI naming consistently uses **Yield Ban
 - `CollectionRevenueRouter`: authenticated project revenue plus native/ERC-20 royalty ingress using immutable per-collection economics, retryable fee legs, and allocation-operator-only synchronization with fresh guarded route data.
 - `YieldBankProjectRevenueBridge`: exact, identity-bound Project V2 `FUND_PROJECT_SINK` bridge into one collection revenue router.
 - `CollectionPortfolioAllocator`: collection defaults for primary and ongoing allocation plus NFT-owner targets and operator-executed full-backing rebalances with exact route-input checks.
-- `OperationsReserve` and `CollectionTimelock`: non-backing reserve sunset and fixed seven-day policy delay.
+- `CollectionTimelock`: fixed seven-day delay for collection policy and integration changes.
 - `PriceHub` and `StrategyRegistry`: fail-closed 18-decimal pricing and adapter provenance.
 - `CoreStockTokenSleeve`, `MarketMakingSleeve`, and `USDGSleeve`: capped ERC-20 share sleeves with in-kind redemption.
 - `IStrategyAdapter`: a small synchronous extension boundary for separately reviewed future venues.
-- `DeltaV3LPAdapter`: a codehash-bound, self-custodied `$INJOH`/WETH Delta ladder adapter with
+- `DeltaV3LPAdapter`: a codehash-bound, self-custodied paired-token/WETH Delta V3 ladder adapter with
   explicit manual entry, fee collection, partial withdrawal, full in-kind exit, and oracle-valued
   position accounting.
+- `DeltaV3SinglePoolRoute`: one reviewed Delta V3 pool and one immutable swap direction, with exact
+  input consumption and operator-supplied minimum output.
+- `DeltaV3TwapUsdFeed`: an optional guarded paired-token/USD fallback for pools whose paired token
+  has no direct trusted USD feed; it combines an aged V3 TWAP with a reviewed WETH/USD feed.
 
 The core burn path settles pending assets, applies a 5% tax to each tracked asset while more than one
 NFT remains, redistributes that tax using the post-burn live supply, and transfers the remainder to
@@ -33,6 +37,9 @@ unit. It does not call an oracle, swap, lending market, or strategy adapter.
 The burn proof is checked for both redemption and restricted-share receipt, and ordinary sleeve
 redemption forwards its proof to the same eligibility policy instead of silently substituting an
 empty proof. Standard NFT transfers remain address-state-only so Seaport can execute them.
+An NFT with an active dynamic Delta allocation must first execute an owner-approved rebalance out
+of that pool. This makes the normal burn path remain oracle- and swap-independent and prevents a
+dynamic sleeve from entering the fixed, bounded distribution-asset set.
 
 Every configured external contract and asset is bound by address and runtime code hash. Release
 verification additionally follows USDG's EIP-1967 implementation slot and each Robinhood Stock
@@ -48,7 +55,7 @@ Only the configured allocation operator can enter or collect from adapters; the 
 can withdraw and exit. Calls cannot accept a loss above the immutable `maximumOperatorLossBps`
 recorded for that sleeve in the release manifest.
 
-Each current NFT owner can set a percentage target across tokenized equities, Delta `$INJOH`/WETH
+Each current NFT owner can set a percentage target across Robinhood Stock Tokens, reviewed Delta V3 pools,
 LP, and USDG, including selecting a single sleeve. The owner also sets an adapter-withdrawal-loss
 ceiling and an execution expiry; route swaps have separate per-transaction minimum outputs. The
 request does not grant the holder direct strategy or adapter authority. The allocation operator
@@ -65,20 +72,22 @@ The following production modules require the Phase-0 manifest and external revie
 in `.agent-research/runs/20260828-195505/final-report.md`:
 
 - counsel-approved eligibility and transfer policy for the selected equity representation;
-- the collection's reviewed tokenized-equity assets, explicit custody/income model, feeds, disclosure, and operational chain-health source; and
-- the exact `$INJOH` token, `$INJOH`/WETH pool, both conversion routes, INJOH and WETH price feeds,
+- the collection's reviewed Robinhood Stock Tokens, explicit custody/income model, feeds, disclosure, and operational chain-health source; and
+- each exact paired token, paired-token/WETH Delta V3 pool, both conversion routes, paired-token and WETH price feeds,
   per-adapter position limit and allocation cap.
 
-The concrete Delta adapter is implemented in `adapters/DeltaV3LPAdapter.sol`. It binds the verified
+The concrete Delta V3 adapter is implemented in `adapters/DeltaV3LPAdapter.sol`. It binds the verified
 Delta position builder `0x6235cF6bd8419b34942F4EDDB39C880BD96dD700`, factory
 `0x1f7d7550B1b028f7571E69A784071F0205FD2EfA`, position manager
 `0x73991a25C818Bf1f1128dEAaB1492D45638DE0D3`, selected pool, routes, sleeve, and PriceHub by exact
-address and runtime code hash. It owns ordinary V3 position NFTs itself and rejects unsolicited
-NFTs. The operator chooses ladder rungs and slippage limits per transaction; none are hard-coded.
+address and runtime code hash. Each pool receives a separate sleeve and adapter. It owns ordinary V3
+position NFTs itself and rejects unsolicited safe transfers; plain transferred NFTs remain untracked.
+The operator chooses ladder rungs and slippage limits per transaction; no project token or pool is hard-coded.
+This release does not support Delta V4, V2, vault, or other position formats; those require separate adapters.
 
 Primary minting is hosted by OpenSea and sends native ETH through pinned SeaDrop to the collection's
 proceeds vault. That vault is the Yield Bank's Sinjoh Fee Router: it releases the exact configured
-creator, Sinjoh, and operations amounts in native ETH and wraps only the backing amount at manual
+creator and Sinjoh amounts in native ETH and wraps only the backing amount at manual
 allocation. There is no extra one-percent general-router fee. There is no sale
 success, refund, deadline, sellout release, or automatic investment transition. Missing
 external integrations fail closed: no address, route, feed, venue, pool, or ABI is inferred.

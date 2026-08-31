@@ -12,26 +12,29 @@ import {
     YieldBankTokenState
 } from "./YieldBankTypes.sol";
 import { IYieldBankEligibilityPolicy } from "./interfaces/IYieldBankEligibilityPolicy.sol";
+import { IYieldBankSleeve } from "./interfaces/IYieldBankSleeve.sol";
 import { YieldBankAccount } from "./YieldBankAccount.sol";
 import { YieldBankDistributor } from "./YieldBankDistributor.sol";
 import { YieldBankNFT } from "./YieldBankNFT.sol";
 import { YieldBankProceedsVault } from "./YieldBankProceedsVault.sol";
-
-interface IYieldBankOperationsReserve {
-    function notifyPrimary(uint256 amount) external;
-}
+import { IntegrationBinding } from "./libraries/IntegrationBinding.sol";
+import { YieldBankIds } from "./libraries/YieldBankIds.sol";
 
 interface IYieldBankRevenueEconomics {
     function primaryBackingBps() external view returns (uint16);
     function primaryCreatorBps() external view returns (uint16);
     function primarySinjohBps() external view returns (uint16);
-    function primaryOperationsBps() external view returns (uint16);
+}
+
+interface IYieldBankBurnableToken is IERC20 {
+    function burnFrom(address account, uint256 amount) external;
 }
 
 interface IYieldBankPortfolioEconomics {
     function coreWeightBps() external view returns (uint16);
     function marketMakingWeightBps() external view returns (uint16);
     function usdgWeightBps() external view returns (uint16);
+    function activeDeltaPoolOf(uint256 tokenId) external view returns (address);
 }
 
 /// @notice Coordinator for one configurable-supply Yield Banks collection.
@@ -48,14 +51,15 @@ contract YieldBankCollection is ReentrancyGuard {
     uint16 public immutable primaryBackingBps;
     uint16 public immutable primaryCreatorBps;
     uint16 public immutable primarySinjohBps;
-    uint16 public immutable primaryOperationsBps;
     uint16 public immutable coreWeightBps;
     uint16 public immutable marketMakingWeightBps;
     uint16 public immutable usdgWeightBps;
     address public immutable creator;
     address public immutable openSeaManager;
     address public immutable sinjohFeeRecipient;
-    address public immutable operationsReserve;
+    IYieldBankBurnableToken public immutable redemptionToken;
+    uint256 public immutable redemptionTokenAmount;
+    bytes32 public immutable redemptionTokenCodeHash;
     address public immutable revenueRouter;
     IYieldBankEligibilityPolicy public immutable eligibilityPolicy;
     address public immutable portfolioAllocator;
@@ -89,6 +93,10 @@ contract YieldBankCollection is ReentrancyGuard {
     error InvalidBatchSize(uint256 supplied);
     error PrimaryPayoutPending();
     error InvalidSleeveAsset(address asset);
+    error ActiveDeltaPositionRequiresRebalance(uint256 tokenId, address pool);
+    error RedemptionTokenBurnMismatch(
+        uint256 expected, uint256 balanceBurned, uint256 supplyBurned
+    );
 
     event CollectionStateChanged(
         YieldBankCollectionState indexed previousState, YieldBankCollectionState indexed newState
@@ -107,6 +115,9 @@ contract YieldBankCollection is ReentrancyGuard {
         uint256 indexed tokenId, address indexed beneficiary, bool terminal, uint256 pendingBacking
     );
     event DistributionAssetRegistered(address indexed asset);
+    event RedemptionTokenBurned(
+        uint256 indexed tokenId, address indexed owner, address indexed token, uint256 amount
+    );
 
     constructor(YieldBankConfig memory config) {
         _validateConfig(config);
@@ -116,14 +127,15 @@ contract YieldBankCollection is ReentrancyGuard {
         primaryBackingBps = config.primaryBackingBps;
         primaryCreatorBps = config.primaryCreatorBps;
         primarySinjohBps = config.primarySinjohBps;
-        primaryOperationsBps = config.primaryOperationsBps;
         coreWeightBps = config.coreWeightBps;
         marketMakingWeightBps = config.marketMakingWeightBps;
         usdgWeightBps = config.usdgWeightBps;
         creator = config.creator;
         openSeaManager = config.openSeaManager;
         sinjohFeeRecipient = config.sinjohFeeRecipient;
-        operationsReserve = config.operationsReserve;
+        redemptionToken = IYieldBankBurnableToken(config.redemptionToken);
+        redemptionTokenAmount = config.redemptionTokenAmount;
+        redemptionTokenCodeHash = config.redemptionTokenCodeHash;
         revenueRouter = config.revenueRouter;
         eligibilityPolicy = IYieldBankEligibilityPolicy(config.eligibilityPolicy);
         portfolioAllocator = config.portfolioAllocator;
@@ -154,7 +166,6 @@ contract YieldBankCollection is ReentrancyGuard {
             config.seaDrop,
             config.creator,
             config.sinjohFeeRecipient,
-            config.operationsReserve,
             config.portfolioAllocator,
             config.allocationOperator,
             config.collectionTimelock,
@@ -163,8 +174,7 @@ contract YieldBankCollection is ReentrancyGuard {
             sleeveList,
             config.primaryBackingBps,
             config.primaryCreatorBps,
-            config.primarySinjohBps,
-            config.primaryOperationsBps
+            config.primarySinjohBps
         );
         proceedsVault = proceedsVault_;
         nft_.setProceedsVault(address(proceedsVault_));
@@ -236,10 +246,16 @@ contract YieldBankCollection is ReentrancyGuard {
         (, uint256 pendingMintQuantity) = proceedsVault.pendingMint();
         if (pendingMintQuantity != 0) revert PrimaryPayoutPending();
         if (nft.ownerOf(tokenId) != msg.sender) revert InvalidTokenOwner(tokenId, msg.sender);
+        address activeDeltaPool =
+            IYieldBankPortfolioEconomics(portfolioAllocator).activeDeltaPoolOf(tokenId);
+        if (activeDeltaPool != address(0)) {
+            revert ActiveDeltaPositionRequiresRebalance(tokenId, activeDeltaPool);
+        }
         if (!eligibilityPolicy.canRedeem(msg.sender, proof)) revert Ineligible(msg.sender);
         if (!eligibilityPolicy.canReceiveRestrictedShares(msg.sender, proof)) {
             revert Ineligible(msg.sender);
         }
+        _burnRedemptionToken(tokenId, msg.sender);
         _burnOwned(tokenId, msg.sender, proof);
     }
 
@@ -255,9 +271,16 @@ contract YieldBankCollection is ReentrancyGuard {
         emit DistributionAssetRegistered(asset);
     }
 
-    function notifyOperationsPrimary(uint256 amount) external {
-        if (msg.sender != address(proceedsVault)) revert OnlyProceedsVault(msg.sender);
-        IYieldBankOperationsReserve(operationsReserve).notifyPrimary(amount);
+    function registerMarketMakingSleeve(address sleeve, bytes32 runtimeCodeHash) external {
+        if (msg.sender != collectionTimelock) revert OnlyTimelock(msg.sender);
+        if (isSleeveAsset[sleeve]) revert InvalidSleeveAsset(sleeve);
+        IntegrationBinding.requireBound(sleeve, runtimeCodeHash);
+        if (
+            IYieldBankSleeve(sleeve).category() != YieldBankIds.MARKET_MAKING
+                || IYieldBankSleeve(sleeve).accountingAsset() != address(weth)
+        ) revert InvalidSleeveAsset(sleeve);
+        isSleeveAsset[sleeve] = true;
+        emit DistributionAssetRegistered(sleeve);
     }
 
     function pauseInvestments() external {
@@ -367,6 +390,23 @@ contract YieldBankCollection is ReentrancyGuard {
         distributor.registerAsset(asset);
     }
 
+    function _burnRedemptionToken(uint256 tokenId, address owner) private {
+        uint256 amount = redemptionTokenAmount;
+        if (amount == 0) return;
+        IYieldBankBurnableToken token = redemptionToken;
+        uint256 balanceBefore = token.balanceOf(owner);
+        uint256 supplyBefore = token.totalSupply();
+        token.burnFrom(owner, amount);
+        uint256 balanceAfter = token.balanceOf(owner);
+        uint256 supplyAfter = token.totalSupply();
+        uint256 balanceBurned = balanceAfter <= balanceBefore ? balanceBefore - balanceAfter : 0;
+        uint256 supplyBurned = supplyAfter <= supplyBefore ? supplyBefore - supplyAfter : 0;
+        if (balanceBurned != amount || supplyBurned != amount) {
+            revert RedemptionTokenBurnMismatch(amount, balanceBurned, supplyBurned);
+        }
+        emit RedemptionTokenBurned(tokenId, owner, address(token), amount);
+    }
+
     function _accountSalt(uint256 tokenId) private view returns (bytes32) {
         return keccak256(abi.encode(block.chainid, address(this), collectionId, tokenId));
     }
@@ -378,23 +418,27 @@ contract YieldBankCollection is ReentrancyGuard {
     }
 
     function _validateConfig(YieldBankConfig memory c) private view {
+        bool redemptionDisabled = c.redemptionToken == address(0) && c.redemptionTokenAmount == 0
+            && c.redemptionTokenCodeHash == bytes32(0);
+        bool redemptionEnabled = c.redemptionToken.code.length != 0 && c.redemptionTokenAmount != 0
+            && c.redemptionToken.codehash == c.redemptionTokenCodeHash;
         if (
             c.collectionId == bytes32(0) || c.maxSupply == 0 || c.maxSupply > type(uint64).max
                 || c.secondaryRoyaltyBps > BPS || c.creator == address(0)
                 || c.openSeaManager == address(0) || c.sinjohFeeRecipient == address(0)
-                || c.operationsReserve == address(0) || c.revenueRouter.code.length == 0
-                || c.eligibilityPolicy.code.length == 0 || c.portfolioAllocator.code.length == 0
-                || c.allocationOperator == address(0) || c.collectionTimelock.code.length == 0
-                || c.guardian == address(0) || c.renderer.code.length == 0
-                || c.weth.code.length == 0 || c.seaDrop.code.length == 0
-                || c.coreSleeve.code.length == 0 || c.marketMakingSleeve.code.length == 0
-                || c.usdgSleeve.code.length == 0 || c.accountImplementation.code.length == 0
-                || c.coreSleeve == c.marketMakingSleeve || c.coreSleeve == c.usdgSleeve
-                || c.marketMakingSleeve == c.usdgSleeve || c.primaryBackingBps == 0
-                || uint256(c.primaryBackingBps) + c.primaryCreatorBps + c.primarySinjohBps
-                        + c.primaryOperationsBps != BPS || c.coreWeightBps == 0
-                || c.marketMakingWeightBps == 0 || c.usdgWeightBps == 0
+                || c.revenueRouter.code.length == 0 || c.eligibilityPolicy.code.length == 0
+                || c.portfolioAllocator.code.length == 0 || c.allocationOperator == address(0)
+                || c.collectionTimelock.code.length == 0 || c.guardian == address(0)
+                || c.renderer.code.length == 0 || c.weth.code.length == 0
+                || c.seaDrop.code.length == 0 || c.coreSleeve.code.length == 0
+                || c.marketMakingSleeve.code.length == 0 || c.usdgSleeve.code.length == 0
+                || c.accountImplementation.code.length == 0 || c.coreSleeve == c.marketMakingSleeve
+                || c.coreSleeve == c.usdgSleeve || c.marketMakingSleeve == c.usdgSleeve
+                || c.primaryBackingBps == 0
+                || uint256(c.primaryBackingBps) + c.primaryCreatorBps + c.primarySinjohBps != BPS
+                || c.coreWeightBps == 0 || c.marketMakingWeightBps == 0 || c.usdgWeightBps == 0
                 || uint256(c.coreWeightBps) + c.marketMakingWeightBps + c.usdgWeightBps != BPS
+                || (!redemptionDisabled && !redemptionEnabled)
         ) revert InvalidConfiguration();
         bytes32[10] memory h = c.integrationCodeHashes;
         if (
@@ -411,7 +455,6 @@ contract YieldBankCollection is ReentrancyGuard {
             revenueEconomics.primaryBackingBps() != c.primaryBackingBps
                 || revenueEconomics.primaryCreatorBps() != c.primaryCreatorBps
                 || revenueEconomics.primarySinjohBps() != c.primarySinjohBps
-                || revenueEconomics.primaryOperationsBps() != c.primaryOperationsBps
                 || portfolioEconomics.coreWeightBps() != c.coreWeightBps
                 || portfolioEconomics.marketMakingWeightBps() != c.marketMakingWeightBps
                 || portfolioEconomics.usdgWeightBps() != c.usdgWeightBps

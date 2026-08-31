@@ -12,7 +12,12 @@ import { YieldBankAccount } from "../../src/yield-banks/YieldBankAccount.sol";
 import {
     YieldBankAdapterRedemptionCall
 } from "../../src/yield-banks/interfaces/IYieldBankManagedSleeve.sol";
-import { YieldBankCollectionState } from "../../src/yield-banks/YieldBankTypes.sol";
+import {
+    YieldBankAdapterState,
+    YieldBankCollectionState
+} from "../../src/yield-banks/YieldBankTypes.sol";
+import { YieldBankIds } from "../../src/yield-banks/libraries/YieldBankIds.sol";
+import { IPriceHub } from "../../src/yield-banks/interfaces/IPriceHub.sol";
 import {
     MockYieldBankAllocationRoute,
     MockYieldBankAsset
@@ -55,6 +60,7 @@ contract MockOwnerAllocationCollection {
     uint16 public constant marketMakingWeightBps = 3_750;
     uint16 public constant usdgWeightBps = 2_250;
     mapping(uint256 tokenId => address account) public accountOf;
+    mapping(address sleeve => bool registered) public isSleeveAsset;
 
     constructor(address nft_, address weth_, address proceedsVault_) {
         nft = nft_;
@@ -75,6 +81,10 @@ contract MockOwnerAllocationCollection {
         YieldBankAccount(account).trackAsset(asset);
     }
 
+    function registerSleeve(address sleeve) external {
+        isSleeveAsset[sleeve] = true;
+    }
+
     function claimPrimary(uint256) external { }
     function settle(uint256) external { }
 }
@@ -89,6 +99,18 @@ contract MockOwnerAllocationSleeve is ERC20 {
     function inventoryAssets() external view returns (address[] memory assets) {
         assets = new address[](1);
         assets[0] = accountingAsset;
+    }
+
+    function totalAssetsUsd18() external view returns (uint256 value, uint48 pricedAt) {
+        return (IERC20(accountingAsset).balanceOf(address(this)), uint48(block.timestamp));
+    }
+
+    function priceHub() external view returns (address) {
+        return address(this);
+    }
+
+    function quoteUsd18(address) external view returns (uint256, uint48, IPriceHub.FailureReason) {
+        return (1e18, uint48(block.timestamp), IPriceHub.FailureReason.NONE);
     }
 
     function deposit(uint256 assets, address receiver, uint256 minimumShares, bytes calldata)
@@ -117,6 +139,40 @@ contract MockOwnerAllocationSleeve is ERC20 {
         amounts = new uint256[](1);
         assets[0] = accountingAsset;
         amounts[0] = shares;
+    }
+}
+
+contract MockOwnerPoolSleeve is MockOwnerAllocationSleeve {
+    bytes32 public constant category = YieldBankIds.MARKET_MAKING;
+    uint8 public constant maximumStrategies = 1;
+    address public immutable allocator;
+    mapping(address adapter => YieldBankAdapterState state) public adapterState;
+    address private _adapter;
+
+    constructor(address accountingAsset_, address allocator_)
+        MockOwnerAllocationSleeve(accountingAsset_, "POOL")
+    {
+        allocator = allocator_;
+    }
+
+    function activate(address adapter) external {
+        _adapter = adapter;
+        adapterState[adapter] = YieldBankAdapterState.ACTIVE;
+    }
+
+    function adapters() external view returns (address[] memory values) {
+        values = new address[](1);
+        values[0] = _adapter;
+    }
+}
+
+contract MockOwnerDeltaPoolAdapter {
+    address public immutable sleeve;
+    address public immutable pool;
+
+    constructor(address sleeve_, address pool_) {
+        sleeve = sleeve_;
+        pool = pool_;
     }
 }
 
@@ -231,6 +287,30 @@ contract YieldBankOwnerAllocationTest is Test {
         allocator.executeTargetAllocation(TOKEN_ID, revision, execution);
     }
 
+    function testOwnerLossLimitCoversConversionsAndFinalAllocationValue() external {
+        stockExitRoute.setOutputBps(9_000);
+        uint16[3] memory weights = [uint16(0), uint16(0), uint16(10_000)];
+        uint64 revision = _requestTarget(weights);
+
+        CollectionPortfolioAllocator.RebalanceExecution memory execution;
+        uint256[3] memory existing = [uint256(400 ether), 375 ether, 225 ether];
+        for (uint256 i; i < 3; ++i) {
+            execution.redemptions[i].minimumOutputs = new uint256[](1);
+            execution.redemptions[i].minimumOutputs[0] = existing[i];
+        }
+        execution.conversions = new CollectionPortfolioAllocator.ConversionCall[](1);
+        execution.conversions[0] = CollectionPortfolioAllocator.ConversionCall({
+            asset: address(stock), minimumWethOut: 360 ether, routeData: ""
+        });
+        execution.allocations[2].minimumOutput = 960 ether;
+        execution.allocations[2].minimumShares = 960 ether;
+        execution.minimumWethRecovered = 960 ether;
+        execution.deadline = block.timestamp + 1 hours;
+
+        vm.expectPartialRevert(CollectionPortfolioAllocator.OwnerTotalLossLimitExceeded.selector);
+        allocator.executeTargetAllocation(TOKEN_ID, revision, execution);
+    }
+
     function testOnlyCurrentNftOwnerCanSetTargetAndExecutionIsRevisionBound() external {
         uint16[3] memory weights = [uint16(10_000), uint16(0), uint16(0)];
         vm.expectRevert(
@@ -238,7 +318,9 @@ contract YieldBankOwnerAllocationTest is Test {
                 CollectionPortfolioAllocator.OnlyTokenOwner.selector, TOKEN_ID, address(this)
             )
         );
-        allocator.setTargetAllocation(TOKEN_ID, weights, 100, uint48(block.timestamp + 2 hours));
+        allocator.setTargetAllocation(
+            TOKEN_ID, weights, address(0), 100, uint48(block.timestamp + 2 hours)
+        );
 
         uint64 revision = _requestTarget(weights);
         CollectionPortfolioAllocator.RebalanceExecution memory execution;
@@ -365,6 +447,64 @@ contract YieldBankOwnerAllocationTest is Test {
         assertEq(shares[0] + shares[1] + shares[2], 1_000 ether);
     }
 
+    function testOwnerCanSelectAndLaterLeaveAnIsolatedRegisteredDeltaPool() external {
+        MockYieldBankAsset pool = new MockYieldBankAsset("Delta Pool Identity", "POOL-ID");
+        MockOwnerPoolSleeve poolSleeve = new MockOwnerPoolSleeve(address(weth), address(allocator));
+        MockOwnerDeltaPoolAdapter adapter =
+            new MockOwnerDeltaPoolAdapter(address(poolSleeve), address(pool));
+        poolSleeve.activate(address(adapter));
+        collection.registerSleeve(address(poolSleeve));
+        allocator.registerDeltaPool(
+            address(pool),
+            address(poolSleeve),
+            address(adapter),
+            address(pool).codehash,
+            address(poolSleeve).codehash,
+            address(adapter).codehash
+        );
+
+        uint16[3] memory poolWeights = [uint16(0), uint16(10_000), uint16(0)];
+        vm.prank(ALICE);
+        uint64 poolRevision = allocator.setTargetAllocation(
+            TOKEN_ID, poolWeights, address(pool), 100, uint48(block.timestamp + 2 hours)
+        );
+        CollectionPortfolioAllocator.RebalanceExecution memory enter;
+        uint256[3] memory existing = [uint256(400 ether), 375 ether, 225 ether];
+        for (uint256 i; i < 3; ++i) {
+            enter.redemptions[i].minimumOutputs = new uint256[](1);
+            enter.redemptions[i].minimumOutputs[0] = existing[i];
+        }
+        enter.conversions = new CollectionPortfolioAllocator.ConversionCall[](1);
+        enter.conversions[0] = CollectionPortfolioAllocator.ConversionCall({
+            asset: address(stock), minimumWethOut: 400 ether, routeData: ""
+        });
+        enter.allocations[1].minimumOutput = 1_000 ether;
+        enter.allocations[1].minimumShares = 1_000 ether;
+        enter.minimumWethRecovered = 1_000 ether;
+        enter.deadline = block.timestamp + 1 hours;
+        allocator.executeTargetAllocation(TOKEN_ID, poolRevision, enter);
+
+        assertEq(allocator.activeDeltaPoolOf(TOKEN_ID), address(pool));
+        assertEq(poolSleeve.balanceOf(address(account)), 1_000 ether);
+        assertEq(market.balanceOf(address(account)), 0);
+
+        uint16[3] memory usdgWeights = [uint16(0), uint16(0), uint16(10_000)];
+        uint64 leaveRevision = _requestTarget(usdgWeights);
+        CollectionPortfolioAllocator.RebalanceExecution memory leave;
+        leave.deltaPoolRedemption.minimumOutputs = new uint256[](1);
+        leave.deltaPoolRedemption.minimumOutputs[0] = 1_000 ether;
+        leave.allocations[2].minimumOutput = 1_000 ether;
+        leave.allocations[2].minimumShares = 1_000 ether;
+        leave.minimumWethRecovered = 1_000 ether;
+        leave.deadline = block.timestamp + 1 hours;
+        allocator.executeTargetAllocation(TOKEN_ID, leaveRevision, leave);
+
+        assertEq(allocator.activeDeltaPoolOf(TOKEN_ID), address(0));
+        assertEq(poolSleeve.balanceOf(address(account)), 0);
+        assertEq(usdg.balanceOf(address(account)), 1_000 ether);
+        assertFalse(account.isTrackedAsset(address(poolSleeve)));
+    }
+
     function testTargetCanBeChangedWhilePausedButExecutionCannotRun() external {
         collection.setState(YieldBankCollectionState.INVESTMENT_PAUSED);
         uint16[3] memory weights = [uint16(0), uint16(10_000), uint16(0)];
@@ -381,7 +521,8 @@ contract YieldBankOwnerAllocationTest is Test {
 
     function _requestTarget(uint16[3] memory weights) private returns (uint64 revision) {
         vm.prank(ALICE);
-        return
-            allocator.setTargetAllocation(TOKEN_ID, weights, 100, uint48(block.timestamp + 2 hours));
+        return allocator.setTargetAllocation(
+            TOKEN_ID, weights, address(0), 100, uint48(block.timestamp + 2 hours)
+        );
     }
 }

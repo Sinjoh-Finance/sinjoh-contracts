@@ -3,7 +3,6 @@ pragma solidity 0.8.28;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import { IERC721Receiver } from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -27,18 +26,19 @@ interface IDeltaAdapterSleeve {
     function priceHub() external view returns (address);
 }
 
-/// @notice Manually operated Delta ladder adapter for one INJOH/WETH Uniswap V3 pool.
+/// @notice Manually operated Delta ladder adapter for one PAIRED_ASSET/WETH Uniswap V3 pool.
 /// @dev Every external integration and every position decision is explicit and codehash-bound.
-contract DeltaV3LPAdapter is IStrategyAdapter, IERC721Receiver, ReentrancyGuard {
+contract DeltaV3LPAdapter is IStrategyAdapter, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint16 private constant BPS = 10_000;
+    uint256 private constant Q128 = 1 << 128;
     uint256 public constant MAX_POSITION_COUNT = 64;
 
     struct Config {
         address sleeve;
         address weth;
-        address injoh;
+        address pairedAsset;
         address priceHub;
         address pool;
         address positionManager;
@@ -56,7 +56,7 @@ contract DeltaV3LPAdapter is IStrategyAdapter, IERC721Receiver, ReentrancyGuard 
 
     struct DepositParams {
         uint256 wethToConvert;
-        uint256 minimumInjohOut;
+        uint256 minimumPairedAssetOut;
         bytes routeData;
         IDeltaPositionBuilder.Rung[] rungs;
         int24 minimumCurrentTick;
@@ -73,7 +73,7 @@ contract DeltaV3LPAdapter is IStrategyAdapter, IERC721Receiver, ReentrancyGuard 
 
     struct WithdrawalParams {
         LiquidityAction[] actions;
-        uint256 injohToConvert;
+        uint256 pairedAssetToConvert;
         uint256 minimumWethOut;
         uint256 wethToReturn;
         bytes routeData;
@@ -85,10 +85,23 @@ contract DeltaV3LPAdapter is IStrategyAdapter, IERC721Receiver, ReentrancyGuard 
         uint256 deadline;
     }
 
+    struct PositionState {
+        address token0;
+        address token1;
+        uint24 fee;
+        int24 tickLower;
+        int24 tickUpper;
+        uint128 liquidity;
+        uint256 feeGrowthInside0LastX128;
+        uint256 feeGrowthInside1LastX128;
+        uint128 tokensOwed0;
+        uint128 tokensOwed1;
+    }
+
     address public immutable override sleeve;
     address public immutable override accountingAsset;
     IERC20 public immutable weth;
-    IERC20 public immutable injoh;
+    IERC20 public immutable pairedAsset;
     IPriceHub public immutable priceHub;
     IYieldBankV3Pool public immutable pool;
     address public immutable factory;
@@ -104,14 +117,11 @@ contract DeltaV3LPAdapter is IStrategyAdapter, IERC721Receiver, ReentrancyGuard 
     bytes32 public immutable exitRouteCodeHash;
     uint8 public immutable maximumPositions;
     uint8 public immutable wethDecimals;
-    uint8 public immutable injohDecimals;
+    uint8 public immutable pairedAssetDecimals;
     bool public immutable wethIsToken0;
 
     uint256[] private _positionIds;
     mapping(uint256 tokenId => bool tracked) public isPositionTracked;
-    mapping(uint256 tokenId => bool expected) private _pendingMint;
-    uint256 private _expectedMints;
-    uint256 private _receivedMints;
 
     error OnlySleeve(address caller);
     error InvalidConfiguration();
@@ -132,7 +142,7 @@ contract DeltaV3LPAdapter is IStrategyAdapter, IERC721Receiver, ReentrancyGuard 
     constructor(Config memory config) {
         if (
             config.sleeve.code.length == 0 || config.weth.code.length == 0
-                || config.injoh.code.length == 0 || config.weth == config.injoh
+                || config.pairedAsset.code.length == 0 || config.weth == config.pairedAsset
                 || config.priceHub.code.length == 0 || config.maximumPositions == 0
                 || config.maximumPositions > MAX_POSITION_COUNT
         ) revert InvalidConfiguration();
@@ -153,8 +163,8 @@ contract DeltaV3LPAdapter is IStrategyAdapter, IERC721Receiver, ReentrancyGuard 
         IYieldBankV3Pool configuredPool = IYieldBankV3Pool(config.pool);
         address token0 = configuredPool.token0();
         address token1 = configuredPool.token1();
-        bool configuredWethIsToken0 = token0 == config.weth && token1 == config.injoh;
-        if (!configuredWethIsToken0 && (token0 != config.injoh || token1 != config.weth)) {
+        bool configuredWethIsToken0 = token0 == config.weth && token1 == config.pairedAsset;
+        if (!configuredWethIsToken0 && (token0 != config.pairedAsset || token1 != config.weth)) {
             revert InvalidConfiguration();
         }
 
@@ -168,19 +178,19 @@ contract DeltaV3LPAdapter is IStrategyAdapter, IERC721Receiver, ReentrancyGuard 
                 || IYieldBankV3Factory(factory_).getPool(token0, token1, configuredPool.fee())
                     != config.pool
                 || IYieldBankAllocationRoute(config.entryRoute).inputAsset() != config.weth
-                || IYieldBankAllocationRoute(config.entryRoute).outputAsset() != config.injoh
-                || IYieldBankAllocationRoute(config.exitRoute).inputAsset() != config.injoh
+                || IYieldBankAllocationRoute(config.entryRoute).outputAsset() != config.pairedAsset
+                || IYieldBankAllocationRoute(config.exitRoute).inputAsset() != config.pairedAsset
                 || IYieldBankAllocationRoute(config.exitRoute).outputAsset() != config.weth
         ) revert InvalidConfiguration();
 
         uint8 wethDecimals_ = IERC20Metadata(config.weth).decimals();
-        uint8 injohDecimals_ = IERC20Metadata(config.injoh).decimals();
-        if (wethDecimals_ > 18 || injohDecimals_ > 18) revert InvalidConfiguration();
+        uint8 pairedAssetDecimals_ = IERC20Metadata(config.pairedAsset).decimals();
+        if (wethDecimals_ > 18 || pairedAssetDecimals_ > 18) revert InvalidConfiguration();
 
         sleeve = config.sleeve;
         accountingAsset = config.weth;
         weth = IERC20(config.weth);
-        injoh = IERC20(config.injoh);
+        pairedAsset = IERC20(config.pairedAsset);
         priceHub = IPriceHub(config.priceHub);
         pool = configuredPool;
         factory = factory_;
@@ -196,7 +206,7 @@ contract DeltaV3LPAdapter is IStrategyAdapter, IERC721Receiver, ReentrancyGuard 
         exitRouteCodeHash = config.exitRouteCodeHash;
         maximumPositions = config.maximumPositions;
         wethDecimals = wethDecimals_;
-        injohDecimals = injohDecimals_;
+        pairedAssetDecimals = pairedAssetDecimals_;
         wethIsToken0 = configuredWethIsToken0;
     }
 
@@ -208,7 +218,7 @@ contract DeltaV3LPAdapter is IStrategyAdapter, IERC721Receiver, ReentrancyGuard 
     function positionAssets() external view returns (address[] memory assets) {
         assets = new address[](2);
         assets[0] = address(weth);
-        assets[1] = address(injoh);
+        assets[1] = address(pairedAsset);
     }
 
     function positionIds() external view returns (uint256[] memory) {
@@ -217,12 +227,12 @@ contract DeltaV3LPAdapter is IStrategyAdapter, IERC721Receiver, ReentrancyGuard 
 
     function totalManagedAssets() external view returns (uint256) {
         _requireCoreRuntime();
-        (uint256 wethAmount, uint256 injohAmount) = _holdings();
-        if (wethAmount == 0 && injohAmount == 0) return 0;
+        (uint256 wethAmount, uint256 pairedAssetAmount) = _holdings();
+        if (wethAmount == 0 && pairedAssetAmount == 0) return 0;
         (uint256 wethPrice,) = _price(address(weth));
-        (uint256 injohPrice,) = _price(address(injoh));
+        (uint256 pairedAssetPrice,) = _price(address(pairedAsset));
         uint256 valueUsd18 = Math.mulDiv(wethAmount, wethPrice, 10 ** wethDecimals)
-            + Math.mulDiv(injohAmount, injohPrice, 10 ** injohDecimals);
+            + Math.mulDiv(pairedAssetAmount, pairedAssetPrice, 10 ** pairedAssetDecimals);
         return Math.mulDiv(valueUsd18, 10 ** wethDecimals, wethPrice);
     }
 
@@ -247,7 +257,15 @@ contract DeltaV3LPAdapter is IStrategyAdapter, IERC721Receiver, ReentrancyGuard 
         if (params.rungs.length == 0 || requestedCount > maximumPositions) {
             revert TooManyPositions(maximumPositions, requestedCount);
         }
-        if (params.wethToConvert > assets) revert InvalidConfiguration();
+        // forge-lint: disable-next-line(block-timestamp)
+        if (
+            params.wethToConvert > assets || params.minimumCurrentTick > params.maximumCurrentTick
+                || params.minimumCurrentTick < TickMath.MIN_TICK
+                || params.maximumCurrentTick > TickMath.MAX_TICK
+                || params.deadline < block.timestamp
+                || (params.wethToConvert != 0 && params.minimumPairedAssetOut == 0)
+        ) revert InvalidConfiguration();
+        _validateRungs(params.rungs);
 
         uint256 wethBefore = weth.balanceOf(address(this));
         weth.safeTransferFrom(sleeve, address(this), assets);
@@ -258,26 +276,24 @@ contract DeltaV3LPAdapter is IStrategyAdapter, IERC721Receiver, ReentrancyGuard 
             _convert(
                 entryRoute,
                 weth,
-                injoh,
+                pairedAsset,
                 params.wethToConvert,
-                params.minimumInjohOut,
+                params.minimumPairedAssetOut,
                 params.routeData,
                 entryRouteCodeHash
             );
-        } else if (params.minimumInjohOut != 0) {
+        } else if (params.minimumPairedAssetOut != 0) {
             revert InvalidConfiguration();
         }
 
         (uint256 total0, uint256 total1) = _rungTotals(params.rungs);
-        IERC20 token0 = wethIsToken0 ? weth : injoh;
-        IERC20 token1 = wethIsToken0 ? injoh : weth;
+        IERC20 token0 = wethIsToken0 ? weth : pairedAsset;
+        IERC20 token1 = wethIsToken0 ? pairedAsset : weth;
         if (total0 > token0.balanceOf(address(this)) || total1 > token1.balanceOf(address(this))) {
             revert InvalidConfiguration();
         }
         token0.forceApprove(address(positionBuilder), total0);
         token1.forceApprove(address(positionBuilder), total1);
-        _expectedMints = params.rungs.length;
-        _receivedMints = 0;
         uint256[] memory minted = positionBuilder.mintLadder(
             address(pool),
             params.rungs,
@@ -287,17 +303,11 @@ contract DeltaV3LPAdapter is IStrategyAdapter, IERC721Receiver, ReentrancyGuard 
         );
         token0.forceApprove(address(positionBuilder), 0);
         token1.forceApprove(address(positionBuilder), 0);
-        if (minted.length != params.rungs.length || _receivedMints != minted.length) {
-            revert InvalidConfiguration();
-        }
-        _expectedMints = 0;
+        if (minted.length != params.rungs.length) revert InvalidConfiguration();
 
         for (uint256 i; i < minted.length; ++i) {
             uint256 tokenId = minted[i];
-            if (!_pendingMint[tokenId] || isPositionTracked[tokenId]) {
-                revert InvalidPosition(tokenId);
-            }
-            delete _pendingMint[tokenId];
+            if (isPositionTracked[tokenId]) revert InvalidPosition(tokenId);
             (address tokenA, address tokenB, uint24 fee, uint128 liquidity) =
                 _positionIdentity(tokenId);
             if (
@@ -325,13 +335,18 @@ contract DeltaV3LPAdapter is IStrategyAdapter, IERC721Receiver, ReentrancyGuard 
         }
         _requireCoreRuntime();
         WithdrawalParams memory params = abi.decode(data, (WithdrawalParams));
+        // forge-lint: disable-next-line(block-timestamp)
+        if (
+            params.deadline < block.timestamp
+                || (params.pairedAssetToConvert != 0 && params.minimumWethOut == 0)
+        ) revert InvalidConfiguration();
         _unwind(params.actions, params.deadline, false);
-        if (params.injohToConvert != 0) {
+        if (params.pairedAssetToConvert != 0) {
             _convert(
                 exitRoute,
-                injoh,
+                pairedAsset,
                 weth,
-                params.injohToConvert,
+                params.pairedAssetToConvert,
                 params.minimumWethOut,
                 params.routeData,
                 exitRouteCodeHash
@@ -358,17 +373,17 @@ contract DeltaV3LPAdapter is IStrategyAdapter, IERC721Receiver, ReentrancyGuard 
         IntegrationBinding.requireBound(address(positionManager), positionManagerCodeHash);
         uint256[] memory tokenIds = abi.decode(data, (uint256[]));
         uint256 wethBefore = weth.balanceOf(address(this));
-        uint256 injohBefore = injoh.balanceOf(address(this));
+        uint256 pairedAssetBefore = pairedAsset.balanceOf(address(this));
         for (uint256 i; i < tokenIds.length; ++i) {
             _requireUniqueTracked(tokenIds, i);
             _collectPosition(tokenIds[i]);
         }
         amounts = new uint256[](2);
         amounts[0] = weth.balanceOf(address(this)) - wethBefore;
-        amounts[1] = injoh.balanceOf(address(this)) - injohBefore;
+        amounts[1] = pairedAsset.balanceOf(address(this)) - pairedAssetBefore;
         assets = _positionAssets();
         if (amounts[0] != 0) weth.safeTransfer(receiver, amounts[0]);
-        if (amounts[1] != 0) injoh.safeTransfer(receiver, amounts[1]);
+        if (amounts[1] != 0) pairedAsset.safeTransfer(receiver, amounts[1]);
     }
 
     function exitAll(address receiver, uint16 maxLossBps, bytes calldata data)
@@ -379,35 +394,39 @@ contract DeltaV3LPAdapter is IStrategyAdapter, IERC721Receiver, ReentrancyGuard 
     {
         if (receiver != sleeve || maxLossBps > BPS) revert InvalidConfiguration();
         _requireCoreRuntime();
-        uint256 valueBefore = this.totalManagedAssets();
+        bool oracleIndependent = maxLossBps == BPS;
+        uint256 valueBefore = oracleIndependent ? 0 : this.totalManagedAssets();
         ExitParams memory params = abi.decode(data, (ExitParams));
-        if (params.actions.length != _positionIds.length) revert InvalidConfiguration();
+        // forge-lint: disable-next-line(block-timestamp)
+        if (params.actions.length != _positionIds.length || params.deadline < block.timestamp) {
+            revert InvalidConfiguration();
+        }
         _unwind(params.actions, params.deadline, true);
         if (_positionIds.length != 0) revert InvalidConfiguration();
 
         amounts = new uint256[](2);
         amounts[0] = weth.balanceOf(address(this));
-        amounts[1] = injoh.balanceOf(address(this));
-        uint256 returnedValue = _accountingValue(amounts[0], amounts[1]);
-        uint256 minimum = Math.mulDiv(valueBefore, BPS - maxLossBps, BPS);
-        if (returnedValue < minimum) revert InsufficientOutput(minimum, returnedValue);
+        amounts[1] = pairedAsset.balanceOf(address(this));
+        if (!oracleIndependent) {
+            uint256 returnedValue = _accountingValue(amounts[0], amounts[1]);
+            uint256 minimum = Math.mulDiv(valueBefore, BPS - maxLossBps, BPS);
+            if (returnedValue < minimum) revert InsufficientOutput(minimum, returnedValue);
+        }
         assets = _positionAssets();
         if (amounts[0] != 0) weth.safeTransfer(receiver, amounts[0]);
-        if (amounts[1] != 0) injoh.safeTransfer(receiver, amounts[1]);
+        if (amounts[1] != 0) pairedAsset.safeTransfer(receiver, amounts[1]);
     }
 
-    function onERC721Received(address operator, address from, uint256 tokenId, bytes calldata)
+    function onERC721Received(address, address from, uint256 tokenId, bytes calldata)
         external
+        view
         returns (bytes4)
     {
-        if (
-            msg.sender != address(positionManager) || operator != address(positionBuilder)
-                || from != address(0) || _expectedMints == 0 || _receivedMints >= _expectedMints
-                || _pendingMint[tokenId]
-        ) revert UnexpectedNFT(msg.sender, from, tokenId);
-        _pendingMint[tokenId] = true;
-        ++_receivedMints;
-        return IERC721Receiver.onERC721Received.selector;
+        // The verified live NonfungiblePositionManager uses `_mint`, not `_safeMint`, so legitimate
+        // Delta ladder mints never invoke this callback. Reject every safe transfer to prevent an
+        // unrelated position from being mistaken for tracked backing. Plain ERC-721 `transferFrom`
+        // cannot be rejected by a receiver; any such unsolicited NFT remains deliberately untracked.
+        revert UnexpectedNFT(msg.sender, from, tokenId);
     }
 
     function _unwind(LiquidityAction[] memory actions, uint256 deadline, bool requireAll) private {
@@ -422,6 +441,9 @@ contract DeltaV3LPAdapter is IStrategyAdapter, IERC721Receiver, ReentrancyGuard 
             }
             if (!isPositionTracked[action.tokenId] || action.liquidity == 0) {
                 revert InvalidPosition(action.tokenId);
+            }
+            if (action.amount0Minimum == 0 && action.amount1Minimum == 0) {
+                revert InvalidConfiguration();
             }
             (,,, uint128 currentLiquidity) = _positionIdentity(action.tokenId);
             if (
@@ -473,25 +495,27 @@ contract DeltaV3LPAdapter is IStrategyAdapter, IERC721Receiver, ReentrancyGuard 
         revert InvalidPosition(tokenId);
     }
 
-    function _holdings() private view returns (uint256 wethAmount, uint256 injohAmount) {
+    function _holdings() private view returns (uint256 wethAmount, uint256 pairedAssetAmount) {
         wethAmount = weth.balanceOf(address(this));
-        injohAmount = injoh.balanceOf(address(this));
-        (uint160 sqrtPriceX96,,,,,,) = pool.slot0();
+        pairedAssetAmount = pairedAsset.balanceOf(address(this));
+        (uint160 sqrtPriceX96, int24 currentTick,,,,,) = pool.slot0();
+        uint256 feeGrowthGlobal0X128 = pool.feeGrowthGlobal0X128();
+        uint256 feeGrowthGlobal1X128 = pool.feeGrowthGlobal1X128();
         for (uint256 i; i < _positionIds.length; ++i) {
-            (address token0, address token1,, uint128 liquidity) =
-                _positionIdentity(_positionIds[i]);
-            (,,,,,,,,,, uint128 owed0, uint128 owed1) = positionManager.positions(_positionIds[i]);
-            (,,,,, int24 tickLower, int24 tickUpper,,,,,) =
-                positionManager.positions(_positionIds[i]);
-            (uint256 amount0, uint256 amount1) =
-                _liquidityAmounts(sqrtPriceX96, tickLower, tickUpper, liquidity);
-            amount0 += owed0;
-            amount1 += owed1;
-            if (token0 == address(weth) && token1 == address(injoh)) {
+            PositionState memory position = _positionState(_positionIds[i]);
+            (uint256 amount0, uint256 amount1) = _liquidityAmounts(
+                sqrtPriceX96, position.tickLower, position.tickUpper, position.liquidity
+            );
+            (uint256 pending0, uint256 pending1) =
+                _pendingFees(position, currentTick, feeGrowthGlobal0X128, feeGrowthGlobal1X128);
+            amount0 += uint256(position.tokensOwed0) + pending0;
+            amount1 += uint256(position.tokensOwed1) + pending1;
+            if (position.token0 == address(weth) && position.token1 == address(pairedAsset)) {
                 wethAmount += amount0;
-                injohAmount += amount1;
-            } else if (token0 == address(injoh) && token1 == address(weth)) {
-                injohAmount += amount0;
+                pairedAssetAmount += amount1;
+            } else if (position.token0 == address(pairedAsset) && position.token1 == address(weth))
+            {
+                pairedAssetAmount += amount0;
                 wethAmount += amount1;
             } else {
                 revert InvalidPosition(_positionIds[i]);
@@ -505,6 +529,80 @@ contract DeltaV3LPAdapter is IStrategyAdapter, IERC721Receiver, ReentrancyGuard 
         returns (address token0, address token1, uint24 fee, uint128 liquidity)
     {
         (,, token0, token1, fee,,, liquidity,,,,) = positionManager.positions(tokenId);
+    }
+
+    function _positionState(uint256 tokenId) private view returns (PositionState memory position) {
+        (
+            ,,
+            position.token0,
+            position.token1,
+            position.fee,
+            position.tickLower,
+            position.tickUpper,
+            position.liquidity,
+            position.feeGrowthInside0LastX128,
+            position.feeGrowthInside1LastX128,
+            position.tokensOwed0,
+            position.tokensOwed1
+        ) = positionManager.positions(tokenId);
+    }
+
+    function _pendingFees(
+        PositionState memory position,
+        int24 currentTick,
+        uint256 feeGrowthGlobal0X128,
+        uint256 feeGrowthGlobal1X128
+    ) private view returns (uint256 pending0, uint256 pending1) {
+        (uint256 inside0, uint256 inside1) = _feeGrowthInside(
+            position.tickLower,
+            position.tickUpper,
+            currentTick,
+            feeGrowthGlobal0X128,
+            feeGrowthGlobal1X128
+        );
+        uint256 delta0;
+        uint256 delta1;
+        // Uniswap V3 fee-growth accumulators intentionally wrap modulo 2^256.
+        unchecked {
+            delta0 = inside0 - position.feeGrowthInside0LastX128;
+            delta1 = inside1 - position.feeGrowthInside1LastX128;
+        }
+        pending0 = Math.mulDiv(delta0, position.liquidity, Q128);
+        pending1 = Math.mulDiv(delta1, position.liquidity, Q128);
+    }
+
+    function _feeGrowthInside(
+        int24 tickLower,
+        int24 tickUpper,
+        int24 currentTick,
+        uint256 feeGrowthGlobal0X128,
+        uint256 feeGrowthGlobal1X128
+    ) private view returns (uint256 inside0, uint256 inside1) {
+        (,, uint256 lowerOutside0, uint256 lowerOutside1,,,,) = pool.ticks(tickLower);
+        (,, uint256 upperOutside0, uint256 upperOutside1,,,,) = pool.ticks(tickUpper);
+
+        uint256 below0;
+        uint256 below1;
+        uint256 above0;
+        uint256 above1;
+        unchecked {
+            if (currentTick >= tickLower) {
+                below0 = lowerOutside0;
+                below1 = lowerOutside1;
+            } else {
+                below0 = feeGrowthGlobal0X128 - lowerOutside0;
+                below1 = feeGrowthGlobal1X128 - lowerOutside1;
+            }
+            if (currentTick < tickUpper) {
+                above0 = upperOutside0;
+                above1 = upperOutside1;
+            } else {
+                above0 = feeGrowthGlobal0X128 - upperOutside0;
+                above1 = feeGrowthGlobal1X128 - upperOutside1;
+            }
+            inside0 = feeGrowthGlobal0X128 - below0 - above0;
+            inside1 = feeGrowthGlobal1X128 - below1 - above1;
+        }
     }
 
     function _liquidityAmounts(
@@ -558,6 +656,22 @@ contract DeltaV3LPAdapter is IStrategyAdapter, IERC721Receiver, ReentrancyGuard 
         }
     }
 
+    function _validateRungs(IDeltaPositionBuilder.Rung[] memory rungs) private view {
+        int24 spacing = pool.tickSpacing();
+        if (spacing <= 0) revert InvalidConfiguration();
+        for (uint256 i; i < rungs.length; ++i) {
+            IDeltaPositionBuilder.Rung memory rung = rungs[i];
+            if (
+                (rung.amount0 == 0 && rung.amount1 == 0)
+                    || (rung.amount0Min == 0 && rung.amount1Min == 0)
+                    || rung.amount0Min > rung.amount0 || rung.amount1Min > rung.amount1
+                    || rung.tickLower < TickMath.MIN_TICK || rung.tickUpper > TickMath.MAX_TICK
+                    || rung.tickLower >= rung.tickUpper || rung.tickLower % spacing != 0
+                    || rung.tickUpper % spacing != 0
+            ) revert InvalidConfiguration();
+        }
+    }
+
     function _requireUniqueTracked(uint256[] memory tokenIds, uint256 index) private view {
         uint256 tokenId = tokenIds[index];
         if (!isPositionTracked[tokenId]) revert InvalidPosition(tokenId);
@@ -569,19 +683,19 @@ contract DeltaV3LPAdapter is IStrategyAdapter, IERC721Receiver, ReentrancyGuard 
     function _positionAssets() private view returns (address[] memory assets) {
         assets = new address[](2);
         assets[0] = address(weth);
-        assets[1] = address(injoh);
+        assets[1] = address(pairedAsset);
     }
 
-    function _accountingValue(uint256 wethAmount, uint256 injohAmount)
+    function _accountingValue(uint256 wethAmount, uint256 pairedAssetAmount)
         private
         view
         returns (uint256)
     {
-        if (wethAmount == 0 && injohAmount == 0) return 0;
+        if (wethAmount == 0 && pairedAssetAmount == 0) return 0;
         (uint256 wethPrice,) = _price(address(weth));
-        (uint256 injohPrice,) = _price(address(injoh));
+        (uint256 pairedAssetPrice,) = _price(address(pairedAsset));
         uint256 valueUsd18 = Math.mulDiv(wethAmount, wethPrice, 10 ** wethDecimals)
-            + Math.mulDiv(injohAmount, injohPrice, 10 ** injohDecimals);
+            + Math.mulDiv(pairedAssetAmount, pairedAssetPrice, 10 ** pairedAssetDecimals);
         return Math.mulDiv(valueUsd18, 10 ** wethDecimals, wethPrice);
     }
 

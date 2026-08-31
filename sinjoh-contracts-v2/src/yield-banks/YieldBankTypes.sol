@@ -33,14 +33,15 @@ struct YieldBankConfig {
     uint16 primaryBackingBps;
     uint16 primaryCreatorBps;
     uint16 primarySinjohBps;
-    uint16 primaryOperationsBps;
     uint16 coreWeightBps;
     uint16 marketMakingWeightBps;
     uint16 usdgWeightBps;
     address creator;
     address openSeaManager;
     address sinjohFeeRecipient;
-    address operationsReserve;
+    address redemptionToken;
+    uint256 redemptionTokenAmount;
+    bytes32 redemptionTokenCodeHash;
     address revenueRouter;
     address eligibilityPolicy;
     address portfolioAllocator;

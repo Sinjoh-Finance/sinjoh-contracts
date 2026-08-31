@@ -16,8 +16,8 @@
     "expectedCollection": { "$ref": "#/$defs/address" },
     "components": {
       "type": "array",
-      "minItems": 8,
-      "maxItems": 8,
+      "minItems": 7,
+      "maxItems": 7,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -34,7 +34,7 @@
     "config": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["collectionId", "maxSupply", "secondaryRoyaltyBps", "primaryBackingBps", "primaryCreatorBps", "primarySinjohBps", "primaryOperationsBps", "coreWeightBps", "marketMakingWeightBps", "usdgWeightBps", "creator", "openSeaManager", "sinjohFeeRecipient", "operationsReserve", "revenueRouter", "eligibilityPolicy", "portfolioAllocator", "allocationOperator", "collectionTimelock", "guardian", "renderer", "weth", "seaDrop", "coreSleeve", "marketMakingSleeve", "usdgSleeve", "accountImplementation", "integrationCodeHashes"],
+      "required": ["collectionId", "maxSupply", "secondaryRoyaltyBps", "primaryBackingBps", "primaryCreatorBps", "primarySinjohBps", "coreWeightBps", "marketMakingWeightBps", "usdgWeightBps", "creator", "openSeaManager", "sinjohFeeRecipient", "redemptionToken", "redemptionTokenAmount", "redemptionTokenCodeHash", "revenueRouter", "eligibilityPolicy", "portfolioAllocator", "allocationOperator", "collectionTimelock", "guardian", "renderer", "weth", "seaDrop", "coreSleeve", "marketMakingSleeve", "usdgSleeve", "accountImplementation", "integrationCodeHashes"],
       "properties": {
         "collectionId": { "$ref": "#/$defs/nonzeroBytes32" },
         "maxSupply": { "type": "integer", "minimum": 1, "maximum": 18446744073709551615 },
@@ -42,14 +42,15 @@
         "primaryBackingBps": { "$ref": "#/$defs/positiveBps" },
         "primaryCreatorBps": { "$ref": "#/$defs/bps" },
         "primarySinjohBps": { "$ref": "#/$defs/bps" },
-        "primaryOperationsBps": { "$ref": "#/$defs/bps" },
         "coreWeightBps": { "$ref": "#/$defs/positiveBps" },
         "marketMakingWeightBps": { "$ref": "#/$defs/positiveBps" },
         "usdgWeightBps": { "$ref": "#/$defs/positiveBps" },
         "creator": { "$ref": "#/$defs/address" },
         "openSeaManager": { "$ref": "#/$defs/address" },
         "sinjohFeeRecipient": { "$ref": "#/$defs/address" },
-        "operationsReserve": { "$ref": "#/$defs/address" },
+        "redemptionToken": { "$ref": "#/$defs/addressOrZero" },
+        "redemptionTokenAmount": { "type": "integer", "minimum": 0 },
+        "redemptionTokenCodeHash": { "$ref": "#/$defs/bytes32" },
         "revenueRouter": { "$ref": "#/$defs/address" },
         "eligibilityPolicy": { "$ref": "#/$defs/address" },
         "portfolioAllocator": { "$ref": "#/$defs/address" },
@@ -75,9 +76,11 @@
   },
   "$defs": {
     "address": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$", "not": { "const": "0x0000000000000000000000000000000000000000" } },
+    "addressOrZero": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
     "bytes": { "type": "string", "pattern": "^0x(?:[0-9a-fA-F]{2})+$" },
     "bps": { "type": "integer", "minimum": 0, "maximum": 10000 },
     "positiveBps": { "type": "integer", "minimum": 1, "maximum": 10000 },
     "nonzeroBytes32": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$", "not": { "const": "0x0000000000000000000000000000000000000000000000000000000000000000" } }
+    ,"bytes32": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$" }
   }
 }

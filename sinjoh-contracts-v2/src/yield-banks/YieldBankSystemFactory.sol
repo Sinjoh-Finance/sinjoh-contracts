@@ -25,7 +25,6 @@ contract YieldBankSystemFactory is ReentrancyGuard {
         bytes32 expectedRuntimeCodeHash;
     }
 
-    bytes32 public constant KIND_OPERATIONS_RESERVE = keccak256("OPERATIONS_RESERVE");
     bytes32 public constant KIND_REVENUE_ROUTER = keccak256("REVENUE_ROUTER");
     bytes32 public constant KIND_PORTFOLIO_ALLOCATOR = keccak256("PORTFOLIO_ALLOCATOR");
     bytes32 public constant KIND_COLLECTION_TIMELOCK = keccak256("COLLECTION_TIMELOCK");
@@ -33,7 +32,7 @@ contract YieldBankSystemFactory is ReentrancyGuard {
     bytes32 public constant KIND_MARKET_MAKING_SLEEVE = keccak256("MARKET_MAKING_SLEEVE");
     bytes32 public constant KIND_USDG_SLEEVE = keccak256("USDG_SLEEVE");
     bytes32 public constant KIND_ACCOUNT_IMPLEMENTATION = keccak256("ACCOUNT_IMPLEMENTATION");
-    uint256 public constant COMPONENT_COUNT = 8;
+    uint256 public constant COMPONENT_COUNT = 7;
 
     YieldBankProtocolRegistry public immutable registry;
     bytes32 public immutable factoryVersion;
@@ -68,7 +67,6 @@ contract YieldBankSystemFactory is ReentrancyGuard {
         address proceedsVault,
         address accountImplementation,
         address revenueRouter,
-        address operationsReserve,
         address portfolioAllocator,
         address collectionTimelock,
         address seaDrop,
@@ -84,10 +82,15 @@ contract YieldBankSystemFactory is ReentrancyGuard {
         uint16 primaryBackingBps,
         uint16 primaryCreatorBps,
         uint16 primarySinjohBps,
-        uint16 primaryOperationsBps,
         uint16 coreWeightBps,
         uint16 marketMakingWeightBps,
         uint16 usdgWeightBps
+    );
+    event CollectionRedemptionRequirementRegistered(
+        address indexed collection,
+        address indexed redemptionToken,
+        uint256 redemptionTokenAmount,
+        bytes32 redemptionTokenCodeHash
     );
 
     constructor(
@@ -124,7 +127,7 @@ contract YieldBankSystemFactory is ReentrancyGuard {
         if (actualPlanHash != systemPlanHash) {
             revert SystemPlanHashMismatch(systemPlanHash, actualPlanHash);
         }
-        address[8] memory deployed;
+        address[7] memory deployed;
         uint256 seen;
         for (uint256 i; i < COMPONENT_COUNT; ++i) {
             ComponentDeployment calldata component = components[i];
@@ -174,7 +177,6 @@ contract YieldBankSystemFactory is ReentrancyGuard {
             internals.proceedsVault(),
             internals.accountImplementation(),
             config.revenueRouter,
-            config.operationsReserve,
             config.portfolioAllocator,
             config.collectionTimelock,
             config.seaDrop,
@@ -190,10 +192,15 @@ contract YieldBankSystemFactory is ReentrancyGuard {
             config.primaryBackingBps,
             config.primaryCreatorBps,
             config.primarySinjohBps,
-            config.primaryOperationsBps,
             config.coreWeightBps,
             config.marketMakingWeightBps,
             config.usdgWeightBps
+        );
+        emit CollectionRedemptionRequirementRegistered(
+            collection,
+            config.redemptionToken,
+            config.redemptionTokenAmount,
+            config.redemptionTokenCodeHash
         );
     }
 
@@ -235,28 +242,26 @@ contract YieldBankSystemFactory is ReentrancyGuard {
             _predict(salt, keccak256(abi.encodePacked(collectionCreationCode, abi.encode(config))));
     }
 
-    function _validateDeployedConfig(YieldBankConfig calldata config, address[8] memory deployed)
+    function _validateDeployedConfig(YieldBankConfig calldata config, address[7] memory deployed)
         private
         pure
     {
         if (
-            config.operationsReserve != deployed[0] || config.revenueRouter != deployed[1]
-                || config.portfolioAllocator != deployed[2]
-                || config.collectionTimelock != deployed[3] || config.coreSleeve != deployed[4]
-                || config.marketMakingSleeve != deployed[5] || config.usdgSleeve != deployed[6]
-                || config.accountImplementation != deployed[7]
+            config.revenueRouter != deployed[0] || config.portfolioAllocator != deployed[1]
+                || config.collectionTimelock != deployed[2] || config.coreSleeve != deployed[3]
+                || config.marketMakingSleeve != deployed[4] || config.usdgSleeve != deployed[5]
+                || config.accountImplementation != deployed[6]
         ) revert InvalidConfiguration();
     }
 
     function _kindIndex(bytes32 kind) private pure returns (uint256) {
-        if (kind == KIND_OPERATIONS_RESERVE) return 0;
-        if (kind == KIND_REVENUE_ROUTER) return 1;
-        if (kind == KIND_PORTFOLIO_ALLOCATOR) return 2;
-        if (kind == KIND_COLLECTION_TIMELOCK) return 3;
-        if (kind == KIND_CORE_SLEEVE) return 4;
-        if (kind == KIND_MARKET_MAKING_SLEEVE) return 5;
-        if (kind == KIND_USDG_SLEEVE) return 6;
-        if (kind == KIND_ACCOUNT_IMPLEMENTATION) return 7;
+        if (kind == KIND_REVENUE_ROUTER) return 0;
+        if (kind == KIND_PORTFOLIO_ALLOCATOR) return 1;
+        if (kind == KIND_COLLECTION_TIMELOCK) return 2;
+        if (kind == KIND_CORE_SLEEVE) return 3;
+        if (kind == KIND_MARKET_MAKING_SLEEVE) return 4;
+        if (kind == KIND_USDG_SLEEVE) return 5;
+        if (kind == KIND_ACCOUNT_IMPLEMENTATION) return 6;
         revert InvalidConfiguration();
     }
 

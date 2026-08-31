@@ -97,8 +97,8 @@ contract DeployYieldBanks is Script {
         plan.expectedCollection = vm.parseJsonAddress(json, ".expectedCollection");
         plan.collectionCreationCode = vm.parseJsonBytes(json, ".collectionCreationCode");
         plan.collectionSalt = vm.parseJsonBytes32(json, ".collectionSalt");
-        plan.components = new YieldBankSystemFactory.ComponentDeployment[](8);
-        for (uint256 i; i < 8; ++i) {
+        plan.components = new YieldBankSystemFactory.ComponentDeployment[](7);
+        for (uint256 i; i < 7; ++i) {
             string memory base = string.concat(".components[", vm.toString(i), "]");
             plan.components[i] = YieldBankSystemFactory.ComponentDeployment({
                 kind: vm.parseJsonBytes32(json, string.concat(base, ".kind")),
@@ -123,14 +123,15 @@ contract DeployYieldBanks is Script {
             primaryBackingBps: _parseBps(json, ".config.primaryBackingBps"),
             primaryCreatorBps: _parseBps(json, ".config.primaryCreatorBps"),
             primarySinjohBps: _parseBps(json, ".config.primarySinjohBps"),
-            primaryOperationsBps: _parseBps(json, ".config.primaryOperationsBps"),
             coreWeightBps: _parseBps(json, ".config.coreWeightBps"),
             marketMakingWeightBps: _parseBps(json, ".config.marketMakingWeightBps"),
             usdgWeightBps: _parseBps(json, ".config.usdgWeightBps"),
             creator: vm.parseJsonAddress(json, ".config.creator"),
             openSeaManager: vm.parseJsonAddress(json, ".config.openSeaManager"),
             sinjohFeeRecipient: vm.parseJsonAddress(json, ".config.sinjohFeeRecipient"),
-            operationsReserve: vm.parseJsonAddress(json, ".config.operationsReserve"),
+            redemptionToken: vm.parseJsonAddress(json, ".config.redemptionToken"),
+            redemptionTokenAmount: vm.parseJsonUint(json, ".config.redemptionTokenAmount"),
+            redemptionTokenCodeHash: vm.parseJsonBytes32(json, ".config.redemptionTokenCodeHash"),
             revenueRouter: vm.parseJsonAddress(json, ".config.revenueRouter"),
             eligibilityPolicy: vm.parseJsonAddress(json, ".config.eligibilityPolicy"),
             portfolioAllocator: vm.parseJsonAddress(json, ".config.portfolioAllocator"),

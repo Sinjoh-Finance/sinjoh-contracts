@@ -68,7 +68,7 @@ contract DeployYieldBankDeltaAdapter is Script {
         config = DeltaV3LPAdapter.Config({
             sleeve: vm.parseJsonAddress(json, ".config.sleeve"),
             weth: vm.parseJsonAddress(json, ".config.weth"),
-            injoh: vm.parseJsonAddress(json, ".config.injoh"),
+            pairedAsset: vm.parseJsonAddress(json, ".config.pairedAsset"),
             priceHub: vm.parseJsonAddress(json, ".config.priceHub"),
             pool: vm.parseJsonAddress(json, ".config.pool"),
             positionManager: vm.parseJsonAddress(json, ".config.positionManager"),

@@ -32,6 +32,10 @@ interface IYieldBankManagedSleeve {
         external
         returns (address[] memory assets, uint256[] memory amounts);
 
+    function emergencyExitAdapterInKind(address adapter, bytes calldata data)
+        external
+        returns (address[] memory assets, uint256[] memory amounts);
+
     function redeemManaged(
         uint256 shares,
         address receiver,

@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sinjoh.com/schemas/yield-bank-delta-pool-foundation-plan-1.0.json",
+  "title": "Sinjoh Yield Banks Delta pool foundation deployment plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["chainId", "pool", "factory", "weth", "pairedAsset", "poolCodeHash", "factoryCodeHash", "allocator", "timelock", "guardian", "priceHub", "strategyRegistry", "eligibilityPolicy", "maximumAdapterCapBps", "maximumOperatorLossBps", "expectedEntryRouteRuntimeCodeHash", "expectedExitRouteRuntimeCodeHash", "expectedSleeveRuntimeCodeHash"],
+  "properties": {
+    "chainId": { "enum": [4663, 46630] },
+    "pool": { "$ref": "#/$defs/address" },
+    "factory": { "$ref": "#/$defs/address" },
+    "weth": { "$ref": "#/$defs/address" },
+    "pairedAsset": { "$ref": "#/$defs/address" },
+    "poolCodeHash": { "$ref": "#/$defs/nonzeroBytes32" },
+    "factoryCodeHash": { "$ref": "#/$defs/nonzeroBytes32" },
+    "allocator": { "$ref": "#/$defs/address" },
+    "timelock": { "$ref": "#/$defs/address" },
+    "guardian": { "$ref": "#/$defs/address" },
+    "priceHub": { "$ref": "#/$defs/address" },
+    "strategyRegistry": { "$ref": "#/$defs/address" },
+    "eligibilityPolicy": { "$ref": "#/$defs/address" },
+    "maximumAdapterCapBps": { "$ref": "#/$defs/positiveBps" },
+    "maximumOperatorLossBps": { "$ref": "#/$defs/bps" },
+    "expectedEntryRouteRuntimeCodeHash": { "$ref": "#/$defs/nonzeroBytes32" },
+    "expectedExitRouteRuntimeCodeHash": { "$ref": "#/$defs/nonzeroBytes32" },
+    "expectedSleeveRuntimeCodeHash": { "$ref": "#/$defs/nonzeroBytes32" }
+  },
+  "$defs": {
+    "address": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$", "not": { "const": "0x0000000000000000000000000000000000000000" } },
+    "bps": { "type": "integer", "minimum": 0, "maximum": 10000 },
+    "positiveBps": { "type": "integer", "minimum": 1, "maximum": 10000 },
+    "nonzeroBytes32": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$", "not": { "const": "0x0000000000000000000000000000000000000000000000000000000000000000" } }
+  }
+}

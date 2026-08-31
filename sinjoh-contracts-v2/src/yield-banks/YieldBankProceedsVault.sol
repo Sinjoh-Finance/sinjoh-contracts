@@ -11,10 +11,6 @@ interface IYieldBankWETH is IERC20 {
     function deposit() external payable;
 }
 
-interface IYieldBankCollectionPrimaryNotify {
-    function notifyOperationsPrimary(uint256 amount) external;
-}
-
 /// @notice Collection-specific native-proceeds holding contract with manual allocation only.
 contract YieldBankProceedsVault is ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -40,7 +36,6 @@ contract YieldBankProceedsVault is ReentrancyGuard {
         uint256 backingRemaining;
         uint256 creatorFee;
         uint256 sinjohFee;
-        uint256 operationsFee;
         bool allocated;
     }
 
@@ -49,14 +44,12 @@ contract YieldBankProceedsVault is ReentrancyGuard {
     address public immutable seaDrop;
     address public immutable creator;
     address public immutable sinjohFeeRecipient;
-    address public immutable operationsReserve;
     address public immutable allocator;
     address public immutable timelock;
     address public immutable guardian;
     uint16 public immutable primaryBackingBps;
     uint16 public immutable primaryCreatorBps;
     uint16 public immutable primarySinjohBps;
-    uint16 public immutable primaryOperationsBps;
     IYieldBankWETH public immutable weth;
     address[3] public sleeves;
 
@@ -107,8 +100,7 @@ contract YieldBankProceedsVault is ReentrancyGuard {
         uint256 indexed firstReceiptId,
         uint256 indexed lastReceiptId,
         uint256 creatorFee,
-        uint256 sinjohFee,
-        uint256 operationsFee
+        uint256 sinjohFee
     );
     event PrimaryClaimed(
         uint256 indexed tokenId,
@@ -130,7 +122,6 @@ contract YieldBankProceedsVault is ReentrancyGuard {
         address seaDrop_,
         address creator_,
         address sinjohFeeRecipient_,
-        address operationsReserve_,
         address allocator_,
         address operator_,
         address timelock_,
@@ -139,26 +130,22 @@ contract YieldBankProceedsVault is ReentrancyGuard {
         address[3] memory sleeves_,
         uint16 primaryBackingBps_,
         uint16 primaryCreatorBps_,
-        uint16 primarySinjohBps_,
-        uint16 primaryOperationsBps_
+        uint16 primarySinjohBps_
     ) {
         if (
             collection_ == address(0) || nft_ == address(0) || seaDrop_.code.length == 0
                 || creator_ == address(0) || sinjohFeeRecipient_ == address(0)
-                || operationsReserve_ == address(0) || allocator_.code.length == 0
-                || operator_ == address(0) || timelock_.code.length == 0 || guardian_ == address(0)
-                || weth_.code.length == 0 || sleeves_[0].code.length == 0
-                || sleeves_[1].code.length == 0 || sleeves_[2].code.length == 0
-                || primaryBackingBps_ == 0
-                || uint256(primaryBackingBps_) + primaryCreatorBps_ + primarySinjohBps_
-                        + primaryOperationsBps_ != BPS
+                || allocator_.code.length == 0 || operator_ == address(0)
+                || timelock_.code.length == 0 || guardian_ == address(0) || weth_.code.length == 0
+                || sleeves_[0].code.length == 0 || sleeves_[1].code.length == 0
+                || sleeves_[2].code.length == 0 || primaryBackingBps_ == 0
+                || uint256(primaryBackingBps_) + primaryCreatorBps_ + primarySinjohBps_ != BPS
         ) revert InvalidConfiguration();
         collection = collection_;
         nft = nft_;
         seaDrop = seaDrop_;
         creator = creator_;
         sinjohFeeRecipient = sinjohFeeRecipient_;
-        operationsReserve = operationsReserve_;
         allocator = allocator_;
         allocationOperator = operator_;
         timelock = timelock_;
@@ -166,7 +153,6 @@ contract YieldBankProceedsVault is ReentrancyGuard {
         primaryBackingBps = primaryBackingBps_;
         primaryCreatorBps = primaryCreatorBps_;
         primarySinjohBps = primarySinjohBps_;
-        primaryOperationsBps = primaryOperationsBps_;
         weth = IYieldBankWETH(weth_);
         sleeves = sleeves_;
     }
@@ -193,21 +179,10 @@ contract YieldBankProceedsVault is ReentrancyGuard {
         uint256 creatorCumulative =
             Math.mulDiv(msg.value, uint256(primaryBackingBps) + primaryCreatorBps, BPS);
         uint256 creatorFee = creatorCumulative - backing;
-        uint256 sinjohCumulative = Math.mulDiv(
-            msg.value, uint256(primaryBackingBps) + primaryCreatorBps + primarySinjohBps, BPS
-        );
-        uint256 sinjohFee = sinjohCumulative - creatorCumulative;
-        uint256 operationsFee = msg.value - backing - creatorFee - sinjohFee;
+        uint256 sinjohFee = msg.value - creatorCumulative;
         uint256 receiptId = ++receiptCount;
         receipts[receiptId] = Receipt(
-            note.firstTokenId,
-            note.quantity,
-            msg.value,
-            backing,
-            creatorFee,
-            sinjohFee,
-            operationsFee,
-            false
+            note.firstTokenId, note.quantity, msg.value, backing, creatorFee, sinjohFee, false
         );
         uint256 assigned;
         for (uint256 i; i < note.quantity; ++i) {
@@ -243,7 +218,6 @@ contract YieldBankProceedsVault is ReentrancyGuard {
         uint256 backing;
         uint256 creatorFees;
         uint256 sinjohFees;
-        uint256 operationsFees;
         uint256 tokenCount;
         for (uint256 id = firstReceiptId; id <= lastReceiptId; ++id) {
             Receipt storage receipt = receipts[id];
@@ -252,25 +226,15 @@ contract YieldBankProceedsVault is ReentrancyGuard {
             backing += receipt.backingRemaining;
             creatorFees += receipt.creatorFee;
             sinjohFees += receipt.sinjohFee;
-            operationsFees += receipt.operationsFee;
             tokenCount += receipt.quantity;
         }
         if (tokenCount > MAX_TOKENS_PER_ALLOCATION) {
             revert InvalidRange(firstReceiptId, lastReceiptId);
         }
-        accountedNative -= backing + creatorFees + sinjohFees + operationsFees;
+        accountedNative -= backing + creatorFees + sinjohFees;
         _sendNative(creator, creatorFees);
         _sendNative(sinjohFeeRecipient, sinjohFees);
-        _sendNative(operationsReserve, operationsFees);
-        if (operationsFees != 0) {
-            if (operationsReserve.code.length != 0) {
-                IYieldBankCollectionPrimaryNotify(collection)
-                    .notifyOperationsPrimary(operationsFees);
-            }
-        }
-        emit PrimaryFeesReleased(
-            firstReceiptId, lastReceiptId, creatorFees, sinjohFees, operationsFees
-        );
+        emit PrimaryFeesReleased(firstReceiptId, lastReceiptId, creatorFees, sinjohFees);
         uint256[3] memory shares;
         if (backing != 0) {
             weth.deposit{ value: backing }();

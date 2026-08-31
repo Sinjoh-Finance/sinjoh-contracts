@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { ERC20Burnable } from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { YieldBankAccount } from "../../src/yield-banks/YieldBankAccount.sol";
@@ -38,6 +39,14 @@ contract MockYieldBankAsset is ERC20 {
     {
         _transfer(msg.sender, recipient, amount);
         return true;
+    }
+}
+
+contract MockYieldBankBurnableAsset is ERC20Burnable {
+    constructor(string memory name_, string memory symbol_) ERC20(name_, symbol_) { }
+
+    function mint(address recipient, uint256 amount) external {
+        _mint(recipient, amount);
     }
 }
 
@@ -84,6 +93,7 @@ contract MockYieldBankSeaDrop {
 
 contract MockYieldBankPrimaryAllocator {
     address[3] public sleeves;
+    mapping(uint256 tokenId => address pool) public activeDeltaPoolOf;
     uint16 public immutable coreWeightBps;
     uint16 public immutable marketMakingWeightBps;
     uint16 public immutable usdgWeightBps;
@@ -98,6 +108,10 @@ contract MockYieldBankPrimaryAllocator {
         coreWeightBps = coreWeightBps_;
         marketMakingWeightBps = marketMakingWeightBps_;
         usdgWeightBps = usdgWeightBps_;
+    }
+
+    function setActiveDeltaPool(uint256 tokenId, address pool) external {
+        activeDeltaPoolOf[tokenId] = pool;
     }
 
     function allocatePrimary(
@@ -249,18 +263,11 @@ contract MockYieldBankRevenueRouter {
     uint16 public immutable primaryBackingBps;
     uint16 public immutable primaryCreatorBps;
     uint16 public immutable primarySinjohBps;
-    uint16 public immutable primaryOperationsBps;
 
-    constructor(
-        uint16 primaryBackingBps_,
-        uint16 primaryCreatorBps_,
-        uint16 primarySinjohBps_,
-        uint16 primaryOperationsBps_
-    ) {
+    constructor(uint16 primaryBackingBps_, uint16 primaryCreatorBps_, uint16 primarySinjohBps_) {
         primaryBackingBps = primaryBackingBps_;
         primaryCreatorBps = primaryCreatorBps_;
         primarySinjohBps = primarySinjohBps_;
-        primaryOperationsBps = primaryOperationsBps_;
     }
 
     function accrue(YieldBankCollection collection, address asset, uint256 amount) external {
@@ -271,19 +278,6 @@ contract MockYieldBankRevenueRouter {
 
 contract MockYieldBankTimelock { }
 
-contract MockYieldBankFundableReceiver {
-    uint256 public received;
-
-    function fund(bytes32, address asset, uint256 amount, bytes32, bytes calldata)
-        external
-        returns (uint256)
-    {
-        IERC20(asset).transferFrom(msg.sender, address(this), amount);
-        received += amount;
-        return amount;
-    }
-}
-
 /// @dev Stores constructor wiring in storage so every instance shares one predictable runtime hash.
 contract MockYieldBankPlannedComponent {
     address public collection;
@@ -291,22 +285,24 @@ contract MockYieldBankPlannedComponent {
     uint16 public primaryBackingBps;
     uint16 public primaryCreatorBps;
     uint16 public primarySinjohBps;
-    uint16 public primaryOperationsBps;
     uint16 public coreWeightBps;
     uint16 public marketMakingWeightBps;
     uint16 public usdgWeightBps;
 
-    constructor(address collection_, address dependency_, uint16[7] memory economics_) {
+    constructor(address collection_, address dependency_, uint16[6] memory economics_) {
         require(collection_ != address(0) && dependency_ != address(0));
         collection = collection_;
         dependency = dependency_;
         primaryBackingBps = economics_[0];
         primaryCreatorBps = economics_[1];
         primarySinjohBps = economics_[2];
-        primaryOperationsBps = economics_[3];
-        coreWeightBps = economics_[4];
-        marketMakingWeightBps = economics_[5];
-        usdgWeightBps = economics_[6];
+        coreWeightBps = economics_[3];
+        marketMakingWeightBps = economics_[4];
+        usdgWeightBps = economics_[5];
+    }
+
+    function activeDeltaPoolOf(uint256) external pure returns (address) {
+        return address(0);
     }
 }
 
@@ -401,19 +397,31 @@ contract MockSynchronousYieldBankAdapter is IStrategyAdapter {
         returns (address[] memory assets, uint256[] memory amounts)
     {
         require(receiver == sleeve);
-        uint256 returned = managed;
         managed = 0;
-        IERC20(accountingAsset).transfer(receiver, returned);
-        assets = new address[](1);
-        amounts = new uint256[](1);
+        claimableRewards = 0;
+        uint256 accountingReturned = IERC20(accountingAsset).balanceOf(address(this));
+        uint256 rewardReturned =
+            rewardAsset == accountingAsset ? 0 : IERC20(rewardAsset).balanceOf(address(this));
+        assets = new address[](rewardAsset == accountingAsset ? 1 : 2);
+        amounts = new uint256[](assets.length);
         assets[0] = accountingAsset;
-        amounts[0] = returned;
+        amounts[0] = accountingReturned;
+        if (accountingReturned != 0) {
+            IERC20(accountingAsset).transfer(receiver, accountingReturned);
+        }
+        if (assets.length == 2) {
+            assets[1] = rewardAsset;
+            amounts[1] = rewardReturned;
+            if (rewardReturned != 0) IERC20(rewardAsset).transfer(receiver, rewardReturned);
+        }
     }
 }
 
 contract MockYieldBankAggregator {
     uint8 public immutable decimals;
+    string public description = "MOCK / USD";
     int256 public answer;
+    uint256 public startedAt;
     uint256 public updatedAt;
 
     constructor(uint8 decimals_, int256 answer_) {
@@ -422,15 +430,27 @@ contract MockYieldBankAggregator {
         // Test feed initialization intentionally mirrors the current test timestamp.
         // forge-lint: disable-next-line(block-timestamp)
         updatedAt = block.timestamp;
+        startedAt = updatedAt;
     }
 
     function setAnswer(int256 answer_, uint256 updatedAt_) external {
         answer = answer_;
+        startedAt = updatedAt_;
+        updatedAt = updatedAt_;
+    }
+
+    function setDescription(string calldata description_) external {
+        description = description_;
+    }
+
+    function setRound(int256 answer_, uint256 startedAt_, uint256 updatedAt_) external {
+        answer = answer_;
+        startedAt = startedAt_;
         updatedAt = updatedAt_;
     }
 
     function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
-        return (1, answer, updatedAt, updatedAt, 1);
+        return (1, answer, startedAt, updatedAt, 1);
     }
 }
 
@@ -451,10 +471,16 @@ contract MockYieldBankReferencePrice {
 contract MockYieldBankAllocationRoute is IYieldBankAllocationRoute {
     address public immutable inputAsset;
     address public immutable outputAsset;
+    uint16 public outputBps = 10_000;
 
     constructor(address inputAsset_, address outputAsset_) {
         inputAsset = inputAsset_;
         outputAsset = outputAsset_;
+    }
+
+    function setOutputBps(uint16 outputBps_) external {
+        require(outputBps_ <= 10_000);
+        outputBps = outputBps_;
     }
 
     function convert(uint256 amountIn, uint256 minimumOutput, address receiver, bytes calldata)
@@ -462,7 +488,7 @@ contract MockYieldBankAllocationRoute is IYieldBankAllocationRoute {
         returns (uint256 amountOut)
     {
         IERC20(inputAsset).transferFrom(msg.sender, address(this), amountIn);
-        amountOut = amountIn;
+        amountOut = amountIn * outputBps / 10_000;
         require(amountOut >= minimumOutput);
         MockYieldBankAsset(outputAsset).mint(receiver, amountOut);
     }

@@ -25,7 +25,7 @@ import {
 
 contract DeltaV3LPAdapterTest is Test {
     MockYieldBankAsset private weth;
-    MockYieldBankAsset private injoh;
+    MockYieldBankAsset private pairedAsset;
     MockYieldBankEligibilityPolicy private eligibility;
     PriceHub private priceHub;
     StrategyRegistry private registry;
@@ -40,7 +40,7 @@ contract DeltaV3LPAdapterTest is Test {
 
     function setUp() external {
         weth = new MockYieldBankAsset("Wrapped Ether", "WETH");
-        injoh = new MockYieldBankAsset("Sinjoh", "INJOH");
+        pairedAsset = new MockYieldBankAsset("Paired Asset", "PAIR");
         eligibility = new MockYieldBankEligibilityPolicy();
         priceHub = new PriceHub(address(this), address(this));
         registry = new StrategyRegistry(address(this));
@@ -57,25 +57,25 @@ contract DeltaV3LPAdapterTest is Test {
             500
         );
         factory = new MockDeltaV3Factory();
-        pool = new MockDeltaV3Pool(address(weth), address(injoh), 3_000, 60);
-        factory.setPool(address(weth), address(injoh), 3_000, address(pool));
+        pool = new MockDeltaV3Pool(address(factory), address(weth), address(pairedAsset), 3_000, 60);
+        factory.setPool(address(weth), address(pairedAsset), 3_000, address(pool));
         manager = new MockDeltaV3PositionManager(address(factory), address(weth), address(pool));
         builder = new MockDeltaPositionBuilder(address(factory), address(manager), address(weth));
-        entryRoute = new MockYieldBankAllocationRoute(address(weth), address(injoh));
-        exitRoute = new MockYieldBankAllocationRoute(address(injoh), address(weth));
+        entryRoute = new MockYieldBankAllocationRoute(address(weth), address(pairedAsset));
+        exitRoute = new MockYieldBankAllocationRoute(address(pairedAsset), address(weth));
 
         MockYieldBankAggregator wethFeed = new MockYieldBankAggregator(8, 1e8);
-        MockYieldBankAggregator injohFeed = new MockYieldBankAggregator(8, 1e8);
+        MockYieldBankAggregator pairedAssetFeed = new MockYieldBankAggregator(8, 1e8);
         priceHub.configureFeed(address(weth), address(wethFeed), address(0), 1 days, 0, false, 100);
         priceHub.configureFeed(
-            address(injoh), address(injohFeed), address(0), 1 days, 0, false, 100
+            address(pairedAsset), address(pairedAssetFeed), address(0), 1 days, 0, false, 100
         );
 
         adapter = new DeltaV3LPAdapter(
             DeltaV3LPAdapter.Config({
                 sleeve: address(sleeve),
                 weth: address(weth),
-                injoh: address(injoh),
+                pairedAsset: address(pairedAsset),
                 priceHub: address(priceHub),
                 pool: address(pool),
                 positionManager: address(manager),
@@ -108,7 +108,7 @@ contract DeltaV3LPAdapterTest is Test {
         assertTrue(adapter.isPositionTracked(ids[0]));
         assertApproxEqAbs(adapter.totalManagedAssets(), 500e18, 10);
         assertEq(weth.allowance(address(adapter), address(builder)), 0);
-        assertEq(injoh.allowance(address(adapter), address(builder)), 0);
+        assertEq(pairedAsset.allowance(address(adapter), address(builder)), 0);
         assertEq(weth.allowance(address(adapter), address(entryRoute)), 0);
     }
 
@@ -117,7 +117,7 @@ contract DeltaV3LPAdapterTest is Test {
         uint256 tokenId = adapter.positionIds()[0];
         manager.addFees(tokenId, 12e18, 7e18);
         uint256 wethBefore = weth.balanceOf(address(sleeve));
-        uint256 injohBefore = injoh.balanceOf(address(sleeve));
+        uint256 pairedAssetBefore = pairedAsset.balanceOf(address(sleeve));
 
         uint256[] memory ids = new uint256[](1);
         ids[0] = tokenId;
@@ -125,11 +125,21 @@ contract DeltaV3LPAdapterTest is Test {
             sleeve.collectAdapter(address(adapter), abi.encode(ids));
 
         assertEq(assets[0], address(weth));
-        assertEq(assets[1], address(injoh));
+        assertEq(assets[1], address(pairedAsset));
         assertEq(amounts[0], 12e18);
         assertEq(amounts[1], 7e18);
         assertEq(weth.balanceOf(address(sleeve)) - wethBefore, 12e18);
-        assertEq(injoh.balanceOf(address(sleeve)) - injohBefore, 7e18);
+        assertEq(pairedAsset.balanceOf(address(sleeve)) - pairedAssetBefore, 7e18);
+    }
+
+    function testPendingPoolFeesAreIncludedInManagedAssets() external {
+        _depositPosition();
+        uint256 beforeValue = adapter.totalManagedAssets();
+
+        pool.setFeeGrowth(1 << 128, 1 << 128);
+
+        uint256 afterValue = adapter.totalManagedAssets();
+        assertGt(afterValue, beforeValue);
     }
 
     function testManualWithdrawalCanUnwindAndConvertToWeth() external {
@@ -137,16 +147,16 @@ contract DeltaV3LPAdapterTest is Test {
         uint256 tokenId = adapter.positionIds()[0];
         (,,, uint128 liquidity,,,,) = _position(tokenId);
         (uint256 position0, uint256 position1) = manager.positionAmounts(tokenId);
-        uint256 injohToConvert = injoh.balanceOf(address(adapter)) + position1;
-        uint256 available = weth.balanceOf(address(adapter)) + position0 + injohToConvert;
+        uint256 pairedAssetToConvert = pairedAsset.balanceOf(address(adapter)) + position1;
+        uint256 available = weth.balanceOf(address(adapter)) + position0 + pairedAssetToConvert;
 
         DeltaV3LPAdapter.LiquidityAction[] memory actions =
             new DeltaV3LPAdapter.LiquidityAction[](1);
-        actions[0] = DeltaV3LPAdapter.LiquidityAction(tokenId, liquidity, 0, 0);
+        actions[0] = DeltaV3LPAdapter.LiquidityAction(tokenId, liquidity, 1, 1);
         DeltaV3LPAdapter.WithdrawalParams memory params = DeltaV3LPAdapter.WithdrawalParams({
             actions: actions,
-            injohToConvert: injohToConvert,
-            minimumWethOut: injohToConvert,
+            pairedAssetToConvert: pairedAssetToConvert,
+            minimumWethOut: pairedAssetToConvert,
             wethToReturn: available,
             routeData: "",
             // Test execution uses the current timestamp as an explicit operator deadline.
@@ -159,7 +169,7 @@ contract DeltaV3LPAdapterTest is Test {
         assertEq(returned, available);
         assertEq(adapter.positionIds().length, 0);
         assertEq(adapter.totalManagedAssets(), 0);
-        assertEq(injoh.allowance(address(adapter), address(exitRoute)), 0);
+        assertEq(pairedAsset.allowance(address(adapter), address(exitRoute)), 0);
     }
 
     function testExitAllReturnsBothAssetsInKind() external {
@@ -172,7 +182,7 @@ contract DeltaV3LPAdapterTest is Test {
 
         DeltaV3LPAdapter.LiquidityAction[] memory actions =
             new DeltaV3LPAdapter.LiquidityAction[](1);
-        actions[0] = DeltaV3LPAdapter.LiquidityAction(tokenId, liquidity, 0, 0);
+        actions[0] = DeltaV3LPAdapter.LiquidityAction(tokenId, liquidity, 1, 1);
         DeltaV3LPAdapter.ExitParams memory params = DeltaV3LPAdapter.ExitParams({
             actions: actions,
             // Test execution uses the current timestamp as an explicit operator deadline.
@@ -180,35 +190,55 @@ contract DeltaV3LPAdapterTest is Test {
             deadline: block.timestamp
         });
         uint256 wethBefore = weth.balanceOf(address(sleeve));
-        uint256 injohBefore = injoh.balanceOf(address(sleeve));
+        uint256 pairedAssetBefore = pairedAsset.balanceOf(address(sleeve));
         (address[] memory assets, uint256[] memory amounts) =
             sleeve.exitAdapter(address(adapter), 1, abi.encode(params));
 
         assertEq(assets[0], address(weth));
-        assertEq(assets[1], address(injoh));
+        assertEq(assets[1], address(pairedAsset));
         assertEq(weth.balanceOf(address(sleeve)) - wethBefore, amounts[0]);
-        assertEq(injoh.balanceOf(address(sleeve)) - injohBefore, amounts[1]);
+        assertEq(pairedAsset.balanceOf(address(sleeve)) - pairedAssetBefore, amounts[1]);
         assertEq(adapter.positionIds().length, 0);
         assertEq(adapter.totalManagedAssets(), 0);
     }
 
+    function testGuardianInKindExitStillWorksWhenPriceHubIsPaused() external {
+        _depositPosition();
+        uint256 tokenId = adapter.positionIds()[0];
+        (,,, uint128 liquidity,,,,) = _position(tokenId);
+        sleeve.pauseAdapterDeposits(address(adapter));
+        sleeve.setExitOnly(address(adapter));
+        priceHub.setGuardianPaused(true);
+
+        DeltaV3LPAdapter.LiquidityAction[] memory actions =
+            new DeltaV3LPAdapter.LiquidityAction[](1);
+        actions[0] = DeltaV3LPAdapter.LiquidityAction(tokenId, liquidity, 1, 1);
+        DeltaV3LPAdapter.ExitParams memory params = DeltaV3LPAdapter.ExitParams({
+            actions: actions,
+            // forge-lint: disable-next-line(block-timestamp)
+            deadline: block.timestamp
+        });
+        (address[] memory assets, uint256[] memory amounts) =
+            sleeve.emergencyExitAdapterInKind(address(adapter), abi.encode(params));
+
+        assertEq(assets[0], address(weth));
+        assertEq(assets[1], address(pairedAsset));
+        assertGt(amounts[0] + amounts[1], 0);
+        assertEq(adapter.positionIds().length, 0);
+    }
+
     function testRejectsUnsolicitedPositionNFT() external {
         weth.mint(address(this), 1e18);
-        injoh.mint(address(this), 1e18);
+        pairedAsset.mint(address(this), 1e18);
         weth.approve(address(manager), 1e18);
-        injoh.approve(address(manager), 1e18);
+        pairedAsset.approve(address(manager), 1e18);
         // Test execution uses the current timestamp as an explicit operator deadline.
         // forge-lint: disable-next-line(block-timestamp)
         uint256 deadline = block.timestamp;
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                DeltaV3LPAdapter.UnexpectedNFT.selector, address(manager), address(0), uint256(1)
-            )
-        );
-        manager.mint(
+        (uint256 tokenId,,,) = manager.mint(
             IMockDeltaPositionManager.MintParams({
                 token0: address(weth),
-                token1: address(injoh),
+                token1: address(pairedAsset),
                 fee: 3_000,
                 tickLower: -600,
                 tickUpper: 600,
@@ -216,10 +246,17 @@ contract DeltaV3LPAdapterTest is Test {
                 amount1Desired: 1e18,
                 amount0Min: 0,
                 amount1Min: 0,
-                recipient: address(adapter),
+                recipient: address(this),
                 deadline: deadline
             })
         );
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                DeltaV3LPAdapter.UnexpectedNFT.selector, address(manager), address(this), tokenId
+            )
+        );
+        manager.safeTransferFrom(address(this), address(adapter), tokenId);
+        assertFalse(adapter.isPositionTracked(tokenId));
     }
 
     function testEntryRouteRuntimeMutationFailsClosed() external {
@@ -247,12 +284,12 @@ contract DeltaV3LPAdapterTest is Test {
             tickUpper: 600,
             amount0: 250e18,
             amount1: 250e18,
-            amount0Min: 0,
-            amount1Min: 0
+            amount0Min: 1,
+            amount1Min: 1
         });
         DeltaV3LPAdapter.DepositParams memory params = DeltaV3LPAdapter.DepositParams({
             wethToConvert: 250e18,
-            minimumInjohOut: 250e18,
+            minimumPairedAssetOut: 250e18,
             routeData: "",
             rungs: rungs,
             minimumCurrentTick: -60,

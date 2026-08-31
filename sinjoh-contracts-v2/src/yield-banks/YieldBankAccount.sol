@@ -40,6 +40,7 @@ contract YieldBankAccount {
         address distributor
     );
     event AssetTracked(address indexed asset);
+    event AssetUntracked(address indexed asset);
     event AssetReleased(
         address indexed asset,
         address indexed beneficiary,
@@ -99,6 +100,23 @@ contract YieldBankAccount {
         _isTracked[asset] = true;
         _trackedAssets.push(asset);
         emit AssetTracked(asset);
+    }
+
+    function untrackEmptyAsset(address asset) external onlyPortfolioAllocator {
+        if (closed) revert AccountIsClosed();
+        if (!_isTracked[asset] || IERC20(asset).balanceOf(address(this)) != 0) {
+            revert InvalidAsset(asset);
+        }
+        uint256 length = _trackedAssets.length;
+        for (uint256 i; i < length; ++i) {
+            if (_trackedAssets[i] != asset) continue;
+            _trackedAssets[i] = _trackedAssets[length - 1];
+            _trackedAssets.pop();
+            _isTracked[asset] = false;
+            emit AssetUntracked(asset);
+            return;
+        }
+        revert InvalidAsset(asset);
     }
 
     function approveDistribution(address asset, uint256 amount) external onlyCollection {

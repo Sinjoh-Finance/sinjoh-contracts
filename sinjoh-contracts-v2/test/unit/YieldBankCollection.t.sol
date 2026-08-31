@@ -23,6 +23,7 @@ import {
 } from "../../src/yield-banks/YieldBankTypes.sol";
 import {
     MockYieldBankAsset,
+    MockYieldBankBurnableAsset,
     MockYieldBankEligibilityPolicy,
     MockYieldBankPrimaryAllocator,
     MockYieldBankRenderer,
@@ -57,13 +58,11 @@ contract YieldBankCollectionTest is Test {
     address private constant BOB = address(0xB0B);
     address private constant CREATOR = address(0xC0FFEE);
     address private constant SINJOH = address(0x51A70A);
-    address private constant OPERATIONS = address(0x0B5E);
     address private constant OPERATOR = address(0x0A110C);
     address private constant GUARDIAN = address(0x6A4D1A);
     uint16 private constant PRIMARY_BACKING_BPS = 7_500;
     uint16 private constant PRIMARY_CREATOR_BPS = 1_200;
-    uint16 private constant PRIMARY_SINJOH_BPS = 800;
-    uint16 private constant PRIMARY_OPERATIONS_BPS = 500;
+    uint16 private constant PRIMARY_SINJOH_BPS = 1_300;
     uint16 private constant CORE_WEIGHT_BPS = 4_000;
     uint16 private constant MARKET_MAKING_WEIGHT_BPS = 3_750;
     uint16 private constant USDG_WEIGHT_BPS = 2_250;
@@ -89,7 +88,7 @@ contract YieldBankCollectionTest is Test {
         policy = new MockYieldBankEligibilityPolicy();
         renderer = new MockYieldBankRenderer();
         revenueRouter = new MockYieldBankRevenueRouter(
-            PRIMARY_BACKING_BPS, PRIMARY_CREATOR_BPS, PRIMARY_SINJOH_BPS, PRIMARY_OPERATIONS_BPS
+            PRIMARY_BACKING_BPS, PRIMARY_CREATOR_BPS, PRIMARY_SINJOH_BPS
         );
         timelock = new MockYieldBankTimelock();
         seaDrop = new MockYieldBankSeaDrop();
@@ -119,7 +118,6 @@ contract YieldBankCollectionTest is Test {
         assertEq(collection.coreWeightBps(), CORE_WEIGHT_BPS);
         assertEq(weth.balanceOf(CREATOR), 0);
         assertEq(weth.balanceOf(SINJOH), 0);
-        assertEq(weth.balanceOf(OPERATIONS), 0);
         assertTrue(collection.accountOf(1) != address(0));
     }
 
@@ -149,15 +147,12 @@ contract YieldBankCollectionTest is Test {
         YieldBankProceedsVault vault = collection.proceedsVault();
         uint256 creatorBefore = CREATOR.balance;
         uint256 sinjohBefore = SINJOH.balance;
-        uint256 operationsBefore = OPERATIONS.balance;
         vm.prank(OPERATOR);
         vault.allocateReceipts(1, 1, calls);
         assertEq(CREATOR.balance - creatorBefore, 0.12 ether);
-        assertEq(SINJOH.balance - sinjohBefore, 0.08 ether);
-        assertEq(OPERATIONS.balance - operationsBefore, 0.05 ether);
+        assertEq(SINJOH.balance - sinjohBefore, 0.13 ether);
         assertEq(weth.balanceOf(CREATOR), 0);
         assertEq(weth.balanceOf(SINJOH), 0);
-        assertEq(weth.balanceOf(OPERATIONS), 0);
         assertEq(collection.proceedsVault().totalAllocatedBacking(), 0.75 ether);
         collection.claimPrimary(1);
         collection.claimPrimary(2);
@@ -179,6 +174,21 @@ contract YieldBankCollectionTest is Test {
         collection.burnToken(1, "");
         assertEq(vault.primaryStateOf(1), vault.PRIMARY_RELEASED());
         assertEq(collection.tokenState(1), uint8(YieldBankTokenState.BURNED));
+    }
+
+    function testBurnRequiresActiveDeltaAllocationToBeRebalancedFirst() public {
+        _mint(ALICE, 1, 1 ether);
+        address pool = address(0xD311A);
+        allocator.setActiveDeltaPool(1, pool);
+        vm.prank(ALICE);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                YieldBankCollection.ActiveDeltaPositionRequiresRebalance.selector, 1, pool
+            )
+        );
+        collection.burnToken(1, "");
+        assertEq(collection.nft().ownerOf(1), ALICE);
+        assertEq(collection.liveSupply(), 1);
     }
 
     function testPendingYieldBankIsTransferableAndRedeemableBeforeAllocation() public {
@@ -308,14 +318,13 @@ contract YieldBankCollectionTest is Test {
             uint256 backing,
             uint256 creatorFee,
             uint256 sinjohFee,
-            uint256 operationsFee,
             bool allocated
         ) = vault.receipts(1);
         assertEq(firstTokenId, 1);
         assertEq(receiptQuantity, quantity);
         assertEq(netProceeds, value);
         assertFalse(allocated);
-        assertEq(backing + creatorFee + sinjohFee + operationsFee, value);
+        assertEq(backing + creatorFee + sinjohFee, value);
         uint256 assigned;
         for (uint256 tokenId = 1; tokenId <= quantity; ++tokenId) {
             assigned += vault.pendingBackingOf(tokenId);
@@ -446,6 +455,56 @@ contract YieldBankCollectionTest is Test {
         nft.transferFrom(ALICE, BOB, 1);
     }
 
+    function testConfiguredProjectTokenIsActuallyBurnedWithTheNft() public {
+        MockYieldBankBurnableAsset projectToken =
+            new MockYieldBankBurnableAsset("Project Token", "PROJECT");
+        uint256 burnAmount = 10_000e18;
+        YieldBankConfig memory config = _config(1);
+        config.redemptionToken = address(projectToken);
+        config.redemptionTokenAmount = burnAmount;
+        config.redemptionTokenCodeHash = address(projectToken).codehash;
+        YieldBankCollection gatedCollection = new YieldBankCollection(config);
+
+        vm.prank(ALICE);
+        seaDrop.mint{ value: 1 ether }(gatedCollection.nft(), ALICE, 1);
+        projectToken.mint(ALICE, burnAmount);
+        vm.prank(ALICE);
+        projectToken.approve(address(gatedCollection), burnAmount);
+
+        uint256 supplyBefore = projectToken.totalSupply();
+        vm.prank(ALICE);
+        gatedCollection.burnToken(1, "");
+
+        assertEq(projectToken.balanceOf(ALICE), 0);
+        assertEq(projectToken.totalSupply(), supplyBefore - burnAmount);
+        assertEq(gatedCollection.liveSupply(), 0);
+        assertEq(gatedCollection.tokenState(1), uint8(YieldBankTokenState.BURNED));
+    }
+
+    function testMissingProjectTokenAllowanceRollsBackNftRedemption() public {
+        MockYieldBankBurnableAsset projectToken =
+            new MockYieldBankBurnableAsset("Project Token", "PROJECT");
+        uint256 burnAmount = 10_000e18;
+        YieldBankConfig memory config = _config(1);
+        config.redemptionToken = address(projectToken);
+        config.redemptionTokenAmount = burnAmount;
+        config.redemptionTokenCodeHash = address(projectToken).codehash;
+        YieldBankCollection gatedCollection = new YieldBankCollection(config);
+
+        vm.prank(ALICE);
+        seaDrop.mint{ value: 1 ether }(gatedCollection.nft(), ALICE, 1);
+        projectToken.mint(ALICE, burnAmount);
+
+        vm.expectRevert();
+        vm.prank(ALICE);
+        gatedCollection.burnToken(1, "");
+
+        assertEq(projectToken.balanceOf(ALICE), burnAmount);
+        assertEq(projectToken.totalSupply(), burnAmount);
+        assertEq(gatedCollection.nft().ownerOf(1), ALICE);
+        assertEq(gatedCollection.liveSupply(), 1);
+    }
+
     function _mint(address minter, uint256 quantity, uint256 netProceeds) private {
         YieldBankNFT nft = collection.nft();
         vm.prank(ALICE);
@@ -460,14 +519,15 @@ contract YieldBankCollectionTest is Test {
             primaryBackingBps: PRIMARY_BACKING_BPS,
             primaryCreatorBps: PRIMARY_CREATOR_BPS,
             primarySinjohBps: PRIMARY_SINJOH_BPS,
-            primaryOperationsBps: PRIMARY_OPERATIONS_BPS,
             coreWeightBps: CORE_WEIGHT_BPS,
             marketMakingWeightBps: MARKET_MAKING_WEIGHT_BPS,
             usdgWeightBps: USDG_WEIGHT_BPS,
             creator: CREATOR,
             openSeaManager: CREATOR,
             sinjohFeeRecipient: SINJOH,
-            operationsReserve: OPERATIONS,
+            redemptionToken: address(0),
+            redemptionTokenAmount: 0,
+            redemptionTokenCodeHash: bytes32(0),
             revenueRouter: address(revenueRouter),
             eligibilityPolicy: address(policy),
             portfolioAllocator: address(allocator),

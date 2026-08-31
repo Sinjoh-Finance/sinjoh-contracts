@@ -29,15 +29,12 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
     uint16 public immutable primaryBackingBps;
     uint16 public immutable primaryCreatorBps;
     uint16 public immutable primarySinjohBps;
-    uint16 public immutable primaryOperationsBps;
     uint16 public immutable royaltyBackingBps;
     uint16 public immutable royaltyCreatorBps;
     uint16 public immutable royaltySinjohBps;
-    uint16 public immutable royaltyOperationsBps;
 
     address public creatorRecipient;
     address public sinjohRecipient;
-    address public operationsRecipient;
     mapping(address recipient => address proposed) public proposedRecipient;
     mapping(address source => mapping(bytes32 sourceType => bool allowed)) public authorizedSource;
     mapping(address asset => mapping(address recipient => uint256 amount)) public failedTransfer;
@@ -82,24 +79,19 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
         address timelock_,
         address creator_,
         address sinjoh_,
-        address operations_,
         uint16 primaryBackingBps_,
         uint16 primaryCreatorBps_,
         uint16 primarySinjohBps_,
-        uint16 primaryOperationsBps_,
         uint16 royaltyBackingBps_,
         uint16 royaltyCreatorBps_,
-        uint16 royaltySinjohBps_,
-        uint16 royaltyOperationsBps_
+        uint16 royaltySinjohBps_
     ) {
         if (
             collection_ == address(0) || allocator_.code.length == 0 || timelock_ == address(0)
-                || creator_ == address(0) || sinjoh_ == address(0) || operations_ == address(0)
-                || primaryBackingBps_ == 0
-                || uint256(primaryBackingBps_) + primaryCreatorBps_ + primarySinjohBps_
-                        + primaryOperationsBps_ != BPS || royaltyBackingBps_ == 0
-                || uint256(royaltyBackingBps_) + royaltyCreatorBps_ + royaltySinjohBps_
-                        + royaltyOperationsBps_ != BPS
+                || creator_ == address(0) || sinjoh_ == address(0) || primaryBackingBps_ == 0
+                || uint256(primaryBackingBps_) + primaryCreatorBps_ + primarySinjohBps_ != BPS
+                || royaltyBackingBps_ == 0
+                || uint256(royaltyBackingBps_) + royaltyCreatorBps_ + royaltySinjohBps_ != BPS
         ) revert InvalidConfiguration();
         collection = IYieldBankCollection(collection_);
         allocator = IYieldBankAllocationReceiver(allocator_);
@@ -107,14 +99,11 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
         primaryBackingBps = primaryBackingBps_;
         primaryCreatorBps = primaryCreatorBps_;
         primarySinjohBps = primarySinjohBps_;
-        primaryOperationsBps = primaryOperationsBps_;
         royaltyBackingBps = royaltyBackingBps_;
         royaltyCreatorBps = royaltyCreatorBps_;
         royaltySinjohBps = royaltySinjohBps_;
-        royaltyOperationsBps = royaltyOperationsBps_;
         creatorRecipient = creator_;
         sinjohRecipient = sinjoh_;
-        operationsRecipient = operations_;
     }
 
     modifier onlyTimelock() {
@@ -198,11 +187,10 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
         if (amount == 0) revert NothingToRetry();
 
         address weth = collection.weth();
-        (uint256 nftAmount, uint256 creatorAmount, uint256 sinjohAmount, uint256 operationsAmount) =
+        (uint256 nftAmount, uint256 creatorAmount, uint256 sinjohAmount) =
             _splitAmounts(amount, YieldBankIds.ROYALTY_REVENUE);
         _tryLeg(address(0), creatorRecipient, creatorAmount);
         _tryLeg(address(0), sinjohRecipient, sinjohAmount);
-        _tryLeg(address(0), operationsRecipient, operationsAmount);
         IYieldBankRoyaltyWETH(weth).deposit{ value: nftAmount }();
         _tryNftAllocation(weth, nftAmount, sourceData);
         emit RoyaltySynced(msg.sender, address(0), amount);
@@ -216,12 +204,9 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
     ) private returns (uint256 nftAmount) {
         uint256 creatorAmount;
         uint256 sinjohAmount;
-        uint256 operationsAmount;
-        (nftAmount, creatorAmount, sinjohAmount, operationsAmount) =
-            _splitAmounts(received, sourceType);
+        (nftAmount, creatorAmount, sinjohAmount) = _splitAmounts(received, sourceType);
         _tryLeg(sourceAsset, creatorRecipient, creatorAmount);
         _tryLeg(sourceAsset, sinjohRecipient, sinjohAmount);
-        _tryLeg(sourceAsset, operationsRecipient, operationsAmount);
         _tryNftAllocation(sourceAsset, nftAmount, sourceData);
     }
 
@@ -301,7 +286,6 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
         delete proposedRecipient[currentRecipient];
         if (currentRecipient == creatorRecipient) creatorRecipient = msg.sender;
         else if (currentRecipient == sinjohRecipient) sinjohRecipient = msg.sender;
-        else if (currentRecipient == operationsRecipient) operationsRecipient = msg.sender;
         else revert InvalidConfiguration();
         emit RecipientAccepted(currentRecipient, msg.sender);
     }
@@ -309,15 +293,14 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
     function _split(bytes32 sourceType)
         private
         view
-        returns (uint16 nftBps, uint16 creatorBps, uint16 sinjohBps, uint16 operationsBps)
+        returns (uint16 nftBps, uint16 creatorBps, uint16 sinjohBps)
     {
         if (sourceType == YieldBankIds.PROJECT_REVENUE) {
-            return (primaryBackingBps, primaryCreatorBps, primarySinjohBps, primaryOperationsBps);
+            return (primaryBackingBps, primaryCreatorBps, primarySinjohBps);
         }
         if (sourceType == YieldBankIds.ROYALTY_REVENUE) {
-            return (royaltyBackingBps, royaltyCreatorBps, royaltySinjohBps, royaltyOperationsBps);
+            return (royaltyBackingBps, royaltyCreatorBps, royaltySinjohBps);
         }
-        if (sourceType == YieldBankIds.OPERATIONS_RESERVE_SWEEP) return (10_000, 0, 0, 0);
         revert InvalidConfiguration();
     }
 
@@ -356,31 +339,21 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
     }
 
     function _isCurrentRecipient(address recipient) private view returns (bool) {
-        return recipient == creatorRecipient || recipient == sinjohRecipient
-            || recipient == operationsRecipient;
+        return recipient == creatorRecipient || recipient == sinjohRecipient;
     }
 
     function _splitAmounts(uint256 received, bytes32 sourceType)
         private
         view
-        returns (
-            uint256 nftAmount,
-            uint256 creatorAmount,
-            uint256 sinjohAmount,
-            uint256 operationsAmount
-        )
+        returns (uint256 nftAmount, uint256 creatorAmount, uint256 sinjohAmount)
     {
-        (uint16 nftBps, uint16 creatorBps, uint16 sinjohBps, uint16 operationsBps) =
-            _split(sourceType);
-        if (nftBps == 0 || uint256(nftBps) + creatorBps + sinjohBps + operationsBps != BPS) {
+        (uint16 nftBps, uint16 creatorBps, uint16 sinjohBps) = _split(sourceType);
+        if (nftBps == 0 || uint256(nftBps) + creatorBps + sinjohBps != BPS) {
             revert InvalidConfiguration();
         }
         nftAmount = Math.mulDiv(received, nftBps, BPS);
         uint256 creatorCumulative = Math.mulDiv(received, uint256(nftBps) + creatorBps, BPS);
         creatorAmount = creatorCumulative - nftAmount;
-        uint256 sinjohCumulative =
-            Math.mulDiv(received, uint256(nftBps) + creatorBps + sinjohBps, BPS);
-        sinjohAmount = sinjohCumulative - creatorCumulative;
-        operationsAmount = received - sinjohCumulative;
+        sinjohAmount = received - creatorCumulative;
     }
 }

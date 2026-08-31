@@ -249,7 +249,7 @@ abstract contract BaseSleeve is ERC20, ReentrancyGuard, IYieldBankSleeve {
         address receiver,
         address owner,
         YieldBankRedemptionMode mode,
-        uint256 minimumOutput,
+        uint256[] calldata minimumOutputs,
         bytes calldata proof
     ) external override nonReentrant returns (address[] memory assets, uint256[] memory amounts) {
         if (mode != YieldBankRedemptionMode.IN_KIND) revert UnsupportedRedemptionMode(mode);
@@ -260,25 +260,28 @@ abstract contract BaseSleeve is ERC20, ReentrancyGuard, IYieldBankSleeve {
         uint256 adapterLength = _adapters.length;
         for (uint256 i; i < adapterLength; ++i) {
             uint256 managed = IStrategyAdapter(_adapters[i]).totalManagedAssets();
-            if (managed != 0) revert IlliquidStrategy(_adapters[i], managed);
+            if (_adapterHasAssets(_adapters[i])) {
+                revert IlliquidStrategy(_adapters[i], managed);
+            }
         }
         if (msg.sender != owner) _spendAllowance(owner, msg.sender, shares);
         uint256 supplyBefore = totalSupply();
         _burn(owner, shares);
         uint256 length = _inventoryAssets.length;
+        if (minimumOutputs.length != length) revert InvalidConfiguration();
         assets = new address[](length);
         amounts = new uint256[](length);
-        uint256 aggregate;
         for (uint256 i; i < length; ++i) {
             address asset = _inventoryAssets[i];
             uint256 amount =
                 Math.mulDiv(IERC20(asset).balanceOf(address(this)), shares, supplyBefore);
             assets[i] = asset;
             amounts[i] = amount;
-            aggregate += amount;
+            if (amount < minimumOutputs[i]) {
+                revert InsufficientShares(minimumOutputs[i], amount);
+            }
             if (amount != 0) IERC20(asset).safeTransfer(receiver, amount);
         }
-        if (aggregate < minimumOutput) revert InsufficientShares(minimumOutput, aggregate);
         emit Redeemed(owner, receiver, shares);
     }
 
@@ -333,12 +336,13 @@ abstract contract BaseSleeve is ERC20, ReentrancyGuard, IYieldBankSleeve {
             balancesBefore[i] = IERC20(asset).balanceOf(address(this));
         }
 
-        uint256 accountingReturned = _withdrawManagedProRata(shares, supplyBefore, adapterCalls);
+        uint256[] memory adapterReturns =
+            _withdrawManagedProRata(shares, supplyBefore, adapterCalls);
         if (msg.sender != owner) _spendAllowance(owner, msg.sender, shares);
         _burn(owner, shares);
         for (uint256 i; i < length; ++i) {
             uint256 amount = Math.mulDiv(balancesBefore[i], shares, supplyBefore);
-            if (assets[i] == accountingAsset) amount += accountingReturned;
+            amount += adapterReturns[i];
             if (amount < minimumOutputs[i]) {
                 revert InsufficientAdapterOutput(minimumOutputs[i], amount);
             }
@@ -352,14 +356,16 @@ abstract contract BaseSleeve is ERC20, ReentrancyGuard, IYieldBankSleeve {
         uint256 shares,
         uint256 supplyBefore,
         YieldBankAdapterRedemptionCall[] calldata calls
-    ) private returns (uint256 accountingReturned) {
+    ) private returns (uint256[] memory returnedByAsset) {
+        returnedByAsset = new uint256[](_inventoryAssets.length);
         bool[] memory used = new bool[](calls.length);
         uint256 adapterLength = _adapters.length;
         for (uint256 i; i < adapterLength; ++i) {
             address adapter = _adapters[i];
             uint256 managed = IStrategyAdapter(adapter).totalManagedAssets();
             uint256 requested = Math.mulDiv(managed, shares, supplyBefore);
-            if (requested == 0) continue;
+            bool fullSupplyExit = shares == supplyBefore && _adapterHasAssets(adapter);
+            if (requested == 0 && !fullSupplyExit) continue;
             uint256 callIndex = type(uint256).max;
             for (uint256 j; j < calls.length; ++j) {
                 if (!used[j] && calls[j].adapter == adapter) {
@@ -379,18 +385,30 @@ abstract contract BaseSleeve is ERC20, ReentrancyGuard, IYieldBankSleeve {
                     && current != YieldBankAdapterState.EXIT_ONLY
             ) revert InvalidAdapterState(adapter, current);
             _requireRuntime(adapter);
-            uint256 balanceBefore = IERC20(accountingAsset).balanceOf(address(this));
-            uint256 returned = IStrategyAdapter(adapter)
-                .withdraw(requested, address(this), call_.maxLossBps, call_.data);
-            uint256 measured = IERC20(accountingAsset).balanceOf(address(this)) - balanceBefore;
-            if (returned != measured) revert InexactReceipt(returned, measured);
-            uint256 minimum = Math.mulDiv(requested, BPS - call_.maxLossBps, BPS);
-            if (measured < minimum) revert InsufficientAdapterOutput(minimum, measured);
+            if (fullSupplyExit) {
+                uint256[] memory inventoryBefore = _inventoryBalances();
+                (address[] memory outputAssets, uint256[] memory outputAmounts) =
+                    IStrategyAdapter(adapter).exitAll(address(this), call_.maxLossBps, call_.data);
+                _validateAdapterOutputs(outputAssets, outputAmounts, inventoryBefore);
+                if (_adapterHasAssets(adapter)) revert IlliquidStrategy(adapter, managed);
+                for (uint256 j; j < outputAssets.length; ++j) {
+                    returnedByAsset[_inventoryIndex(outputAssets[j])] += outputAmounts[j];
+                }
+                emit AdapterExited(adapter, outputAssets, outputAmounts);
+            } else {
+                uint256 balanceBefore = IERC20(accountingAsset).balanceOf(address(this));
+                uint256 returned = IStrategyAdapter(adapter)
+                    .withdraw(requested, address(this), call_.maxLossBps, call_.data);
+                uint256 measured = IERC20(accountingAsset).balanceOf(address(this)) - balanceBefore;
+                if (returned != measured) revert InexactReceipt(returned, measured);
+                uint256 minimum = Math.mulDiv(requested, BPS - call_.maxLossBps, BPS);
+                if (measured < minimum) revert InsufficientAdapterOutput(minimum, measured);
+                returnedByAsset[_inventoryIndex(accountingAsset)] += measured;
+                emit AdapterWithdrawal(
+                    adapter, requested, measured, IStrategyAdapter(adapter).totalPositionUnits()
+                );
+            }
             used[callIndex] = true;
-            accountingReturned += measured;
-            emit AdapterWithdrawal(
-                adapter, requested, measured, IStrategyAdapter(adapter).totalPositionUnits()
-            );
         }
         for (uint256 i; i < calls.length; ++i) {
             if (!used[i]) revert InvalidAdapter(calls[i].adapter);
@@ -462,10 +480,9 @@ abstract contract BaseSleeve is ERC20, ReentrancyGuard, IYieldBankSleeve {
 
     function retireAdapter(address adapter) external onlyTimelock {
         YieldBankAdapterState previous = adapterState[adapter];
-        if (
-            previous != YieldBankAdapterState.EXIT_ONLY
-                || IStrategyAdapter(adapter).totalManagedAssets() != 0
-        ) revert InvalidAdapterState(adapter, previous);
+        if (previous != YieldBankAdapterState.EXIT_ONLY || _adapterHasAssets(adapter)) {
+            revert InvalidAdapterState(adapter, previous);
+        }
         adapterState[adapter] = YieldBankAdapterState.RETIRED;
         adapterCapBps[adapter] = 0;
         emit AdapterStateChanged(adapter, previous, YieldBankAdapterState.RETIRED);
@@ -548,6 +565,25 @@ abstract contract BaseSleeve is ERC20, ReentrancyGuard, IYieldBankSleeve {
         ) revert InvalidAdapterState(adapter, current);
         uint256[] memory balancesBefore = _inventoryBalances();
         (assets, amounts) = IStrategyAdapter(adapter).exitAll(address(this), maxLossBps, data);
+        _validateAdapterOutputs(assets, amounts, balancesBefore);
+        emit AdapterExited(adapter, assets, amounts);
+    }
+
+    /// @notice Oracle-independent, in-kind escape hatch. Adapter calldata must still enforce
+    ///         exact protocol-native position minima (for Delta: amount0/amount1 per position).
+    function emergencyExitAdapterInKind(address adapter, bytes calldata data)
+        external
+        onlyAllocator
+        nonReentrant
+        returns (address[] memory assets, uint256[] memory amounts)
+    {
+        YieldBankAdapterState current = adapterState[adapter];
+        if (
+            current != YieldBankAdapterState.DEPOSIT_PAUSED
+                && current != YieldBankAdapterState.EXIT_ONLY
+        ) revert InvalidAdapterState(adapter, current);
+        uint256[] memory balancesBefore = _inventoryBalances();
+        (assets, amounts) = IStrategyAdapter(adapter).exitAll(address(this), BPS, data);
         _validateAdapterOutputs(assets, amounts, balancesBefore);
         emit AdapterExited(adapter, assets, amounts);
     }
@@ -636,6 +672,24 @@ abstract contract BaseSleeve is ERC20, ReentrancyGuard, IYieldBankSleeve {
         for (uint256 i; i < length; ++i) {
             balances[i] = IERC20(_inventoryAssets[i]).balanceOf(address(this));
         }
+    }
+
+    function _inventoryIndex(address asset) private view returns (uint256 index) {
+        uint256 length = _inventoryAssets.length;
+        for (uint256 i; i < length; ++i) {
+            if (_inventoryAssets[i] == asset) return i;
+        }
+        revert InvalidAsset(asset);
+    }
+
+    function _adapterHasAssets(address adapter) private view returns (bool) {
+        IStrategyAdapter strategy = IStrategyAdapter(adapter);
+        if (strategy.totalManagedAssets() != 0 || strategy.totalPositionUnits() != 0) return true;
+        address[] memory assets = strategy.positionAssets();
+        for (uint256 i; i < assets.length; ++i) {
+            if (IERC20(assets[i]).balanceOf(adapter) != 0) return true;
+        }
+        return false;
     }
 
     function _validateAdapterOutputs(

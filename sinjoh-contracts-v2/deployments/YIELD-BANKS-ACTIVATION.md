@@ -6,6 +6,12 @@ The deployment pipeline must reject activation until every required manifest ent
 Verified chain constants that must appear by their complete address:
 
 - Robinhood Chain WETH: `0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73`
+- WETH EIP-1967 implementation observed on 2026-08-31:
+  `0xc6b81b429797e0f555440b70cd99e032d7ae947e`
+- WETH implementation runtime hash observed on 2026-08-31:
+  `0xbe1295f37be34ffe03ad779bda0ef278907e1856b51a3be2f35ee541d75d4650`
+- WETH proxy runtime hash observed on 2026-08-31:
+  `0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353`
 - USDG: `0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168`
 - USDG EIP-1967 implementation: `0x68184c449e1a8f34fa18d289737129fd27b66f8f`
 - SeaDrop 1.0: `0x00005EA00Ac477B1030CE78506496e8C2dE24bf5`
@@ -13,8 +19,11 @@ Verified chain constants that must appear by their complete address:
 - Seaport 1.6: `0x0000000000000068F116a894984e2DB1123eB395`
 - Seaport 1.6 runtime hash: `0x95809b70c9659c30188db5fdd87103e24b1a55379af8c851fca393aba0224a00`
 - Delta position builder: `0x6235cF6bd8419b34942F4EDDB39C880BD96dD700`
+- Delta position builder runtime hash: `0xb9b462897f26b3d9082e6db057e363ea01cee5931f39bc62d52eeaa4aa7a9039`
 - Delta Uniswap V3 factory: `0x1f7d7550B1b028f7571E69A784071F0205FD2EfA`
+- Delta Uniswap V3 factory runtime hash: `0xec72b1abd1f2faee020cfea9c646bd8994f9fb389054f6e574f103a895091739`
 - Delta position manager: `0x73991a25C818Bf1f1128dEAaB1492D45638DE0D3`
+- Delta position manager runtime hash: `0x0a493d1af3d0f25fed8efa205244ebee14114267a08647fc38c515c7cd6ead4f`
 - Robinhood Stock Token beacon: `0xe10b6f6B275de231345c20D14Ab812db62151b00`
 - Robinhood Stock Token implementation observed through that beacon:
   `0xb35490d6f9163DE4F80d88dc75c3516eb64C5aE2`
@@ -26,17 +35,16 @@ schema instead of reusing this manifest.
 
 Still required from the operator and review process:
 
-1. creator, Sinjoh, operations, allocation-operator, guardian, proposer, and timelock recipients;
-2. the collection's reviewed tokenized-equity contracts, eligibility classification, explicit custody/income model, and HTTPS disclosure;
+1. creator, Sinjoh, allocation-operator, guardian, proposer, and timelock recipients;
+2. the collection's reviewed Robinhood Stock Token contracts, eligibility classification, explicit custody/income model, and HTTPS disclosure;
 3. every Chainlink/reference feed and heartbeat;
 4. every approved pool, allocation route, reverse rebalance route, price feed, and runtime code hash;
-5. for Delta activation, the exact `$INJOH` token, `$INJOH`/WETH pool, WETH-to-`$INJOH` entry
-   route, `$INJOH`-to-WETH exit route, per-adapter position limit and allocation cap;
+5. for each Delta activation, the exact paired token, paired-token/WETH V3 pool, both exact-direction
+   routes, a direct reviewed USD feed or the guarded pool-TWAP feed, per-adapter position limit, and allocation cap;
 6. runtime hashes, source commit, dependency lock hash, deployment transaction hashes, and audit hashes;
-7. immutable collection-specific `maxSupply`, `secondaryRoyaltyBps`, per-sleeve strategy
-   count/cap/operator-loss limits, and the disclosed reserve sunset; and
-8. timelock authorization of the operations reserve for `YIELD_BANK_OPERATIONS_RESERVE_SWEEP`
-   and each Project V2 revenue bridge for `YIELD_BANK_PROJECT_REVENUE`.
+7. immutable collection-specific `maxSupply`, `secondaryRoyaltyBps`, and per-sleeve strategy
+   count/cap/operator-loss limits; and
+8. timelock authorization of each Project V2 revenue bridge for `YIELD_BANK_PROJECT_REVENUE`.
 
 The deployment plan must declare an `openSeaManager` wallet separately from the creator payout
 recipient. `YieldBankNFT` is initially owned by that manager so the custom SeaDrop contract appears
@@ -46,7 +54,7 @@ timelock proposer schedules `acceptOwnership()` on the NFT, and anyone executes 
 seven-day delay. Release verification requires `owner()` to equal the collection timelock; no mint
 should be opened before that handoff is complete.
 
-The manifest must classify USDG as an EIP-1967 proxy and bind its live implementation address and
+The manifest must classify both WETH and USDG as EIP-1967 proxies and bind each live implementation address and
 implementation runtime hash. Every Robinhood Stock Token must bind its proxy runtime, the beacon
 stored in the ERC-1967 beacon slot, the beacon runtime hash, the implementation returned by the
 beacon, and the implementation runtime hash. A proxy runtime hash by itself is not sufficient: it
@@ -65,8 +73,7 @@ account implementation, so constructor wiring can be
 planned without an init-code address cycle. The pinned deployment plan must order dependencies so
 sleeves deploy before the portfolio allocator, and the portfolio allocator deploys before the
 revenue router. The collection follows through CREATE2 after every component runtime hash passes.
-The reserve sweep must call `sweepExpiredPrimary` with current reviewed allocation calldata. Direct
-native or ERC-20 transfers to the revenue router are reserved for royalty synchronization. Only the
+Direct native or ERC-20 transfers to the revenue router are reserved for royalty synchronization. Only the
 allocation operator may synchronize them, supplying fresh guarded route calldata for the current
 amount; timelock-bound route addresses and runtime hashes cannot be caller-selected.
 
@@ -80,7 +87,22 @@ YIELD_BANK_DEPLOYMENT_PLAN=/absolute/path/to/reviewed-plan.json \
   --rpc-url "$YIELD_BANK_RPC_URL" --account "$FOUNDRY_ACCOUNT" --broadcast
 ```
 
-Deploy each collection's Delta adapter from a separately reviewed plan conforming to
+For each Delta V3 pool, first deploy its two exact-direction routes and isolated one-adapter sleeve
+from a reviewed plan conforming to `yield-bank-delta-pool-foundation-plan.schema.json`. This is
+intentionally per pool: a sleeve cannot silently switch pools or share an adapter with another pool.
+
+If the paired token has no direct trusted USD feed, deploy `DeltaV3TwapUsdFeed` from a reviewed plan
+conforming to `yield-bank-delta-twap-feed-plan.schema.json`. Its WETH/USD leg must be a separately
+reviewed Chainlink proxy. `run()` calls `preparePoolOracle()` to request observation cardinality,
+but the feed must not be configured in PriceHub until at least the complete `twapWindow` has elapsed
+and `latestRoundData()` succeeds. The release verifier calls the feed and rejects missing history,
+stale WETH/USD data, codehash or description drift, or excessive spot/TWAP deviation. A direct
+trusted paired-token/USD feed remains preferable; the pool-derived feed inherits economic
+manipulation risk from that exact pool. The plan must set a reviewed nonzero `minimumLiquidity`, and
+the pool-TWAP feed must have a separately manifest-bound `referenceSource`; the same pool-derived
+price cannot be its own sole material-price authority.
+
+Then deploy the pool's Delta adapter from a separately reviewed plan conforming to
 `yield-bank-delta-adapter-plan.schema.json`. The adapter constructor checks the sleeve category,
 WETH, PriceHub, pool pair, pool factory, position manager, Delta position builder, conversion-route
 directions, and every supplied runtime code hash:
@@ -110,17 +132,17 @@ then activate it on `MarketMakingSleeve` with the reviewed cap. This separation 
 from silently turning a new venue on.
 
 Every strategy action remains manual. The allocation operator supplies the WETH conversion amount,
-minimum `$INJOH` output, Delta ladder rungs, current-tick bounds, and deadline when depositing. A
+minimum paired-token output, Delta ladder rungs, current-tick bounds, and deadline when depositing. A
 withdrawal explicitly identifies each position and liquidity amount to unwind, its token minima,
-the `$INJOH` amount to convert back, minimum WETH output, and exact WETH to return. A full exit must
-list every live position and returns any residual WETH and `$INJOH` in kind to the sleeve. Use the
+the paired-token amount to convert back, minimum WETH output, and exact WETH to return. A full exit must
+list every live position and returns any residual WETH and paired tokens in kind to the sleeve. Use the
 SDK's `encodeYieldBankDeltaDepositData`, `encodeYieldBankDeltaWithdrawalData`,
 `encodeYieldBankDeltaCollectionData`, and `encodeYieldBankDeltaExitData` helpers; do not hand-encode
 operator calldata.
 
 Owner-selected allocation execution is manual as well. Before activation, the collection timelock
-must bind WETH entry routes for the tokenized-equity and USDG sleeves and a reverse-to-WETH route
-for USDG, every reviewed equity asset, and `$INJOH`. The release manifest's `routeBindings` section
+must bind WETH entry routes for the Robinhood Stock Token and USDG sleeves and a reverse-to-WETH route
+for USDG, every reviewed Stock Token, and every Delta paired token. The release manifest's `routeBindings` section
 records each exact address and runtime hash, and the verifier checks the live allocator mappings.
 For each execution the operator must use the SDK's `prepareYieldBankTargetExecution` helper with
 current per-asset minima, adapter unwind calldata, maximum adapter-withdrawal-loss values, expected
@@ -170,9 +192,15 @@ the reviewed slug is absent.
 
 No placeholder address is valid. OpenSea Drop publishing and creator payout configuration must be
 completed as an operational canary after the custom NFT is deployed. A collection's concrete
-`$INJOH` token, pool, routes, prices, caps, and transaction parameters are reviewed deployment and
+paired token, V3 pool, routes, prices, caps, and transaction parameters are reviewed deployment and
 operation inputs, not protocol defaults. Their absence from this repository prevents production
 activation of that collection but does not require another contract implementation.
+
+For the first `$INJOH`/WETH collection, the `$INJOH` token, exact factory-returned pool, fee,
+tick spacing, pool and token runtime hashes, both immutable routes, independent price reference,
+and reviewed minimum liquidity remain deployment inputs. Do not substitute the USDG/WETH example
+pool or infer any of these values from a ticker. Activation is blocked until the completed manifest
+passes the verifier and the live Delta fork test using those exact addresses.
 
 The canary must use a positive-priced public, token-gated, or signed SeaDrop stage with fee basis
 points below 10,000. Use signed mint validation for address-gated access. The NFT intentionally

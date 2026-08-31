@@ -16,6 +16,7 @@ interface IYieldBankCollection {
     function accountOf(uint256 tokenId) external view returns (address);
     function distributor() external view returns (address);
     function proceedsVault() external view returns (address);
+    function isSleeveAsset(address asset) external view returns (bool);
     function claimPrimary(uint256 tokenId) external;
     function settle(uint256 tokenId) external;
     function accrueDistribution(address asset, uint256 amount) external;

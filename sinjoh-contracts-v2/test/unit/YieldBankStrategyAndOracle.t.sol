@@ -20,6 +20,14 @@ import {
 import { YieldBankAdapterState } from "../../src/yield-banks/YieldBankTypes.sol";
 import { YieldBankIds } from "../../src/yield-banks/libraries/YieldBankIds.sol";
 
+contract MockOraclePauseAsset {
+    bool public oraclePaused;
+
+    function setOraclePaused(bool paused) external {
+        oraclePaused = paused;
+    }
+}
+
 contract YieldBankStrategyAndOracleTest is Test {
     MockYieldBankAsset private usdg;
     MockYieldBankAsset private reward;
@@ -85,6 +93,37 @@ contract YieldBankStrategyAndOracleTest is Test {
         (price,, failure) = priceHub.quoteUsd18(address(usdg));
         assertEq(price, 0);
         assertEq(uint8(failure), uint8(IPriceHub.FailureReason.STALE_FEED));
+    }
+
+    function testPriceHubReadsStockTokenOraclePauseDirectly() external {
+        MockOraclePauseAsset asset = new MockOraclePauseAsset();
+        MockYieldBankAggregator assetFeed = new MockYieldBankAggregator(8, 100e8);
+        priceHub.configureFeed(
+            address(asset), address(assetFeed), address(0), 1 days, 0, true, true, 100
+        );
+
+        asset.setOraclePaused(true);
+        (uint256 price,, IPriceHub.FailureReason failure) = priceHub.quoteUsd18(address(asset));
+        assertEq(price, 0);
+        assertEq(uint8(failure), uint8(IPriceHub.FailureReason.CORPORATE_ACTION_PAUSED));
+
+        asset.setOraclePaused(false);
+        (price,, failure) = priceHub.quoteUsd18(address(asset));
+        assertEq(price, 100e18);
+        assertEq(uint8(failure), uint8(IPriceHub.FailureReason.NONE));
+    }
+
+    function testPriceHubFailsClosedWhenFeedIdentityChanges() external {
+        feed.setDescription("DIFFERENT / USD");
+        (uint256 price,, IPriceHub.FailureReason failure) = priceHub.quoteUsd18(address(usdg));
+        assertEq(price, 0);
+        assertEq(uint8(failure), uint8(IPriceHub.FailureReason.FEED_IDENTITY_MISMATCH));
+
+        feed.setDescription("MOCK / USD");
+        vm.etch(address(referencePrice), hex"00");
+        (price,, failure) = priceHub.quoteUsd18(address(usdg));
+        assertEq(price, 0);
+        assertEq(uint8(failure), uint8(IPriceHub.FailureReason.FEED_IDENTITY_MISMATCH));
     }
 
     function testUsdGSleeveHoldsUsdGDirectlyWithoutAnAdapter() external {
@@ -155,6 +194,40 @@ contract YieldBankStrategyAndOracleTest is Test {
         assertEq(sleeve.totalSupply(), 900e18);
         assertEq(adapter.totalManagedAssets(), 450e18);
         assertEq(usdg.balanceOf(address(sleeve)), 450e18);
+    }
+
+    function testFullManagedRedemptionReturnsAllAdapterAssetsAndSurplus() external {
+        usdg.mint(address(this), 1_025e18);
+        usdg.approve(address(sleeve), 1_000e18);
+        uint256 shares = sleeve.deposit(1_000e18, address(this), 999e18, "");
+        sleeve.addAdapter(address(adapter), 5_000);
+        sleeve.depositToAdapter(address(adapter), 500e18, 500e18, "");
+        usdg.transfer(address(adapter), 25e18);
+
+        reward.mint(address(this), 20e18);
+        reward.approve(address(adapter), 20e18);
+        adapter.addRewards(20e18);
+
+        uint256[] memory minimumOutputs = new uint256[](2);
+        minimumOutputs[0] = 1_025e18;
+        minimumOutputs[1] = 20e18;
+        YieldBankAdapterRedemptionCall[] memory calls = new YieldBankAdapterRedemptionCall[](1);
+        calls[0] =
+            YieldBankAdapterRedemptionCall({ adapter: address(adapter), maxLossBps: 0, data: "" });
+        (address[] memory assets, uint256[] memory amounts) =
+            sleeve.redeemManaged(shares, address(this), address(this), minimumOutputs, calls);
+
+        assertEq(assets[0], address(usdg));
+        assertEq(assets[1], address(reward));
+        assertEq(amounts[0], 1_025e18);
+        assertEq(amounts[1], 20e18);
+        assertEq(sleeve.totalSupply(), 0);
+        assertEq(usdg.balanceOf(address(sleeve)), 0);
+        assertEq(reward.balanceOf(address(sleeve)), 0);
+        assertEq(usdg.balanceOf(address(adapter)), 0);
+        assertEq(reward.balanceOf(address(adapter)), 0);
+        assertEq(adapter.totalManagedAssets(), 0);
+        assertEq(adapter.totalPositionUnits(), 0);
     }
 
     function testRegistryBindingPreventsAdapterReuseByAnotherSleeve() external {

@@ -37,7 +37,7 @@ contract YieldBankOpenSeaConfigurationRegressionTest is Test {
 
     function setUp() external {
         seaDrop = new MockYieldBankSeaDrop();
-        revenueRouter = new MockYieldBankRevenueRouter(7_500, 1_200, 800, 500);
+        revenueRouter = new MockYieldBankRevenueRouter(7_500, 1_200, 1_300);
         nft = new YieldBankNFT(
             address(this),
             address(this),

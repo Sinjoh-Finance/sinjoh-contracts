@@ -4,7 +4,7 @@
   "title": "Sinjoh Yield Banks release manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "chainId", "collectionId", "factoryVersion", "compiler", "deployment", "economics", "equityModel", "policyCaps", "openSea", "contracts", "dependencies", "equityAssets", "adapters", "feeds", "pools", "delta", "routeBindings", "roles", "auditHashes"],
+  "required": ["schemaVersion", "chainId", "collectionId", "factoryVersion", "compiler", "deployment", "economics", "redemption", "equityModel", "policyCaps", "openSea", "contracts", "dependencies", "equityAssets", "coreConstituents", "adapters", "feeds", "pools", "deltaPools", "routeBindings", "roles", "auditHashes"],
   "properties": {
     "schemaVersion": { "const": "1.0" },
     "chainId": { "const": 4663 },
@@ -40,22 +40,30 @@
     "economics": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["maxSupply", "secondaryRoyaltyBps", "primaryBackingBps", "primaryCreatorBps", "primarySinjohBps", "primaryOperationsBps", "royaltyBackingBps", "royaltyCreatorBps", "royaltySinjohBps", "royaltyOperationsBps", "exitTaxBps", "coreWeightBps", "marketMakingWeightBps", "usdgWeightBps"],
+      "required": ["maxSupply", "secondaryRoyaltyBps", "primaryBackingBps", "primaryCreatorBps", "primarySinjohBps", "royaltyBackingBps", "royaltyCreatorBps", "royaltySinjohBps", "exitTaxBps", "coreWeightBps", "marketMakingWeightBps", "usdgWeightBps"],
       "properties": {
         "maxSupply": { "type": "integer", "minimum": 1, "maximum": 18446744073709551615 },
         "secondaryRoyaltyBps": { "$ref": "#/$defs/bps" },
         "primaryBackingBps": { "$ref": "#/$defs/positiveBps" },
         "primaryCreatorBps": { "$ref": "#/$defs/bps" },
         "primarySinjohBps": { "$ref": "#/$defs/bps" },
-        "primaryOperationsBps": { "$ref": "#/$defs/bps" },
         "royaltyBackingBps": { "$ref": "#/$defs/positiveBps" },
         "royaltyCreatorBps": { "$ref": "#/$defs/bps" },
         "royaltySinjohBps": { "$ref": "#/$defs/bps" },
-        "royaltyOperationsBps": { "$ref": "#/$defs/bps" },
         "exitTaxBps": { "const": 500 },
         "coreWeightBps": { "$ref": "#/$defs/positiveBps" },
         "marketMakingWeightBps": { "$ref": "#/$defs/positiveBps" },
         "usdgWeightBps": { "$ref": "#/$defs/positiveBps" }
+      }
+    },
+    "redemption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["token", "amount", "tokenRuntimeCodeHash"],
+      "properties": {
+        "token": { "$ref": "#/$defs/addressOrZero" },
+        "amount": { "type": "integer", "minimum": 0 },
+        "tokenRuntimeCodeHash": { "$ref": "#/$defs/bytes32" }
       }
     },
     "equityModel": {
@@ -63,7 +71,7 @@
       "additionalProperties": false,
       "required": ["custody", "income", "disclosureUri"],
       "properties": {
-        "custody": { "enum": ["onchain-tokenized-equity", "offchain-custody-receipt"] },
+        "custody": { "enum": ["robinhood-stock-token", "offchain-custody-receipt"] },
         "income": { "enum": ["balance-appreciation", "cash-distribution", "mixed"] },
         "disclosureUri": { "type": "string", "format": "uri", "pattern": "^https://" }
       }
@@ -117,7 +125,7 @@
     },
     "contracts": {
       "type": "object",
-      "required": ["registry", "factoryDeployer", "factory", "collection", "nft", "accountImplementation", "proceedsVault", "distributor", "revenueRouter", "operationsReserve", "timelock", "allocator", "priceHub", "strategyRegistry", "renderer", "coreSleeve", "marketMakingSleeve", "usdgSleeve"],
+      "required": ["registry", "factoryDeployer", "factory", "collection", "nft", "accountImplementation", "proceedsVault", "distributor", "revenueRouter", "timelock", "allocator", "priceHub", "strategyRegistry", "renderer", "coreSleeve", "marketMakingSleeve", "usdgSleeve", "rebalanceValueGuard"],
       "additionalProperties": { "$ref": "#/$defs/deployment" }
     },
     "dependencies": {
@@ -126,24 +134,44 @@
       "required": ["WETH", "USDG", "seaDrop", "seaport", "eligibilityPolicy"]
     },
     "equityAssets": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/deployment" } },
+    "coreConstituents": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 7,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/coreConstituent" }
+    },
     "adapters": { "type": "object", "additionalProperties": { "$ref": "#/$defs/deployment" } },
-    "feeds": { "type": "object", "minProperties": 1, "additionalProperties": { "$ref": "#/$defs/deployment" } },
+    "feeds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/feedBinding" }
+    },
     "pools": { "type": "object", "additionalProperties": { "$ref": "#/$defs/deployment" } },
-    "delta": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["adapter", "injoh", "pool", "positionBuilder", "factory", "positionManager", "entryRoute", "exitRoute", "maximumPositions", "adapterCapBps"],
-      "properties": {
+    "deltaPools": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["adapter", "sleeve", "pairedAsset", "pool", "fee", "tickSpacing", "positionBuilder", "factory", "positionManager", "entryRoute", "exitRoute", "maximumPositions", "maximumStrategies", "adapterCapBps"],
+        "properties": {
         "adapter": { "$ref": "#/$defs/address" },
-        "injoh": { "$ref": "#/$defs/address" },
+        "sleeve": { "$ref": "#/$defs/address" },
+        "pairedAsset": { "$ref": "#/$defs/address" },
         "pool": { "$ref": "#/$defs/address" },
+        "fee": { "type": "integer", "minimum": 1, "maximum": 16777215 },
+        "tickSpacing": { "type": "integer", "minimum": 1, "maximum": 8388607 },
         "positionBuilder": { "$ref": "#/$defs/address" },
         "factory": { "$ref": "#/$defs/address" },
         "positionManager": { "$ref": "#/$defs/address" },
         "entryRoute": { "$ref": "#/$defs/address" },
         "exitRoute": { "$ref": "#/$defs/address" },
         "maximumPositions": { "type": "integer", "minimum": 1, "maximum": 64 },
-        "adapterCapBps": { "$ref": "#/$defs/positiveBps" }
+          "maximumStrategies": { "const": 1 },
+          "adapterCapBps": { "$ref": "#/$defs/positiveBps" }
+        }
       }
     },
     "routeBindings": {
@@ -153,13 +181,13 @@
       "properties": {
         "allocations": {
           "type": "array",
-          "minItems": 2,
+          "minItems": 1,
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/allocationRoute" }
         },
         "rebalances": {
           "type": "array",
-          "minItems": 3,
+          "minItems": 2,
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/rebalanceRoute" }
         }
@@ -168,12 +196,11 @@
     "roles": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["creator", "openSeaManager", "sinjoh", "operations", "allocationOperator", "guardian", "timelock"],
+      "required": ["creator", "openSeaManager", "sinjoh", "allocationOperator", "guardian", "timelock"],
       "properties": {
         "creator": { "$ref": "#/$defs/address" },
         "openSeaManager": { "$ref": "#/$defs/address" },
         "sinjoh": { "$ref": "#/$defs/address" },
-        "operations": { "$ref": "#/$defs/address" },
         "allocationOperator": { "$ref": "#/$defs/address" },
         "guardian": { "$ref": "#/$defs/address" },
         "timelock": { "$ref": "#/$defs/address" }
@@ -237,6 +264,42 @@
         "maximumStrategies": { "type": "integer", "minimum": 0, "maximum": 8 },
         "maximumAdapterCapBps": { "$ref": "#/$defs/bps" },
         "maximumOperatorLossBps": { "$ref": "#/$defs/bps" }
+      }
+    },
+    "feedBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "asset", "feed", "referenceSource", "heartbeat", "gracePeriod", "maxDeviationBps", "weekdaysOnly", "checkAssetOraclePause", "description", "decimals", "sourceUrl", "observedAt", "wethUsdFeed", "twapWindow", "maxSpotDeviationBps", "comparisonAmount", "minimumLiquidity"],
+      "properties": {
+        "kind": { "enum": ["chainlink", "delta-v3-twap"] },
+        "asset": { "$ref": "#/$defs/address" },
+        "feed": { "$ref": "#/$defs/deployment" },
+        "referenceSource": { "$ref": "#/$defs/addressOrZero" },
+        "heartbeat": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
+        "gracePeriod": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+        "maxDeviationBps": { "$ref": "#/$defs/bps" },
+        "weekdaysOnly": { "type": "boolean" },
+        "checkAssetOraclePause": { "type": "boolean" },
+        "description": { "type": "string", "minLength": 1 },
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 18 },
+        "sourceUrl": { "type": "string", "format": "uri", "pattern": "^https://(?:docs\\.chain\\.link/|robinhoodchain\\.blockscout\\.com/address/)" },
+        "observedAt": { "type": "string", "format": "date-time" },
+        "wethUsdFeed": { "$ref": "#/$defs/addressOrZero" },
+        "twapWindow": { "type": "integer", "minimum": 0, "maximum": 86400 },
+        "maxSpotDeviationBps": { "$ref": "#/$defs/bps" },
+        "comparisonAmount": { "type": "string", "pattern": "^[0-9]+$" }
+        ,"minimumLiquidity": { "type": "string", "pattern": "^[0-9]+$" }
+      }
+    },
+    "coreConstituent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["asset", "route", "routeRuntimeCodeHash", "weightBps"],
+      "properties": {
+        "asset": { "$ref": "#/$defs/address" },
+        "route": { "$ref": "#/$defs/address" },
+        "routeRuntimeCodeHash": { "$ref": "#/$defs/bytes32" },
+        "weightBps": { "$ref": "#/$defs/positiveBps" }
       }
     },
     "allocationRoute": {

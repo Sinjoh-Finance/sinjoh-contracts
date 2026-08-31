@@ -11,11 +11,11 @@
     "config": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["sleeve", "weth", "injoh", "priceHub", "pool", "positionManager", "positionBuilder", "entryRoute", "exitRoute", "poolCodeHash", "factoryCodeHash", "positionManagerCodeHash", "positionBuilderCodeHash", "entryRouteCodeHash", "exitRouteCodeHash", "maximumPositions"],
+      "required": ["sleeve", "weth", "pairedAsset", "priceHub", "pool", "positionManager", "positionBuilder", "entryRoute", "exitRoute", "poolCodeHash", "factoryCodeHash", "positionManagerCodeHash", "positionBuilderCodeHash", "entryRouteCodeHash", "exitRouteCodeHash", "maximumPositions"],
       "properties": {
         "sleeve": { "$ref": "#/$defs/address" },
         "weth": { "$ref": "#/$defs/address" },
-        "injoh": { "$ref": "#/$defs/address" },
+        "pairedAsset": { "$ref": "#/$defs/address" },
         "priceHub": { "$ref": "#/$defs/address" },
         "pool": { "$ref": "#/$defs/address" },
         "positionManager": { "$ref": "#/$defs/address" },

@@ -11,7 +11,8 @@ interface IPriceHub {
         DEVIATION_EXCEEDED,
         CHAIN_UNHEALTHY,
         GUARDIAN_PAUSED,
-        MARKET_CLOSED
+        MARKET_CLOSED,
+        FEED_IDENTITY_MISMATCH
     }
 
     function quoteUsd18(address asset)

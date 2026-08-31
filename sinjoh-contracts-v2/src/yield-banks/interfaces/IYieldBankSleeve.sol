@@ -16,7 +16,7 @@ interface IYieldBankSleeve {
         address receiver,
         address owner,
         YieldBankRedemptionMode mode,
-        uint256 minimumOutput,
+        uint256[] calldata minimumOutputs,
         bytes calldata data
     ) external returns (address[] memory assets, uint256[] memory amounts);
 }

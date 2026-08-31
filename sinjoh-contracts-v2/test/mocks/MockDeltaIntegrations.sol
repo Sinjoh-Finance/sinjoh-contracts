@@ -50,14 +50,31 @@ contract MockDeltaV3Factory {
 }
 
 contract MockDeltaV3Pool {
+    address public immutable factory;
     address public immutable token0;
     address public immutable token1;
     uint24 public immutable fee;
     int24 public immutable tickSpacing;
     uint160 public sqrtPriceX96 = uint160(1 << 96);
     int24 public tick;
+    int24 public twapTick;
+    uint256 public feeGrowthGlobal0X128;
+    uint256 public feeGrowthGlobal1X128;
+    uint128 public liquidity = 1e18;
+    mapping(int24 => uint256) public feeGrowthOutside0X128;
+    mapping(int24 => uint256) public feeGrowthOutside1X128;
 
-    constructor(address token0_, address token1_, uint24 fee_, int24 tickSpacing_) {
+    uint16 public observationCardinality = 2;
+    bool public observationReady = true;
+
+    constructor(
+        address factory_,
+        address token0_,
+        address token1_,
+        uint24 fee_,
+        int24 tickSpacing_
+    ) {
+        factory = factory_;
         token0 = token0_;
         token1 = token1_;
         fee = fee_;
@@ -69,8 +86,59 @@ contract MockDeltaV3Pool {
         tick = tick_;
     }
 
+    function setTwapTick(int24 tick_) external {
+        twapTick = tick_;
+    }
+
+    function setObservationState(uint16 cardinality, bool ready) external {
+        observationCardinality = cardinality;
+        observationReady = ready;
+    }
+
+    function setLiquidity(uint128 liquidity_) external {
+        liquidity = liquidity_;
+    }
+
+    function setFeeGrowth(uint256 feeGrowth0X128, uint256 feeGrowth1X128) external {
+        feeGrowthGlobal0X128 = feeGrowth0X128;
+        feeGrowthGlobal1X128 = feeGrowth1X128;
+    }
+
+    function setTickFeeGrowth(int24 tick_, uint256 feeGrowth0X128, uint256 feeGrowth1X128)
+        external
+    {
+        feeGrowthOutside0X128[tick_] = feeGrowth0X128;
+        feeGrowthOutside1X128[tick_] = feeGrowth1X128;
+    }
+
+    function ticks(int24 tick_)
+        external
+        view
+        returns (uint128, int128, uint256, uint256, int56, uint160, uint32, bool)
+    {
+        return (0, 0, feeGrowthOutside0X128[tick_], feeGrowthOutside1X128[tick_], 0, 0, 0, true);
+    }
+
     function slot0() external view returns (uint160, int24, uint16, uint16, uint16, uint8, bool) {
-        return (sqrtPriceX96, tick, 0, 0, 0, 0, true);
+        return (sqrtPriceX96, tick, 0, observationCardinality, observationCardinality, 0, true);
+    }
+
+    function increaseObservationCardinalityNext(uint16 requested) external {
+        if (requested > observationCardinality) observationCardinality = requested;
+    }
+
+    function observe(uint32[] calldata secondsAgos)
+        external
+        view
+        returns (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidity)
+    {
+        require(observationReady, "history");
+        tickCumulatives = new int56[](secondsAgos.length);
+        secondsPerLiquidity = new uint160[](secondsAgos.length);
+        for (uint256 i; i < secondsAgos.length; ++i) {
+            uint256 timestamp = block.timestamp - secondsAgos[i];
+            tickCumulatives[i] = int56(twapTick) * int56(uint56(timestamp));
+        }
     }
 }
 
@@ -150,7 +218,8 @@ contract MockDeltaV3PositionManager is ERC721, IMockDeltaPositionManager {
             tokensOwed0: 0,
             tokensOwed1: 0
         });
-        _safeMint(params.recipient, tokenId);
+        // The verified live NonfungiblePositionManager uses `_mint`, not `_safeMint`.
+        _mint(params.recipient, tokenId);
     }
 
     function decreaseLiquidity(DecreaseLiquidityParams calldata params)

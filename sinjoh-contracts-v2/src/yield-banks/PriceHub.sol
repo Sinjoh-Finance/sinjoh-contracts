@@ -7,10 +7,15 @@ import { IPriceHub } from "./interfaces/IPriceHub.sol";
 
 interface IYieldBankAggregator {
     function decimals() external view returns (uint8);
+    function description() external view returns (string memory);
     function latestRoundData()
         external
         view
         returns (uint80, int256, uint256, uint256 updatedAt, uint80);
+}
+
+interface IYieldBankOraclePause {
+    function oraclePaused() external view returns (bool);
 }
 
 interface IYieldBankReferencePrice {
@@ -26,9 +31,13 @@ contract PriceHub is IPriceHub {
         uint32 gracePeriod;
         uint16 maxDeviationBps;
         uint8 decimals;
+        bytes32 feedRuntimeCodeHash;
+        bytes32 referenceRuntimeCodeHash;
+        bytes32 feedDescriptionHash;
         bool supported;
         bool corporateActionPaused;
         bool weekdaysOnly;
+        bool checkAssetOraclePause;
     }
 
     uint16 public constant BPS = 10_000;
@@ -49,6 +58,7 @@ contract PriceHub is IPriceHub {
         uint32 heartbeat,
         uint32 gracePeriod,
         bool weekdaysOnly,
+        bool checkAssetOraclePause,
         uint16 maxDeviationBps
     );
     event CorporateActionPauseSet(address indexed asset, bool paused);
@@ -80,6 +90,50 @@ contract PriceHub is IPriceHub {
         bool weekdaysOnly,
         uint16 maxDeviationBps
     ) external onlyTimelock {
+        _configureFeed(
+            asset,
+            feed,
+            referenceSource,
+            heartbeat,
+            gracePeriod,
+            weekdaysOnly,
+            false,
+            maxDeviationBps
+        );
+    }
+
+    function configureFeed(
+        address asset,
+        address feed,
+        address referenceSource,
+        uint32 heartbeat,
+        uint32 gracePeriod,
+        bool weekdaysOnly,
+        bool checkAssetOraclePause,
+        uint16 maxDeviationBps
+    ) external onlyTimelock {
+        _configureFeed(
+            asset,
+            feed,
+            referenceSource,
+            heartbeat,
+            gracePeriod,
+            weekdaysOnly,
+            checkAssetOraclePause,
+            maxDeviationBps
+        );
+    }
+
+    function _configureFeed(
+        address asset,
+        address feed,
+        address referenceSource,
+        uint32 heartbeat,
+        uint32 gracePeriod,
+        bool weekdaysOnly,
+        bool checkAssetOraclePause,
+        uint16 maxDeviationBps
+    ) private {
         if (
             asset.code.length == 0 || feed.code.length == 0 || heartbeat == 0
                 || maxDeviationBps > BPS
@@ -87,6 +141,8 @@ contract PriceHub is IPriceHub {
         ) revert InvalidConfiguration();
         uint8 decimals = IYieldBankAggregator(feed).decimals();
         if (decimals > 18) revert InvalidConfiguration();
+        bytes32 descriptionHash = keccak256(bytes(IYieldBankAggregator(feed).description()));
+        if (descriptionHash == keccak256(bytes(""))) revert InvalidConfiguration();
         feedConfig[asset] = FeedConfig({
             feed: feed,
             referenceSource: referenceSource,
@@ -94,12 +150,23 @@ contract PriceHub is IPriceHub {
             gracePeriod: gracePeriod,
             maxDeviationBps: maxDeviationBps,
             decimals: decimals,
+            feedRuntimeCodeHash: feed.codehash,
+            referenceRuntimeCodeHash: referenceSource.codehash,
+            feedDescriptionHash: descriptionHash,
             supported: true,
             corporateActionPaused: false,
-            weekdaysOnly: weekdaysOnly
+            weekdaysOnly: weekdaysOnly,
+            checkAssetOraclePause: checkAssetOraclePause
         });
         emit FeedConfigured(
-            asset, feed, referenceSource, heartbeat, gracePeriod, weekdaysOnly, maxDeviationBps
+            asset,
+            feed,
+            referenceSource,
+            heartbeat,
+            gracePeriod,
+            weekdaysOnly,
+            checkAssetOraclePause,
+            maxDeviationBps
         );
     }
 
@@ -128,8 +195,33 @@ contract PriceHub is IPriceHub {
         if (!config.supported) return (0, 0, FailureReason.UNSUPPORTED_ASSET);
         if (guardianPaused) return (0, 0, FailureReason.GUARDIAN_PAUSED);
         if (!chainHealthy) return (0, 0, FailureReason.CHAIN_UNHEALTHY);
+        if (
+            config.feed.codehash != config.feedRuntimeCodeHash
+                || config.referenceSource.codehash != config.referenceRuntimeCodeHash
+        ) return (0, 0, FailureReason.FEED_IDENTITY_MISMATCH);
+        try IYieldBankAggregator(config.feed).decimals() returns (uint8 currentDecimals) {
+            if (currentDecimals != config.decimals) {
+                return (0, 0, FailureReason.FEED_IDENTITY_MISMATCH);
+            }
+        } catch {
+            return (0, 0, FailureReason.FEED_IDENTITY_MISMATCH);
+        }
+        try IYieldBankAggregator(config.feed).description() returns (string memory description) {
+            if (keccak256(bytes(description)) != config.feedDescriptionHash) {
+                return (0, 0, FailureReason.FEED_IDENTITY_MISMATCH);
+            }
+        } catch {
+            return (0, 0, FailureReason.FEED_IDENTITY_MISMATCH);
+        }
         if (config.corporateActionPaused) {
             return (0, 0, FailureReason.CORPORATE_ACTION_PAUSED);
+        }
+        if (config.checkAssetOraclePause) {
+            try IYieldBankOraclePause(asset).oraclePaused() returns (bool paused) {
+                if (paused) return (0, 0, FailureReason.CORPORATE_ACTION_PAUSED);
+            } catch {
+                return (0, 0, FailureReason.CORPORATE_ACTION_PAUSED);
+            }
         }
         // Unix epoch weekday: 0 Sunday through 6 Saturday.
         // forge-lint: disable-next-line(block-timestamp)

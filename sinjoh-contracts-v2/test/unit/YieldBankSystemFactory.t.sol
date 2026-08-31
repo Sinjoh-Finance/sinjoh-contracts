@@ -69,9 +69,9 @@ contract YieldBankSystemFactoryTest is Test {
 
         address predictedFactory =
             vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
-        bytes32[8] memory salts;
-        address[8] memory predicted;
-        for (uint256 i; i < 8; ++i) {
+        bytes32[7] memory salts;
+        address[7] memory predicted;
+        for (uint256 i; i < 7; ++i) {
             salts[i] = keccak256(abi.encode("YIELD_BANK_COMPONENT", i));
             predicted[i] = Create3V2.predict(predictedFactory, salts[i]);
         }
@@ -85,9 +85,8 @@ contract YieldBankSystemFactoryTest is Test {
         );
         bytes32 expectedRuntimeHash = keccak256(type(MockYieldBankPlannedComponent).runtimeCode);
         YieldBankSystemFactory.ComponentDeployment[] memory components =
-            new YieldBankSystemFactory.ComponentDeployment[](8);
-        bytes32[8] memory kinds = [
-            keccak256("OPERATIONS_RESERVE"),
+            new YieldBankSystemFactory.ComponentDeployment[](7);
+        bytes32[7] memory kinds = [
             keccak256("REVENUE_ROUTER"),
             keccak256("PORTFOLIO_ALLOCATOR"),
             keccak256("COLLECTION_TIMELOCK"),
@@ -96,29 +95,23 @@ contract YieldBankSystemFactoryTest is Test {
             keccak256("USDG_SLEEVE"),
             keccak256("ACCOUNT_IMPLEMENTATION")
         ];
-        uint16[7] memory economics = [
-            uint16(7_500),
-            uint16(1_200),
-            uint16(800),
-            uint16(500),
-            uint16(4_000),
-            uint16(3_750),
-            uint16(2_250)
+        uint16[6] memory economics = [
+            uint16(7_500), uint16(1_200), uint16(1_300), uint16(4_000), uint16(3_750), uint16(2_250)
         ];
-        for (uint256 i; i < 7; ++i) {
+        for (uint256 i; i < 6; ++i) {
             components[i] = YieldBankSystemFactory.ComponentDeployment({
                 kind: kinds[i],
                 salt: salts[i],
                 initCode: abi.encodePacked(
                     type(MockYieldBankPlannedComponent).creationCode,
-                    abi.encode(predictedCollection, predicted[(i + 1) % 7], economics)
+                    abi.encode(predictedCollection, predicted[(i + 1) % 6], economics)
                 ),
                 expectedRuntimeCodeHash: expectedRuntimeHash
             });
         }
-        components[7] = YieldBankSystemFactory.ComponentDeployment({
-            kind: kinds[7],
-            salt: salts[7],
+        components[6] = YieldBankSystemFactory.ComponentDeployment({
+            kind: kinds[6],
+            salt: salts[6],
             initCode: type(YieldBankAccount).creationCode,
             expectedRuntimeCodeHash: keccak256(type(YieldBankAccount).runtimeCode)
         });
@@ -138,14 +131,14 @@ contract YieldBankSystemFactoryTest is Test {
         address deployed =
             factory.deploySystem(components, collectionCreationCode, config, COLLECTION_SALT);
         assertEq(deployed, predictedCollection);
-        for (uint256 i; i < 7; ++i) {
+        for (uint256 i; i < 6; ++i) {
             assertEq(factory.predictComponent(salts[i]), predicted[i]);
             MockYieldBankPlannedComponent component = MockYieldBankPlannedComponent(predicted[i]);
             assertEq(component.collection(), predictedCollection);
-            assertEq(component.dependency(), predicted[(i + 1) % 7]);
+            assertEq(component.dependency(), predicted[(i + 1) % 6]);
         }
-        assertEq(factory.predictComponent(salts[7]), predicted[7]);
-        assertEq(predicted[7].codehash, keccak256(type(YieldBankAccount).runtimeCode));
+        assertEq(factory.predictComponent(salts[6]), predicted[6]);
+        assertEq(predicted[6].codehash, keccak256(type(YieldBankAccount).runtimeCode));
         (address recordedFactory,,,,, bool registered) = registry.collections(deployed);
         assertEq(recordedFactory, address(factory));
         assertTrue(registered);
@@ -155,7 +148,7 @@ contract YieldBankSystemFactoryTest is Test {
         MockYieldBankAsset weth,
         MockYieldBankEligibilityPolicy policy,
         MockYieldBankRenderer renderer,
-        address[8] memory predicted
+        address[7] memory predicted
     ) private view returns (YieldBankConfig memory config) {
         config = YieldBankConfig({
             collectionId: COLLECTION_ID,
@@ -163,28 +156,29 @@ contract YieldBankSystemFactoryTest is Test {
             secondaryRoyaltyBps: 500,
             primaryBackingBps: 7_500,
             primaryCreatorBps: 1_200,
-            primarySinjohBps: 800,
-            primaryOperationsBps: 500,
+            primarySinjohBps: 1_300,
             coreWeightBps: 4_000,
             marketMakingWeightBps: 3_750,
             usdgWeightBps: 2_250,
             creator: address(0xC0FFEE),
             openSeaManager: address(0xC0FFEE),
             sinjohFeeRecipient: address(0x51A70A),
-            operationsReserve: predicted[0],
-            revenueRouter: predicted[1],
+            redemptionToken: address(0),
+            redemptionTokenAmount: 0,
+            redemptionTokenCodeHash: bytes32(0),
+            revenueRouter: predicted[0],
             eligibilityPolicy: address(policy),
-            portfolioAllocator: predicted[2],
+            portfolioAllocator: predicted[1],
             allocationOperator: address(0xA110C),
-            collectionTimelock: predicted[3],
+            collectionTimelock: predicted[2],
             guardian: address(0x6A4D1A),
             renderer: address(renderer),
             weth: address(weth),
             seaDrop: address(renderer),
-            coreSleeve: predicted[4],
-            marketMakingSleeve: predicted[5],
-            usdgSleeve: predicted[6],
-            accountImplementation: predicted[7],
+            coreSleeve: predicted[3],
+            marketMakingSleeve: predicted[4],
+            usdgSleeve: predicted[5],
+            accountImplementation: predicted[6],
             integrationCodeHashes: [
                 keccak256(type(MockYieldBankPlannedComponent).runtimeCode),
                 address(policy).codehash,

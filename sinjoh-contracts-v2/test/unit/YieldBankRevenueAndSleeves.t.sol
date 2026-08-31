@@ -3,7 +3,6 @@ pragma solidity 0.8.28;
 
 import { Test } from "forge-std/Test.sol";
 import { CollectionRevenueRouter } from "../../src/yield-banks/CollectionRevenueRouter.sol";
-import { OperationsReserve } from "../../src/yield-banks/OperationsReserve.sol";
 import { PriceHub } from "../../src/yield-banks/PriceHub.sol";
 import { StrategyRegistry } from "../../src/yield-banks/StrategyRegistry.sol";
 import {
@@ -20,7 +19,6 @@ import {
     MockYieldBankAsset,
     MockYieldBankCollectionReceiver,
     MockYieldBankEligibilityPolicy,
-    MockYieldBankFundableReceiver,
     MockYieldBankWETH,
     MockYieldBankTimelock
 } from "../mocks/MockYieldBankIntegrations.sol";
@@ -41,15 +39,12 @@ contract YieldBankRevenueAndSleevesTest is Test {
     address private constant SOURCE = address(0x501);
     address private constant CREATOR = address(0xC0FFEE);
     address private constant SINJOH = address(0x51A70A);
-    address private constant OPERATIONS = address(0x0F5);
     uint16 private constant PROJECT_NFT_BPS = 7_500;
     uint16 private constant PROJECT_CREATOR_BPS = 1_200;
-    uint16 private constant PROJECT_SINJOH_BPS = 800;
-    uint16 private constant PROJECT_OPERATIONS_BPS = 500;
+    uint16 private constant PROJECT_SINJOH_BPS = 1_300;
     uint16 private constant ROYALTY_NFT_BPS = 6_000;
     uint16 private constant ROYALTY_CREATOR_BPS = 2_000;
-    uint16 private constant ROYALTY_SINJOH_BPS = 1_000;
-    uint16 private constant ROYALTY_OPERATIONS_BPS = 1_000;
+    uint16 private constant ROYALTY_SINJOH_BPS = 2_000;
 
     function testNftLegFailureDoesNotBlockCompletedRevenueLegs() external {
         MockYieldBankAsset input = new MockYieldBankAsset("Input", "IN");
@@ -67,15 +62,12 @@ contract YieldBankRevenueAndSleevesTest is Test {
             address(this),
             CREATOR,
             SINJOH,
-            OPERATIONS,
             PROJECT_NFT_BPS,
             PROJECT_CREATOR_BPS,
             PROJECT_SINJOH_BPS,
-            PROJECT_OPERATIONS_BPS,
             ROYALTY_NFT_BPS,
             ROYALTY_CREATOR_BPS,
-            ROYALTY_SINJOH_BPS,
-            ROYALTY_OPERATIONS_BPS
+            ROYALTY_SINJOH_BPS
         );
         router.setSourceAuthorization(SOURCE, YieldBankIds.PROJECT_REVENUE, true);
         allocator.setShouldFail(true);
@@ -92,8 +84,7 @@ contract YieldBankRevenueAndSleevesTest is Test {
         vm.stopPrank();
 
         assertEq(input.balanceOf(CREATOR), 120e18);
-        assertEq(input.balanceOf(SINJOH), 80e18);
-        assertEq(input.balanceOf(OPERATIONS), 50e18);
+        assertEq(input.balanceOf(SINJOH), 130e18);
         assertEq(router.failedNftAllocation(address(input), keccak256("route")), 750e18);
         assertEq(router.accountedEscrow(address(input)), 750e18);
         vm.expectRevert(CollectionRevenueRouter.NothingToRetry.selector);
@@ -124,15 +115,12 @@ contract YieldBankRevenueAndSleevesTest is Test {
             address(this),
             CREATOR,
             SINJOH,
-            OPERATIONS,
             PROJECT_NFT_BPS,
             PROJECT_CREATOR_BPS,
             PROJECT_SINJOH_BPS,
-            PROJECT_OPERATIONS_BPS,
             ROYALTY_NFT_BPS,
             ROYALTY_CREATOR_BPS,
-            ROYALTY_SINJOH_BPS,
-            ROYALTY_OPERATIONS_BPS
+            ROYALTY_SINJOH_BPS
         );
         input.mint(SOURCE, 1_000e18);
         vm.prank(SOURCE);
@@ -145,8 +133,7 @@ contract YieldBankRevenueAndSleevesTest is Test {
         router.syncRoyalty(address(input), "route");
         assertEq(router.syncRoyalty(address(input), "route"), 1_000e18);
         assertEq(input.balanceOf(CREATOR), 200e18);
-        assertEq(input.balanceOf(SINJOH), 100e18);
-        assertEq(input.balanceOf(OPERATIONS), 100e18);
+        assertEq(input.balanceOf(SINJOH), 200e18);
         for (uint256 i; i < 3; ++i) {
             assertEq(collection.received(outputAddresses[i]), uint256(600e18) / 3);
         }
@@ -171,15 +158,12 @@ contract YieldBankRevenueAndSleevesTest is Test {
             address(this),
             CREATOR,
             SINJOH,
-            OPERATIONS,
             PROJECT_NFT_BPS,
             PROJECT_CREATOR_BPS,
             PROJECT_SINJOH_BPS,
-            PROJECT_OPERATIONS_BPS,
             ROYALTY_NFT_BPS,
             ROYALTY_CREATOR_BPS,
-            ROYALTY_SINJOH_BPS,
-            ROYALTY_OPERATIONS_BPS
+            ROYALTY_SINJOH_BPS
         );
         vm.deal(SOURCE, 1 ether);
         vm.prank(SOURCE);
@@ -188,11 +172,9 @@ contract YieldBankRevenueAndSleevesTest is Test {
 
         uint256 creatorBefore = CREATOR.balance;
         uint256 sinjohBefore = SINJOH.balance;
-        uint256 operationsBefore = OPERATIONS.balance;
         assertEq(router.syncNativeRoyalty("route"), 1 ether);
         assertEq(CREATOR.balance - creatorBefore, 0.2 ether);
-        assertEq(SINJOH.balance - sinjohBefore, 0.1 ether);
-        assertEq(OPERATIONS.balance - operationsBefore, 0.1 ether);
+        assertEq(SINJOH.balance - sinjohBefore, 0.2 ether);
         assertEq(address(router).balance, 0);
         assertEq(weth.balanceOf(address(router)), 0);
         for (uint256 i; i < 3; ++i) {
@@ -218,15 +200,12 @@ contract YieldBankRevenueAndSleevesTest is Test {
             address(this),
             address(creator),
             SINJOH,
-            OPERATIONS,
             PROJECT_NFT_BPS,
             PROJECT_CREATOR_BPS,
             PROJECT_SINJOH_BPS,
-            PROJECT_OPERATIONS_BPS,
             ROYALTY_NFT_BPS,
             ROYALTY_CREATOR_BPS,
-            ROYALTY_SINJOH_BPS,
-            ROYALTY_OPERATIONS_BPS
+            ROYALTY_SINJOH_BPS
         );
         vm.deal(SOURCE, 2 ether);
         vm.prank(SOURCE);
@@ -248,82 +227,6 @@ contract YieldBankRevenueAndSleevesTest is Test {
         assertEq(address(router).balance, 0);
     }
 
-    function testOperationsReserveSourceAllocatesOneHundredPercentToNfts() external {
-        MockYieldBankAsset input = new MockYieldBankAsset("Input", "IN");
-        address[3] memory outputAddresses;
-        for (uint256 i; i < 3; ++i) {
-            outputAddresses[i] = address(new MockYieldBankAsset("Sleeve", "SLV"));
-        }
-        MockYieldBankAllocationReceiver allocator =
-            new MockYieldBankAllocationReceiver(outputAddresses);
-        MockYieldBankCollectionReceiver collection =
-            new MockYieldBankCollectionReceiver(keccak256("COLLECTION"));
-        CollectionRevenueRouter router = new CollectionRevenueRouter(
-            address(collection),
-            address(allocator),
-            address(this),
-            CREATOR,
-            SINJOH,
-            OPERATIONS,
-            PROJECT_NFT_BPS,
-            PROJECT_CREATOR_BPS,
-            PROJECT_SINJOH_BPS,
-            PROJECT_OPERATIONS_BPS,
-            ROYALTY_NFT_BPS,
-            ROYALTY_CREATOR_BPS,
-            ROYALTY_SINJOH_BPS,
-            ROYALTY_OPERATIONS_BPS
-        );
-        router.setSourceAuthorization(SOURCE, YieldBankIds.OPERATIONS_RESERVE_SWEEP, true);
-        input.mint(SOURCE, 900e18);
-        vm.startPrank(SOURCE);
-        input.approve(address(router), 900e18);
-        router.fund(
-            collection.collectionId(),
-            address(input),
-            900e18,
-            YieldBankIds.OPERATIONS_RESERVE_SWEEP,
-            "route"
-        );
-        vm.stopPrank();
-
-        assertEq(input.balanceOf(CREATOR), 0);
-        assertEq(input.balanceOf(SINJOH), 0);
-        assertEq(input.balanceOf(OPERATIONS), 0);
-        for (uint256 i; i < 3; ++i) {
-            assertEq(collection.received(outputAddresses[i]), 300e18);
-        }
-    }
-
-    function testOperationsPrimaryReserveIsProtectedUntilPermissionlessSunset() external {
-        MockYieldBankWETH asset = new MockYieldBankWETH();
-        // Reserve lifecycle test uses a fixed future product sunset.
-        // forge-lint: disable-next-line(block-timestamp)
-        uint48 sunset = uint48(block.timestamp + 30 days);
-        MockYieldBankFundableReceiver receiver = new MockYieldBankFundableReceiver();
-        OperationsReserve reserve = new OperationsReserve(
-            address(asset),
-            address(this),
-            keccak256("COLLECTION"),
-            address(receiver),
-            address(this),
-            sunset
-        );
-        vm.deal(address(this), 250 ether);
-        asset.deposit{ value: 150 ether }();
-        asset.transfer(address(reserve), 150 ether);
-        payable(address(reserve)).transfer(100 ether);
-        reserve.notifyPrimary(100 ether);
-        reserve.spend(OPERATIONS, 50e18, keccak256("audit"));
-        assertEq(asset.balanceOf(OPERATIONS), 50e18);
-        reserve.spendPrimary(payable(OPERATIONS), 1 ether, keccak256("keeper"));
-        assertEq(reserve.primaryReserve(), 99 ether);
-        vm.warp(sunset);
-        reserve.sweepExpiredPrimary("reviewed route");
-        assertEq(receiver.received(), 99 ether);
-        assertEq(asset.allowance(address(reserve), address(receiver)), 0);
-    }
-
     function testProjectRevenueBridgeBindsIdentityAndClearsAllowances() external {
         bytes32 projectId = keccak256("PROJECT");
         bytes32 collectionId = keccak256("COLLECTION");
@@ -342,15 +245,12 @@ contract YieldBankRevenueAndSleevesTest is Test {
             address(this),
             CREATOR,
             SINJOH,
-            OPERATIONS,
             PROJECT_NFT_BPS,
             PROJECT_CREATOR_BPS,
             PROJECT_SINJOH_BPS,
-            PROJECT_OPERATIONS_BPS,
             ROYALTY_NFT_BPS,
             ROYALTY_CREATOR_BPS,
-            ROYALTY_SINJOH_BPS,
-            ROYALTY_OPERATIONS_BPS
+            ROYALTY_SINJOH_BPS
         );
         MockYieldBankTimelock registry = new MockYieldBankTimelock();
         MockYieldBankTimelock subject = new MockYieldBankTimelock();
@@ -379,8 +279,7 @@ contract YieldBankRevenueAndSleevesTest is Test {
         assertEq(input.balanceOf(address(bridge)), 0);
         assertEq(input.allowance(address(bridge), address(revenueRouter)), 0);
         assertEq(input.balanceOf(CREATOR), 120e18);
-        assertEq(input.balanceOf(SINJOH), 80e18);
-        assertEq(input.balanceOf(OPERATIONS), 50e18);
+        assertEq(input.balanceOf(SINJOH), 130e18);
         for (uint256 i; i < 3; ++i) {
             assertEq(collection.received(outputAddresses[i]), uint256(750e18) / 3);
         }
@@ -449,10 +348,21 @@ contract YieldBankRevenueAndSleevesTest is Test {
         vm.startPrank(recipient);
         vm.expectRevert(abi.encodeWithSelector(BaseSleeve.Ineligible.selector, recipient));
         sleeve.redeem(
-            restrictedShares, recipient, recipient, YieldBankRedemptionMode.IN_KIND, 0, ""
+            restrictedShares,
+            recipient,
+            recipient,
+            YieldBankRedemptionMode.IN_KIND,
+            new uint256[](0),
+            ""
         );
+        uint256[] memory minimumOutputs = new uint256[](sleeve.inventoryAssets().length);
         sleeve.redeem(
-            restrictedShares, recipient, recipient, YieldBankRedemptionMode.IN_KIND, 0, proof
+            restrictedShares,
+            recipient,
+            recipient,
+            YieldBankRedemptionMode.IN_KIND,
+            minimumOutputs,
+            proof
         );
         vm.stopPrank();
         assertEq(sleeve.balanceOf(recipient), 0);

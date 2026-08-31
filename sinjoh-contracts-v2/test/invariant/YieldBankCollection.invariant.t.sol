@@ -53,7 +53,7 @@ contract YieldBankInvariantHandler is Test {
         uint256 count = vault.receiptCount();
         if (count == 0) return;
         uint256 receiptId = bound(rawReceiptId, 1, count);
-        (,,,,,,, bool allocated) = vault.receipts(receiptId);
+        (,,,,,, bool allocated) = vault.receipts(receiptId);
         if (allocated) return;
         CollectionPortfolioAllocator.AllocationCall[3] memory calls;
         vm.prank(OPERATOR);
@@ -96,13 +96,11 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
     uint256 private constant MAX_SUPPLY = 12;
     address private constant CREATOR = address(0xC0FFEE);
     address private constant SINJOH = address(0x51A70A);
-    address private constant OPERATIONS = address(0x0B5E);
     address private constant OPERATOR = address(0x0A110C);
     address private constant GUARDIAN = address(0x6A4D1A);
     uint16 private constant PRIMARY_BACKING_BPS = 7_500;
     uint16 private constant PRIMARY_CREATOR_BPS = 1_200;
-    uint16 private constant PRIMARY_SINJOH_BPS = 800;
-    uint16 private constant PRIMARY_OPERATIONS_BPS = 500;
+    uint16 private constant PRIMARY_SINJOH_BPS = 1_300;
     uint16 private constant CORE_WEIGHT_BPS = 4_000;
     uint16 private constant MARKET_MAKING_WEIGHT_BPS = 3_750;
     uint16 private constant USDG_WEIGHT_BPS = 2_250;
@@ -129,7 +127,7 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
         policy = new MockYieldBankEligibilityPolicy();
         renderer = new MockYieldBankRenderer();
         revenueRouter = new MockYieldBankRevenueRouter(
-            PRIMARY_BACKING_BPS, PRIMARY_CREATOR_BPS, PRIMARY_SINJOH_BPS, PRIMARY_OPERATIONS_BPS
+            PRIMARY_BACKING_BPS, PRIMARY_CREATOR_BPS, PRIMARY_SINJOH_BPS
         );
         timelock = new MockYieldBankTimelock();
         seaDrop = new MockYieldBankSeaDrop();
@@ -147,8 +145,7 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
     function invariantNativeAndWrappedProceedsConserveEveryWei() public view {
         assertEq(address(vault).balance, vault.accountedNative());
         assertEq(
-            weth.totalSupply() + vault.accountedNative() + CREATOR.balance + SINJOH.balance
-                + OPERATIONS.balance,
+            weth.totalSupply() + vault.accountedNative() + CREATOR.balance + SINJOH.balance,
             vault.totalNetProceeds()
         );
     }
@@ -164,7 +161,6 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
                 uint256 backingRemaining,
                 uint256 creatorFee,
                 uint256 sinjohFee,
-                uint256 operationsFee,
                 bool allocated
             ) = vault.receipts(receiptId);
             netProceeds += net;
@@ -172,7 +168,7 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
                 assertEq(backingRemaining, 0);
             } else {
                 pendingBacking += backingRemaining;
-                unallocatedNative += backingRemaining + creatorFee + sinjohFee + operationsFee;
+                unallocatedNative += backingRemaining + creatorFee + sinjohFee;
             }
         }
         assertEq(pendingBacking, vault.totalPendingBacking());
@@ -228,14 +224,15 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
             primaryBackingBps: PRIMARY_BACKING_BPS,
             primaryCreatorBps: PRIMARY_CREATOR_BPS,
             primarySinjohBps: PRIMARY_SINJOH_BPS,
-            primaryOperationsBps: PRIMARY_OPERATIONS_BPS,
             coreWeightBps: CORE_WEIGHT_BPS,
             marketMakingWeightBps: MARKET_MAKING_WEIGHT_BPS,
             usdgWeightBps: USDG_WEIGHT_BPS,
             creator: CREATOR,
             openSeaManager: CREATOR,
             sinjohFeeRecipient: SINJOH,
-            operationsReserve: OPERATIONS,
+            redemptionToken: address(0),
+            redemptionTokenAmount: 0,
+            redemptionTokenCodeHash: bytes32(0),
             revenueRouter: address(revenueRouter),
             eligibilityPolicy: address(policy),
             portfolioAllocator: address(allocator),

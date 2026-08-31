@@ -7,6 +7,4 @@ library YieldBankIds {
     bytes32 internal constant USDG = keccak256("YIELD_BANK_USDG");
     bytes32 internal constant PROJECT_REVENUE = keccak256("YIELD_BANK_PROJECT_REVENUE");
     bytes32 internal constant ROYALTY_REVENUE = keccak256("YIELD_BANK_ROYALTY_REVENUE");
-    bytes32 internal constant OPERATIONS_RESERVE_SWEEP =
-        keccak256("YIELD_BANK_OPERATIONS_RESERVE_SWEEP");
 }
