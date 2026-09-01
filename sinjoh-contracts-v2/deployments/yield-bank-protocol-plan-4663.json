@@ -2,9 +2,9 @@
   "chainId": 4663,
   "deployer": "0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49",
   "deployerNonce": 8365,
-  "governance": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f",
+  "governance": "0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49",
   "expectedRegistry": "0x09e4542f9fEA13A00aAF400E81bDC10434af5278",
   "expectedFactoryDeployer": "0x70095bC08D7939B1B9a2c959BB3C20a95315d5DD",
-  "registryCreationCodeHash": "0x783f77ffa7d255e705cff2cd2f7e6954d7a15efdff0b43ea0863f632e032b07f",
+  "registryCreationCodeHash": "0x40c06ef3b712804b29980de21a48e6aa7c4e13901b90f4f76a798aab06574303",
   "factoryDeployerCreationCodeHash": "0x010bd1134a10733c9465107f4196399423e62f076e71293d8d0e30636d73948a"
 }
