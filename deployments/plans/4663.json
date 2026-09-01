@@ -23,6 +23,15 @@
       "dependsOn": []
     },
     {
+      "id": "yield-banks-protocol",
+      "phase": "core",
+      "package": "sinjoh-contracts-v2",
+      "script": "script/DeployYieldBankProtocol.s.sol:DeployYieldBankProtocol",
+      "signerRole": "protocol-deployer",
+      "status": "ready",
+      "dependsOn": []
+    },
+    {
       "id": "fee-router-factory",
       "phase": "core",
       "package": "sinjoh-fee-router",

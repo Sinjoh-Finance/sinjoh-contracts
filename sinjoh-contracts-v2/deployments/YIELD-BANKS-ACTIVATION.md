@@ -3,6 +3,20 @@
 The deployment pipeline must reject activation until every required manifest entry satisfies
 `yield-banks-manifest.schema.json` and its live runtime code hash matches.
 
+## Protocol-only dark deployment
+
+The shared protocol deployment is intentionally limited to `YieldBankProtocolRegistry` and
+`YieldBankSystemFactoryDeployer`. It deploys no system factory, collection, NFT, account, sleeve,
+adapter, router, vault, distributor, renderer, timelock, or collection-specific component. The
+system factory is collection-specific because its immutable commitments include the collection
+creation-code hash and complete system-plan hash; it must not be deployed until those inputs have
+been reviewed.
+
+Use `script/DeployYieldBankProtocol.s.sol` with a committed, nonce-bound plan. The script rejects a
+wrong chain, broadcaster, nonce, CREATE address, or compiled creation-code hash. The existing
+`DeployYieldBanks.s.sol` remains the later collection-launch entrypoint and must not be invoked for
+the protocol-only deployment.
+
 Verified chain constants that must appear by their complete address:
 
 - Robinhood Chain WETH: `0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73`
