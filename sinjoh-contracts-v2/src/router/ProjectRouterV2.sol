@@ -236,11 +236,12 @@ contract ProjectRouterV2 is IProjectModule, IProjectControlled, IProjectFundable
         ) revert InvalidFeeRecipient(protocolFeeRecipient_);
 
         bytes32 expectedProjectId = ProjectIds.derive(block.chainid, registry_, subject_);
-        bytes32 actualProjectId = IProjectTokenIdentity(subject_).projectId();
+        (bool declaresIdentity, address subjectRegistry, bytes32 subjectProjectId) =
+            ProjectIds.declaredIdentity(subject_);
         if (
-            IProjectTokenIdentity(subject_).registry() != registry_
-                || actualProjectId != expectedProjectId
-        ) revert ProjectIdentityMismatch(expectedProjectId, actualProjectId);
+            declaresIdentity
+                && (subjectRegistry != registry_ || subjectProjectId != expectedProjectId)
+        ) revert ProjectIdentityMismatch(expectedProjectId, subjectProjectId);
         if (
             IProjectControlled(controller_).projectId() != expectedProjectId
                 || IProjectControlled(controller_).controller() != controller_

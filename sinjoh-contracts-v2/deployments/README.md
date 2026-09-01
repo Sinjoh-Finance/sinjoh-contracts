@@ -50,16 +50,15 @@ For the canonical Robinhood Chain successor, use
 `./script/deploy-successor-mainnet.sh`. It requires the authenticated production Chainstack URL in
 `RPC_URL` and the independently operated authenticated QuickNode URL in
 `RPC_VERIFICATION_URL`; the wrapper rejects public RPC, non-HTTPS URLs, and other provider hosts.
-It pins chain ID 4663, requires both providers to agree on the Pons owner and deployer nonce, and
+It pins chain ID 4663, requires both providers to agree on the deployer nonce, and
 derives all reusable public addresses and runtime hashes from the last canonical manifest. It writes the
 new canonical manifest to `deployments/project-launcher-v2-4663.json`. The operator must set
 `FOUNDRY_ACCOUNT` to the name of an existing local Foundry keystore; the wrapper does not invent or
 create an account alias. It never accepts a raw private key. The operator's only secret input is the
 keystore password requested by Foundry at signing time. The successor wrapper rejects any
-`DEPLOYER_ADDRESS` other than `0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49` and verifies that
-the existing Pons launch factory is controlled by that same address before any transaction. The
-factory cannot be replaced without abandoning the launch records needed for existing Pons tokens
-to graduate. Complete its explicit two-step ownership handoff first when the current owner differs.
+`DEPLOYER_ADDRESS` other than `0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49`. It preserves the
+public Pons factory and its existing launch forwarder: Project adapters call the factory's public
+`launchToken` entry point directly, so this release requires no Pons ownership or forwarder change.
 The wrapper reuses the already-deployed, unbound successor adapter factories and checks their
 runtime hashes before binding them, so resuming the release does not redeploy them or spend that gas
 again. Run the same command with `SIMULATE_ONLY=1` first to execute the complete build, test, runtime
@@ -69,8 +68,8 @@ The deployment derives the eight-leaf integration-approval root and every Merkle
 three deployed fee-tier guards, the Funding Bands integration factory, the Pons project adapter
 factory, both approved Pools Instant project adapter factories, and the Pools LBP project adapter
 factory; operators do not supply or approve a root manually. In the same broadcast it binds those
-factories to the immutable Project Launcher and Registry, pins the canonical token factories, and
-connects the Pons launch forwarder. The wrapper derives the immutable git commit, package tree
+factories to the immutable Project Launcher and Registry and pins the canonical token factories.
+The wrapper derives the immutable git commit, package tree
 hash, and a bytecode build hash covering every production contract embedded in or deployed by the
 release. The manifest schema is
 [`release-manifest.schema.json`](./release-manifest.schema.json).

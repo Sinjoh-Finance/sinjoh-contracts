@@ -118,7 +118,7 @@ contract ProjectLiquidTokenGovernanceV2Test is GovernanceTestBase {
         TokenGovernanceConfig memory config = _defaultConfig();
         config.referenceSupply = 99;
         ProjectTimelockV2 smallTimelock = new ProjectTimelockV2(
-            address(smallRegistry), address(smallToken), address(smallToken), config
+            address(smallRegistry), address(smallToken), address(smallToken), false, config
         );
         assertEq(smallTimelock.governor().proposalThreshold(), 1);
     }
@@ -126,7 +126,12 @@ contract ProjectLiquidTokenGovernanceV2Test is GovernanceTestBase {
     function testGovernorCanOnlyBeCreatedByItsBoundTimelock() public {
         vm.expectPartialRevert(ProjectGovernorV2.InvalidTimelock.selector);
         new ProjectGovernorV2(
-            address(registry), address(token), address(token), address(timelock), _defaultConfig()
+            address(registry),
+            address(token),
+            address(token),
+            false,
+            address(timelock),
+            _defaultConfig()
         );
     }
 
@@ -134,7 +139,7 @@ contract ProjectLiquidTokenGovernanceV2Test is GovernanceTestBase {
         MockRegistry otherRegistry = new MockRegistry();
         vm.expectPartialRevert(ProjectTimelockV2.ProjectIdentityMismatch.selector);
         new ProjectTimelockV2(
-            address(otherRegistry), address(token), address(token), _defaultConfig()
+            address(otherRegistry), address(token), address(token), false, _defaultConfig()
         );
     }
 
@@ -377,7 +382,9 @@ contract ProjectLiquidTokenGovernanceV2Test is GovernanceTestBase {
         private
         returns (ProjectTimelockV2)
     {
-        return new ProjectTimelockV2(address(registry), address(token), voteSource, config);
+        return new ProjectTimelockV2(
+            address(registry), address(token), voteSource, voteSource != address(token), config
+        );
     }
 }
 
@@ -408,7 +415,7 @@ contract ProjectStakedTokenGovernanceV2Test is GovernanceTestBase {
             new address[](0)
         );
         ProjectTimelockV2 emptyGovernance = new ProjectTimelockV2(
-            address(registry), address(token), address(emptyPool), _defaultConfig()
+            address(registry), address(token), address(emptyPool), true, _defaultConfig()
         );
         assertEq(emptyGovernance.voteSource(), address(emptyPool));
         assertEq(emptyGovernance.governor().proposalThreshold(), 10e18);

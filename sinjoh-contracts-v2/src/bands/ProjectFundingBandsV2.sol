@@ -32,7 +32,6 @@ import { IProjectFundable } from "../interfaces/IProjectFundable.sol";
 import { IProjectModule } from "../interfaces/IProjectModule.sol";
 import { IProjectPriceGuard } from "../interfaces/IProjectPriceGuard.sol";
 import { IProjectSwapAdapter } from "../interfaces/IProjectSwapAdapter.sol";
-import { IProjectTokenIdentity } from "../interfaces/IProjectTokenIdentity.sol";
 import { IProjectTreasuryReceiver } from "../interfaces/IProjectTreasuryReceiver.sol";
 import { ProjectIds } from "../libraries/ProjectIds.sol";
 import { IntegrationApproval } from "../libraries/IntegrationApproval.sol";
@@ -342,9 +341,11 @@ contract ProjectFundingBandsV2 is
         ) revert InvalidObservationAge(market.maximumObservationAge);
 
         expectedProjectId = ProjectIds.derive(block.chainid, project.registry, project.subject);
+        (bool declaresIdentity, address subjectRegistry, bytes32 subjectProjectId) =
+            ProjectIds.declaredIdentity(project.subject);
         if (
-            IProjectTokenIdentity(project.subject).registry() != project.registry
-                || IProjectTokenIdentity(project.subject).projectId() != expectedProjectId
+            declaresIdentity
+                && (subjectRegistry != project.registry || subjectProjectId != expectedProjectId)
         ) revert InvalidSubject(project.subject);
         if (
             IProjectControlled(project.controller).projectId() != expectedProjectId

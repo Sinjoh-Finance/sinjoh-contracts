@@ -20,7 +20,6 @@ import { IBasketMetadataSource } from "../interfaces/IBasketMetadataSource.sol";
 import { IProjectBasketManager } from "../interfaces/IProjectBasketManager.sol";
 import { IProjectControlled } from "../interfaces/IProjectControlled.sol";
 import { IProjectModule } from "../interfaces/IProjectModule.sol";
-import { IProjectTokenIdentity } from "../interfaces/IProjectTokenIdentity.sol";
 import { ProjectIds } from "../libraries/ProjectIds.sol";
 import { SinjohV2Constants } from "../libraries/SinjohV2Constants.sol";
 import {
@@ -167,11 +166,12 @@ contract BasketManagerV2 is
         if (integrationApprovalRoot_ == bytes32(0)) revert InvalidApprovalRoot();
 
         bytes32 expectedProjectId = ProjectIds.derive(block.chainid, registry_, subject_);
-        bytes32 actualProjectId = IProjectTokenIdentity(subject_).projectId();
+        (bool declaresIdentity, address subjectRegistry, bytes32 subjectProjectId) =
+            ProjectIds.declaredIdentity(subject_);
         if (
-            IProjectTokenIdentity(subject_).registry() != registry_
-                || actualProjectId != expectedProjectId
-        ) revert ProjectIdentityMismatch(expectedProjectId, actualProjectId);
+            declaresIdentity
+                && (subjectRegistry != registry_ || subjectProjectId != expectedProjectId)
+        ) revert ProjectIdentityMismatch(expectedProjectId, subjectProjectId);
         if (
             IProjectControlled(controller_).projectId() != expectedProjectId
                 || IProjectControlled(controller_).controller() != controller_

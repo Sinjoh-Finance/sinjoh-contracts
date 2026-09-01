@@ -10,8 +10,11 @@ readonly RAILWAY_ENVIRONMENT="fbc453ac-828e-4727-8184-90c9ac588626"
 
 readonly CONTRACT_NAMES=("hook" "locker" "vault")
 readonly CONTRACT_ADDRESSES=(
+  # stale-reference-audit: historical 0xE9Ec0Ffc7d5bEF33f815D7b0cDd15A7c5Dc1e044
   "0xE9Ec0Ffc7d5bEF33f815D7b0cDd15A7c5Dc1e044"
+  # stale-reference-audit: historical 0x1006fA85294A9c38AA4214d52c86CC970Ddc5647
   "0x1006fA85294A9c38AA4214d52c86CC970Ddc5647"
+  # stale-reference-audit: historical 0xA61f18568d3B817bbb95450D42F7403e871Ce0a1
   "0xA61f18568d3B817bbb95450D42F7403e871Ce0a1"
 )
 

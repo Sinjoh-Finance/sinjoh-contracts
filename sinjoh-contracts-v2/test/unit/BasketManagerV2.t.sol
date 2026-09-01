@@ -22,6 +22,7 @@ import {
 import { BasketManagerV2 } from "../../src/basket/BasketManagerV2.sol";
 import { BasketVaultV2 } from "../../src/basket/BasketVaultV2.sol";
 import { ProjectTreasuryVaultV2 } from "../../src/treasury/ProjectTreasuryVaultV2.sol";
+import { ProjectIds } from "../../src/libraries/ProjectIds.sol";
 import { MockRegistry } from "../mocks/MockRegistry.sol";
 import { MockProjectToken } from "../mocks/MockProjectToken.sol";
 import {
@@ -118,6 +119,113 @@ contract BasketManagerV2Test is Test {
         assertEq(principal, 100e18);
         assertEq(position, 100e18);
         assertEq(asset.balanceOf(address(adapter)), 100e18);
+    }
+
+    function testAcceptsOrdinaryExternalErc20SubjectWithoutProjectIdentitySelectors() public {
+        MockBasketAsset externalSubject = new MockBasketAsset("Ordinary Pons", "PONS");
+        externalSubject.mint(address(this), 1_000_000e18);
+        bytes32 externalProjectId =
+            ProjectIds.derive(block.chainid, address(registry), address(externalSubject));
+        MockProjectController externalController = new MockProjectController(externalProjectId);
+        MockBasketModule externalTreasury = new MockBasketModule(
+            address(registry),
+            address(externalSubject),
+            externalProjectId,
+            uint8(BasketEligibilityMode.HOLDERS),
+            address(externalSubject)
+        );
+        MockBasketModule externalAirdrop = new MockBasketModule(
+            address(registry),
+            address(externalSubject),
+            externalProjectId,
+            uint8(BasketEligibilityMode.HOLDERS),
+            address(externalSubject)
+        );
+        address[] memory outputs = new address[](1);
+        outputs[0] = address(asset);
+        MockBasketYieldAdapter externalAdapter = new MockBasketYieldAdapter(address(asset), outputs);
+        address predictedManager =
+            vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
+        bytes32 salt = keccak256(abi.encode(externalProjectId, BASKET_ID));
+        address predictedVault =
+            Clones.predictDeterministicAddress(address(implementation), salt, predictedManager);
+        externalAdapter.bind(predictedVault);
+        bytes32 root = _yieldLeaf(predictedVault, address(externalAdapter), address(asset));
+        BasketAllocationConfig memory externalAllocation;
+        externalAllocation.inputAssets = new address[](1);
+        externalAllocation.inputAssets[0] = address(asset);
+        externalAllocation.targets = new BasketTarget[](1);
+        externalAllocation.targets[0] = BasketTarget({
+            depositAsset: address(asset),
+            yieldAdapter: address(externalAdapter),
+            targetWeightBps: 10_000,
+            rewardAssets: new address[](0),
+            yieldApprovalProof: new bytes32[](0)
+        });
+        externalAllocation.swapLegs = new BasketSwapLeg[](0);
+
+        BasketManagerV2 externalManager = new BasketManagerV2(
+            address(registry),
+            address(externalSubject),
+            CREATOR,
+            address(externalController),
+            address(externalTreasury),
+            address(0),
+            address(externalAirdrop),
+            address(0),
+            root,
+            address(implementation),
+            _config(externalAllocation, true, 0, 0)
+        );
+
+        assertEq(address(externalManager), predictedManager);
+        assertEq(externalManager.subject(), address(externalSubject));
+        assertEq(externalManager.projectId(), externalProjectId);
+    }
+
+    function testRejectsExternalSubjectThatPartiallyDeclaresProjectIdentity() public {
+        MockBasketAsset partialSubject = new MockBasketAsset("Partial Identity", "PARTIAL");
+        vm.mockCall(
+            address(partialSubject),
+            abi.encodeWithSignature("registry()"),
+            abi.encode(address(registry))
+        );
+
+        vm.expectPartialRevert(BasketManagerV2.ProjectIdentityMismatch.selector);
+        new BasketManagerV2(
+            address(registry),
+            address(partialSubject),
+            CREATOR,
+            address(controller),
+            address(treasury),
+            address(0),
+            address(airdrop),
+            address(0),
+            bytes32(uint256(1)),
+            address(implementation),
+            _config(allocation, true, 0, 0)
+        );
+    }
+
+    function testRejectsSubjectThatDeclaresWrongProjectIdentity() public {
+        MockRegistry otherRegistry = new MockRegistry();
+        MockProjectToken wrongSubject =
+            new MockProjectToken(address(otherRegistry), address(this), 1_000_000e18);
+
+        vm.expectPartialRevert(BasketManagerV2.ProjectIdentityMismatch.selector);
+        new BasketManagerV2(
+            address(registry),
+            address(wrongSubject),
+            CREATOR,
+            address(controller),
+            address(treasury),
+            address(0),
+            address(airdrop),
+            address(0),
+            bytes32(uint256(1)),
+            address(implementation),
+            _config(allocation, true, 0, 0)
+        );
     }
 
     function testSwapApprovalLeafPinsPriceGuardInstance() public {

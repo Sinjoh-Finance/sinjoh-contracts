@@ -13,6 +13,7 @@ import {
     FundingBandsProjectConfig
 } from "../../src/bands/FundingBandTypes.sol";
 import { ProjectFundingBandsV2 } from "../../src/bands/ProjectFundingBandsV2.sol";
+import { ProjectIds } from "../../src/libraries/ProjectIds.sol";
 import { MockRegistry } from "../mocks/MockRegistry.sol";
 import { MockProjectToken } from "../mocks/MockProjectToken.sol";
 import {
@@ -129,6 +130,176 @@ contract ProjectFundingBandsV2Test is Test {
         assertEq(uint8(status.state), uint8(FundingBandState.ACTIVE));
         assertEq(status.committedSubject, INVENTORY);
         assertEq(status.positionId, 1);
+    }
+
+    function testAcceptsOrdinaryExternalErc20SubjectWithoutProjectIdentitySelectors() public {
+        MockBasketAsset externalSubject = new MockBasketAsset("Ordinary Pons", "PONS");
+        externalSubject.mint(address(this), referenceSupply);
+        bytes32 externalProjectId =
+            ProjectIds.derive(block.chainid, address(registry), address(externalSubject));
+        MockProjectController externalController = new MockProjectController(externalProjectId);
+        MockBasketModule externalTreasury = new MockBasketModule(
+            address(registry),
+            address(externalSubject),
+            externalProjectId,
+            0,
+            address(externalSubject)
+        );
+        MockBasketModule externalRouter = new MockBasketModule(
+            address(registry),
+            address(externalSubject),
+            externalProjectId,
+            0,
+            address(externalSubject)
+        );
+        MockBasketModule externalAirdrop = new MockBasketModule(
+            address(registry),
+            address(externalSubject),
+            externalProjectId,
+            0,
+            address(externalSubject)
+        );
+        MockBasketModule externalRaffle = new MockBasketModule(
+            address(registry),
+            address(externalSubject),
+            externalProjectId,
+            0,
+            address(externalSubject)
+        );
+        MockFundingBandGuard externalGuard = new MockFundingBandGuard(
+            address(externalSubject), address(quote), address(pool), referenceSupply
+        );
+        MockFundingBandPositionAdapter externalAdapter = new MockFundingBandPositionAdapter(
+            address(externalSubject), address(quote), address(pool)
+        );
+        address predictedBands = vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
+        externalGuard.bind(predictedBands);
+        externalAdapter.bind(predictedBands);
+        bytes32 integrationInner = keccak256(
+            abi.encode(
+                keccak256("SINJOH_V2_FUNDING_BAND_PAIR_INTEGRATION"),
+                block.chainid,
+                address(externalGuard),
+                address(externalGuard).codehash,
+                address(externalAdapter),
+                address(externalAdapter).codehash
+            )
+        );
+        bytes32 integrationRoot = keccak256(bytes.concat(integrationInner));
+
+        ProjectFundingBandsV2 externalBands = new ProjectFundingBandsV2(
+            abi.encode(
+                FundingBandsDeploymentConfig({
+                    project: FundingBandsProjectConfig({
+                        registry: address(registry),
+                        subject: address(externalSubject),
+                        creator: CREATOR,
+                        controller: address(externalController),
+                        treasury: address(externalTreasury),
+                        router: address(externalRouter),
+                        airdrop: address(externalAirdrop),
+                        raffle: address(externalRaffle),
+                        protocolFeeRecipient: FEE_RECIPIENT
+                    }),
+                    market: FundingBandsMarketConfig({
+                        canonicalPool: address(pool),
+                        quoteAsset: address(quote),
+                        referenceSupply: referenceSupply,
+                        integrationApprovalRoot: integrationRoot,
+                        marketCapGuard: address(externalGuard),
+                        positionAdapter: address(externalAdapter),
+                        v3IntegrationFactory: address(0),
+                        twapWindow: 0,
+                        quoteUsdOracle: address(0),
+                        confirmationPeriod: 15 minutes,
+                        maximumObservationAge: 25 hours,
+                        integrationApprovalProof: new bytes32[](0)
+                    })
+                })
+            )
+        );
+
+        assertEq(address(externalBands), predictedBands);
+        assertEq(externalBands.subject(), address(externalSubject));
+        assertEq(externalBands.projectId(), externalProjectId);
+    }
+
+    function testRejectsExternalSubjectThatPartiallyDeclaresProjectIdentity() public {
+        MockBasketAsset partialSubject = new MockBasketAsset("Partial Identity", "PARTIAL");
+        partialSubject.mint(address(this), referenceSupply);
+        vm.mockCall(
+            address(partialSubject),
+            abi.encodeWithSignature("registry()"),
+            abi.encode(address(registry))
+        );
+        bytes32[] memory noProof = new bytes32[](0);
+        FundingBandsDeploymentConfig memory deployment = FundingBandsDeploymentConfig({
+            project: FundingBandsProjectConfig({
+                registry: address(registry),
+                subject: address(partialSubject),
+                creator: CREATOR,
+                controller: address(controller),
+                treasury: address(treasury),
+                router: address(router),
+                airdrop: address(airdrop),
+                raffle: address(raffle),
+                protocolFeeRecipient: FEE_RECIPIENT
+            }),
+            market: FundingBandsMarketConfig({
+                canonicalPool: address(pool),
+                quoteAsset: address(quote),
+                referenceSupply: referenceSupply,
+                integrationApprovalRoot: bytes32(uint256(1)),
+                marketCapGuard: address(guard),
+                positionAdapter: address(adapter),
+                v3IntegrationFactory: address(0),
+                twapWindow: 0,
+                quoteUsdOracle: address(0),
+                confirmationPeriod: 15 minutes,
+                maximumObservationAge: 25 hours,
+                integrationApprovalProof: noProof
+            })
+        });
+
+        vm.expectPartialRevert(ProjectFundingBandsV2.InvalidSubject.selector);
+        new ProjectFundingBandsV2(abi.encode(deployment));
+    }
+
+    function testRejectsSubjectThatDeclaresWrongProjectIdentity() public {
+        MockRegistry otherRegistry = new MockRegistry();
+        MockProjectToken wrongSubject =
+            new MockProjectToken(address(otherRegistry), address(this), referenceSupply);
+        bytes32[] memory noProof = new bytes32[](0);
+        FundingBandsDeploymentConfig memory deployment = FundingBandsDeploymentConfig({
+            project: FundingBandsProjectConfig({
+                registry: address(registry),
+                subject: address(wrongSubject),
+                creator: CREATOR,
+                controller: address(controller),
+                treasury: address(treasury),
+                router: address(router),
+                airdrop: address(airdrop),
+                raffle: address(raffle),
+                protocolFeeRecipient: FEE_RECIPIENT
+            }),
+            market: FundingBandsMarketConfig({
+                canonicalPool: address(pool),
+                quoteAsset: address(quote),
+                referenceSupply: referenceSupply,
+                integrationApprovalRoot: bytes32(uint256(1)),
+                marketCapGuard: address(guard),
+                positionAdapter: address(adapter),
+                v3IntegrationFactory: address(0),
+                twapWindow: 0,
+                quoteUsdOracle: address(0),
+                confirmationPeriod: 15 minutes,
+                maximumObservationAge: 25 hours,
+                integrationApprovalProof: noProof
+            })
+        });
+
+        vm.expectPartialRevert(ProjectFundingBandsV2.InvalidSubject.selector);
+        new ProjectFundingBandsV2(abi.encode(deployment));
     }
 
     function testCanonicalIntegrationAndSwapLeavesMatchTooling() public view {

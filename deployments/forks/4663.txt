@@ -2,13 +2,16 @@
 # must not silently return on a network or dependency mismatch.
 sinjoh-fee-router/test/RobinhoodMainnetAdapter.fork.t.sol
 sinjoh-funding-bands/test/SinjohPonsV2.mainnet.fork.t.sol
+sinjoh-funding-bands/test/IssaDaoProjectMainnet.fork.t.sol
 sinjoh-integration/test/ProductionFlapRaffle.fork.t.sol
 sinjoh-integration/test/ProductionLetsCashRaffle.fork.t.sol
 sinjoh-integration/test/ProductionPonsV2Raffle.fork.t.sol
+sinjoh-launchpad-adapters/test/ExistingLaunchRecovery.mainnet.fork.t.sol
 sinjoh-launchpad-adapters/test/LetsCashMainnet.fork.t.sol
 sinjoh-launchpad-adapters/test/RouterIntegration.fork.t.sol
 sinjoh-launchpad-adapters/test/PonsV2Buyback.mainnet.fork.t.sol
 sinjoh-launchpad-adapters/test/PonsV2Mainnet.fork.t.sol
+sinjoh-launchpad-adapters/test/PonsV2ProjectMainnet.fork.t.sol
 sinjoh-launchpad-adapters/test/PonsV2PairBuyback.mainnet.fork.t.sol
 sinjoh-launchpad-adapters/test/PoolsTradeMainnet.fork.t.sol
 sinjoh-launchpad-adapters/test/SinjohFlapAdapter.mainnet.fork.t.sol
@@ -18,6 +21,7 @@ sinjoh-liquidity-manager/test/ExactBalance.fork.t.sol
 sinjoh-liquidity-manager/test/V4HookedSwap.fork.t.sol
 sinjoh-protocol-upgrade/test/ERC4626YieldAdapter.mainnet.fork.t.sol
 sinjoh-contracts-v2/test/fork/ERC4626BasketYieldAdapter.fork.t.sol
+sinjoh-contracts-v2/test/integration/IssaDaoIntegratedProjectMainnet.fork.t.sol
 sinjoh-raffle-rewards/test/PreflightStockRoutes.fork.t.sol
 sinjoh-raffle-rewards/test/SinjohRaffleRewards.fork.t.sol
 sinjoh-randomness/test/SinjohEcvrfRandomness.fork.t.sol

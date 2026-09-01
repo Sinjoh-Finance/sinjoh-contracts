@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { MerkleProof } from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import { AirdropEligibilityMode } from "../airdrop/AirdropTypes.sol";
 import {
@@ -28,7 +29,7 @@ import {
 /// every state-changing launch calls this contract before the deployment engine or Registry.
 contract ProjectLaunchValidatorV2 {
     address public constant BURN_ADDRESS = SinjohV2Constants.BURN_ADDRESS;
-    address public constant PONS_LOCKER = 0x1006fA85294A9c38AA4214d52c86CC970Ddc5647;
+    address public constant PONS_LOCKER = 0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952;
     address public constant PONS_POOL_MANAGER = 0x8366a39CC670B4001A1121B8F6A443A643e40951;
 
     address public immutable registry;
@@ -111,6 +112,18 @@ contract ProjectLaunchValidatorV2 {
     ) external view {
         address subject = preview.addresses.subject;
         if (subject.code.length == 0) revert InvalidExternalSubject(subject);
+        if (
+            config.governanceMode == LaunchGovernanceMode.MULTISIG
+                || preview.addresses.voteSource != subject
+        ) {
+            IERC20Metadata metadata = IERC20Metadata(subject);
+            if (
+                metadata.totalSupply() != config.totalSupply
+                    || keccak256(bytes(metadata.name())) != keccak256(bytes(config.name))
+                    || keccak256(bytes(metadata.symbol())) != keccak256(bytes(config.symbol))
+            ) revert InvalidExternalSubject(subject);
+            return;
+        }
         IProjectVotesSubject token = IProjectVotesSubject(subject);
         if (
             token.registry() != registry || token.projectId() != preview.projectId

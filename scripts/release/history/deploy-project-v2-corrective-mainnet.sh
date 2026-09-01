@@ -9,6 +9,7 @@ password_args=()
 if [[ -n "${FOUNDRY_PASSWORD_FILE:-}" ]]; then
   password_args+=(--password-file "$FOUNDRY_PASSWORD_FILE")
 fi
+# stale-reference-audit: historical 0x7DCeEaB0A53684b001A4900768a52eAcDb27294e
 expected_factory=0x7DCeEaB0A53684b001A4900768a52eAcDb27294e
 expected_quote_signer=0xd89fB916dD031Da9b0A32e820307c2d41a7dDe09
 
