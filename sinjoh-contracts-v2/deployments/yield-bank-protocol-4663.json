@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "chainId": 4663,
+  "network": "robinhood-mainnet",
+  "status": "deployed-routine-confirmed",
+  "scope": "protocol-only",
+  "deployedAt": "2026-09-01T00:53:56Z",
+  "source": {
+    "repository": "https://github.com/Sinjoh-Finance/sinjoh-contracts",
+    "commit": "86e83669b8ba13efc7d2265ecc33762367eaedeb",
+    "packageTree": "d774e4baeed3f85711e3233544a74e528cdbc4d6",
+    "deploymentPlan": "deployments/yield-bank-protocol-plan-4663.json",
+    "deploymentPlanSha256": "d44610a083d4ff0b87449bb24f968e8bc3f3bbea61bb41cbe884f2c064906a65",
+    "deploymentScriptSha256": "7819efd0e19f3430b7154f5771b8e3d3ffce1d0e0141e60b760431cf0cd92976",
+    "solcVersion": "0.8.28",
+    "optimizerRuns": 200,
+    "viaIr": true,
+    "evmVersion": "cancun",
+    "bytecodeHash": "none",
+    "openZeppelinContractsVersion": "5.6.1"
+  },
+  "deployer": "0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49",
+  "governance": "0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49",
+  "startingNonce": 8365,
+  "endingNonce": 8367,
+  "registry": {
+    "address": "0x09e4542f9fEA13A00aAF400E81bDC10434af5278",
+    "constructorArguments": {
+      "governance": "0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49"
+    },
+    "creationCodeHash": "0x40c06ef3b712804b29980de21a48e6aa7c4e13901b90f4f76a798aab06574303",
+    "runtimeCodeHash": "0x946ec7768669b7520fa5744c788a77b2f865c6482b094f759ef323d6a5ecfef0",
+    "runtimeCodeBytes": 2464,
+    "deploymentTransaction": "0xfd1a49616cc735f6d223f79eb83f00820a03ef15072dad3bdb9657f699f4790a",
+    "deploymentBlock": 51306666,
+    "deploymentBlockHash": "0x495ece42fdd223eabe7f5452ddd307e15c54641b878ebee4996669dbe684b9b5",
+    "transactionIndex": 0,
+    "gasUsed": 586959,
+    "effectiveGasPriceWei": 448538000,
+    "transactionCostWei": "263273415942000"
+  },
+  "factoryDeployer": {
+    "address": "0x70095bC08D7939B1B9a2c959BB3C20a95315d5DD",
+    "constructorArguments": {
+      "registry": "0x09e4542f9fEA13A00aAF400E81bDC10434af5278"
+    },
+    "creationCodeHash": "0x010bd1134a10733c9465107f4196399423e62f076e71293d8d0e30636d73948a",
+    "runtimeCodeHash": "0xdd7a35d422a8d6e5ec3bccda043e8a18d68b9339cb6629d217cf0112f2e0cef5",
+    "runtimeCodeBytes": 9175,
+    "deploymentTransaction": "0xa583b77e382223950bc67cefe5f56f1f468dd55c96c358109d0e33ced702713d",
+    "deploymentBlock": 51306705,
+    "deploymentBlockHash": "0x2ae8bb206e7bfa32ca5876faf36f183c38cd5a15af5c3a3a3c3120dca741651e",
+    "transactionIndex": 0,
+    "gasUsed": 2038432,
+    "effectiveGasPriceWei": 430090000,
+    "transactionCostWei": "876709218880000"
+  },
+  "totalTransactionCostWei": "1139982634822000",
+  "confirmation": {
+    "requiredRoutineConfirmations": 2,
+    "observedAt": "2026-09-01T01:00:01Z",
+    "observedLatestBlock": 51310299,
+    "observedFinalizedBlock": 51298743,
+    "registryConfirmations": 3634,
+    "factoryDeployerConfirmations": 3595,
+    "routineConfirmed": true,
+    "finalized": false,
+    "requireFinalityBeforeCollectionDeployment": true
+  },
+  "sourceVerification": {
+    "provider": "sourcify",
+    "chainId": 4663,
+    "registry": {
+      "matchId": "46966193",
+      "creationMatch": "match",
+      "runtimeMatch": "match",
+      "verifiedAt": "2026-09-01T00:57:49Z",
+      "url": "https://repo.sourcify.dev/4663/0x09e4542f9fEA13A00aAF400E81bDC10434af5278"
+    },
+    "factoryDeployer": {
+      "matchId": "46966205",
+      "creationMatch": "match",
+      "runtimeMatch": "match",
+      "verifiedAt": "2026-09-01T00:58:12Z",
+      "url": "https://repo.sourcify.dev/4663/0x70095bC08D7939B1B9a2c959BB3C20a95315d5DD"
+    }
+  },
+  "explorer": {
+    "registry": "https://robinhoodchain.blockscout.com/address/0x09e4542f9fEA13A00aAF400E81bDC10434af5278",
+    "factoryDeployer": "https://robinhoodchain.blockscout.com/address/0x70095bC08D7939B1B9a2c959BB3C20a95315d5DD",
+    "registryDeploymentTransaction": "https://robinhoodchain.blockscout.com/tx/0xfd1a49616cc735f6d223f79eb83f00820a03ef15072dad3bdb9657f699f4790a",
+    "factoryDeployerDeploymentTransaction": "https://robinhoodchain.blockscout.com/tx/0xa583b77e382223950bc67cefe5f56f1f468dd55c96c358109d0e33ced702713d"
+  },
+  "collectionDeployment": null,
+  "systemFactoryDeployment": null
+}

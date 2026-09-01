@@ -83,6 +83,33 @@
     }
   },
   "currentInfrastructure": {
+    "yieldBanks": {
+      "scope": "protocol-only",
+      "deployedAt": "2026-09-01T00:53:56Z",
+      "sourceCommit": "86e83669b8ba13efc7d2265ecc33762367eaedeb",
+      "deployer": "0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49",
+      "governance": "0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49",
+      "registry": {
+        "address": "0x09e4542f9fEA13A00aAF400E81bDC10434af5278",
+        "deploymentTransaction": "0xfd1a49616cc735f6d223f79eb83f00820a03ef15072dad3bdb9657f699f4790a",
+        "deploymentBlock": 51306666,
+        "deploymentBlockHash": "0x495ece42fdd223eabe7f5452ddd307e15c54641b878ebee4996669dbe684b9b5",
+        "runtimeCodeHash": "0x946ec7768669b7520fa5744c788a77b2f865c6482b094f759ef323d6a5ecfef0",
+        "sourceVerification": "https://repo.sourcify.dev/4663/0x09e4542f9fEA13A00aAF400E81bDC10434af5278"
+      },
+      "factoryDeployer": {
+        "address": "0x70095bC08D7939B1B9a2c959BB3C20a95315d5DD",
+        "deploymentTransaction": "0xa583b77e382223950bc67cefe5f56f1f468dd55c96c358109d0e33ced702713d",
+        "deploymentBlock": 51306705,
+        "deploymentBlockHash": "0x2ae8bb206e7bfa32ca5876faf36f183c38cd5a15af5c3a3a3c3120dca741651e",
+        "runtimeCodeHash": "0xdd7a35d422a8d6e5ec3bccda043e8a18d68b9339cb6629d217cf0112f2e0cef5",
+        "registry": "0x09e4542f9fEA13A00aAF400E81bDC10434af5278",
+        "sourceVerification": "https://repo.sourcify.dev/4663/0x70095bC08D7939B1B9a2c959BB3C20a95315d5DD"
+      },
+      "collectionDeployment": null,
+      "systemFactoryDeployment": null,
+      "deploymentManifest": "sinjoh-contracts-v2/deployments/yield-bank-protocol-4663.json"
+    },
     "launchStakingEngine": {
       "address": "0x1f20bF432206C133C08FCCaC4857B22e2327CE2b",
       "deploymentTransaction": "0x2271aaa33905873d5dd0486e042cb5118e3703460205016edf5c2cb37ccc1bbd",

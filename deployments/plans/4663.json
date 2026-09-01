@@ -28,7 +28,7 @@
       "package": "sinjoh-contracts-v2",
       "script": "script/DeployYieldBankProtocol.s.sol:DeployYieldBankProtocol",
       "signerRole": "protocol-deployer",
-      "status": "ready",
+      "status": "complete",
       "dependsOn": []
     },
     {

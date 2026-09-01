@@ -17,6 +17,20 @@ wrong chain, broadcaster, nonce, CREATE address, or compiled creation-code hash.
 `DeployYieldBanks.s.sol` remains the later collection-launch entrypoint and must not be invoked for
 the protocol-only deployment.
 
+## Live protocol-only deployment
+
+The shared infrastructure was deployed on Robinhood Chain mainnet on 2026-09-01. Governance is the
+deployer, as recorded and verified on-chain:
+
+- Governance and deployer: `0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49`
+- `YieldBankProtocolRegistry`: `0x09e4542f9fEA13A00aAF400E81bDC10434af5278`
+- `YieldBankSystemFactoryDeployer`: `0x70095bC08D7939B1B9a2c959BB3C20a95315d5DD`
+
+The exact transactions, code hashes, compiler settings, confirmation evidence, and source matches
+are recorded in `deployments/yield-bank-protocol-4663.json`. Both creation and runtime bytecode are
+publicly matched by Sourcify. No collection or collection-specific system factory was deployed.
+Collection deployment remains gated on the later reviewed collection plan and mainnet finality.
+
 Verified chain constants that must appear by their complete address:
 
 - Robinhood Chain WETH: `0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73`
