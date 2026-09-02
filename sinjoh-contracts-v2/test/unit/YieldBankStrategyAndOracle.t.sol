@@ -59,6 +59,8 @@ contract YieldBankStrategyAndOracleTest is Test {
             address(reward), address(rewardFeed), address(0), 1 days, 0, false, 100
         );
         sleeve = new USDGSleeve(
+            "Test USDG Sleeve",
+            "T-USDG",
             address(usdg),
             address(this),
             address(this),
@@ -90,6 +92,24 @@ contract YieldBankStrategyAndOracleTest is Test {
 
         feed.setAnswer(1e8, 1);
         vm.warp(2 days);
+        (price,, failure) = priceHub.quoteUsd18(address(usdg));
+        assertEq(price, 0);
+        assertEq(uint8(failure), uint8(IPriceHub.FailureReason.STALE_FEED));
+    }
+
+    function testPriceHubRejectsIncompleteAndInvalidRounds() external {
+        feed.setRoundIdentity(2, 1);
+        (uint256 price,, IPriceHub.FailureReason failure) = priceHub.quoteUsd18(address(usdg));
+        assertEq(price, 0);
+        assertEq(uint8(failure), uint8(IPriceHub.FailureReason.STALE_FEED));
+
+        feed.setRoundIdentity(0, 0);
+        (price,, failure) = priceHub.quoteUsd18(address(usdg));
+        assertEq(price, 0);
+        assertEq(uint8(failure), uint8(IPriceHub.FailureReason.STALE_FEED));
+
+        feed.setRoundIdentity(3, 3);
+        feed.setRound(1e8, block.timestamp, block.timestamp - 1);
         (price,, failure) = priceHub.quoteUsd18(address(usdg));
         assertEq(price, 0);
         assertEq(uint8(failure), uint8(IPriceHub.FailureReason.STALE_FEED));
@@ -172,6 +192,21 @@ contract YieldBankStrategyAndOracleTest is Test {
         assertEq(uint8(sleeve.adapterState(address(adapter))), uint8(YieldBankAdapterState.RETIRED));
     }
 
+    function testAdapterCapUsesWholeSleeveNavIncludingDirectInventory() external {
+        usdg.mint(address(this), 1_000e18);
+        usdg.approve(address(sleeve), 1_000e18);
+        sleeve.deposit(1_000e18, address(this), 999e18, "");
+        sleeve.addAdapter(address(adapter), 5_000);
+
+        reward.mint(address(sleeve), 1_000e18);
+        uint256 units = sleeve.depositToAdapter(address(adapter), 1_000e18, 1_000e18, "");
+
+        assertEq(units, 1_000e18);
+        assertEq(adapter.totalManagedAssets(), 1_000e18);
+        (uint256 navUsd18,) = sleeve.totalAssetsUsd18();
+        assertEq(navUsd18, 2_000e18);
+    }
+
     function testManagedRedemptionUnwindsOnlyTheOwnersProRataAdapterPosition() external {
         usdg.mint(address(this), 1_000e18);
         usdg.approve(address(sleeve), 1_000e18);
@@ -232,6 +267,8 @@ contract YieldBankStrategyAndOracleTest is Test {
 
     function testRegistryBindingPreventsAdapterReuseByAnotherSleeve() external {
         USDGSleeve otherSleeve = new USDGSleeve(
+            "Other USDG Sleeve",
+            "O-USDG",
             address(usdg),
             address(this),
             address(this),

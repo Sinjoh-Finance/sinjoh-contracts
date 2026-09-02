@@ -22,7 +22,7 @@ interface IYieldBankCollection {
     function distributor() external view returns (address);
     function proceedsVault() external view returns (address);
     function isSleeveAsset(address asset) external view returns (bool);
-    function claimPrimary(uint256 tokenId) external;
-    function settle(uint256 tokenId) external;
+    function deliverRevenue(uint256 tokenId) external;
+    function deliverRevenueBatch(uint256[] calldata tokenIds) external;
     function accrueDistribution(address asset, uint256 amount) external;
 }

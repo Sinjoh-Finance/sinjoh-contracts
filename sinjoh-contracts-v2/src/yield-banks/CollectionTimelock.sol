@@ -3,15 +3,13 @@ pragma solidity 0.8.28;
 
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
 
-/// @notice Fixed-delay execution boundary for mutable, bounded collection policy.
+/// @notice Collection-configured execution boundary for mutable, bounded collection policy.
 contract CollectionTimelock is TimelockController {
-    uint48 public constant MINIMUM_DELAY = 7 days;
-
     error TimelockConfigurationImmutable();
     error InvalidProposer();
 
-    constructor(address proposer)
-        TimelockController(MINIMUM_DELAY, _single(proposer), _openExecutors(), address(0))
+    constructor(address proposer, uint48 delay)
+        TimelockController(delay, _single(proposer), _openExecutors(), address(0))
     {
         if (proposer == address(0)) revert InvalidProposer();
     }

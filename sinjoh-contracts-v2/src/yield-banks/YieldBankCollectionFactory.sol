@@ -67,6 +67,10 @@ contract YieldBankCollectionFactory is ReentrancyGuard {
         uint16 primaryBackingBps,
         uint16 primaryCreatorBps,
         uint16 primarySinjohBps,
+        uint16 royaltyBackingBps,
+        uint16 royaltyCreatorBps,
+        uint16 royaltySinjohBps,
+        uint16 exitTaxBps,
         uint16 coreWeightBps,
         uint16 marketMakingWeightBps,
         uint16 usdgWeightBps
@@ -146,6 +150,10 @@ contract YieldBankCollectionFactory is ReentrancyGuard {
             config.primaryBackingBps,
             config.primaryCreatorBps,
             config.primarySinjohBps,
+            config.royaltyBackingBps,
+            config.royaltyCreatorBps,
+            config.royaltySinjohBps,
+            config.exitTaxBps,
             config.coreWeightBps,
             config.marketMakingWeightBps,
             config.usdgWeightBps

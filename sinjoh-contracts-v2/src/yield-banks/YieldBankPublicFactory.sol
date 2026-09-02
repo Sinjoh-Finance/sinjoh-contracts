@@ -86,6 +86,7 @@ contract YieldBankPublicFactory is ReentrancyGuard {
         uint16 primaryBackingBps;
         uint16 primaryCreatorBps;
         uint16 primarySinjohBps;
+        uint16 exitTaxBps;
         uint16 royaltyBackingBps;
         uint16 royaltyCreatorBps;
         uint16 royaltySinjohBps;
@@ -97,6 +98,7 @@ contract YieldBankPublicFactory is ReentrancyGuard {
         address sinjohFeeRecipient;
         address allocationOperator;
         address timelockProposer;
+        uint48 timelockDelay;
         address guardian;
         address redemptionToken;
         uint256 redemptionTokenAmount;
@@ -186,6 +188,10 @@ contract YieldBankPublicFactory is ReentrancyGuard {
         uint16 primaryBackingBps,
         uint16 primaryCreatorBps,
         uint16 primarySinjohBps,
+        uint16 royaltyBackingBps,
+        uint16 royaltyCreatorBps,
+        uint16 royaltySinjohBps,
+        uint16 exitTaxBps,
         uint16 coreWeightBps,
         uint16 marketMakingWeightBps,
         uint16 usdgWeightBps
@@ -295,7 +301,9 @@ contract YieldBankPublicFactory is ReentrancyGuard {
         a.collectionTimelock = _deploy(
             id,
             KIND_COLLECTION_TIMELOCK,
-            abi.encodePacked(code.collectionTimelock, abi.encode(request.timelockProposer))
+            abi.encodePacked(
+                code.collectionTimelock, abi.encode(request.timelockProposer, request.timelockDelay)
+            )
         );
         a.coreSleeve = _deploy(
             id,
@@ -303,6 +311,8 @@ contract YieldBankPublicFactory is ReentrancyGuard {
             abi.encodePacked(
                 code.coreSleeve,
                 abi.encode(
+                    string.concat(request.name, " Stock Token Sleeve"),
+                    string.concat(request.symbol, "-STOCK"),
                     weth,
                     a.portfolioAllocator,
                     a.collectionTimelock,
@@ -322,6 +332,8 @@ contract YieldBankPublicFactory is ReentrancyGuard {
             abi.encodePacked(
                 code.marketMakingSleeve,
                 abi.encode(
+                    string.concat(request.name, " Delta Liquidity Sleeve"),
+                    string.concat(request.symbol, "-DELTA"),
                     weth,
                     a.portfolioAllocator,
                     a.collectionTimelock,
@@ -341,6 +353,8 @@ contract YieldBankPublicFactory is ReentrancyGuard {
             abi.encodePacked(
                 code.usdgSleeve,
                 abi.encode(
+                    string.concat(request.name, " USDG Sleeve"),
+                    string.concat(request.symbol, "-USDG"),
                     usdg,
                     a.portfolioAllocator,
                     a.collectionTimelock,
@@ -393,7 +407,9 @@ contract YieldBankPublicFactory is ReentrancyGuard {
                     request.deltaRisk.maximumPoolFeedGracePeriod,
                     request.deltaRisk.minimumPoolTwapWindow,
                     request.deltaRisk.maximumPoolReferenceDeviationBps,
-                    request.deltaRisk.maximumPoolSpotDeviationBps
+                    request.deltaRisk.maximumPoolSpotDeviationBps,
+                    string.concat(request.name, " Delta Liquidity Sleeve"),
+                    string.concat(request.symbol, "-DELTA")
                 )
             )
         );
@@ -465,6 +481,10 @@ contract YieldBankPublicFactory is ReentrancyGuard {
             request.primaryBackingBps,
             request.primaryCreatorBps,
             request.primarySinjohBps,
+            request.royaltyBackingBps,
+            request.royaltyCreatorBps,
+            request.royaltySinjohBps,
+            request.exitTaxBps,
             request.coreWeightBps,
             request.marketMakingWeightBps,
             request.usdgWeightBps
@@ -499,6 +519,10 @@ contract YieldBankPublicFactory is ReentrancyGuard {
             primaryBackingBps: r.primaryBackingBps,
             primaryCreatorBps: r.primaryCreatorBps,
             primarySinjohBps: r.primarySinjohBps,
+            royaltyBackingBps: r.royaltyBackingBps,
+            royaltyCreatorBps: r.royaltyCreatorBps,
+            royaltySinjohBps: r.royaltySinjohBps,
+            exitTaxBps: r.exitTaxBps,
             coreWeightBps: r.coreWeightBps,
             marketMakingWeightBps: r.marketMakingWeightBps,
             usdgWeightBps: r.usdgWeightBps,
@@ -514,7 +538,7 @@ contract YieldBankPublicFactory is ReentrancyGuard {
             allocationOperator: r.allocationOperator,
             collectionTimelock: a.collectionTimelock,
             guardian: r.guardian,
-            renderer: address(support.renderer()),
+            metadata: address(support.metadata()),
             weth: weth,
             seaDrop: seaDrop,
             coreSleeve: a.coreSleeve,
@@ -526,7 +550,7 @@ contract YieldBankPublicFactory is ReentrancyGuard {
                 eligibilityPolicyCodeHash,
                 bytes32(0),
                 bytes32(0),
-                address(support.renderer()).codehash,
+                address(support.metadata()).codehash,
                 wethRuntimeCodeHash,
                 seaDropRuntimeCodeHash,
                 bytes32(0),
@@ -581,17 +605,14 @@ contract YieldBankPublicFactory is ReentrancyGuard {
     function _validateRequest(CollectionRequest calldata r) private view {
         if (
             bytes(r.name).length == 0 || bytes(r.name).length > 128 || bytes(r.symbol).length == 0
-                || bytes(r.symbol).length > 32 || !_validCollectionText(bytes(r.name), true)
-                || !_validCollectionText(bytes(r.symbol), false) || r.maxSupply == 0
-                || r.maxSupply > type(uint64).max || r.secondaryRoyaltyBps > BPS
-                || r.creator == address(0) || r.openSeaManager == address(0)
-                || r.sinjohFeeRecipient == address(0) || r.allocationOperator == address(0)
-                || r.timelockProposer == address(0) || r.guardian == address(0)
-                || r.primaryBackingBps == 0
+                || bytes(r.symbol).length > 32 || r.maxSupply == 0 || r.maxSupply > type(uint64).max
+                || r.secondaryRoyaltyBps > BPS || r.creator == address(0)
+                || r.openSeaManager == address(0) || r.sinjohFeeRecipient == address(0)
+                || r.allocationOperator == address(0) || r.timelockProposer == address(0)
+                || r.guardian == address(0) || r.primaryBackingBps == 0
                 || uint256(r.primaryBackingBps) + r.primaryCreatorBps + r.primarySinjohBps != BPS
-                || r.royaltyBackingBps == 0
+                || r.exitTaxBps > BPS || r.royaltyBackingBps == 0
                 || uint256(r.royaltyBackingBps) + r.royaltyCreatorBps + r.royaltySinjohBps != BPS
-                || r.coreWeightBps == 0 || r.marketMakingWeightBps == 0 || r.usdgWeightBps == 0
                 || uint256(r.coreWeightBps) + r.marketMakingWeightBps + r.usdgWeightBps != BPS
         ) revert InvalidConfiguration();
         _validateFeeWeightSchedule(r);
@@ -683,23 +704,5 @@ contract YieldBankPublicFactory is ReentrancyGuard {
             && config.maximumPoolReferenceDeviationBps <= BPS
             && config.maximumPoolSpotDeviationBps != 0
             && config.maximumPoolSpotDeviationBps <= 2_000;
-    }
-
-    function _validCollectionText(bytes memory value, bool allowSpaceAndDot)
-        private
-        pure
-        returns (bool)
-    {
-        for (uint256 i; i < value.length; ++i) {
-            bytes1 character = value[i];
-            bool alphanumeric = (character >= 0x30 && character <= 0x39)
-                || (character >= 0x41 && character <= 0x5a)
-                || (character >= 0x61 && character <= 0x7a);
-            if (
-                !alphanumeric && character != 0x2d && character != 0x5f
-                    && !(allowSpaceAndDot && (character == 0x20 || character == 0x2e))
-            ) return false;
-        }
-        return true;
     }
 }

@@ -22,7 +22,7 @@ import {
     MockYieldBankAsset,
     MockYieldBankCollectionPointer,
     MockYieldBankEligibilityPolicy,
-    MockYieldBankRenderer,
+    MockYieldBankCollectionMetadata,
     MockYieldBankRevenueRouter,
     MockYieldBankSeaDrop,
     MockYieldBankSleeve
@@ -42,7 +42,7 @@ contract YieldBankOpenSeaConfigurationRegressionTest is Test {
             address(this),
             address(this),
             address(revenueRouter),
-            address(new MockYieldBankRenderer()),
+            address(new MockYieldBankCollectionMetadata()),
             address(seaDrop),
             100,
             650
@@ -179,6 +179,8 @@ contract YieldBankSleevePricingRegressionTest is Test {
         registry = new StrategyRegistry(address(this));
         eligibility = new MockYieldBankEligibilityPolicy();
         sleeve = new USDGSleeve(
+            "Test USDG Sleeve",
+            "T-USDG",
             address(accounting),
             address(this),
             address(this),
@@ -222,6 +224,8 @@ contract YieldBankCoreSlippageRegressionTest is Test {
         hub.configureFeed(address(weth), address(wethFeed), address(0), 1 days, 0, false, 100);
         hub.configureFeed(address(stock), address(stockFeed), address(0), 1 days, 0, false, 100);
         CoreStockTokenSleeve sleeve = new CoreStockTokenSleeve(
+            "Test Stock Token Sleeve",
+            "T-STOCK",
             address(weth),
             address(this),
             address(this),

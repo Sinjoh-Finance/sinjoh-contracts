@@ -4,13 +4,13 @@ pragma solidity 0.8.28;
 import { PriceHub } from "./PriceHub.sol";
 import { StrategyRegistry } from "./StrategyRegistry.sol";
 import { UnrestrictedEligibilityPolicy } from "./UnrestrictedEligibilityPolicy.sol";
-import { YieldBankOnchainRenderer } from "./YieldBankOnchainRenderer.sol";
+import { YieldBankCollectionMetadata } from "./YieldBankCollectionMetadata.sol";
 
 /// @notice Atomically deploys one collection's externally pinned support contracts.
 /// @dev Child creation order is fixed so a nonce-bound deployment plan can predict every address.
 contract YieldBankSupportBundle {
     UnrestrictedEligibilityPolicy public immutable eligibilityPolicy;
-    YieldBankOnchainRenderer public immutable renderer;
+    YieldBankCollectionMetadata public immutable metadata;
     PriceHub public immutable priceHub;
     StrategyRegistry public immutable strategyRegistry;
 
@@ -26,7 +26,7 @@ contract YieldBankSupportBundle {
             revert InvalidConfiguration();
         }
         eligibilityPolicy = new UnrestrictedEligibilityPolicy();
-        renderer = new YieldBankOnchainRenderer(collectionName, collectionSymbol);
+        metadata = new YieldBankCollectionMetadata(collectionName, collectionSymbol);
         priceHub = new PriceHub(collectionTimelock, guardian);
         strategyRegistry = new StrategyRegistry(collectionTimelock);
     }

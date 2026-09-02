@@ -31,7 +31,7 @@ import {
     MockYieldBankBurnableAsset,
     MockYieldBankEligibilityPolicy,
     MockYieldBankPrimaryAllocator,
-    MockYieldBankRenderer,
+    MockYieldBankCollectionMetadata,
     MockYieldBankRevenueRouter,
     MockYieldBankSeaDrop,
     MockYieldBankTimelock,
@@ -83,7 +83,7 @@ contract YieldBankCollectionTest is Test {
     MockYieldBankAsset private market;
     MockYieldBankAsset private yieldSleeve;
     MockYieldBankEligibilityPolicy private policy;
-    MockYieldBankRenderer private renderer;
+    MockYieldBankCollectionMetadata private metadata;
     MockYieldBankRevenueRouter private revenueRouter;
     MockYieldBankTimelock private timelock;
     MockYieldBankSeaDrop private seaDrop;
@@ -97,7 +97,7 @@ contract YieldBankCollectionTest is Test {
         market = new MockYieldBankAsset("Market", "MM");
         yieldSleeve = new MockYieldBankAsset("USDG", "YLD");
         policy = new MockYieldBankEligibilityPolicy();
-        renderer = new MockYieldBankRenderer();
+        metadata = new MockYieldBankCollectionMetadata();
         revenueRouter = new MockYieldBankRevenueRouter(
             PRIMARY_BACKING_BPS, PRIMARY_CREATOR_BPS, PRIMARY_SINJOH_BPS
         );
@@ -130,6 +130,31 @@ contract YieldBankCollectionTest is Test {
         assertEq(weth.balanceOf(CREATOR), 0);
         assertEq(weth.balanceOf(SINJOH), 0);
         assertTrue(collection.accountOf(1) != address(0));
+    }
+
+    function testCollectionOwnerControlsExternalMetadataAndArtwork() public {
+        _mint(ALICE, 1, 1 ether);
+        YieldBankNFT nft = collection.nft();
+
+        assertEq(nft.tokenURI(1), "");
+        vm.expectRevert();
+        vm.prank(ALICE);
+        nft.setBaseURI("ipfs://unauthorized/");
+
+        vm.startPrank(CREATOR);
+        nft.setBaseURI("ipfs://collection-a/");
+        nft.setContractURI("ipfs://collection-a/contract.json");
+        vm.stopPrank();
+
+        assertEq(nft.tokenURI(1), "ipfs://collection-a/1");
+        assertEq(nft.baseURI(), "ipfs://collection-a/");
+        assertEq(nft.contractURI(), "ipfs://collection-a/contract.json");
+    }
+
+    function testTokenURIRejectsUnmintedToken() public {
+        (bool ok,) =
+            address(collection.nft()).staticcall(abi.encodeWithSignature("tokenURI(uint256)", 1));
+        assertFalse(ok);
     }
 
     function testEmptyFeeWeightScheduleDefaultsToEqualWeights() public {
@@ -186,9 +211,12 @@ contract YieldBankCollectionTest is Test {
         core.approve(address(weightedCollection.distributor()), 82 ether);
         weightedCollection.accrueDistribution(address(core), 82 ether);
         vm.stopPrank();
+        uint256[] memory tokenIds = new uint256[](4);
         for (uint256 tokenId = 1; tokenId <= 4; ++tokenId) {
-            weightedCollection.settle(tokenId);
+            tokenIds[tokenId - 1] = tokenId;
         }
+        vm.prank(address(revenueRouter));
+        weightedCollection.deliverRevenueBatch(tokenIds);
         assertEq(core.balanceOf(weightedCollection.accountOf(1)), 2 ether);
         assertEq(core.balanceOf(weightedCollection.accountOf(2)), 5 ether);
         assertEq(core.balanceOf(weightedCollection.accountOf(3)), 15 ether);
@@ -261,7 +289,10 @@ contract YieldBankCollectionTest is Test {
         core.approve(address(weightedCollection.distributor()), 5 ether);
         weightedCollection.accrueDistribution(address(core), 5 ether);
         vm.stopPrank();
-        weightedCollection.settle(2);
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = 2;
+        vm.prank(address(revenueRouter));
+        weightedCollection.deliverRevenueBatch(tokenIds);
         assertEq(core.balanceOf(weightedCollection.accountOf(2)), 5 ether);
     }
 
@@ -320,7 +351,7 @@ contract YieldBankCollectionTest is Test {
         assertEq(collection.proceedsVault().accountedNative(), 1 ether);
     }
 
-    function testManualAllocationSplitsExactNetAndCreatesExactClaims() public {
+    function testManualAllocationSplitsExactNetAndDeliversDirectlyToTreasuries() public {
         _mint(ALICE, 2, 1 ether);
         CollectionPortfolioAllocator.AllocationCall[3] memory calls;
         YieldBankProceedsVault vault = collection.proceedsVault();
@@ -333,43 +364,121 @@ contract YieldBankCollectionTest is Test {
         assertEq(weth.balanceOf(CREATOR), 0);
         assertEq(weth.balanceOf(SINJOH), 0);
         assertEq(collection.proceedsVault().totalAllocatedBacking(), 0.75 ether);
-        collection.claimPrimary(1);
-        collection.claimPrimary(2);
         assertEq(core.balanceOf(collection.accountOf(1)), 0.15 ether);
         assertEq(core.balanceOf(collection.accountOf(2)), 0.15 ether);
         assertEq(market.balanceOf(collection.accountOf(1)), 0.140625 ether);
         assertEq(yieldSleeve.balanceOf(collection.accountOf(1)), 0.084375 ether);
         assertTrue(YieldBankAccount(collection.accountOf(1)).isTrackedAsset(address(core)));
-        vm.expectRevert();
-        collection.claimPrimary(1);
+        assertEq(vault.primaryStateOf(1), vault.PRIMARY_ALLOCATED());
+        assertEq(vault.primaryStateOf(2), vault.PRIMARY_ALLOCATED());
     }
 
-    function testPrimaryClaimFailureRollsBackAndCanBeRetriedExactly() public {
+    function testMaximumPrimaryAllocationBatchDeliversDirectlyToEveryTreasury() public {
+        YieldBankCollection largeCollection = new YieldBankCollection(_config(20));
+        vm.deal(ALICE, 20 ether);
+        vm.prank(ALICE);
+        seaDrop.mint{ value: 20 ether }(largeCollection.nft(), ALICE, 20);
+
+        CollectionPortfolioAllocator.AllocationCall[3] memory calls;
+        YieldBankProceedsVault largeVault = largeCollection.proceedsVault();
+        vm.prank(OPERATOR);
+        largeVault.allocateReceipts(1, 1, calls);
+
+        assertEq(largeVault.primaryStateOf(1), 2);
+        assertEq(largeVault.primaryStateOf(20), 2);
+        assertGt(core.balanceOf(largeCollection.accountOf(1)), 0);
+        assertGt(core.balanceOf(largeCollection.accountOf(20)), 0);
+    }
+
+    function testTreasuryAccountAcceptsAnyErc20DirectlyWithoutHolderAction() public {
+        _mint(ALICE, 1, 1 ether);
+        MockYieldBankAsset collectionToken = new MockYieldBankAsset("Collection Token", "TOKEN");
+        collectionToken.mint(ALICE, 1_000e18);
+        address account = collection.accountOf(1);
+
+        vm.prank(ALICE);
+        assertTrue(collectionToken.transfer(account, 1_000e18));
+
+        assertEq(collectionToken.balanceOf(account), 1_000e18);
+        assertFalse(collection.distributor().isDistributionAsset(address(collectionToken)));
+
+        address[] memory additionalAssets = new address[](1);
+        additionalAssets[0] = address(collectionToken);
+        vm.prank(ALICE);
+        collection.burnTokenWithAssets(1, "", additionalAssets);
+        assertEq(collectionToken.balanceOf(ALICE), 1_000e18);
+        assertEq(collectionToken.balanceOf(account), 0);
+    }
+
+    function testForgottenDirectAssetCanBeRecoveredAfterRedemption() public {
+        _mint(ALICE, 1, 1 ether);
+        MockYieldBankAsset collectionToken = new MockYieldBankAsset("Collection Token", "TOKEN");
+        address accountAddress = collection.accountOf(1);
+        collectionToken.mint(accountAddress, 1_000e18);
+
+        vm.prank(ALICE);
+        collection.burnToken(1, "");
+        assertEq(collectionToken.balanceOf(accountAddress), 1_000e18);
+
+        vm.expectRevert();
+        vm.prank(BOB);
+        YieldBankAccount(accountAddress).recoverDirectAsset(address(collectionToken));
+
+        vm.prank(ALICE);
+        YieldBankAccount(accountAddress).recoverDirectAsset(address(collectionToken));
+        assertEq(collectionToken.balanceOf(ALICE), 1_000e18);
+        assertEq(collectionToken.balanceOf(accountAddress), 0);
+    }
+
+    function testPreviouslyTrackedAssetSentAfterRedemptionCanBeRecovered() public {
+        _mint(ALICE, 1, 1 ether);
+        address accountAddress = collection.accountOf(1);
+
+        core.mint(address(revenueRouter), 1 ether);
+        vm.startPrank(address(revenueRouter));
+        core.approve(address(collection.distributor()), 1 ether);
+        collection.accrueDistribution(address(core), 1 ether);
+        vm.stopPrank();
+
+        vm.prank(ALICE);
+        collection.burnToken(1, "");
+        assertTrue(YieldBankAccount(accountAddress).isTrackedAsset(address(core)));
+        assertEq(core.balanceOf(accountAddress), 0);
+
+        core.mint(accountAddress, 2 ether);
+        vm.prank(ALICE);
+        YieldBankAccount(accountAddress).recoverDirectAsset(address(core));
+
+        assertEq(core.balanceOf(ALICE), 3 ether);
+        assertEq(core.balanceOf(accountAddress), 0);
+    }
+
+    function testPrimaryDeliveryFailureRollsBackAllocationAndCanBeRetriedExactly() public {
         _mint(ALICE, 2, 1 ether);
         CollectionPortfolioAllocator.AllocationCall[3] memory calls;
         YieldBankProceedsVault vault = collection.proceedsVault();
-        vm.prank(OPERATOR);
-        vault.allocateReceipts(1, 1, calls);
         address account = collection.accountOf(1);
-        uint256 claimableCore = vault.claimableShares(1, address(core));
+        uint256 tokenCoreShares = 0.15 ether;
 
         vm.mockCallRevert(
             address(core),
-            abi.encodeWithSelector(IERC20.transfer.selector, account, claimableCore),
+            abi.encodeWithSelector(IERC20.transfer.selector, account, tokenCoreShares),
             abi.encodeWithSignature("Error(string)", "temporarily blocked")
         );
         vm.expectRevert();
-        collection.claimPrimary(1);
+        vm.prank(OPERATOR);
+        vault.allocateReceipts(1, 1, calls);
         vm.clearMockedCalls();
 
-        assertEq(vault.primaryStateOf(1), vault.PRIMARY_ALLOCATED());
-        assertEq(vault.claimableShares(1, address(core)), claimableCore);
+        (,,,,,, bool allocated) = vault.receipts(1);
+        assertFalse(allocated);
+        assertEq(vault.primaryStateOf(1), vault.PRIMARY_PENDING());
         assertEq(core.balanceOf(account), 0);
 
-        collection.claimPrimary(1);
-        assertEq(vault.primaryStateOf(1), vault.PRIMARY_CLAIMED());
-        assertEq(vault.claimableShares(1, address(core)), 0);
-        assertEq(core.balanceOf(account), claimableCore);
+        vm.prank(OPERATOR);
+        vault.allocateReceipts(1, 1, calls);
+        assertEq(vault.primaryStateOf(1), vault.PRIMARY_ALLOCATED());
+        assertEq(core.balanceOf(account), tokenCoreShares);
     }
 
     function testMintFailsAtomicallyWhenTreasuryCannotReceiveRestrictedShares() public {
@@ -502,7 +611,7 @@ contract YieldBankCollectionTest is Test {
         assertEq(collection.tokenState(1), uint8(YieldBankTokenState.BURNED));
     }
 
-    function testSettledAndUnsettledYieldFollowNftAndReachCurrentOwners() public {
+    function testDeliveredAndPendingFeesFollowNftAndReachCurrentOwners() public {
         _mint(ALICE, 2, 1 ether);
         CollectionPortfolioAllocator.AllocationCall[3] memory calls;
         YieldBankProceedsVault vault = collection.proceedsVault();
@@ -510,8 +619,11 @@ contract YieldBankCollectionTest is Test {
         vault.allocateReceipts(1, 1, calls);
 
         _accrueCoreDistribution(20 ether);
-        collection.settle(1);
-        assertEq(core.balanceOf(collection.accountOf(1)), 10 ether);
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = 1;
+        vm.prank(address(revenueRouter));
+        collection.deliverRevenueBatch(tokenIds);
+        assertEq(core.balanceOf(collection.accountOf(1)), 10 ether + 0.15 ether);
 
         YieldBankNFT nft = collection.nft();
         vm.prank(ALICE);
@@ -522,7 +634,7 @@ contract YieldBankCollectionTest is Test {
         collection.burnToken(1, "");
 
         uint256 tokenOneGrossCore = 15 ether + 0.15 ether;
-        uint256 tokenOneTax = tokenOneGrossCore * collection.EXIT_TAX_BPS() / 10_000;
+        uint256 tokenOneTax = tokenOneGrossCore * collection.exitTaxBps() / 10_000;
         assertEq(core.balanceOf(BOB), tokenOneGrossCore - tokenOneTax);
         assertEq(core.balanceOf(ALICE), 0);
         assertEq(collection.distributor().accountedBalance(address(core)), 15 ether + tokenOneTax);
@@ -534,7 +646,7 @@ contract YieldBankCollectionTest is Test {
         assertEq(core.balanceOf(BOB) + core.balanceOf(ALICE), 30.3 ether);
         assertEq(collection.distributor().accountedBalance(address(core)), 0);
         assertEq(collection.distributor().totalReceived(address(core)), 30 ether + tokenOneTax);
-        assertEq(collection.distributor().totalSettled(address(core)), 30 ether + tokenOneTax);
+        assertEq(collection.distributor().totalDelivered(address(core)), 30 ether + tokenOneTax);
     }
 
     function testRedemptionUsesOneProofForEligibilityAndRestrictedShareReceipt() public {
@@ -569,8 +681,7 @@ contract YieldBankCollectionTest is Test {
 
         assertEq(vault.primaryStateOf(1), vault.PRIMARY_RELEASED());
         assertEq(vault.primaryStateOf(2), vault.PRIMARY_ALLOCATED());
-        collection.claimPrimary(2);
-        assertEq(vault.primaryStateOf(2), vault.PRIMARY_CLAIMED());
+        assertGt(core.balanceOf(collection.accountOf(2)), 0);
     }
 
     function testForcedNativeIsExcludedFromAccountingAndRecoverableByTimelock() public {
@@ -809,6 +920,10 @@ contract YieldBankCollectionTest is Test {
             primaryBackingBps: PRIMARY_BACKING_BPS,
             primaryCreatorBps: PRIMARY_CREATOR_BPS,
             primarySinjohBps: PRIMARY_SINJOH_BPS,
+            royaltyBackingBps: 10_000,
+            royaltyCreatorBps: 0,
+            royaltySinjohBps: 0,
+            exitTaxBps: 500,
             coreWeightBps: CORE_WEIGHT_BPS,
             marketMakingWeightBps: MARKET_MAKING_WEIGHT_BPS,
             usdgWeightBps: USDG_WEIGHT_BPS,
@@ -824,7 +939,7 @@ contract YieldBankCollectionTest is Test {
             allocationOperator: OPERATOR,
             collectionTimelock: address(timelock),
             guardian: GUARDIAN,
-            renderer: address(renderer),
+            metadata: address(metadata),
             weth: address(weth),
             seaDrop: address(seaDrop),
             coreSleeve: address(core),
@@ -836,7 +951,7 @@ contract YieldBankCollectionTest is Test {
                 address(policy).codehash,
                 address(allocator).codehash,
                 address(timelock).codehash,
-                address(renderer).codehash,
+                address(metadata).codehash,
                 address(weth).codehash,
                 address(seaDrop).codehash,
                 address(core).codehash,

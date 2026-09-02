@@ -6,6 +6,11 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { CollectionPortfolioAllocator } from "./CollectionPortfolioAllocator.sol";
+import { YieldBankAccount } from "./YieldBankAccount.sol";
+
+interface IYieldBankPrimaryCollection {
+    function accountOf(uint256 tokenId) external view returns (address);
+}
 
 interface IYieldBankWETH is IERC20 {
     function deposit() external payable;
@@ -17,12 +22,11 @@ contract YieldBankProceedsVault is ReentrancyGuard {
 
     uint16 public constant BPS = 10_000;
     uint256 public constant MAX_RECEIPTS_PER_ALLOCATION = 20;
-    uint256 public constant MAX_TOKENS_PER_ALLOCATION = 100;
+    uint256 public constant MAX_TOKENS_PER_ALLOCATION = 20;
     uint8 public constant PRIMARY_NONE = 0;
     uint8 public constant PRIMARY_PENDING = 1;
     uint8 public constant PRIMARY_ALLOCATED = 2;
-    uint8 public constant PRIMARY_CLAIMED = 3;
-    uint8 public constant PRIMARY_RELEASED = 4;
+    uint8 public constant PRIMARY_RELEASED = 3;
 
     struct PendingMint {
         uint256 firstTokenId;
@@ -65,7 +69,6 @@ contract YieldBankProceedsVault is ReentrancyGuard {
     mapping(uint256 => uint256) public receiptOfToken;
     mapping(uint256 => uint256) public pendingBackingOf;
     mapping(uint256 => uint8) public primaryStateOf;
-    mapping(uint256 => mapping(address => uint256)) public claimableShares;
 
     error OnlyCollection(address caller);
     error OnlySeaDrop(address caller);
@@ -102,7 +105,7 @@ contract YieldBankProceedsVault is ReentrancyGuard {
         uint256 creatorFee,
         uint256 sinjohFee
     );
-    event PrimaryClaimed(
+    event PrimaryDelivered(
         uint256 indexed tokenId,
         address indexed account,
         uint256 coreShares,
@@ -251,32 +254,10 @@ contract YieldBankProceedsVault is ReentrancyGuard {
             totalAllocatedBacking += backing;
             totalPendingBacking -= backing;
         }
-        _recordClaims(firstReceiptId, lastReceiptId, backing, shares);
+        _deliverPrimary(firstReceiptId, lastReceiptId, backing, shares);
         emit PrimaryAllocated(
             firstReceiptId, lastReceiptId, backing, shares[0], shares[1], shares[2]
         );
-    }
-
-    function claim(uint256 tokenId, address account)
-        external
-        onlyCollection
-        nonReentrant
-        returns (address[3] memory assets, uint256[3] memory amounts)
-    {
-        if (account == address(0)) revert InvalidConfiguration();
-        if (primaryStateOf[tokenId] != PRIMARY_ALLOCATED) {
-            revert InvalidReceipt(receiptOfToken[tokenId]);
-        }
-        primaryStateOf[tokenId] = PRIMARY_CLAIMED;
-        assets = sleeves;
-        for (uint256 i; i < 3; ++i) {
-            amounts[i] = claimableShares[tokenId][assets[i]];
-            if (amounts[i] != 0) {
-                delete claimableShares[tokenId][assets[i]];
-                IERC20(assets[i]).safeTransfer(account, amounts[i]);
-            }
-        }
-        emit PrimaryClaimed(tokenId, account, amounts[0], amounts[1], amounts[2]);
     }
 
     function releasePendingBacking(uint256 tokenId, address recipient)
@@ -347,7 +328,7 @@ contract YieldBankProceedsVault is ReentrancyGuard {
         emit ExcessNativeSwept(recipient, amount);
     }
 
-    function _recordClaims(
+    function _deliverPrimary(
         uint256 firstId,
         uint256 lastId,
         uint256 backing,
@@ -363,18 +344,30 @@ contract YieldBankProceedsVault is ReentrancyGuard {
                 if (primaryState == PRIMARY_RELEASED) continue;
                 if (primaryState != PRIMARY_PENDING) revert InvalidReceipt(id);
                 uint256 weight = pendingBackingOf[tokenId];
+                uint256[3] memory tokenShares;
                 if (weight != 0) {
                     cumulativeWeight += weight;
                     for (uint256 sleeveIndex; sleeveIndex < 3; ++sleeveIndex) {
                         uint256 cumulativeShares =
                             Math.mulDiv(shares[sleeveIndex], cumulativeWeight, backing);
-                        claimableShares[tokenId][sleeves[sleeveIndex]] =
-                            cumulativeShares - assigned[sleeveIndex];
+                        tokenShares[sleeveIndex] = cumulativeShares - assigned[sleeveIndex];
                         assigned[sleeveIndex] = cumulativeShares;
                     }
                 }
+                address account = IYieldBankPrimaryCollection(collection).accountOf(tokenId);
+                if (account == address(0)) revert InvalidConfiguration();
+                for (uint256 sleeveIndex; sleeveIndex < 3; ++sleeveIndex) {
+                    uint256 amount = tokenShares[sleeveIndex];
+                    if (amount == 0) continue;
+                    address asset = sleeves[sleeveIndex];
+                    IERC20(asset).safeTransfer(account, amount);
+                    YieldBankAccount(account).trackAsset(asset);
+                }
                 primaryStateOf[tokenId] = PRIMARY_ALLOCATED;
                 delete pendingBackingOf[tokenId];
+                emit PrimaryDelivered(
+                    tokenId, account, tokenShares[0], tokenShares[1], tokenShares[2]
+                );
             }
             receipt.backingRemaining = 0;
         }

@@ -46,6 +46,70 @@ contract YieldBankRevenueAndSleevesTest is Test {
     uint16 private constant ROYALTY_CREATOR_BPS = 2_000;
     uint16 private constant ROYALTY_SINJOH_BPS = 2_000;
 
+    function testFeeRouterPermissionlesslyPushesBatchesToTreasuries() external {
+        address[3] memory outputs;
+        MockYieldBankAllocationReceiver allocator = new MockYieldBankAllocationReceiver(outputs);
+        MockYieldBankCollectionReceiver collection =
+            new MockYieldBankCollectionReceiver(keccak256("COLLECTION"));
+        CollectionRevenueRouter router = new CollectionRevenueRouter(
+            address(collection),
+            address(allocator),
+            address(this),
+            CREATOR,
+            SINJOH,
+            PROJECT_NFT_BPS,
+            PROJECT_CREATOR_BPS,
+            PROJECT_SINJOH_BPS,
+            ROYALTY_NFT_BPS,
+            ROYALTY_CREATOR_BPS,
+            ROYALTY_SINJOH_BPS
+        );
+        uint256[] memory tokenIds = new uint256[](3);
+        tokenIds[0] = 7;
+        tokenIds[1] = 8;
+        tokenIds[2] = 9;
+
+        vm.prank(SOURCE);
+        router.deliverToTreasuries(tokenIds);
+
+        assertEq(collection.deliveredTokenId(0), 7);
+        assertEq(collection.deliveredTokenId(1), 8);
+        assertEq(collection.deliveredTokenId(2), 9);
+    }
+
+    function testCreatorAndSinjohRecipientsRotateIndependentlyWhenInitiallyEqual() external {
+        address[3] memory outputs;
+        for (uint256 i; i < 3; ++i) {
+            outputs[i] = address(new MockYieldBankAsset("Sleeve", "SLV"));
+        }
+        MockYieldBankAllocationReceiver allocator = new MockYieldBankAllocationReceiver(outputs);
+        MockYieldBankCollectionReceiver collection =
+            new MockYieldBankCollectionReceiver(keccak256("COLLECTION"));
+        CollectionRevenueRouter router = new CollectionRevenueRouter(
+            address(collection),
+            address(allocator),
+            address(this),
+            CREATOR,
+            CREATOR,
+            PROJECT_NFT_BPS,
+            PROJECT_CREATOR_BPS,
+            PROJECT_SINJOH_BPS,
+            ROYALTY_NFT_BPS,
+            ROYALTY_CREATOR_BPS,
+            ROYALTY_SINJOH_BPS
+        );
+
+        router.proposeCreatorRecipient(SOURCE);
+        router.proposeSinjohRecipient(SINJOH);
+        vm.prank(SOURCE);
+        router.acceptCreatorRecipient();
+        vm.prank(SINJOH);
+        router.acceptSinjohRecipient();
+
+        assertEq(router.creatorRecipient(), SOURCE);
+        assertEq(router.sinjohRecipient(), SINJOH);
+    }
+
     function testNftLegFailureDoesNotBlockCompletedRevenueLegs() external {
         MockYieldBankAsset input = new MockYieldBankAsset("Input", "IN");
         address[3] memory outputAddresses;
@@ -69,7 +133,6 @@ contract YieldBankRevenueAndSleevesTest is Test {
             ROYALTY_CREATOR_BPS,
             ROYALTY_SINJOH_BPS
         );
-        router.setSourceAuthorization(SOURCE, YieldBankIds.PROJECT_REVENUE, true);
         allocator.setShouldFail(true);
         input.mint(SOURCE, 1_000e18);
         vm.startPrank(SOURCE);
@@ -97,6 +160,48 @@ contract YieldBankRevenueAndSleevesTest is Test {
         for (uint256 i; i < 3; ++i) {
             assertEq(collection.received(outputAddresses[i]), uint256(750e18) / 3);
         }
+    }
+
+    function testRevenueAllocationSupportsCollectionWithUnusedSleeves() external {
+        MockYieldBankAsset input = new MockYieldBankAsset("Input", "IN");
+        address[3] memory outputAddresses;
+        for (uint256 i; i < 3; ++i) {
+            outputAddresses[i] = address(new MockYieldBankAsset("Sleeve", "SLV"));
+        }
+        MockYieldBankAllocationReceiver allocator =
+            new MockYieldBankAllocationReceiver(outputAddresses);
+        allocator.setWeights([uint16(0), uint16(10_000), uint16(0)]);
+        MockYieldBankCollectionReceiver collection =
+            new MockYieldBankCollectionReceiver(keccak256("COLLECTION"));
+        CollectionRevenueRouter router = new CollectionRevenueRouter(
+            address(collection),
+            address(allocator),
+            address(this),
+            CREATOR,
+            SINJOH,
+            PROJECT_NFT_BPS,
+            PROJECT_CREATOR_BPS,
+            PROJECT_SINJOH_BPS,
+            ROYALTY_NFT_BPS,
+            ROYALTY_CREATOR_BPS,
+            ROYALTY_SINJOH_BPS
+        );
+        input.mint(SOURCE, 1_000e18);
+        vm.startPrank(SOURCE);
+        input.approve(address(router), 1_000e18);
+        router.fund(
+            collection.collectionId(),
+            address(input),
+            1_000e18,
+            YieldBankIds.PROJECT_REVENUE,
+            "route"
+        );
+        vm.stopPrank();
+
+        assertEq(router.failedNftAllocation(address(input), keccak256("route")), 0);
+        assertEq(collection.received(outputAddresses[0]), 0);
+        assertEq(collection.received(outputAddresses[1]), 750e18);
+        assertEq(collection.received(outputAddresses[2]), 0);
     }
 
     function testDirectRoyaltyTransferSynchronizesExactlyOnce() external {
@@ -266,7 +371,6 @@ contract YieldBankRevenueAndSleevesTest is Test {
             address(revenueRouter).codehash,
             collectionId
         );
-        revenueRouter.setSourceAuthorization(address(bridge), YieldBankIds.PROJECT_REVENUE, true);
 
         input.mint(address(projectRouter), 1_000e18);
         vm.startPrank(address(projectRouter));
@@ -298,6 +402,8 @@ contract YieldBankRevenueAndSleevesTest is Test {
         MockYieldBankAggregator wethFeed = new MockYieldBankAggregator(8, 2_000e8);
         hub.configureFeed(address(weth), address(wethFeed), address(0), 1 days, 0, false, 100);
         CoreStockTokenSleeve sleeve = new CoreStockTokenSleeve(
+            "Test Stock Token Sleeve",
+            "T-STOCK",
             address(weth),
             address(this),
             address(this),

@@ -41,6 +41,10 @@ struct YieldBankConfig {
     uint16 primaryBackingBps;
     uint16 primaryCreatorBps;
     uint16 primarySinjohBps;
+    uint16 royaltyBackingBps;
+    uint16 royaltyCreatorBps;
+    uint16 royaltySinjohBps;
+    uint16 exitTaxBps;
     uint16 coreWeightBps;
     uint16 marketMakingWeightBps;
     uint16 usdgWeightBps;
@@ -56,7 +60,7 @@ struct YieldBankConfig {
     address allocationOperator;
     address collectionTimelock;
     address guardian;
-    address renderer;
+    address metadata;
     address weth;
     address seaDrop;
     address coreSleeve;

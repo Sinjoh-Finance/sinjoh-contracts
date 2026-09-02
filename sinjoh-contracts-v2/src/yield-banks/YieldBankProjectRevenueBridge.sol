@@ -20,8 +20,9 @@ interface IYieldBankCollectionIdentity {
 }
 
 /// @notice Exact, identity-bound Project V2 revenue sink for one Yield Bank collection.
-/// @dev Configure as a ProjectRouterV2 FUND_PROJECT_SINK recipient. The Yield Bank revenue router
-///      must separately authorize this bridge for the PROJECT_REVENUE source type.
+/// @dev Configure as a ProjectRouterV2 FUND_PROJECT_SINK recipient. The bridge validates its
+///      immutable Project and collection identities; the Yield Bank router itself has no sender
+///      allowlist.
 contract YieldBankProjectRevenueBridge is
     IProjectModule,
     IProjectControlled,

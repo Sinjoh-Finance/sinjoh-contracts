@@ -18,7 +18,7 @@ interface IYieldBankRoyaltyOperator {
     function allocationOperator() external view returns (address);
 }
 
-/// @notice Authenticated revenue ingress with immutable per-collection project-revenue weights.
+/// @notice Permissionless revenue ingress with immutable per-collection allocation weights.
 contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -35,15 +35,14 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
 
     address public creatorRecipient;
     address public sinjohRecipient;
-    mapping(address recipient => address proposed) public proposedRecipient;
-    mapping(address source => mapping(bytes32 sourceType => bool allowed)) public authorizedSource;
+    address public proposedCreatorRecipient;
+    address public proposedSinjohRecipient;
     mapping(address asset => mapping(address recipient => uint256 amount)) public failedTransfer;
     mapping(address asset => mapping(bytes32 routeHash => uint256 amount)) public
         failedNftAllocation;
     mapping(address asset => uint256 amount) public accountedEscrow;
 
     error OnlyTimelock(address caller);
-    error UnauthorizedSource(address source, bytes32 sourceType);
     error InvalidConfiguration();
     error InexactReceipt(uint256 expected, uint256 received);
     error NothingToRetry();
@@ -51,7 +50,6 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
     error OnlySelf(address caller);
     error OnlyAllocationOperator(address caller);
 
-    event SourceAuthorizationSet(address indexed source, bytes32 indexed sourceType, bool allowed);
     event RevenueFunded(
         address indexed source,
         address indexed asset,
@@ -68,10 +66,17 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
         uint256 amount
     );
     event RoyaltySynced(address indexed caller, address indexed asset, uint256 amount);
+    event TreasuryBatchDelivered(address indexed caller, uint256 count);
     event NativeRoyaltyReceived(address indexed sender, uint256 amount);
     event FailedLegRetried(address indexed asset, address indexed recipient, uint256 amount);
-    event RecipientProposed(address indexed currentRecipient, address indexed proposedRecipient);
-    event RecipientAccepted(address indexed previousRecipient, address indexed newRecipient);
+    event CreatorRecipientProposed(
+        address indexed currentRecipient, address indexed proposedRecipient
+    );
+    event CreatorRecipientAccepted(address indexed previousRecipient, address indexed newRecipient);
+    event SinjohRecipientProposed(
+        address indexed currentRecipient, address indexed proposedRecipient
+    );
+    event SinjohRecipientAccepted(address indexed previousRecipient, address indexed newRecipient);
 
     constructor(
         address collection_,
@@ -122,17 +127,6 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
         emit NativeRoyaltyReceived(msg.sender, msg.value);
     }
 
-    function setSourceAuthorization(address source, bytes32 sourceType, bool allowed)
-        external
-        onlyTimelock
-    {
-        if (source == address(0) || sourceType == bytes32(0)) {
-            revert InvalidConfiguration();
-        }
-        authorizedSource[source][sourceType] = allowed;
-        emit SourceAuthorizationSet(source, sourceType, allowed);
-    }
-
     function fund(
         bytes32 collectionId,
         address sourceAsset,
@@ -140,9 +134,6 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
         bytes32 sourceType,
         bytes calldata sourceData
     ) external nonReentrant returns (uint256 received) {
-        if (!authorizedSource[msg.sender][sourceType]) {
-            revert UnauthorizedSource(msg.sender, sourceType);
-        }
         if (
             collectionId != collection.collectionId() || sourceAsset.code.length == 0 || amount == 0
         ) {
@@ -194,6 +185,13 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
         IYieldBankRoyaltyWETH(weth).deposit{ value: nftAmount }();
         _tryNftAllocation(weth, nftAmount, sourceData);
         emit RoyaltySynced(msg.sender, address(0), amount);
+    }
+
+    /// @notice Pushes already-accounted collection fees into their NFT treasury accounts.
+    /// @dev Permissionless: callers cannot redirect assets or change any token's fee weight.
+    function deliverToTreasuries(uint256[] calldata tokenIds) external nonReentrant {
+        collection.deliverRevenueBatch(tokenIds);
+        emit TreasuryBatchDelivered(msg.sender, tokenIds.length);
     }
 
     function _routeReceived(
@@ -259,35 +257,43 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
         for (uint256 i; i < length; ++i) {
             address distributionAsset = distributionAssets[i];
             uint256 distributionAmount = distributionAmounts[i];
-            if (distributionAsset.code.length == 0 || distributionAmount == 0) {
+            if (distributionAsset.code.length == 0) {
                 revert InvalidConfiguration();
             }
-            IERC20(distributionAsset).forceApprove(address(collection), distributionAmount);
+            if (distributionAmount == 0) continue;
+            address distributor = collection.distributor();
+            IERC20(distributionAsset).forceApprove(distributor, distributionAmount);
             collection.accrueDistribution(distributionAsset, distributionAmount);
-            IERC20(distributionAsset).forceApprove(address(collection), 0);
+            IERC20(distributionAsset).forceApprove(distributor, 0);
         }
     }
 
-    function proposeRecipient(address currentRecipient, address nextRecipient)
-        external
-        onlyTimelock
-    {
-        if (!_isCurrentRecipient(currentRecipient) || nextRecipient == address(0)) {
-            revert InvalidConfiguration();
-        }
-        proposedRecipient[currentRecipient] = nextRecipient;
-        emit RecipientProposed(currentRecipient, nextRecipient);
+    function proposeCreatorRecipient(address nextRecipient) external onlyTimelock {
+        if (nextRecipient == address(0)) revert InvalidConfiguration();
+        proposedCreatorRecipient = nextRecipient;
+        emit CreatorRecipientProposed(creatorRecipient, nextRecipient);
     }
 
-    function acceptRecipient(address currentRecipient) external {
-        if (proposedRecipient[currentRecipient] != msg.sender) {
-            revert OnlyProposedRecipient(msg.sender);
-        }
-        delete proposedRecipient[currentRecipient];
-        if (currentRecipient == creatorRecipient) creatorRecipient = msg.sender;
-        else if (currentRecipient == sinjohRecipient) sinjohRecipient = msg.sender;
-        else revert InvalidConfiguration();
-        emit RecipientAccepted(currentRecipient, msg.sender);
+    function acceptCreatorRecipient() external {
+        if (msg.sender != proposedCreatorRecipient) revert OnlyProposedRecipient(msg.sender);
+        address previous = creatorRecipient;
+        creatorRecipient = msg.sender;
+        delete proposedCreatorRecipient;
+        emit CreatorRecipientAccepted(previous, msg.sender);
+    }
+
+    function proposeSinjohRecipient(address nextRecipient) external onlyTimelock {
+        if (nextRecipient == address(0)) revert InvalidConfiguration();
+        proposedSinjohRecipient = nextRecipient;
+        emit SinjohRecipientProposed(sinjohRecipient, nextRecipient);
+    }
+
+    function acceptSinjohRecipient() external {
+        if (msg.sender != proposedSinjohRecipient) revert OnlyProposedRecipient(msg.sender);
+        address previous = sinjohRecipient;
+        sinjohRecipient = msg.sender;
+        delete proposedSinjohRecipient;
+        emit SinjohRecipientAccepted(previous, msg.sender);
     }
 
     function _split(bytes32 sourceType)
@@ -336,10 +342,6 @@ contract CollectionRevenueRouter is IYieldBankFundable, ReentrancyGuard {
             asset.call(abi.encodeCall(IERC20.transfer, (recipient, amount)));
         return
             success && (result.length == 0 || (result.length == 32 && abi.decode(result, (bool))));
-    }
-
-    function _isCurrentRecipient(address recipient) private view returns (bool) {
-        return recipient == creatorRecipient || recipient == sinjohRecipient;
     }
 
     function _splitAmounts(uint256 received, bytes32 sourceType)

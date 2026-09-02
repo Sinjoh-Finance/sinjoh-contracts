@@ -223,8 +223,7 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
             collection_ == address(0) || revenueRouter_ == address(0) || timelock_ == address(0)
                 || guardian_ == address(0) || deltaPoolController_ == address(0)
                 || coreSleeve_.code.length == 0 || marketMakingSleeve_.code.length == 0
-                || usdgSleeve_.code.length == 0 || coreWeightBps_ == 0
-                || marketMakingWeightBps_ == 0 || usdgWeightBps_ == 0
+                || usdgSleeve_.code.length == 0
                 || uint256(coreWeightBps_) + marketMakingWeightBps_ + usdgWeightBps_ != BPS
         ) revert InvalidConfiguration();
         collection = IYieldBankCollection(collection_);
@@ -421,8 +420,7 @@ contract CollectionPortfolioAllocator is IYieldBankAllocationReceiver, Reentranc
             IYieldBankAllocationOperatorSource(collection.proceedsVault());
         uint8 primaryState = vault.primaryStateOf(tokenId);
         if (primaryState == vault.PRIMARY_PENDING()) revert PrimaryAllocationPending(tokenId);
-        if (primaryState == vault.PRIMARY_ALLOCATED()) collection.claimPrimary(tokenId);
-        collection.settle(tokenId);
+        collection.deliverRevenue(tokenId);
 
         uint16[3] memory weights =
             [target.coreWeightBps, target.marketMakingWeightBps, target.usdgWeightBps];

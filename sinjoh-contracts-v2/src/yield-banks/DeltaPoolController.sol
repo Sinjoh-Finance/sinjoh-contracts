@@ -152,6 +152,8 @@ contract DeltaPoolController is ReentrancyGuard {
     uint16 public immutable maximumPoolSpotDeviationBps;
     PriceHub public immutable priceHub;
     StrategyRegistry public immutable strategyRegistry;
+    string public marketMakingSleeveName;
+    string public marketMakingSleeveSymbol;
 
     mapping(address factory => Infrastructure infrastructure) public infrastructureOfFactory;
     mapping(address pool => PoolFoundation foundation) public foundationOf;
@@ -206,7 +208,9 @@ contract DeltaPoolController is ReentrancyGuard {
         uint32 maximumPoolFeedGracePeriod_,
         uint32 minimumPoolTwapWindow_,
         uint16 maximumPoolReferenceDeviationBps_,
-        uint16 maximumPoolSpotDeviationBps_
+        uint16 maximumPoolSpotDeviationBps_,
+        string memory marketMakingSleeveName_,
+        string memory marketMakingSleeveSymbol_
     ) {
         if (
             allocator_ == address(0) || timelock_ == address(0) || guardian_ == address(0)
@@ -218,6 +222,8 @@ contract DeltaPoolController is ReentrancyGuard {
                 || maximumPoolReferenceDeviationBps_ == 0
                 || maximumPoolReferenceDeviationBps_ > 10_000 || maximumPoolSpotDeviationBps_ == 0
                 || maximumPoolSpotDeviationBps_ > 2_000
+                || bytes(marketMakingSleeveName_).length == 0
+                || bytes(marketMakingSleeveSymbol_).length == 0
         ) revert InvalidConfiguration();
         allocator = allocator_;
         collection = IDeltaPoolAllocationOperatorSource(allocator_).collection();
@@ -235,6 +241,8 @@ contract DeltaPoolController is ReentrancyGuard {
         minimumPoolTwapWindow = minimumPoolTwapWindow_;
         maximumPoolReferenceDeviationBps = maximumPoolReferenceDeviationBps_;
         maximumPoolSpotDeviationBps = maximumPoolSpotDeviationBps_;
+        marketMakingSleeveName = marketMakingSleeveName_;
+        marketMakingSleeveSymbol = marketMakingSleeveSymbol_;
     }
 
     modifier onlyTimelock() {
@@ -523,6 +531,8 @@ contract DeltaPoolController is ReentrancyGuard {
             abi.encodePacked(
                 sleeveCreationCode,
                 abi.encode(
+                    marketMakingSleeveName,
+                    marketMakingSleeveSymbol,
                     weth,
                     allocator,
                     address(this),

@@ -500,14 +500,20 @@ abstract contract BaseSleeve is ERC20, ReentrancyGuard, IYieldBankSleeve {
             revert InvalidAdapterState(adapter, current);
         }
         _requireRuntime(adapter);
-        uint256 totalAccounting = IERC20(accountingAsset).balanceOf(address(this));
-        uint256 adapterLength = _adapters.length;
-        for (uint256 i; i < adapterLength; ++i) {
-            totalAccounting += IStrategyAdapter(_adapters[i]).totalManagedAssets();
+        (uint256 navUsd18,, address failedAsset, IPriceHub.FailureReason navFailure) =
+            _totalAssetsUsd18();
+        if (failedAsset != address(0)) revert OracleUnavailable(failedAsset, navFailure);
+        (uint256 accountingPrice,, IPriceHub.FailureReason accountingFailure) =
+            priceHub.quoteUsd18(accountingAsset);
+        if (accountingFailure != IPriceHub.FailureReason.NONE || accountingPrice == 0) {
+            revert OracleUnavailable(accountingAsset, accountingFailure);
         }
-        uint256 maximum = Math.mulDiv(totalAccounting, adapterCapBps[adapter], BPS);
-        if (IStrategyAdapter(adapter).totalManagedAssets() + assets > maximum) {
-            revert CapExceeded(maximum, IStrategyAdapter(adapter).totalManagedAssets() + assets);
+        uint256 totalAccountingEquivalent =
+            Math.mulDiv(navUsd18, 10 ** accountingDecimals, accountingPrice);
+        uint256 maximum = Math.mulDiv(totalAccountingEquivalent, adapterCapBps[adapter], BPS);
+        uint256 managedAfter = IStrategyAdapter(adapter).totalManagedAssets() + assets;
+        if (managedAfter > maximum) {
+            revert CapExceeded(maximum, managedAfter);
         }
         IERC20 token = IERC20(accountingAsset);
         uint256 balanceBefore = token.balanceOf(address(this));

@@ -50,8 +50,8 @@ The deployment plan must declare an `openSeaManager` wallet separately from the 
 recipient. `YieldBankNFT` is initially owned by that manager so the custom SeaDrop contract appears
 in OpenSea Studio and its drop/collection settings can be published. After the manifest-bound
 SeaDrop settings are configured, the manager calls `transferOwnership(collectionTimelock)`. The
-timelock proposer schedules `acceptOwnership()` on the NFT, and anyone executes it after the fixed
-seven-day delay. Release verification requires `owner()` to equal the collection timelock; no mint
+timelock proposer schedules `acceptOwnership()` on the NFT, and anyone executes it after the
+collection's configured delay. Release verification requires `owner()` to equal the collection timelock; no mint
 should be opened before that handoff is complete.
 
 The manifest must classify both WETH and USDG as EIP-1967 proxies and bind each live implementation address and

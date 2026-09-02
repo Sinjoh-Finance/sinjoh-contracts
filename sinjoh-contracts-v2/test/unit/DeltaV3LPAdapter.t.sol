@@ -48,6 +48,8 @@ contract DeltaV3LPAdapterTest is Test {
         priceHub = new PriceHub(address(this), address(this));
         registry = new StrategyRegistry(address(this));
         sleeve = new MarketMakingSleeve(
+            "Test Delta Liquidity Sleeve",
+            "T-DELTA",
             address(weth),
             address(this),
             address(this),

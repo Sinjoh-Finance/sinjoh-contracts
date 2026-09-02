@@ -7,7 +7,7 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { YieldBankAccount } from "./YieldBankAccount.sol";
 
-/// @notice O(1) weighted per-live-token distribution accounting with bounded settlement.
+/// @notice O(1) weighted per-live-token fee accounting with bounded treasury delivery.
 contract YieldBankDistributor is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -22,8 +22,8 @@ contract YieldBankDistributor is ReentrancyGuard {
     mapping(uint256 tokenId => mapping(address asset => uint256 debt)) public debtRay;
     mapping(uint256 tokenId => mapping(address asset => uint256 remainder)) public remainderRay;
     mapping(address asset => uint256 amount) public totalReceived;
-    mapping(address asset => uint256 amount) public totalSettled;
-    mapping(uint256 tokenId => mapping(address asset => uint256 amount)) public cumulativeSettled;
+    mapping(address asset => uint256 amount) public totalDelivered;
+    mapping(uint256 tokenId => mapping(address asset => uint256 amount)) public cumulativeDelivered;
     mapping(address asset => uint256 amount) public accountedBalance;
 
     error OnlyCollection(address caller);
@@ -39,8 +39,8 @@ contract YieldBankDistributor is ReentrancyGuard {
     event DistributionAccrued(
         address indexed asset, uint256 amount, uint256 totalLiveFeeWeight, uint256 indexIncrease
     );
-    event TokenSettled(uint256 indexed tokenId, address indexed account, bool terminal);
-    event AssetSettled(
+    event TokenDelivered(uint256 indexed tokenId, address indexed account, bool terminal);
+    event AssetDelivered(
         uint256 indexed tokenId, address indexed asset, uint256 amount, bool terminal
     );
     event TokenRetired(uint256 indexed tokenId);
@@ -92,7 +92,7 @@ contract YieldBankDistributor is ReentrancyGuard {
         _accrue(asset, amount, totalLiveFeeWeight);
     }
 
-    function settle(uint256 tokenId, address account, bool terminal)
+    function deliver(uint256 tokenId, address account, bool terminal)
         external
         onlyCollection
         nonReentrant
@@ -122,12 +122,12 @@ contract YieldBankDistributor is ReentrancyGuard {
             if (amount == 0) continue;
             YieldBankAccount(account).trackAsset(asset);
             accountedBalance[asset] -= amount;
-            totalSettled[asset] += amount;
-            cumulativeSettled[tokenId][asset] += amount;
+            totalDelivered[asset] += amount;
+            cumulativeDelivered[tokenId][asset] += amount;
             IERC20(asset).safeTransfer(account, amount);
-            emit AssetSettled(tokenId, asset, amount, terminal);
+            emit AssetDelivered(tokenId, asset, amount, terminal);
         }
-        emit TokenSettled(tokenId, account, terminal);
+        emit TokenDelivered(tokenId, account, terminal);
     }
 
     function retireToken(uint256 tokenId) external onlyCollection {

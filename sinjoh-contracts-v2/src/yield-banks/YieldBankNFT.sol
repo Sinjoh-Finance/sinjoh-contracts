@@ -8,7 +8,7 @@ import { Ownable2Step } from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { IYieldBankCollectionView } from "./interfaces/IYieldBankCollectionView.sol";
-import { IYieldBankRenderer } from "./interfaces/IYieldBankRenderer.sol";
+import { IYieldBankCollectionMetadata } from "./interfaces/IYieldBankCollectionMetadata.sol";
 import { ISeaDrop } from "./interfaces/ISeaDrop.sol";
 import {
     INonFungibleSeaDropToken,
@@ -31,7 +31,7 @@ contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungi
     uint256 public constant MAX_MINT_QUANTITY = 20;
     uint16 private constant BPS = 10_000;
     address public immutable collection;
-    address public immutable renderer;
+    address public immutable metadata;
     address public immutable seaDrop;
     address public immutable royaltyReceiver;
     uint96 public immutable royaltyBps;
@@ -71,18 +71,18 @@ contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungi
         address collection_,
         address owner_,
         address revenueRouter_,
-        address renderer_,
+        address metadata_,
         address seaDrop_,
         uint256 maxSupply_,
         uint96 royaltyBps_
     ) ERC721("", "") Ownable(owner_) {
         if (
             collection_ == address(0) || owner_ == address(0) || revenueRouter_ == address(0)
-                || renderer_.code.length == 0 || seaDrop_.code.length == 0 || maxSupply_ == 0
+                || metadata_.code.length == 0 || seaDrop_.code.length == 0 || maxSupply_ == 0
                 || maxSupply_ > type(uint64).max || royaltyBps_ > BPS
         ) revert InvalidConfiguration();
         collection = collection_;
-        renderer = renderer_;
+        metadata = metadata_;
         seaDrop = seaDrop_;
         royaltyReceiver = revenueRouter_;
         royaltyBps = royaltyBps_;
@@ -95,11 +95,11 @@ contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungi
     }
 
     function name() public view override returns (string memory) {
-        return IYieldBankRenderer(renderer).collectionName();
+        return IYieldBankCollectionMetadata(metadata).collectionName();
     }
 
     function symbol() public view override returns (string memory) {
-        return IYieldBankRenderer(renderer).collectionSymbol();
+        return IYieldBankCollectionMetadata(metadata).collectionSymbol();
     }
 
     function setProceedsVault(address value) external onlyCollection {
@@ -259,13 +259,6 @@ contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungi
         (, amount) = royaltyInfo(1, 10_000);
     }
 
-    function tokenURI(uint256 tokenId) public view override returns (string memory) {
-        _requireOwned(tokenId);
-        IYieldBankCollectionView source = IYieldBankCollectionView(collection);
-        return IYieldBankRenderer(renderer)
-            .tokenURI(collection, tokenId, source.accountOf(tokenId), source.tokenState(tokenId));
-    }
-
     function supportsInterface(bytes4 interfaceId)
         public
         view
@@ -294,6 +287,10 @@ contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungi
 
     function _requireSeaDrop(address impl) private view {
         if (impl != seaDrop) revert OnlyAllowedSeaDrop(impl);
+    }
+
+    function _baseURI() internal view override returns (string memory) {
+        return _baseTokenURI;
     }
 
     function _requirePaidMint(uint256 mintPrice, uint256 feeBps) private pure {

@@ -19,7 +19,7 @@ import {
     MockYieldBankAsset,
     MockYieldBankEligibilityPolicy,
     MockYieldBankPrimaryAllocator,
-    MockYieldBankRenderer,
+    MockYieldBankCollectionMetadata,
     MockYieldBankRevenueRouter,
     MockYieldBankSeaDrop,
     MockYieldBankTimelock,
@@ -70,15 +70,6 @@ contract YieldBankInvariantHandler is Test {
         vault.allocateReceipts(receiptId, receiptId, calls);
     }
 
-    function claim(uint256 rawTokenId) external {
-        uint256 minted = collection.mintedSupply();
-        if (minted == 0) return;
-        uint256 tokenId = bound(rawTokenId, 1, minted);
-        if (collection.tokenState(tokenId) != uint8(YieldBankTokenState.ACTIVE)) return;
-        if (vault.primaryStateOf(tokenId) != vault.PRIMARY_ALLOCATED()) return;
-        collection.claimPrimary(tokenId);
-    }
-
     function distribute(uint96 rawAmount) external {
         uint256 supply = collection.liveSupply();
         if (supply == 0) return;
@@ -91,12 +82,15 @@ contract YieldBankInvariantHandler is Test {
         vm.stopPrank();
     }
 
-    function settle(uint256 rawTokenId) external {
+    function deliverRevenue(uint256 rawTokenId) external {
         uint256 minted = collection.mintedSupply();
         if (minted == 0) return;
         uint256 tokenId = bound(rawTokenId, 1, minted);
         if (collection.tokenState(tokenId) != uint8(YieldBankTokenState.ACTIVE)) return;
-        collection.settle(tokenId);
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = tokenId;
+        vm.prank(collection.revenueRouter());
+        collection.deliverRevenueBatch(tokenIds);
     }
 
     function transfer(uint256 rawTokenId, bool toBob) external {
@@ -141,7 +135,7 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
     MockYieldBankAsset private yieldSleeve;
     MockYieldBankAsset private distributionAsset;
     MockYieldBankEligibilityPolicy private policy;
-    MockYieldBankRenderer private renderer;
+    MockYieldBankCollectionMetadata private metadata;
     MockYieldBankRevenueRouter private revenueRouter;
     MockYieldBankTimelock private timelock;
     MockYieldBankSeaDrop private seaDrop;
@@ -155,9 +149,8 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
         core = new MockYieldBankAsset("Core", "CORE");
         market = new MockYieldBankAsset("Market", "MM");
         yieldSleeve = new MockYieldBankAsset("USDG", "YLD");
-        distributionAsset = new MockYieldBankAsset("Revenue distribution", "REVENUE");
         policy = new MockYieldBankEligibilityPolicy();
-        renderer = new MockYieldBankRenderer();
+        metadata = new MockYieldBankCollectionMetadata();
         revenueRouter = new MockYieldBankRevenueRouter(
             PRIMARY_BACKING_BPS, PRIMARY_CREATOR_BPS, PRIMARY_SINJOH_BPS
         );
@@ -170,8 +163,7 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
         accountImplementation = new YieldBankAccount();
         collection = new YieldBankCollection(_config());
         vault = collection.proceedsVault();
-        vm.prank(address(timelock));
-        collection.registerDistributionAsset(address(distributionAsset));
+        distributionAsset = new MockYieldBankAsset("Distribution", "DIST");
         YieldBankInvariantHandler handler =
             new YieldBankInvariantHandler(collection, seaDrop, distributionAsset);
         targetContract(address(handler));
@@ -225,13 +217,12 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
                 assertTrue(
                     primaryState == vault.PRIMARY_PENDING()
                         || primaryState == vault.PRIMARY_ALLOCATED()
-                        || primaryState == vault.PRIMARY_CLAIMED()
                 );
             } else {
                 assertEq(tokenState, uint8(YieldBankTokenState.BURNED));
                 assertTrue(
                     primaryState == vault.PRIMARY_RELEASED()
-                        || primaryState == vault.PRIMARY_CLAIMED()
+                        || primaryState == vault.PRIMARY_ALLOCATED()
                 );
             }
             if (primaryState == vault.PRIMARY_PENDING()) {
@@ -264,7 +255,7 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
             );
             assertEq(
                 collection.distributor().totalReceived(asset),
-                collection.distributor().totalSettled(asset) + accounted
+                collection.distributor().totalDelivered(asset) + accounted
             );
         }
     }
@@ -278,6 +269,10 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
             primaryBackingBps: PRIMARY_BACKING_BPS,
             primaryCreatorBps: PRIMARY_CREATOR_BPS,
             primarySinjohBps: PRIMARY_SINJOH_BPS,
+            royaltyBackingBps: 10_000,
+            royaltyCreatorBps: 0,
+            royaltySinjohBps: 0,
+            exitTaxBps: 500,
             coreWeightBps: CORE_WEIGHT_BPS,
             marketMakingWeightBps: MARKET_MAKING_WEIGHT_BPS,
             usdgWeightBps: USDG_WEIGHT_BPS,
@@ -293,7 +288,7 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
             allocationOperator: OPERATOR,
             collectionTimelock: address(timelock),
             guardian: GUARDIAN,
-            renderer: address(renderer),
+            metadata: address(metadata),
             weth: address(weth),
             seaDrop: address(seaDrop),
             coreSleeve: address(core),
@@ -305,7 +300,7 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
                 address(policy).codehash,
                 address(allocator).codehash,
                 address(timelock).codehash,
-                address(renderer).codehash,
+                address(metadata).codehash,
                 address(weth).codehash,
                 address(seaDrop).codehash,
                 address(core).codehash,

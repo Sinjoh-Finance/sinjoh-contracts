@@ -15,7 +15,7 @@ import {
     MockYieldBankAsset,
     MockYieldBankEligibilityPolicy,
     MockYieldBankPlannedComponent,
-    MockYieldBankRenderer
+    MockYieldBankCollectionMetadata
 } from "../mocks/MockYieldBankIntegrations.sol";
 
 contract YieldBankSystemFactoryTest is Test {
@@ -77,7 +77,7 @@ contract YieldBankSystemFactoryTest is Test {
         YieldBankProtocolRegistry registry = new YieldBankProtocolRegistry(address(this));
         MockYieldBankAsset weth = new MockYieldBankAsset("Wrapped Ether", "WETH");
         MockYieldBankEligibilityPolicy policy = new MockYieldBankEligibilityPolicy();
-        MockYieldBankRenderer renderer = new MockYieldBankRenderer();
+        MockYieldBankCollectionMetadata metadata = new MockYieldBankCollectionMetadata();
 
         address predictedFactory =
             vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
@@ -88,7 +88,7 @@ contract YieldBankSystemFactoryTest is Test {
             predicted[i] = Create3V2.predict(predictedFactory, salts[i]);
         }
 
-        YieldBankConfig memory config = _config(weth, policy, renderer, predicted);
+        YieldBankConfig memory config = _config(weth, policy, metadata, predicted);
         config.feeWeightRanges = new YieldBankFeeWeightRange[](4);
         config.feeWeightRanges[0] = YieldBankFeeWeightRange({ endTokenId: 700, feeWeight: 2 });
         config.feeWeightRanges[1] = YieldBankFeeWeightRange({ endTokenId: 750, feeWeight: 5 });
@@ -113,8 +113,16 @@ contract YieldBankSystemFactoryTest is Test {
             keccak256("ACCOUNT_IMPLEMENTATION"),
             keccak256("DELTA_POOL_CONTROLLER")
         ];
-        uint16[6] memory economics = [
-            uint16(7_500), uint16(1_200), uint16(1_300), uint16(4_000), uint16(3_750), uint16(2_250)
+        uint16[9] memory economics = [
+            uint16(7_500),
+            uint16(1_200),
+            uint16(1_300),
+            uint16(8_000),
+            uint16(1_000),
+            uint16(1_000),
+            uint16(4_000),
+            uint16(3_750),
+            uint16(2_250)
         ];
         address[11] memory bindings;
         bindings[0] = predicted[1];
@@ -192,7 +200,7 @@ contract YieldBankSystemFactoryTest is Test {
     function _config(
         MockYieldBankAsset weth,
         MockYieldBankEligibilityPolicy policy,
-        MockYieldBankRenderer renderer,
+        MockYieldBankCollectionMetadata metadata,
         address[8] memory predicted
     ) private view returns (YieldBankConfig memory config) {
         config = YieldBankConfig({
@@ -203,6 +211,10 @@ contract YieldBankSystemFactoryTest is Test {
             primaryBackingBps: 7_500,
             primaryCreatorBps: 1_200,
             primarySinjohBps: 1_300,
+            royaltyBackingBps: 8_000,
+            royaltyCreatorBps: 1_000,
+            royaltySinjohBps: 1_000,
+            exitTaxBps: 500,
             coreWeightBps: 4_000,
             marketMakingWeightBps: 3_750,
             usdgWeightBps: 2_250,
@@ -218,9 +230,9 @@ contract YieldBankSystemFactoryTest is Test {
             allocationOperator: address(0xA110C),
             collectionTimelock: predicted[2],
             guardian: address(0x6A4D1A),
-            renderer: address(renderer),
+            metadata: address(metadata),
             weth: address(weth),
-            seaDrop: address(renderer),
+            seaDrop: address(metadata),
             coreSleeve: predicted[3],
             marketMakingSleeve: predicted[4],
             usdgSleeve: predicted[5],
@@ -230,9 +242,9 @@ contract YieldBankSystemFactoryTest is Test {
                 address(policy).codehash,
                 keccak256(type(MockYieldBankPlannedComponent).runtimeCode),
                 keccak256(type(MockYieldBankPlannedComponent).runtimeCode),
-                address(renderer).codehash,
+                address(metadata).codehash,
                 address(weth).codehash,
-                address(renderer).codehash,
+                address(metadata).codehash,
                 keccak256(type(MockYieldBankPlannedComponent).runtimeCode),
                 keccak256(type(MockYieldBankPlannedComponent).runtimeCode),
                 keccak256(type(MockYieldBankPlannedComponent).runtimeCode)

@@ -68,9 +68,17 @@ contract YieldBankPublicFactoryTest is Test {
         assertTrue(registry.isActiveCollection(aliceSystem.collection));
         assertTrue(registry.isActiveCollection(bobSystem.collection));
         assertEq(YieldBankCollection(aliceSystem.collection).creator(), ALICE);
-        assertEq(YieldBankCollection(aliceSystem.collection).openSeaManager(), ALICE);
+        assertEq(YieldBankCollection(aliceSystem.collection).nft().owner(), ALICE);
         assertEq(YieldBankCollection(bobSystem.collection).creator(), BOB);
         assertEq(YieldBankCollection(bobSystem.collection).nft().name(), "B");
+        assertEq(CoreStockTokenSleeve(aliceSystem.coreSleeve).name(), "A Stock Token Sleeve");
+        assertEq(CoreStockTokenSleeve(aliceSystem.coreSleeve).symbol(), "A-STOCK");
+        assertEq(
+            MarketMakingSleeve(aliceSystem.marketMakingSleeve).name(), "A Delta Liquidity Sleeve"
+        );
+        assertEq(MarketMakingSleeve(aliceSystem.marketMakingSleeve).symbol(), "A-DELTA");
+        assertEq(USDGSleeve(aliceSystem.usdgSleeve).name(), "A USDG Sleeve");
+        assertEq(USDGSleeve(aliceSystem.usdgSleeve).symbol(), "A-USDG");
 
         YieldBankNFT nft = YieldBankCollection(aliceSystem.collection).nft();
         vm.deal(address(this), 1 ether);
@@ -105,6 +113,33 @@ contract YieldBankPublicFactoryTest is Test {
         assertEq(collection.feeWeightOf(3_331), 60);
         assertEq(collection.nft().name(), "Piggy Banks");
         assertEq(collection.nft().symbol(), "PIGGY");
+    }
+
+    function testCollectionEconomicsTimelockAndUnusedSleevesAreConfigurable() public {
+        YieldBankPublicFactory.CollectionRequest memory request = _request(ALICE, "A", "A");
+        request.coreWeightBps = 0;
+        request.marketMakingWeightBps = 10_000;
+        request.usdgWeightBps = 0;
+        request.exitTaxBps = 137;
+        request.royaltyBackingBps = 6_000;
+        request.royaltyCreatorBps = 2_500;
+        request.royaltySinjohBps = 1_500;
+        request.timelockDelay = 0;
+
+        vm.prank(ALICE);
+        YieldBankPublicFactory.SystemAddresses memory system =
+            factory.createCollection(_code(), request, keccak256("CONFIGURABLE"));
+        YieldBankCollection collection = YieldBankCollection(system.collection);
+
+        assertEq(collection.coreWeightBps(), 0);
+        assertEq(collection.marketMakingWeightBps(), 10_000);
+        assertEq(collection.usdgWeightBps(), 0);
+        assertEq(collection.exitTaxBps(), 137);
+        CollectionRevenueRouter router = CollectionRevenueRouter(payable(system.revenueRouter));
+        assertEq(router.royaltyBackingBps(), 6_000);
+        assertEq(router.royaltyCreatorBps(), 2_500);
+        assertEq(router.royaltySinjohBps(), 1_500);
+        assertEq(CollectionTimelock(payable(system.collectionTimelock)).getMinDelay(), 0);
     }
 
     function testCallerCannotSubstituteUnapprovedCreationCode() public {
@@ -232,6 +267,7 @@ contract YieldBankPublicFactoryTest is Test {
         r.symbol = symbol;
         r.maxSupply = 3;
         r.primaryBackingBps = 10_000;
+        r.exitTaxBps = 500;
         r.royaltyBackingBps = 10_000;
         r.coreWeightBps = 3_334;
         r.marketMakingWeightBps = 3_333;
@@ -241,6 +277,7 @@ contract YieldBankPublicFactoryTest is Test {
         r.sinjohFeeRecipient = owner;
         r.allocationOperator = owner;
         r.timelockProposer = owner;
+        r.timelockDelay = 7 days;
         r.guardian = owner;
         r.coreSleeve = YieldBankPublicFactory.SleeveConfig({
             maximumStrategies: 8, maximumAdapterCapBps: 10_000, maximumOperatorLossBps: 0

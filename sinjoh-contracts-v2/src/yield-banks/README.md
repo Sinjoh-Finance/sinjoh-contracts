@@ -11,20 +11,20 @@ contract, API, SDK, indexer, keeper, and UI naming consistently uses **Yield Ban
 - `YieldBankSystemFactory`: atomic, version-pinned CREATE3 deployment of eight mutually bound
   modules, including the account implementation and Delta controller, followed by relationship
   validation and CREATE2 collection deployment.
-- `YieldBankCollection`: configurable immutable supply, SeaDrop mint coordination, settlement, and redemption.
+- `YieldBankCollection`: configurable immutable supply, SeaDrop mint coordination, treasury delivery, and redemption.
 - `YieldBankNFT`: OpenSea SeaDrop-compatible ERC-721 with standard Seaport approvals and EIP-2981.
-- `YieldBankOnchainRenderer`: immutable data-URI metadata and SVG artwork using Yield Banks terminology.
+- `YieldBankCollectionMetadata`: immutable collection name and symbol storage. Each collection owner controls its own token metadata and artwork through the NFT base URI.
 - `YieldBankAccount`: deterministic, token-bound treasury clone bounded to 65 assets: the
   distributor's 64 collection-wide assets plus one owner-selected dynamic Delta sleeve.
 - `YieldBankProceedsVault`: the collection-specific Sinjoh primary fee router and holding contract, with exact native-proceeds receipt accounting, immutable per-collection economics, no additional general-router fee, and operator-only manual allocation.
-- `YieldBankDistributor`: RAY-precision per-live-token distributions without supply-sized loops.
-- `CollectionRevenueRouter`: authenticated project revenue plus native/ERC-20 royalty ingress using immutable per-collection economics, retryable fee legs, and allocation-operator-only synchronization with fresh guarded route data.
+- `YieldBankDistributor`: internal RAY-precision fee accounting used by the Sinjoh Fee Router to push weighted collection revenue into NFT treasury accounts in bounded batches.
+- `CollectionRevenueRouter`: permissionless project-revenue funding plus native/ERC-20 royalty ingress using immutable per-collection economics, retryable fee legs, and allocation-operator-only synchronization with fresh guarded route data. Its batch endpoint can only deliver each NFT's accounted share to that NFT's immutable treasury address.
 - `YieldBankProjectRevenueBridge`: exact, identity-bound Project V2 `FUND_PROJECT_SINK` bridge into one collection revenue router.
 - `CollectionPortfolioAllocator`: collection defaults for primary and ongoing allocation plus NFT-owner targets and operator-executed full-backing rebalances with exact route-input checks.
 - `DeltaPoolController`: source-verified Delta infrastructure generations plus permissionless discovery
   of canonical, initialized WETH-paired V3 pools. Governance approves the factory, manager, builder,
   and exact Yield Banks creation binaries once; it does not approve pools one by one.
-- `CollectionTimelock`: fixed seven-day delay for collection policy and integration changes.
+- `CollectionTimelock`: a per-collection, deploy-time-configured delay for collection policy and integration changes.
 - `PriceHub` and `StrategyRegistry`: fail-closed 18-decimal pricing and adapter provenance.
 - `CoreStockTokenSleeve`, `MarketMakingSleeve`, and `USDGSleeve`: capped ERC-20 share sleeves with in-kind redemption.
 - `IStrategyAdapter`: a small synchronous extension boundary for separately reviewed future venues.
@@ -36,10 +36,16 @@ contract, API, SDK, indexer, keeper, and UI naming consistently uses **Yield Ban
 - `DeltaV3TwapUsdFeed`: an optional guarded paired-token/USD fallback for pools whose paired token
   has no direct trusted USD feed; it combines an aged V3 TWAP with a reviewed WETH/USD feed.
 
-The core burn path settles pending assets, applies a 5% tax to each tracked asset while more than one
+Any standard ERC-20 can be transferred directly to an NFT's deterministic `accountOf(tokenId)`
+address. The balance is in that treasury immediately: there is no sender allowlist, token
+registration, synchronization, or holder claim. When redeeming, the owner supplies any directly
+deposited asset addresses so those balances are released with the managed backing.
+
+The core burn path delivers pending collection revenue, applies the collection's configured exit tax to each protocol-managed tracked asset while more than one
 NFT remains, redistributes that tax using the post-burn live supply, and transfers the remainder to
-the snapshotted holder. The final NFT pays no tax and receives every remaining accounted distributor
-unit. It does not call an oracle, swap, lending market, or strategy adapter.
+the snapshotted holder. Directly deposited assets are returned in full and are never inserted into
+the collection-wide fee asset set. The final NFT pays no tax and receives every remaining accounted
+fee unit. It does not call an oracle, swap, lending market, or strategy adapter.
 The burn proof is checked for both redemption and restricted-share receipt, and ordinary sleeve
 redemption forwards its proof to the same eligibility policy instead of silently substituting an
 empty proof. Standard NFT transfers remain address-state-only so Seaport can execute them.
@@ -51,7 +57,7 @@ of that pool. This keeps the normal burn path oracle- and swap-independent. Mate
 sleeves are marked as restricted backing but are not registered as global distribution assets,
 because no dynamic sleeve can reach the burn-time exit-tax loop. Pool materialization is therefore
 not capped by the distributor. The distributor retains its separate 64-asset gas bound for assets
-that it actually settles.
+that it actually delivers.
 
 Every configured external contract and asset is bound by address and runtime code hash. Release
 verification additionally follows USDG's EIP-1967 implementation slot and each Robinhood Stock
@@ -73,7 +79,7 @@ pool does not need a release-manifest entry or pool-specific governance transact
 sets an adapter-withdrawal-loss
 ceiling and an execution expiry; route swaps have separate per-transaction minimum outputs. The
 request does not grant the holder direct strategy or adapter authority. The allocation operator
-manually executes the exact pending revision: claim and settlement run first, every existing sleeve
+manually executes the exact pending revision: pending collection fees are delivered first, every existing sleeve
 position is redeemed pro rata, adapter positions are partially unwound with reviewed calldata and
 loss limits, non-WETH assets use timelock-bound reverse routes, and all recovered WETH is deposited
 at the owner target. Each revision is executable exactly once. An unexecuted request is bound to the
@@ -119,7 +125,8 @@ This release does not support Delta V4, V2, vault, or other position formats; th
 Primary minting is hosted by OpenSea and sends native ETH through pinned SeaDrop to the collection's
 proceeds vault. That vault is the Yield Bank's Sinjoh Fee Router: it releases the exact configured
 creator and Sinjoh amounts in native ETH and wraps only the backing amount at manual
-allocation. There is no extra one-percent general-router fee. There is no sale
+allocation. The same allocation transaction sends each resulting sleeve balance directly to its
+NFT treasury; holders do not claim primary backing. There is no extra one-percent general-router fee. There is no sale
 success, refund, deadline, sellout release, or automatic investment transition. Missing
 external integrations fail closed: no address, route, feed, venue, pool, or ABI is inferred.
 SeaDrop public, token-gated, and signed stages must preserve both a positive mint price and a

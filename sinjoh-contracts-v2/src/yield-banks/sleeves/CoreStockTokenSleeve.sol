@@ -37,6 +37,8 @@ contract CoreStockTokenSleeve is BaseSleeve {
     );
 
     constructor(
+        string memory name_,
+        string memory symbol_,
         address accountingAsset_,
         address allocator_,
         address timelock_,
@@ -49,8 +51,8 @@ contract CoreStockTokenSleeve is BaseSleeve {
         uint16 maximumOperatorLossBps_
     )
         BaseSleeve(
-            "Sinjoh Yield Banks Stock Token Sleeve",
-            "sybCORE",
+            name_,
+            symbol_,
             YieldBankIds.CORE,
             accountingAsset_,
             allocator_,

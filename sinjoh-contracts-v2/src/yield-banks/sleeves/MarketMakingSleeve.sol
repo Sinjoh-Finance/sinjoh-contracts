@@ -7,6 +7,8 @@ import { YieldBankIds } from "../libraries/YieldBankIds.sol";
 /// @notice Holds manually managed market-making positions through reviewed adapters.
 contract MarketMakingSleeve is BaseSleeve {
     constructor(
+        string memory name_,
+        string memory symbol_,
         address accountingAsset_,
         address allocator_,
         address timelock_,
@@ -19,8 +21,8 @@ contract MarketMakingSleeve is BaseSleeve {
         uint16 maximumOperatorLossBps_
     )
         BaseSleeve(
-            "Sinjoh Yield Banks Market-Making Sleeve",
-            "sybMM",
+            name_,
+            symbol_,
             YieldBankIds.MARKET_MAKING,
             accountingAsset_,
             allocator_,

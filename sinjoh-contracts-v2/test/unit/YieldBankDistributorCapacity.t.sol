@@ -41,10 +41,10 @@ contract YieldBankDistributorCapacityTest is Test {
 
         asset.mint(address(harness), 82 ether);
         harness.accrue(address(asset), 82 ether, 82);
-        harness.settle(1, standard, false);
-        harness.settle(2, premium, false);
-        harness.settle(3, prime, false);
-        harness.settle(4, alpha, false);
+        harness.deliver(1, standard, false);
+        harness.deliver(2, premium, false);
+        harness.deliver(3, prime, false);
+        harness.deliver(4, alpha, false);
 
         assertEq(asset.balanceOf(standard), 2 ether);
         assertEq(asset.balanceOf(premium), 5 ether);
@@ -53,7 +53,7 @@ contract YieldBankDistributorCapacityTest is Test {
         assertEq(harness.distributor().accountedBalance(address(asset)), 0);
     }
 
-    function testWeightedFractionalEntitlementSurvivesRepeatedSettlement() external {
+    function testWeightedFractionalEntitlementSurvivesRepeatedDelivery() external {
         MockYieldBankDistributorHarness harness = new MockYieldBankDistributorHarness();
         MockYieldBankAsset asset = new MockYieldBankAsset("Distribution asset", "DIST");
         harness.registerAsset(address(asset));
@@ -61,17 +61,17 @@ contract YieldBankDistributorCapacityTest is Test {
 
         asset.mint(address(harness), 3);
         harness.accrue(address(asset), 1, 3);
-        harness.settle(1, account, false);
+        harness.deliver(1, account, false);
         assertEq(asset.balanceOf(account), 0);
         assertEq(harness.distributor().pending(1, address(asset)), 0);
 
         harness.accrue(address(asset), 1, 3);
         assertEq(harness.distributor().pending(1, address(asset)), 1);
-        harness.settle(1, account, false);
+        harness.deliver(1, account, false);
         assertEq(asset.balanceOf(account), 1);
 
         harness.accrue(address(asset), 1, 3);
-        harness.settle(1, account, false);
+        harness.deliver(1, account, false);
         assertEq(asset.balanceOf(account), 1);
         assertEq(harness.distributor().accountedBalance(address(asset)), 2);
     }
@@ -107,17 +107,17 @@ contract YieldBankDistributorCapacityTest is Test {
 
         asset.mint(address(harness), amount);
         harness.accrue(address(asset), amount, totalWeight);
-        harness.settle(1, one, false);
-        harness.settle(2, two, false);
-        harness.settle(3, three, true);
+        harness.deliver(1, one, false);
+        harness.deliver(2, two, false);
+        harness.deliver(3, three, true);
 
         assertEq(asset.balanceOf(one) + asset.balanceOf(two) + asset.balanceOf(three), amount);
         assertEq(harness.distributor().accountedBalance(address(asset)), 0);
-        assertEq(harness.distributor().totalSettled(address(asset)), amount);
+        assertEq(harness.distributor().totalDelivered(address(asset)), amount);
         assertTrue(harness.distributor().solvent(address(asset)));
     }
 
-    function testMaximumAssetSettlementRemainsBoundedAndTracksEveryNonzeroAsset() external {
+    function testMaximumAssetDeliveryRemainsBoundedAndTracksEveryNonzeroAsset() external {
         MockYieldBankDistributorHarness harness = new MockYieldBankDistributorHarness();
         for (uint256 i; i < 64; ++i) {
             MockYieldBankAsset asset = new MockYieldBankAsset("Distribution asset", "DIST");
@@ -128,14 +128,14 @@ contract YieldBankDistributorCapacityTest is Test {
         address account = harness.createAccount(1);
 
         uint256 gasBefore = gasleft();
-        harness.settle(1, account, true);
+        harness.deliver(1, account, true);
         uint256 gasUsed = gasBefore - gasleft();
 
         assertEq(YieldBankAccount(account).trackedAssets().length, 64);
         assertLt(gasUsed, 12_000_000);
     }
 
-    function testMaximumSettlementAlsoSucceedsWithActiveDynamicDeltaSleeve() external {
+    function testMaximumDeliveryAlsoSucceedsWithActiveDynamicDeltaSleeve() external {
         MockYieldBankDistributorHarness harness = new MockYieldBankDistributorHarness();
         address account = harness.createAccount(1);
         MockYieldBankAsset dynamicSleeve =
@@ -149,12 +149,12 @@ contract YieldBankDistributorCapacityTest is Test {
             harness.accrue(address(asset), 1 ether, 1);
         }
 
-        harness.settle(1, account, true);
+        harness.deliver(1, account, true);
 
         assertEq(YieldBankAccount(account).trackedAssets().length, 65);
     }
 
-    function testSettlementIsIdempotentAndPreservesFractionalDebt() external {
+    function testDeliveryIsIdempotentAndPreservesFractionalDebt() external {
         MockYieldBankDistributorHarness harness = new MockYieldBankDistributorHarness();
         MockYieldBankAsset asset = new MockYieldBankAsset("Distribution asset", "DIST");
         harness.registerAsset(address(asset));
@@ -162,19 +162,19 @@ contract YieldBankDistributorCapacityTest is Test {
 
         asset.mint(address(harness), 10 ether + 3);
         harness.accrue(address(asset), 10 ether, 3);
-        harness.settle(1, account, false);
-        uint256 firstSettlement = asset.balanceOf(account);
-        assertEq(firstSettlement, 3_333_333_333_333_333_333);
+        harness.deliver(1, account, false);
+        uint256 firstDelivery = asset.balanceOf(account);
+        assertEq(firstDelivery, 3_333_333_333_333_333_333);
 
-        harness.settle(1, account, false);
-        assertEq(asset.balanceOf(account), firstSettlement);
+        harness.deliver(1, account, false);
+        assertEq(asset.balanceOf(account), firstDelivery);
 
         harness.accrue(address(asset), 3, 3);
-        harness.settle(1, account, false);
-        assertEq(asset.balanceOf(account), firstSettlement + 1);
+        harness.deliver(1, account, false);
+        assertEq(asset.balanceOf(account), firstDelivery + 1);
     }
 
-    function testTokenCreatedAfterAccrualCannotClaimEarlierYield() external {
+    function testTokenCreatedAfterAccrualCannotReceiveEarlierFees() external {
         MockYieldBankDistributorHarness harness = new MockYieldBankDistributorHarness();
         MockYieldBankAsset asset = new MockYieldBankAsset("Distribution asset", "DIST");
         harness.registerAsset(address(asset));
@@ -183,11 +183,11 @@ contract YieldBankDistributorCapacityTest is Test {
         asset.mint(address(harness), 14 ether);
         harness.accrue(address(asset), 10 ether, 1);
         address laterAccount = harness.createAccount(2);
-        harness.settle(2, laterAccount, false);
+        harness.deliver(2, laterAccount, false);
         assertEq(asset.balanceOf(laterAccount), 0);
 
         harness.accrue(address(asset), 4 ether, 2);
-        harness.settle(2, laterAccount, false);
+        harness.deliver(2, laterAccount, false);
         assertEq(asset.balanceOf(laterAccount), 2 ether);
     }
 
@@ -201,19 +201,19 @@ contract YieldBankDistributorCapacityTest is Test {
 
         asset.mint(address(harness), 10);
         harness.accrue(address(asset), 10, 3);
-        harness.settle(1, first, false);
-        harness.settle(2, second, false);
-        harness.settle(3, finalAccount, true);
+        harness.deliver(1, first, false);
+        harness.deliver(2, second, false);
+        harness.deliver(3, finalAccount, true);
 
         assertEq(asset.balanceOf(first), 3);
         assertEq(asset.balanceOf(second), 3);
         assertEq(asset.balanceOf(finalAccount), 4);
         assertEq(harness.distributor().accountedBalance(address(asset)), 0);
-        assertEq(harness.distributor().totalSettled(address(asset)), 10);
+        assertEq(harness.distributor().totalDelivered(address(asset)), 10);
         assertTrue(harness.distributor().solvent(address(asset)));
     }
 
-    function testSettlementFailureRollsBackAndCanBeRetriedWithoutLosingYield() external {
+    function testDeliveryFailureRollsBackAndCanBeRetriedWithoutLosingYield() external {
         MockYieldBankDistributorHarness harness = new MockYieldBankDistributorHarness();
         RetryableDistributionAsset asset = new RetryableDistributionAsset();
         harness.registerAsset(address(asset));
@@ -223,16 +223,16 @@ contract YieldBankDistributorCapacityTest is Test {
         asset.setRejectedRecipient(account);
 
         vm.expectRevert("recipient rejected");
-        harness.settle(1, account, false);
+        harness.deliver(1, account, false);
         assertEq(harness.distributor().pending(1, address(asset)), 7 ether);
         assertEq(harness.distributor().accountedBalance(address(asset)), 7 ether);
-        assertEq(harness.distributor().totalSettled(address(asset)), 0);
+        assertEq(harness.distributor().totalDelivered(address(asset)), 0);
 
         asset.setRejectedRecipient(address(0));
-        harness.settle(1, account, false);
+        harness.deliver(1, account, false);
         assertEq(asset.balanceOf(account), 7 ether);
         assertEq(harness.distributor().pending(1, address(asset)), 0);
         assertEq(harness.distributor().accountedBalance(address(asset)), 0);
-        assertEq(harness.distributor().totalSettled(address(asset)), 7 ether);
+        assertEq(harness.distributor().totalDelivered(address(asset)), 7 ether);
     }
 }

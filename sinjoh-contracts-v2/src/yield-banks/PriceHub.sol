@@ -272,10 +272,17 @@ contract PriceHub is IPriceHub {
             return (0, 0, FailureReason.MARKET_CLOSED);
         }
         try IYieldBankAggregator(config.feed).latestRoundData() returns (
-            uint80, int256 answer, uint256, uint256 updatedAt, uint80
+            uint80 roundId,
+            int256 answer,
+            uint256 startedAt,
+            uint256 updatedAt,
+            uint80 answeredInRound
         ) {
             if (answer <= 0) return (0, 0, FailureReason.NONPOSITIVE_ANSWER);
             if (updatedAt > type(uint48).max) return (0, 0, FailureReason.STALE_FEED);
+            if (
+                roundId == 0 || answeredInRound < roundId || startedAt == 0 || updatedAt < startedAt
+            ) return (0, 0, FailureReason.STALE_FEED);
             // Feed freshness is necessarily timestamp-based.
             // forge-lint: disable-next-line(block-timestamp)
             if (

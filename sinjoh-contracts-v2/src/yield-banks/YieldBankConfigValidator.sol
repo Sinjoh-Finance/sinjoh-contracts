@@ -7,6 +7,9 @@ interface IYieldBankConfiguredRevenueEconomics {
     function primaryBackingBps() external view returns (uint16);
     function primaryCreatorBps() external view returns (uint16);
     function primarySinjohBps() external view returns (uint16);
+    function royaltyBackingBps() external view returns (uint16);
+    function royaltyCreatorBps() external view returns (uint16);
+    function royaltySinjohBps() external view returns (uint16);
 }
 
 interface IYieldBankConfiguredPortfolioEconomics {
@@ -15,7 +18,7 @@ interface IYieldBankConfiguredPortfolioEconomics {
     function usdgWeightBps() external view returns (uint16);
 }
 
-interface IYieldBankConfiguredRendererMetadata {
+interface IYieldBankConfiguredCollectionMetadata {
     function collectionName() external view returns (string memory);
     function collectionSymbol() external view returns (string memory);
 }
@@ -73,25 +76,27 @@ library YieldBankConfigValidator {
                 || c.revenueRouter.code.length == 0 || c.eligibilityPolicy.code.length == 0
                 || c.portfolioAllocator.code.length == 0 || c.allocationOperator == address(0)
                 || c.collectionTimelock.code.length == 0 || c.guardian == address(0)
-                || c.renderer.code.length == 0 || c.weth.code.length == 0
+                || c.metadata.code.length == 0 || c.weth.code.length == 0
                 || c.seaDrop.code.length == 0 || c.coreSleeve.code.length == 0
                 || c.marketMakingSleeve.code.length == 0 || c.usdgSleeve.code.length == 0
                 || c.accountImplementation.code.length == 0 || c.coreSleeve == c.marketMakingSleeve
                 || c.coreSleeve == c.usdgSleeve || c.marketMakingSleeve == c.usdgSleeve
                 || c.primaryBackingBps == 0
                 || uint256(c.primaryBackingBps) + c.primaryCreatorBps + c.primarySinjohBps != BPS
-                || c.coreWeightBps == 0 || c.marketMakingWeightBps == 0 || c.usdgWeightBps == 0
+                || c.royaltyBackingBps == 0
+                || uint256(c.royaltyBackingBps) + c.royaltyCreatorBps + c.royaltySinjohBps != BPS
+                || c.exitTaxBps > BPS
                 || uint256(c.coreWeightBps) + c.marketMakingWeightBps + c.usdgWeightBps != BPS
                 || (!redemptionDisabled && !redemptionEnabled)
         ) revert InvalidConfiguration();
 
-        _validateRendererMetadata(c.renderer);
+        _validateCollectionMetadata(c.metadata);
         _validateFeeWeightSchedule(c);
         bytes32[10] calldata h = c.integrationCodeHashes;
         if (
             c.revenueRouter.codehash != h[0] || c.eligibilityPolicy.codehash != h[1]
                 || c.portfolioAllocator.codehash != h[2] || c.collectionTimelock.codehash != h[3]
-                || c.renderer.codehash != h[4] || c.weth.codehash != h[5]
+                || c.metadata.codehash != h[4] || c.weth.codehash != h[5]
                 || c.seaDrop.codehash != h[6] || c.coreSleeve.codehash != h[7]
                 || c.marketMakingSleeve.codehash != h[8] || c.usdgSleeve.codehash != h[9]
         ) revert InvalidConfiguration();
@@ -104,6 +109,9 @@ library YieldBankConfigValidator {
             revenue.primaryBackingBps() != c.primaryBackingBps
                 || revenue.primaryCreatorBps() != c.primaryCreatorBps
                 || revenue.primarySinjohBps() != c.primarySinjohBps
+                || revenue.royaltyBackingBps() != c.royaltyBackingBps
+                || revenue.royaltyCreatorBps() != c.royaltyCreatorBps
+                || revenue.royaltySinjohBps() != c.royaltySinjohBps
                 || portfolio.coreWeightBps() != c.coreWeightBps
                 || portfolio.marketMakingWeightBps() != c.marketMakingWeightBps
                 || portfolio.usdgWeightBps() != c.usdgWeightBps
@@ -127,24 +135,26 @@ library YieldBankConfigValidator {
                 || c.revenueRouter.code.length == 0 || c.eligibilityPolicy.code.length == 0
                 || c.portfolioAllocator.code.length == 0 || c.allocationOperator == address(0)
                 || c.collectionTimelock.code.length == 0 || c.guardian == address(0)
-                || c.renderer.code.length == 0 || c.weth.code.length == 0
+                || c.metadata.code.length == 0 || c.weth.code.length == 0
                 || c.seaDrop.code.length == 0 || c.coreSleeve.code.length == 0
                 || c.marketMakingSleeve.code.length == 0 || c.usdgSleeve.code.length == 0
                 || c.accountImplementation.code.length == 0 || c.coreSleeve == c.marketMakingSleeve
                 || c.coreSleeve == c.usdgSleeve || c.marketMakingSleeve == c.usdgSleeve
                 || c.primaryBackingBps == 0
                 || uint256(c.primaryBackingBps) + c.primaryCreatorBps + c.primarySinjohBps != BPS
-                || c.coreWeightBps == 0 || c.marketMakingWeightBps == 0 || c.usdgWeightBps == 0
+                || c.royaltyBackingBps == 0
+                || uint256(c.royaltyBackingBps) + c.royaltyCreatorBps + c.royaltySinjohBps != BPS
+                || c.exitTaxBps > BPS
                 || uint256(c.coreWeightBps) + c.marketMakingWeightBps + c.usdgWeightBps != BPS
                 || (!redemptionDisabled && !redemptionEnabled)
         ) revert InvalidConfiguration();
 
-        _validateRendererMetadata(c.renderer);
+        _validateCollectionMetadata(c.metadata);
         _validateFeeWeightScheduleMemory(c);
         bytes32[10] memory h = c.integrationCodeHashes;
         if (
             h[0] != bytes32(0) || c.eligibilityPolicy.codehash != h[1] || h[2] != bytes32(0)
-                || h[3] != bytes32(0) || c.renderer.codehash != h[4] || c.weth.codehash != h[5]
+                || h[3] != bytes32(0) || c.metadata.codehash != h[4] || c.weth.codehash != h[5]
                 || c.seaDrop.codehash != h[6] || h[7] != bytes32(0) || h[8] != bytes32(0)
                 || h[9] != bytes32(0)
         ) revert InvalidConfiguration();
@@ -157,6 +167,9 @@ library YieldBankConfigValidator {
             revenue.primaryBackingBps() != c.primaryBackingBps
                 || revenue.primaryCreatorBps() != c.primaryCreatorBps
                 || revenue.primarySinjohBps() != c.primarySinjohBps
+                || revenue.royaltyBackingBps() != c.royaltyBackingBps
+                || revenue.royaltyCreatorBps() != c.royaltyCreatorBps
+                || revenue.royaltySinjohBps() != c.royaltySinjohBps
                 || portfolio.coreWeightBps() != c.coreWeightBps
                 || portfolio.marketMakingWeightBps() != c.marketMakingWeightBps
                 || portfolio.usdgWeightBps() != c.usdgWeightBps
@@ -243,9 +256,9 @@ library YieldBankConfigValidator {
         }
     }
 
-    function _validateRendererMetadata(address renderer) private view {
-        IYieldBankConfiguredRendererMetadata metadata =
-            IYieldBankConfiguredRendererMetadata(renderer);
+    function _validateCollectionMetadata(address metadataAddress) private view {
+        IYieldBankConfiguredCollectionMetadata metadata =
+            IYieldBankConfiguredCollectionMetadata(metadataAddress);
         bytes memory name = bytes(metadata.collectionName());
         bytes memory symbol = bytes(metadata.collectionSymbol());
         if (name.length == 0 || name.length > 128 || symbol.length == 0 || symbol.length > 32) {

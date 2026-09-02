@@ -15,7 +15,9 @@ import { YieldBankDistributor } from "../../src/yield-banks/YieldBankDistributor
 import {
     IYieldBankEligibilityPolicy
 } from "../../src/yield-banks/interfaces/IYieldBankEligibilityPolicy.sol";
-import { IYieldBankRenderer } from "../../src/yield-banks/interfaces/IYieldBankRenderer.sol";
+import {
+    IYieldBankCollectionMetadata
+} from "../../src/yield-banks/interfaces/IYieldBankCollectionMetadata.sol";
 import {
     IYieldBankAllocationReceiver
 } from "../../src/yield-banks/interfaces/IYieldBankAllocationReceiver.sol";
@@ -259,17 +261,13 @@ contract MockYieldBankEligibilityPolicy is IYieldBankEligibilityPolicy {
     }
 }
 
-contract MockYieldBankRenderer is IYieldBankRenderer {
+contract MockYieldBankCollectionMetadata is IYieldBankCollectionMetadata {
     function collectionName() external pure returns (string memory) {
         return "Sinjoh Yield Banks";
     }
 
     function collectionSymbol() external pure returns (string memory) {
         return "SYB";
-    }
-
-    function tokenURI(address, uint256, address, uint8) external pure returns (string memory) {
-        return "ipfs://yield-bank";
     }
 }
 
@@ -290,6 +288,18 @@ contract MockYieldBankRevenueRouter {
         primaryBackingBps = primaryBackingBps_;
         primaryCreatorBps = primaryCreatorBps_;
         primarySinjohBps = primarySinjohBps_;
+    }
+
+    function royaltyBackingBps() external pure returns (uint16) {
+        return 10_000;
+    }
+
+    function royaltyCreatorBps() external pure returns (uint16) {
+        return 0;
+    }
+
+    function royaltySinjohBps() external pure returns (uint16) {
+        return 0;
     }
 
     function accrue(YieldBankCollection collection, address asset, uint256 amount) external {
@@ -316,6 +326,9 @@ contract MockYieldBankPlannedComponent {
     uint16 public primaryBackingBps;
     uint16 public primaryCreatorBps;
     uint16 public primarySinjohBps;
+    uint16 public royaltyBackingBps;
+    uint16 public royaltyCreatorBps;
+    uint16 public royaltySinjohBps;
     uint16 public coreWeightBps;
     uint16 public marketMakingWeightBps;
     uint16 public usdgWeightBps;
@@ -323,7 +336,7 @@ contract MockYieldBankPlannedComponent {
     constructor(
         address collection_,
         address dependency_,
-        uint16[6] memory economics_,
+        uint16[9] memory economics_,
         address[11] memory bindings_
     ) {
         require(collection_ != address(0) && dependency_ != address(0));
@@ -341,9 +354,12 @@ contract MockYieldBankPlannedComponent {
         primaryBackingBps = economics_[0];
         primaryCreatorBps = economics_[1];
         primarySinjohBps = economics_[2];
-        coreWeightBps = economics_[3];
-        marketMakingWeightBps = economics_[4];
-        usdgWeightBps = economics_[5];
+        royaltyBackingBps = economics_[3];
+        royaltyCreatorBps = economics_[4];
+        royaltySinjohBps = economics_[5];
+        coreWeightBps = economics_[6];
+        marketMakingWeightBps = economics_[7];
+        usdgWeightBps = economics_[8];
     }
 
     function activeDeltaPoolOf(uint256) external pure returns (address) {
@@ -468,6 +484,8 @@ contract MockYieldBankAggregator {
     int256 public answer;
     uint256 public startedAt;
     uint256 public updatedAt;
+    uint80 public roundId = 1;
+    uint80 public answeredInRound = 1;
 
     constructor(uint8 decimals_, int256 answer_) {
         decimals = decimals_;
@@ -494,8 +512,13 @@ contract MockYieldBankAggregator {
         updatedAt = updatedAt_;
     }
 
+    function setRoundIdentity(uint80 roundId_, uint80 answeredInRound_) external {
+        roundId = roundId_;
+        answeredInRound = answeredInRound_;
+    }
+
     function latestRoundData() external view returns (uint80, int256, uint256, uint256, uint80) {
-        return (1, answer, startedAt, updatedAt, 1);
+        return (roundId, answer, startedAt, updatedAt, answeredInRound);
     }
 }
 
@@ -542,7 +565,9 @@ contract MockYieldBankAllocationRoute is IYieldBankAllocationRoute {
 contract MockYieldBankAllocationReceiver is IYieldBankAllocationReceiver {
     address public immutable allocationOperator = msg.sender;
     bool public shouldFail;
+    bool public useWeights;
     address[3] public outputs;
+    uint16[3] public weights;
 
     constructor(address[3] memory outputs_) {
         outputs = outputs_;
@@ -550,6 +575,12 @@ contract MockYieldBankAllocationReceiver is IYieldBankAllocationReceiver {
 
     function setShouldFail(bool value) external {
         shouldFail = value;
+    }
+
+    function setWeights(uint16[3] calldata values) external {
+        require(uint256(values[0]) + values[1] + values[2] == 10_000);
+        weights = values;
+        useWeights = true;
     }
 
     function allocate(address asset, uint256 amount, bytes calldata)
@@ -562,10 +593,21 @@ contract MockYieldBankAllocationReceiver is IYieldBankAllocationReceiver {
         IERC20(asset).transferFrom(msg.sender, address(this), amount);
         distributionAssets = new address[](3);
         distributionAmounts = new uint256[](3);
+        uint256[3] memory amounts;
+        if (useWeights) {
+            amounts[0] = amount * weights[0] / 10_000;
+            uint256 cumulative = amount * (uint256(weights[0]) + weights[1]) / 10_000;
+            amounts[1] = cumulative - amounts[0];
+            amounts[2] = amount - cumulative;
+        } else {
+            amounts[0] = amount / 3;
+            amounts[1] = amount / 3;
+            amounts[2] = amount / 3;
+        }
         for (uint256 i; i < 3; ++i) {
             distributionAssets[i] = outputs[i];
-            distributionAmounts[i] = amount / 3;
-            MockYieldBankAsset(outputs[i]).mint(msg.sender, distributionAmounts[i]);
+            distributionAmounts[i] = amounts[i];
+            if (amounts[i] != 0) MockYieldBankAsset(outputs[i]).mint(msg.sender, amounts[i]);
         }
     }
 }
@@ -576,6 +618,7 @@ contract MockYieldBankCollectionReceiver {
     address public weth;
     uint256 public liveSupply = 7;
     mapping(address asset => uint256 amount) public received;
+    uint256[] private _deliveredTokenIds;
 
     constructor(bytes32 collectionId_) {
         collectionId = collectionId_;
@@ -594,6 +637,16 @@ contract MockYieldBankCollectionReceiver {
     function accrueDistribution(address asset, uint256 amount) external {
         IERC20(asset).transferFrom(msg.sender, address(this), amount);
         received[asset] += amount;
+    }
+
+    function deliverRevenueBatch(uint256[] calldata tokenIds) external {
+        for (uint256 i; i < tokenIds.length; ++i) {
+            _deliveredTokenIds.push(tokenIds[i]);
+        }
+    }
+
+    function deliveredTokenId(uint256 index) external view returns (uint256) {
+        return _deliveredTokenIds[index];
     }
 }
 
@@ -633,8 +686,8 @@ contract MockYieldBankDistributorHarness {
         distributor.accrueFrom(asset, address(this), amount, totalLiveFeeWeight);
     }
 
-    function settle(uint256 tokenId, address account, bool terminal) external {
-        distributor.settle(tokenId, account, terminal);
+    function deliver(uint256 tokenId, address account, bool terminal) external {
+        distributor.deliver(tokenId, account, terminal);
     }
 
     function trackAccountAsset(address account, address asset) external {

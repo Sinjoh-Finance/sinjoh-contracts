@@ -35,24 +35,20 @@ interface IYieldBankPortfolioEconomics {
 contract YieldBankCollection is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    uint256 public constant MAX_SETTLE_BATCH = 20;
+    uint256 public constant MAX_REVENUE_DELIVERY_BATCH = 20;
     uint256 public constant MAX_FEE_WEIGHT_RANGES = 16;
     uint256 public constant MAX_TOTAL_FEE_WEIGHT = 1e27;
     uint16 public constant BPS = 10_000;
-    uint16 public constant EXIT_TAX_BPS = 500;
 
     bytes32 public immutable collectionId;
     uint256 public immutable maxSupply;
     uint256 public immutable maximumTotalFeeWeight;
     uint96 public immutable secondaryRoyaltyBps;
-    uint16 public immutable primaryBackingBps;
-    uint16 public immutable primaryCreatorBps;
-    uint16 public immutable primarySinjohBps;
+    uint16 public immutable exitTaxBps;
     uint16 public immutable coreWeightBps;
     uint16 public immutable marketMakingWeightBps;
     uint16 public immutable usdgWeightBps;
     address public immutable creator;
-    address public immutable openSeaManager;
     address public immutable sinjohFeeRecipient;
     IYieldBankBurnableToken public immutable redemptionToken;
     uint256 public immutable redemptionTokenAmount;
@@ -111,12 +107,10 @@ contract YieldBankCollection is ReentrancyGuard {
     event YieldBankMinted(
         uint256 indexed tokenId, address indexed owner, address indexed account, uint96 feeWeight
     );
-    event DistributionSettled(uint256 indexed tokenId, address indexed account);
-    event PrimarySharesClaimed(uint256 indexed tokenId, address indexed account);
+    event RevenueDelivered(uint256 indexed tokenId, address indexed account);
     event YieldBankRedeemed(
         uint256 indexed tokenId, address indexed beneficiary, bool terminal, uint256 pendingBacking
     );
-    event DistributionAssetRegistered(address indexed asset);
     event DynamicSleeveRegistered(address indexed sleeve);
     event RedemptionTokenBurned(
         uint256 indexed tokenId, address indexed owner, address indexed token, uint256 amount
@@ -127,14 +121,11 @@ contract YieldBankCollection is ReentrancyGuard {
         maxSupply = config.maxSupply;
         maximumTotalFeeWeight = _storeFeeWeightSchedule(config);
         secondaryRoyaltyBps = config.secondaryRoyaltyBps;
-        primaryBackingBps = config.primaryBackingBps;
-        primaryCreatorBps = config.primaryCreatorBps;
-        primarySinjohBps = config.primarySinjohBps;
+        exitTaxBps = config.exitTaxBps;
         coreWeightBps = config.coreWeightBps;
         marketMakingWeightBps = config.marketMakingWeightBps;
         usdgWeightBps = config.usdgWeightBps;
         creator = config.creator;
-        openSeaManager = config.openSeaManager;
         sinjohFeeRecipient = config.sinjohFeeRecipient;
         redemptionToken = IYieldBankBurnableToken(config.redemptionToken);
         redemptionTokenAmount = config.redemptionTokenAmount;
@@ -154,7 +145,7 @@ contract YieldBankCollection is ReentrancyGuard {
             address(this),
             config.openSeaManager,
             config.revenueRouter,
-            config.renderer,
+            config.metadata,
             config.seaDrop,
             config.maxSupply,
             config.secondaryRoyaltyBps
@@ -217,7 +208,7 @@ contract YieldBankCollection is ReentrancyGuard {
             YieldBankAccount(account)
                 .initialize(address(this), address(nft), tokenId, address(distributor));
             // Sleeve shares are transferred to this account without an end-user proof during
-            // primary claims, revenue settlement, and rebalances. Fail the atomic mint before
+            // primary delivery, revenue delivery, and rebalances. Fail the atomic mint before
             // accepting proceeds if the configured policy cannot receive those shares.
             if (!eligibilityPolicy.canReceiveRestrictedShares(account, "")) {
                 revert Ineligible(account);
@@ -234,24 +225,39 @@ contract YieldBankCollection is ReentrancyGuard {
         proceedsVault.noteMint(firstTokenId, quantity);
     }
 
-    function claimPrimary(uint256 tokenId) external nonReentrant {
-        _claimPrimary(tokenId);
+    function deliverRevenue(uint256 tokenId) external nonReentrant {
+        if (msg.sender != portfolioAllocator) revert InvalidConfiguration();
+        _deliverRevenue(tokenId);
     }
 
-    function settle(uint256 tokenId) external nonReentrant {
-        _settle(tokenId);
-    }
-
-    function settleBatch(uint256[] calldata tokenIds) external nonReentrant {
-        if (tokenIds.length == 0 || tokenIds.length > MAX_SETTLE_BATCH) {
+    function deliverRevenueBatch(uint256[] calldata tokenIds) external nonReentrant {
+        if (msg.sender != revenueRouter) revert OnlyRevenueRouter(msg.sender);
+        if (tokenIds.length == 0 || tokenIds.length > MAX_REVENUE_DELIVERY_BATCH) {
             revert InvalidBatchSize(tokenIds.length);
         }
         for (uint256 i; i < tokenIds.length; ++i) {
-            _settle(tokenIds[i]);
+            _deliverRevenue(tokenIds[i]);
         }
     }
 
     function burnToken(uint256 tokenId, bytes calldata proof) external nonReentrant {
+        address[] memory additionalAssets = new address[](0);
+        _burnToken(tokenId, proof, additionalAssets);
+    }
+
+    /// @notice Burns a Yield Bank and includes directly deposited ERC-20 assets in redemption.
+    /// @dev Assets already tracked by the strategy system do not need to be repeated.
+    function burnTokenWithAssets(
+        uint256 tokenId,
+        bytes calldata proof,
+        address[] calldata additionalAssets
+    ) external nonReentrant {
+        _burnToken(tokenId, proof, additionalAssets);
+    }
+
+    function _burnToken(uint256 tokenId, bytes calldata proof, address[] memory additionalAssets)
+        private
+    {
         if (
             state != YieldBankCollectionState.ACTIVE
                 && state != YieldBankCollectionState.INVESTMENT_PAUSED
@@ -268,20 +274,21 @@ contract YieldBankCollection is ReentrancyGuard {
         if (!eligibilityPolicy.canReceiveRestrictedShares(msg.sender, proof)) {
             revert Ineligible(msg.sender);
         }
+        YieldBankAccount account = YieldBankAccount(accountOf[tokenId]);
+        for (uint256 i; i < additionalAssets.length; ++i) {
+            address asset = additionalAssets[i];
+            if (asset.code.length == 0 || IERC20(asset).balanceOf(address(account)) == 0) {
+                revert InvalidSleeveAsset(asset);
+            }
+        }
         _burnRedemptionToken(tokenId, msg.sender);
-        _burnOwned(tokenId, msg.sender, proof);
+        _burnOwned(tokenId, msg.sender, proof, additionalAssets);
     }
 
     function accrueDistribution(address asset, uint256 amount) external nonReentrant {
         if (msg.sender != revenueRouter) revert OnlyRevenueRouter(msg.sender);
         if (liveSupply == 0) revert InvalidConfiguration();
         distributor.accrueFrom(asset, msg.sender, amount, totalLiveFeeWeight);
-    }
-
-    function registerDistributionAsset(address asset) external {
-        if (msg.sender != collectionTimelock) revert OnlyTimelock(msg.sender);
-        distributor.registerAsset(asset);
-        emit DistributionAssetRegistered(asset);
     }
 
     function pauseInvestments() external {
@@ -347,38 +354,29 @@ contract YieldBankCollection is ReentrancyGuard {
         return _feeWeightRanges[low].feeWeight;
     }
 
-    function _settle(uint256 tokenId) private {
+    function _deliverRevenue(uint256 tokenId) private {
         if (_tokenStates[tokenId] != YieldBankTokenState.ACTIVE) {
             revert InvalidTokenState(tokenId, _tokenStates[tokenId]);
         }
-        distributor.settle(tokenId, accountOf[tokenId], false);
-        emit DistributionSettled(tokenId, accountOf[tokenId]);
+        distributor.deliver(tokenId, accountOf[tokenId], false);
+        emit RevenueDelivered(tokenId, accountOf[tokenId]);
     }
 
-    function _claimPrimary(uint256 tokenId) private {
-        if (_tokenStates[tokenId] != YieldBankTokenState.ACTIVE) {
-            revert InvalidTokenState(tokenId, _tokenStates[tokenId]);
-        }
-        YieldBankAccount account = YieldBankAccount(accountOf[tokenId]);
-        (address[3] memory assets, uint256[3] memory amounts) =
-            proceedsVault.claim(tokenId, address(account));
-        for (uint256 i; i < 3; ++i) {
-            if (amounts[i] != 0) account.trackAsset(assets[i]);
-        }
-        emit PrimarySharesClaimed(tokenId, address(account));
-    }
-
-    function _burnOwned(uint256 tokenId, address beneficiary, bytes calldata proof) private {
+    function _burnOwned(
+        uint256 tokenId,
+        address beneficiary,
+        bytes calldata proof,
+        address[] memory additionalAssets
+    ) private {
         if (_tokenStates[tokenId] != YieldBankTokenState.ACTIVE) {
             revert InvalidTokenState(tokenId, _tokenStates[tokenId]);
         }
         uint256 pendingBacking = proceedsVault.pendingBackingOf(tokenId);
         uint8 primaryState = proceedsVault.primaryStateOf(tokenId);
-        if (primaryState == proceedsVault.PRIMARY_ALLOCATED()) _claimPrimary(tokenId);
         bool terminal = liveSupply == 1;
         uint96 redeemedFeeWeight = distributor.feeWeightOf(tokenId);
         YieldBankAccount account = YieldBankAccount(accountOf[tokenId]);
-        distributor.settle(tokenId, address(account), terminal);
+        distributor.deliver(tokenId, address(account), terminal);
         address[] memory assets = account.trackedAssets();
         _tokenStates[tokenId] = YieldBankTokenState.BURNING;
         nft.burn(tokenId);
@@ -388,7 +386,7 @@ contract YieldBankCollection is ReentrancyGuard {
         for (uint256 i; i < assets.length; ++i) {
             address asset = assets[i];
             uint256 balance = IERC20(asset).balanceOf(address(account));
-            uint256 tax = terminal ? 0 : Math.mulDiv(balance, EXIT_TAX_BPS, BPS);
+            uint256 tax = terminal ? 0 : Math.mulDiv(balance, exitTaxBps, BPS);
             if (tax != 0) {
                 account.approveDistribution(asset, tax);
                 distributor.accrueFrom(asset, address(account), tax, totalLiveFeeWeight);
@@ -402,7 +400,7 @@ contract YieldBankCollection is ReentrancyGuard {
         }
         if (primaryState == proceedsVault.PRIMARY_PENDING()) {
             uint256 released = proceedsVault.releasePendingBacking(tokenId, address(this));
-            uint256 tax = terminal ? 0 : Math.mulDiv(released, EXIT_TAX_BPS, BPS);
+            uint256 tax = terminal ? 0 : Math.mulDiv(released, exitTaxBps, BPS);
             if (tax != 0) {
                 weth.forceApprove(address(distributor), tax);
                 distributor.accrueFrom(address(weth), address(this), tax, totalLiveFeeWeight);
@@ -410,7 +408,13 @@ contract YieldBankCollection is ReentrancyGuard {
             }
             weth.safeTransfer(beneficiary, released - tax);
         }
-        account.close();
+        for (uint256 i; i < additionalAssets.length; ++i) {
+            address asset = additionalAssets[i];
+            if (!account.isTrackedAsset(asset) && IERC20(asset).balanceOf(address(account)) != 0) {
+                account.releaseDirectAsset(asset, beneficiary);
+            }
+        }
+        account.close(beneficiary);
         _tokenStates[tokenId] = YieldBankTokenState.BURNED;
         if (terminal && mintedSupply == maxSupply) _setState(YieldBankCollectionState.CLOSED);
         emit YieldBankRedeemed(tokenId, beneficiary, terminal, pendingBacking);

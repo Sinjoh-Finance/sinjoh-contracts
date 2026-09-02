@@ -85,8 +85,8 @@ contract MockOwnerAllocationCollection {
         isSleeveAsset[sleeve] = true;
     }
 
-    function claimPrimary(uint256) external { }
-    function settle(uint256) external { }
+    function deliverRevenue(uint256) external { }
+    function deliverRevenueBatch(uint256[] calldata) external { }
 }
 
 contract MockOwnerAllocationSleeve is ERC20 {

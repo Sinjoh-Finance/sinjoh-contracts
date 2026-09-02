@@ -82,7 +82,9 @@ contract DeltaV3LPAdapterForkTest is Test {
             1 days,
             5 minutes,
             1_000,
-            1_000
+            1_000,
+            "Test Delta Liquidity Sleeve",
+            "T-DELTA"
         );
         controller.configureInfrastructure(
             FACTORY,
@@ -171,6 +173,8 @@ contract DeltaV3LPAdapterForkTest is Test {
         StrategyRegistry registry = new StrategyRegistry(address(this));
         MockYieldBankEligibilityPolicy eligibility = new MockYieldBankEligibilityPolicy();
         MarketMakingSleeve sleeve = new MarketMakingSleeve(
+            "Test Delta Liquidity Sleeve",
+            "T-DELTA",
             WETH,
             address(this),
             address(this),

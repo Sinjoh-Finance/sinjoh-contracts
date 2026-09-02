@@ -7,6 +7,8 @@ import { YieldBankIds } from "../libraries/YieldBankIds.sol";
 /// @notice Holds USDG directly; no lending or automatic yield deployment is performed.
 contract USDGSleeve is BaseSleeve {
     constructor(
+        string memory name_,
+        string memory symbol_,
         address usdg_,
         address allocator_,
         address timelock_,
@@ -19,8 +21,8 @@ contract USDGSleeve is BaseSleeve {
         uint16 maximumOperatorLossBps_
     )
         BaseSleeve(
-            "Sinjoh Yield Banks USDG Sleeve",
-            "sybUSDG",
+            name_,
+            symbol_,
             YieldBankIds.USDG,
             usdg_,
             allocator_,

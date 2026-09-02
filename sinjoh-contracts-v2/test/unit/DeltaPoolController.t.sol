@@ -97,7 +97,9 @@ contract DeltaPoolControllerTest is Test {
             1 days,
             5 minutes,
             1_000,
-            1_000
+            1_000,
+            "Test Delta Liquidity Sleeve",
+            "T-DELTA"
         );
         priceHub.setRegistrar(address(controller), true);
         strategyRegistry.setRegistrar(address(controller), true);

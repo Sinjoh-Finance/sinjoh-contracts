@@ -12,7 +12,7 @@ contract YieldBankAccount {
     using SafeERC20 for IERC20;
 
     // The distributor supports 64 collection-wide assets. An owner may also hold one
-    // isolated, pool-specific Delta sleeve while those assets are being settled.
+    // isolated, pool-specific Delta sleeve while collection fees are being delivered.
     uint256 public constant MAX_TRACKED_ASSETS = 65;
 
     address public collection;
@@ -21,6 +21,7 @@ contract YieldBankAccount {
     uint256 public tokenId;
     bool public initialized;
     bool public closed;
+    address public redemptionBeneficiary;
 
     address[] private _trackedAssets;
     mapping(address asset => bool tracked) private _isTracked;
@@ -34,6 +35,7 @@ contract YieldBankAccount {
     error TooManyTrackedAssets(uint256 supplied);
     error AccountIsClosed();
     error AccountNotEmpty(address asset, uint256 balance);
+    error OnlyRedemptionBeneficiary(address caller);
 
     event AccountInitialized(
         address indexed collection,
@@ -49,7 +51,8 @@ contract YieldBankAccount {
         uint256 beneficiaryAmount,
         uint256 taxAmount
     );
-    event AccountClosed(uint256 indexed tokenId);
+    event AccountClosed(uint256 indexed tokenId, address indexed beneficiary);
+    event DirectAssetRecovered(address indexed asset, address indexed beneficiary, uint256 amount);
 
     modifier onlyCollection() {
         if (msg.sender != collection) revert OnlyCollection(msg.sender);
@@ -59,6 +62,7 @@ contract YieldBankAccount {
     modifier onlyAssetController() {
         if (
             msg.sender != collection && msg.sender != distributor
+                && msg.sender != IYieldBankCollection(collection).proceedsVault()
                 && msg.sender != IYieldBankCollection(collection).portfolioAllocator()
         ) {
             revert OnlyAssetController(msg.sender);
@@ -160,6 +164,25 @@ contract YieldBankAccount {
         emit AssetReleased(asset, beneficiary, beneficiaryAmount, distributedTaxAmount);
     }
 
+    /// @notice Releases an ERC-20 deposited directly into this treasury.
+    /// @dev Direct deposits are not added to the collection-wide fee asset set.
+    function releaseDirectAsset(address asset, address beneficiary)
+        external
+        onlyCollection
+        returns (uint256 beneficiaryAmount)
+    {
+        if (closed) revert AccountIsClosed();
+        if (asset == address(0) || asset.code.length == 0 || beneficiary == address(0)) {
+            revert InvalidAsset(asset);
+        }
+        IERC20 token = IERC20(asset);
+        beneficiaryAmount = token.balanceOf(address(this));
+        if (beneficiaryAmount != 0) token.safeTransfer(beneficiary, beneficiaryAmount);
+        uint256 remaining = token.balanceOf(address(this));
+        if (remaining != 0) revert AccountNotEmpty(asset, remaining);
+        emit AssetReleased(asset, beneficiary, beneficiaryAmount, 0);
+    }
+
     function releaseRestrictedRemainder(
         address asset,
         address beneficiary,
@@ -179,16 +202,37 @@ contract YieldBankAccount {
         emit AssetReleased(asset, beneficiary, beneficiaryAmount, distributedTaxAmount);
     }
 
-    function close() external onlyCollection {
+    function close(address beneficiary) external onlyCollection {
         if (closed) revert AccountIsClosed();
+        if (beneficiary == address(0)) revert InvalidConfiguration();
         uint256 length = _trackedAssets.length;
         for (uint256 i; i < length; ++i) {
             address asset = _trackedAssets[i];
             uint256 balance = IERC20(asset).balanceOf(address(this));
             if (balance != 0) revert AccountNotEmpty(asset, balance);
         }
+        redemptionBeneficiary = beneficiary;
         closed = true;
-        emit AccountClosed(tokenId);
+        emit AccountClosed(tokenId, beneficiary);
+    }
+
+    /// @notice Recovers an untracked ERC-20 sent to the treasury before or after redemption.
+    function recoverDirectAsset(address asset) external returns (uint256 amount) {
+        if (!closed || msg.sender != redemptionBeneficiary) {
+            revert OnlyRedemptionBeneficiary(msg.sender);
+        }
+        // `close` proves every protocol-tracked balance was zero at redemption. A later transfer
+        // of that same ERC-20 is therefore a new direct deposit and remains recoverable.
+        if (asset == address(0) || asset.code.length == 0) {
+            revert InvalidAsset(asset);
+        }
+        IERC20 token = IERC20(asset);
+        amount = token.balanceOf(address(this));
+        if (amount == 0) revert InvalidAsset(asset);
+        token.safeTransfer(msg.sender, amount);
+        uint256 remaining = token.balanceOf(address(this));
+        if (remaining != 0) revert AccountNotEmpty(asset, remaining);
+        emit DirectAssetRecovered(asset, msg.sender, amount);
     }
 
     function trackedAssets() external view returns (address[] memory) {
