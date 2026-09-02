@@ -61,12 +61,10 @@ contract YieldBankPublicFactoryTest is Test {
         assertNotEq(alicePredicted.supportBundle, bobPredicted.supportBundle);
         assertNotEq(alicePredicted.collectionTimelock, bobPredicted.collectionTimelock);
 
-        vm.prank(ALICE);
         YieldBankPublicFactory.SystemAddresses memory aliceSystem =
-            factory.createCollection(aliceRequest, sharedUserSalt);
-        vm.prank(BOB);
+            _createAs(ALICE, aliceRequest, sharedUserSalt);
         YieldBankPublicFactory.SystemAddresses memory bobSystem =
-            factory.createCollection(bobRequest, sharedUserSalt);
+            _createAs(BOB, bobRequest, sharedUserSalt);
 
         assertEq(aliceSystem.supportBundle, alicePredicted.supportBundle);
         assertEq(bobSystem.supportBundle, bobPredicted.supportBundle);
@@ -106,9 +104,8 @@ contract YieldBankPublicFactoryTest is Test {
         request.feeWeightRanges[2] = YieldBankFeeWeightRange({ endTokenId: 3_330, feeWeight: 15 });
         request.feeWeightRanges[3] = YieldBankFeeWeightRange({ endTokenId: 3_333, feeWeight: 60 });
 
-        vm.prank(ALICE);
         YieldBankPublicFactory.SystemAddresses memory system =
-            factory.createCollection(request, keccak256("PIGGY"));
+            _createAs(ALICE, request, keccak256("PIGGY"));
         YieldBankCollection collection = YieldBankCollection(system.collection);
 
         assertEq(collection.maxSupply(), 3_333);
@@ -132,9 +129,8 @@ contract YieldBankPublicFactoryTest is Test {
         request.royaltySinjohBps = 1_500;
         request.timelockDelay = 0;
 
-        vm.prank(ALICE);
         YieldBankPublicFactory.SystemAddresses memory system =
-            factory.createCollection(request, keccak256("CONFIGURABLE"));
+            _createAs(ALICE, request, keccak256("CONFIGURABLE"));
         YieldBankCollection collection = YieldBankCollection(system.collection);
 
         assertEq(collection.coreWeightBps(), 0);
@@ -150,7 +146,7 @@ contract YieldBankPublicFactoryTest is Test {
 
     function testCollectionCreationCalldataIsCompact() public view {
         bytes memory callData =
-            abi.encodeCall(factory.createCollection, (_request(ALICE, "A", "A"), keccak256("2")));
+            abi.encodeCall(factory.beginCollection, (_request(ALICE, "A", "A"), keccak256("2")));
         assertLt(callData.length, 10_000);
     }
 
@@ -158,19 +154,19 @@ contract YieldBankPublicFactoryTest is Test {
         YieldBankPublicFactory.CollectionRequest memory request = _request(ALICE, "A", "A");
         bytes32 salt = keccak256("3");
         vm.prank(ALICE);
-        factory.createCollection(request, salt);
+        factory.beginCollection(request, salt);
         bytes32 id = factory.deploymentId(ALICE, salt);
         vm.prank(ALICE);
         vm.expectRevert(
             abi.encodeWithSelector(YieldBankPublicFactory.DeploymentAlreadyUsed.selector, id)
         );
-        factory.createCollection(request, salt);
+        factory.beginCollection(request, salt);
     }
 
     function testZeroSaltIsRejectedBeforeDeployment() public {
         vm.prank(ALICE);
         vm.expectRevert(YieldBankPublicFactory.InvalidConfiguration.selector);
-        factory.createCollection(_request(ALICE, "A", "A"), bytes32(0));
+        factory.beginCollection(_request(ALICE, "A", "A"), bytes32(0));
     }
 
     function testInvalidSleeveAndDeltaLimitsAreRejectedBeforeDeployment() public {
@@ -178,13 +174,13 @@ contract YieldBankPublicFactoryTest is Test {
         request.coreSleeve.maximumStrategies = 9;
         vm.prank(ALICE);
         vm.expectRevert(YieldBankPublicFactory.InvalidConfiguration.selector);
-        factory.createCollection(request, keccak256("4"));
+        factory.beginCollection(request, keccak256("4"));
 
         request = _request(ALICE, "A", "A");
         request.deltaRisk.maximumPoolSpotDeviationBps = 2_001;
         vm.prank(ALICE);
         vm.expectRevert(YieldBankPublicFactory.InvalidConfiguration.selector);
-        factory.createCollection(request, keccak256("5"));
+        factory.beginCollection(request, keccak256("5"));
     }
 
     function testInvalidFeeWeightScheduleIsRejectedBeforeDeployment() public {
@@ -193,7 +189,7 @@ contract YieldBankPublicFactoryTest is Test {
         request.feeWeightRanges[0] = YieldBankFeeWeightRange({ endTokenId: 2, feeWeight: 1 });
         vm.prank(ALICE);
         vm.expectRevert(YieldBankPublicFactory.InvalidConfiguration.selector);
-        factory.createCollection(request, keccak256("BAD-WEIGHTS"));
+        factory.beginCollection(request, keccak256("BAD-WEIGHTS"));
 
         request = _request(ALICE, "A", "A");
         request.maxSupply = 1;
@@ -202,7 +198,7 @@ contract YieldBankPublicFactoryTest is Test {
             YieldBankFeeWeightRange({ endTokenId: 1, feeWeight: uint96(1e27 + 1) });
         vm.prank(ALICE);
         vm.expectRevert(YieldBankPublicFactory.InvalidConfiguration.selector);
-        factory.createCollection(request, keccak256("EXCESS-WEIGHT"));
+        factory.beginCollection(request, keccak256("EXCESS-WEIGHT"));
     }
 
     function testDeprecatedFactoryCannotRegisterNewCollections() public {
@@ -213,14 +209,14 @@ contract YieldBankPublicFactoryTest is Test {
                 YieldBankProtocolRegistry.FactoryUnavailable.selector, address(factory)
             )
         );
-        factory.createCollection(_request(ALICE, "A", "A"), keccak256("6"));
+        factory.beginCollection(_request(ALICE, "A", "A"), keccak256("6"));
     }
 
     function testDependencyRuntimeDriftFailsClosed() public {
         vm.etch(address(weth), hex"00");
         vm.prank(ALICE);
         vm.expectRevert(YieldBankPublicFactory.InvalidConfiguration.selector);
-        factory.createCollection(_request(ALICE, "A", "A"), keccak256("7"));
+        factory.beginCollection(_request(ALICE, "A", "A"), keccak256("7"));
     }
 
     function testCreationCodeStoreRuntimeDriftFailsClosed() public {
@@ -228,7 +224,72 @@ contract YieldBankPublicFactoryTest is Test {
         vm.etch(stores.collection, hex"00");
         vm.prank(ALICE);
         vm.expectRevert(YieldBankPublicFactory.InvalidConfiguration.selector);
-        factory.createCollection(_request(ALICE, "A", "A"), keccak256("8"));
+        factory.beginCollection(_request(ALICE, "A", "A"), keccak256("8"));
+    }
+
+    function testStagesRejectChangedConfigurationAndOutOfOrderCalls() public {
+        YieldBankPublicFactory.CollectionRequest memory request = _request(ALICE, "A", "A");
+        bytes32 salt = keccak256("STAGES");
+        bytes32 id = factory.deploymentId(ALICE, salt);
+
+        vm.prank(ALICE);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                YieldBankPublicFactory.InvalidDeploymentStage.selector, id, uint8(1), uint8(0)
+            )
+        );
+        factory.deployCollectionSleeves(request, salt);
+
+        vm.prank(ALICE);
+        factory.beginCollection(request, salt);
+        assertEq(factory.deploymentStage(id), 1);
+
+        request.maxSupply = 2;
+        vm.prank(ALICE);
+        vm.expectRevert(YieldBankPublicFactory.InvalidConfiguration.selector);
+        factory.deployCollectionSleeves(request, salt);
+    }
+
+    function testEachDeploymentStageFitsChainGasCeiling() public {
+        YieldBankPublicFactory.CollectionRequest memory request = _request(ALICE, "A", "A");
+        bytes32 salt = keccak256("GAS-CEILING");
+        uint256 beforeGas;
+        uint256 used;
+
+        vm.startPrank(ALICE);
+        beforeGas = gasleft();
+        factory.beginCollection(request, salt);
+        used = beforeGas - gasleft();
+        assertLt(used, 30_000_000, "begin exceeds safe network gas ceiling");
+
+        beforeGas = gasleft();
+        factory.deployCollectionSleeves(request, salt);
+        used = beforeGas - gasleft();
+        assertLt(used, 30_000_000, "sleeves exceed safe network gas ceiling");
+
+        beforeGas = gasleft();
+        factory.deployCollectionRouting(request, salt);
+        used = beforeGas - gasleft();
+        assertLt(used, 30_000_000, "routing exceeds safe network gas ceiling");
+
+        beforeGas = gasleft();
+        factory.finalizeCollection(request, salt);
+        used = beforeGas - gasleft();
+        assertLt(used, 30_000_000, "finalize exceeds safe network gas ceiling");
+        vm.stopPrank();
+    }
+
+    function _createAs(
+        address caller,
+        YieldBankPublicFactory.CollectionRequest memory request,
+        bytes32 salt
+    ) private returns (YieldBankPublicFactory.SystemAddresses memory system) {
+        vm.startPrank(caller);
+        factory.beginCollection(request, salt);
+        factory.deployCollectionSleeves(request, salt);
+        factory.deployCollectionRouting(request, salt);
+        system = factory.finalizeCollection(request, salt);
+        vm.stopPrank();
     }
 
     function _hashes() private pure returns (YieldBankPublicFactory.CreationCodeHashes memory h) {

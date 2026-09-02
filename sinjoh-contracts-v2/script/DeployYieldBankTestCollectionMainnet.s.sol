@@ -105,7 +105,10 @@ contract DeployYieldBankTestCollectionMainnet is Script {
         });
 
         vm.startBroadcast();
-        deployed = factory.createCollection(request, userSalt);
+        factory.beginCollection(request, userSalt);
+        factory.deployCollectionSleeves(request, userSalt);
+        factory.deployCollectionRouting(request, userSalt);
+        deployed = factory.finalizeCollection(request, userSalt);
         vm.stopBroadcast();
 
         YieldBankCollection collection = YieldBankCollection(deployed.collection);

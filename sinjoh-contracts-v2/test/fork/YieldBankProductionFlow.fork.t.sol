@@ -62,7 +62,7 @@ contract YieldBankProductionFlowForkTest is Test {
         YieldBankProtocolRegistry registry = YieldBankProtocolRegistry(REGISTRY);
         YieldBankPublicFactory factory = new YieldBankPublicFactory(
             REGISTRY,
-            keccak256("SINJOH_YIELD_BANK_PUBLIC_FACTORY_V1_0_2_FORK_PROOF"),
+            keccak256("SINJOH_YIELD_BANK_PUBLIC_FACTORY_V1_0_3_FORK_PROOF"),
             WETH,
             USDG,
             SEA_DROP,
@@ -77,9 +77,13 @@ contract YieldBankProductionFlowForkTest is Test {
         assertTrue(registry.isFactoryAvailableForNewCollections(address(factory)));
         assertFalse(registry.isFactoryAvailableForNewCollections(SUPERSEDED_FACTORY));
 
-        vm.prank(SIDE_WALLET);
+        vm.startPrank(SIDE_WALLET);
+        factory.beginCollection(_request(), keccak256("A-1"));
+        factory.deployCollectionSleeves(_request(), keccak256("A-1"));
+        factory.deployCollectionRouting(_request(), keccak256("A-1"));
         YieldBankPublicFactory.SystemAddresses memory system =
-            factory.createCollection(_request(), keccak256("A-1"));
+            factory.finalizeCollection(_request(), keccak256("A-1"));
+        vm.stopPrank();
         YieldBankCollection collection = YieldBankCollection(system.collection);
         YieldBankNFT nft = collection.nft();
         YieldBankProceedsVault vault = collection.proceedsVault();

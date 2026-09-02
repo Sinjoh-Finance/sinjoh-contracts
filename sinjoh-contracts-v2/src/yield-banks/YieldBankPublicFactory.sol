@@ -4,7 +4,6 @@ pragma solidity 0.8.28;
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { CreationCodeStoreV2 } from "../core/CreationCodeStoreV2.sol";
 import { Create3V2 } from "../libraries/Create3V2.sol";
-import { YieldBankCollection } from "./YieldBankCollection.sol";
 import { YieldBankConfigValidator } from "./YieldBankConfigValidator.sol";
 import { YieldBankProtocolRegistry } from "./YieldBankProtocolRegistry.sol";
 import { YieldBankSupportBundle } from "./YieldBankSupportBundle.sol";
@@ -137,18 +136,15 @@ contract YieldBankPublicFactory is ReentrancyGuard {
     CreationCodeStores private _creationCodeStores;
     CreationCodeHashes private _creationCodeStoreRuntimeCodeHashes;
     mapping(bytes32 deploymentId => bool used) public deploymentUsed;
+    mapping(bytes32 deploymentId => bytes32 configurationHash) public deploymentConfigurationHash;
+    mapping(bytes32 deploymentId => uint8 stage) public deploymentStage;
 
     error InvalidConfiguration();
     error CreationCodeStoreMismatch(address store, bytes32 expected, bytes32 actual);
     error DeploymentAlreadyUsed(bytes32 deploymentId);
+    error InvalidDeploymentStage(bytes32 deploymentId, uint8 expected, uint8 actual);
     error AddressMismatch(address expected, address actual);
 
-    event PublicSystemComponentDeployed(
-        bytes32 indexed deploymentId,
-        bytes32 indexed kind,
-        address indexed component,
-        bytes32 runtimeCodeHash
-    );
     event PublicYieldBankCollectionDeployed(
         bytes32 indexed deploymentId,
         address indexed caller,
@@ -158,32 +154,18 @@ contract YieldBankPublicFactory is ReentrancyGuard {
         bytes32 factoryVersion,
         address nft,
         address proceedsVault,
-        address distributor
-    );
-    event YieldBankSystemDeployed(
-        address indexed collection,
-        bytes32 indexed collectionId,
-        bytes32 indexed collectionSalt,
-        bytes32 configurationHash,
-        bytes32 factoryVersion
-    );
-    event CollectionComponentsRegistered(
-        address indexed collection,
-        bytes32 indexed collectionId,
-        address indexed nft,
         address distributor,
-        address proceedsVault,
         address accountImplementation,
         address revenueRouter,
         address portfolioAllocator,
         address collectionTimelock,
-        address seaDrop,
-        uint256 maxSupply,
-        address allocationOperator,
         address deltaPoolController,
         address coreSleeve,
         address marketMakingSleeve,
-        address usdgSleeve
+        address usdgSleeve,
+        address seaDrop,
+        uint256 maxSupply,
+        address allocationOperator
     );
     event CollectionEconomicsRegistered(
         address indexed collection,
@@ -279,10 +261,12 @@ contract YieldBankPublicFactory is ReentrancyGuard {
         a.deltaPoolController = _predictComponent(id, KIND_DELTA_POOL_CONTROLLER);
     }
 
-    function createCollection(CollectionRequest calldata request, bytes32 userSalt)
+    /// @notice Reserves a caller-scoped deployment and creates its support, timelock, and account
+    /// implementation. The remaining stages are deliberately separate so every transaction fits
+    /// chains whose ArbOS execution ceiling is lower than the complete system's deployment cost.
+    function beginCollection(CollectionRequest calldata request, bytes32 userSalt)
         external
         nonReentrant
-        returns (SystemAddresses memory a)
     {
         _validateDependencies();
         _validateRequest(request);
@@ -290,7 +274,9 @@ contract YieldBankPublicFactory is ReentrancyGuard {
         if (userSalt == bytes32(0)) revert InvalidConfiguration();
         if (deploymentUsed[id]) revert DeploymentAlreadyUsed(id);
         deploymentUsed[id] = true;
-        a = predictComponentAddresses(msg.sender, userSalt);
+        bytes32 requestHash = keccak256(abi.encode(request));
+        deploymentConfigurationHash[id] = requestHash;
+        SystemAddresses memory a = predictComponentAddresses(msg.sender, userSalt);
 
         a.supportBundle = _deploy(
             id,
@@ -302,23 +288,6 @@ contract YieldBankPublicFactory is ReentrancyGuard {
                 abi.encode(request.name, request.symbol, a.collectionTimelock, request.guardian)
             )
         );
-        YieldBankSupportBundle support = YieldBankSupportBundle(a.supportBundle);
-        address eligibilityPolicy = request.eligibilityPolicy == address(0)
-            ? address(support.eligibilityPolicy())
-            : request.eligibilityPolicy;
-        bytes32 eligibilityPolicyCodeHash = request.eligibilityPolicy == address(0)
-            ? eligibilityPolicy.codehash
-            : request.eligibilityPolicyCodeHash;
-
-        YieldBankConfig memory config =
-            _buildConfig(id, a, support, eligibilityPolicy, eligibilityPolicyCodeHash, request);
-        bytes memory collectionCreationCode =
-            _loadCreationCode(_creationCodeStores.collection, _creationCodeHashes.collection);
-        bytes32 collectionInitCodeHash =
-            keccak256(abi.encodePacked(collectionCreationCode, abi.encode(config)));
-        a.collection = _predictCollection(id, collectionInitCodeHash);
-        config = _buildConfig(id, a, support, eligibilityPolicy, eligibilityPolicyCodeHash, request);
-
         a.collectionTimelock = _deploy(
             id,
             KIND_COLLECTION_TIMELOCK,
@@ -329,71 +298,86 @@ contract YieldBankPublicFactory is ReentrancyGuard {
                 abi.encode(request.timelockProposer, request.timelockDelay)
             )
         );
-        a.coreSleeve = _deploy(
+        a.accountImplementation = _deploy(
+            id,
+            KIND_ACCOUNT_IMPLEMENTATION,
+            _loadCreationCode(
+                _creationCodeStores.accountImplementation, _creationCodeHashes.accountImplementation
+            )
+        );
+        deploymentStage[id] = 1;
+    }
+
+    /// @notice Creates the three configurable asset sleeves for a reserved deployment.
+    function deployCollectionSleeves(CollectionRequest calldata request, bytes32 userSalt)
+        external
+        nonReentrant
+    {
+        bytes32 id = _validateStage(request, userSalt, 1);
+        SystemAddresses memory a = predictComponentAddresses(msg.sender, userSalt);
+        YieldBankSupportBundle support = YieldBankSupportBundle(a.supportBundle);
+        address eligibilityPolicy = request.eligibilityPolicy == address(0)
+            ? address(support.eligibilityPolicy())
+            : request.eligibilityPolicy;
+
+        a.coreSleeve = _deployAssetSleeve(
             id,
             KIND_CORE_SLEEVE,
-            abi.encodePacked(
-                _loadCreationCode(_creationCodeStores.coreSleeve, _creationCodeHashes.coreSleeve),
-                abi.encode(
-                    string.concat(request.name, " Stock Token Sleeve"),
-                    string.concat(request.symbol, "-STOCK"),
-                    weth,
-                    a.portfolioAllocator,
-                    a.collectionTimelock,
-                    request.guardian,
-                    address(support.priceHub()),
-                    address(support.strategyRegistry()),
-                    eligibilityPolicy,
-                    request.coreSleeve.maximumStrategies,
-                    request.coreSleeve.maximumAdapterCapBps,
-                    request.coreSleeve.maximumOperatorLossBps
-                )
-            )
+            _creationCodeStores.coreSleeve,
+            _creationCodeHashes.coreSleeve,
+            string.concat(request.name, " Stock Token Sleeve"),
+            string.concat(request.symbol, "-STOCK"),
+            weth,
+            a,
+            support,
+            eligibilityPolicy,
+            request.guardian,
+            request.coreSleeve
         );
-        a.marketMakingSleeve = _deploy(
+        a.marketMakingSleeve = _deployAssetSleeve(
             id,
             KIND_MARKET_MAKING_SLEEVE,
-            abi.encodePacked(
-                _loadCreationCode(
-                    _creationCodeStores.marketMakingSleeve, _creationCodeHashes.marketMakingSleeve
-                ),
-                abi.encode(
-                    string.concat(request.name, " Delta Liquidity Sleeve"),
-                    string.concat(request.symbol, "-DELTA"),
-                    weth,
-                    a.portfolioAllocator,
-                    a.collectionTimelock,
-                    request.guardian,
-                    address(support.priceHub()),
-                    address(support.strategyRegistry()),
-                    eligibilityPolicy,
-                    request.marketMakingSleeve.maximumStrategies,
-                    request.marketMakingSleeve.maximumAdapterCapBps,
-                    request.marketMakingSleeve.maximumOperatorLossBps
-                )
-            )
+            _creationCodeStores.marketMakingSleeve,
+            _creationCodeHashes.marketMakingSleeve,
+            string.concat(request.name, " Delta Liquidity Sleeve"),
+            string.concat(request.symbol, "-DELTA"),
+            weth,
+            a,
+            support,
+            eligibilityPolicy,
+            request.guardian,
+            request.marketMakingSleeve
         );
-        a.usdgSleeve = _deploy(
+        a.usdgSleeve = _deployAssetSleeve(
             id,
             KIND_USDG_SLEEVE,
-            abi.encodePacked(
-                _loadCreationCode(_creationCodeStores.usdgSleeve, _creationCodeHashes.usdgSleeve),
-                abi.encode(
-                    string.concat(request.name, " USDG Sleeve"),
-                    string.concat(request.symbol, "-USDG"),
-                    usdg,
-                    a.portfolioAllocator,
-                    a.collectionTimelock,
-                    request.guardian,
-                    address(support.priceHub()),
-                    address(support.strategyRegistry()),
-                    eligibilityPolicy,
-                    request.usdgSleeve.maximumStrategies,
-                    request.usdgSleeve.maximumAdapterCapBps,
-                    request.usdgSleeve.maximumOperatorLossBps
-                )
-            )
+            _creationCodeStores.usdgSleeve,
+            _creationCodeHashes.usdgSleeve,
+            string.concat(request.name, " USDG Sleeve"),
+            string.concat(request.symbol, "-USDG"),
+            usdg,
+            a,
+            support,
+            eligibilityPolicy,
+            request.guardian,
+            request.usdgSleeve
         );
+        deploymentStage[id] = 2;
+    }
+
+    /// @notice Creates allocation and revenue routing for a deployment whose sleeves exist.
+    function deployCollectionRouting(CollectionRequest calldata request, bytes32 userSalt)
+        external
+        nonReentrant
+    {
+        bytes32 id = _validateStage(request, userSalt, 2);
+        SystemAddresses memory a = predictComponentAddresses(msg.sender, userSalt);
+        (a,) = _systemConfig(id, a, request);
+        YieldBankSupportBundle support = YieldBankSupportBundle(a.supportBundle);
+        address eligibilityPolicy = request.eligibilityPolicy == address(0)
+            ? address(support.eligibilityPolicy())
+            : request.eligibilityPolicy;
+
         a.portfolioAllocator = _deploy(
             id,
             KIND_PORTFOLIO_ALLOCATOR,
@@ -465,19 +449,28 @@ contract YieldBankPublicFactory is ReentrancyGuard {
                 )
             )
         );
-        a.accountImplementation = _deploy(
-            id,
-            KIND_ACCOUNT_IMPLEMENTATION,
-            _loadCreationCode(
-                _creationCodeStores.accountImplementation, _creationCodeHashes.accountImplementation
-            )
-        );
+        deploymentStage[id] = 3;
+    }
+
+    /// @notice Creates and registers the collection after all fixed components exist.
+    function finalizeCollection(CollectionRequest calldata request, bytes32 userSalt)
+        external
+        nonReentrant
+        returns (SystemAddresses memory a)
+    {
+        bytes32 id = _validateStage(request, userSalt, 3);
+        a = predictComponentAddresses(msg.sender, userSalt);
+        YieldBankConfig memory config;
+        (a, config) = _systemConfig(id, a, request);
+        bytes memory collectionCreationCode =
+            _loadCreationCode(_creationCodeStores.collection, _creationCodeHashes.collection);
 
         YieldBankConfigValidator.validatePinnedCreation(config);
         YieldBankConfigValidator.validateBindings(config, a.collection, a.deltaPoolController);
         a.collection = _deployCollection(id, collectionCreationCode, config, a.collection);
         bytes32 configurationHash = keccak256(abi.encode(config));
         registry.registerCollection(a.collection, configurationHash);
+        deploymentStage[id] = 4;
         IYieldBankPublicCollectionInternals internals =
             IYieldBankPublicCollectionInternals(a.collection);
         emit PublicYieldBankCollectionDeployed(
@@ -489,28 +482,18 @@ contract YieldBankPublicFactory is ReentrancyGuard {
             factoryVersion,
             internals.nft(),
             internals.proceedsVault(),
-            internals.distributor()
-        );
-        emit YieldBankSystemDeployed(
-            a.collection, config.collectionId, id, configurationHash, factoryVersion
-        );
-        emit CollectionComponentsRegistered(
-            a.collection,
-            config.collectionId,
-            internals.nft(),
             internals.distributor(),
-            internals.proceedsVault(),
             a.accountImplementation,
             a.revenueRouter,
             a.portfolioAllocator,
             a.collectionTimelock,
-            seaDrop,
-            request.maxSupply,
-            request.allocationOperator,
             a.deltaPoolController,
             a.coreSleeve,
             a.marketMakingSleeve,
-            a.usdgSleeve
+            a.usdgSleeve,
+            seaDrop,
+            request.maxSupply,
+            request.allocationOperator
         );
         emit CollectionEconomicsRegistered(
             a.collection,
@@ -535,9 +518,85 @@ contract YieldBankPublicFactory is ReentrancyGuard {
         emit CollectionFeeWeightScheduleRegistered(
             a.collection,
             keccak256(abi.encode(request.feeWeightRanges)),
-            YieldBankCollection(a.collection).maximumTotalFeeWeight(),
+            _maximumTotalFeeWeight(request),
             request.feeWeightRanges.length
         );
+    }
+
+    function _validateStage(
+        CollectionRequest calldata request,
+        bytes32 userSalt,
+        uint8 expectedStage
+    ) private view returns (bytes32 id) {
+        _validateDependencies();
+        _validateRequest(request);
+        if (userSalt == bytes32(0)) revert InvalidConfiguration();
+        id = deploymentId(msg.sender, userSalt);
+        uint8 actualStage = deploymentStage[id];
+        if (actualStage != expectedStage) {
+            revert InvalidDeploymentStage(id, expectedStage, actualStage);
+        }
+        bytes32 requestHash = keccak256(abi.encode(request));
+        if (deploymentConfigurationHash[id] != requestHash) revert InvalidConfiguration();
+    }
+
+    function _deployAssetSleeve(
+        bytes32 id,
+        bytes32 kind,
+        address store,
+        bytes32 creationCodeHash,
+        string memory name,
+        string memory symbol,
+        address asset,
+        SystemAddresses memory a,
+        YieldBankSupportBundle support,
+        address eligibilityPolicy,
+        address guardian,
+        SleeveConfig calldata sleeveConfig
+    ) private returns (address) {
+        return _deploy(
+            id,
+            kind,
+            abi.encodePacked(
+                _loadCreationCode(store, creationCodeHash),
+                abi.encode(
+                    name,
+                    symbol,
+                    asset,
+                    a.portfolioAllocator,
+                    a.collectionTimelock,
+                    guardian,
+                    address(support.priceHub()),
+                    address(support.strategyRegistry()),
+                    eligibilityPolicy,
+                    sleeveConfig.maximumStrategies,
+                    sleeveConfig.maximumAdapterCapBps,
+                    sleeveConfig.maximumOperatorLossBps
+                )
+            )
+        );
+    }
+
+    function _systemConfig(bytes32 id, SystemAddresses memory a, CollectionRequest calldata request)
+        private
+        view
+        returns (SystemAddresses memory, YieldBankConfig memory config)
+    {
+        YieldBankSupportBundle support = YieldBankSupportBundle(a.supportBundle);
+        address eligibilityPolicy = request.eligibilityPolicy == address(0)
+            ? address(support.eligibilityPolicy())
+            : request.eligibilityPolicy;
+        bytes32 eligibilityPolicyCodeHash = request.eligibilityPolicy == address(0)
+            ? eligibilityPolicy.codehash
+            : request.eligibilityPolicyCodeHash;
+        config = _buildConfig(id, a, support, eligibilityPolicy, eligibilityPolicyCodeHash, request);
+        bytes memory collectionCreationCode =
+            _loadCreationCode(_creationCodeStores.collection, _creationCodeHashes.collection);
+        bytes32 collectionInitCodeHash =
+            keccak256(abi.encodePacked(collectionCreationCode, abi.encode(config)));
+        a.collection = _predictCollection(id, collectionInitCodeHash);
+        config = _buildConfig(id, a, support, eligibilityPolicy, eligibilityPolicyCodeHash, request);
+        return (a, config);
     }
 
     function _buildConfig(
@@ -602,7 +661,6 @@ contract YieldBankPublicFactory is ReentrancyGuard {
         returns (address deployed)
     {
         deployed = Create3V2.deploy(_componentSalt(id, kind), initCode);
-        emit PublicSystemComponentDeployed(id, kind, deployed, deployed.codehash);
     }
 
     function _deployCollection(
@@ -670,7 +728,25 @@ contract YieldBankPublicFactory is ReentrancyGuard {
         }
     }
 
+    function _maximumTotalFeeWeight(CollectionRequest calldata r)
+        private
+        pure
+        returns (uint256 totalFeeWeight)
+    {
+        uint256 length = r.feeWeightRanges.length;
+        if (length == 0) return r.maxSupply;
+        uint64 previousEnd;
+        for (uint256 i; i < length; ++i) {
+            YieldBankFeeWeightRange calldata range = r.feeWeightRanges[i];
+            totalFeeWeight += uint256(range.endTokenId - previousEnd) * range.feeWeight;
+            previousEnd = range.endTokenId;
+        }
+    }
+
     function _validateDependencies() private view {
+        if (!registry.isFactoryAvailableForNewCollections(address(this))) {
+            revert YieldBankProtocolRegistry.FactoryUnavailable(address(this));
+        }
         if (
             weth.codehash != wethRuntimeCodeHash || usdg.codehash != usdgRuntimeCodeHash
                 || seaDrop.codehash != seaDropRuntimeCodeHash
