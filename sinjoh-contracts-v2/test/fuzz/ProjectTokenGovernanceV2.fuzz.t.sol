@@ -43,8 +43,9 @@ contract ProjectLiquidTokenGovernanceV2FuzzTest is GovernanceTestBase {
         uint16 thresholdBps = uint16(bound(rawThresholdBps, 10, 1_000));
         TokenGovernanceConfig memory config = _defaultConfig();
         config.proposalThresholdBps = thresholdBps;
-        ProjectTimelockV2 otherTimelock =
-            new ProjectTimelockV2(address(registry), address(token), address(token), config);
+        ProjectTimelockV2 otherTimelock = new ProjectTimelockV2(
+            address(registry), address(token), address(token), false, config
+        );
         ProjectGovernorV2 otherGovernor = otherTimelock.governor();
         assertEq(
             otherGovernor.proposalThreshold(), REFERENCE_SUPPLY * uint256(thresholdBps) / 10_000

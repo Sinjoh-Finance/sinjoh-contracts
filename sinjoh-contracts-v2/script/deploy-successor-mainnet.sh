@@ -2,7 +2,10 @@
 set -euo pipefail
 
 package_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-baseline_manifest="${BASELINE_RELEASE_MANIFEST:-$package_dir/deployments/project-launcher-v2-4663-e7bed3c-canonical.json}"
+# This baseline carries the complete, independently verified integration set used by the
+# public-Pons generation. The Pons factory itself is selected explicitly below because the
+# historical manifest was produced during the short-lived unindexed-factory promotion.
+baseline_manifest="${BASELINE_RELEASE_MANIFEST:-$package_dir/deployments/project-launcher-v2-4663-superseded-0xE1f63d3c2D8416315448b220395a0502d1C0F2fB.json}"
 mainnet_deployments="${MAINNET_DEPLOYMENTS:-$package_dir/../mainnet-deployments.json}"
 
 fail() {
@@ -98,6 +101,8 @@ verification_nonce="$(cast nonce "$DEPLOYER_ADDRESS" --rpc-url "$RPC_VERIFICATIO
 simulate_only="${SIMULATE_ONLY:-0}"
 [[ "$simulate_only" == "0" || "$simulate_only" == "1" ]] \
   || fail "SIMULATE_ONLY must be 0 or 1"
+[[ "$simulate_only" == "0" ]] \
+  || fail "the dual-hash successor requires a stateful fork rehearsal or an explicit production broadcast"
 stateful_fork_rpc_url="${STATEFUL_FORK_RPC_URL:-}"
 if [[ -n "$stateful_fork_rpc_url" ]]; then
   [[ "$simulate_only" == "0" ]] \
@@ -121,10 +126,22 @@ export RANDOMNESS_ADAPTER_RUNTIME_HASH="$(manifest_value randomnessAdapterRuntim
 export PROJECT_SWAP_ADAPTER="$(manifest_value projectSwapAdapter)"
 export PROJECT_SWAP_ADAPTER_RUNTIME_HASH="$(manifest_value projectSwapAdapterRuntimeHash)"
 export WETH="$(jq -er '.letscashDependencies.weth.address' "$mainnet_deployments")"
-export PONS_V2_PAIR_BUYBACK_ADAPTER="${PONS_V2_PAIR_BUYBACK_ADAPTER:-$(deployment_value ponsV2PairBuybackAdapter address)}"
-export PONS_V2_PAIR_BUYBACK_ADAPTER_RUNTIME_HASH="${PONS_V2_PAIR_BUYBACK_ADAPTER_RUNTIME_HASH:-$(deployment_value ponsV2PairBuybackAdapter runtimeCodeHash)}"
-export PONS_V2_PAIR_BUYBACK_PRICE_GUARD="${PONS_V2_PAIR_BUYBACK_PRICE_GUARD:-$(deployment_value ponsV2PairBuybackPriceGuard address)}"
-export PONS_V2_PAIR_BUYBACK_PRICE_GUARD_RUNTIME_HASH="${PONS_V2_PAIR_BUYBACK_PRICE_GUARD_RUNTIME_HASH:-$(deployment_value ponsV2PairBuybackPriceGuard runtimeCodeHash)}"
+export PONS_V2_PAIR_BUYBACK_ADAPTER="$({
+  jq -er '.currentInfrastructure.ponsV2PairBuybackHistoricalGenerations.indexedLegacyFactory.adapter.address' \
+    "$mainnet_deployments"
+})"
+export PONS_V2_PAIR_BUYBACK_ADAPTER_RUNTIME_HASH="$({
+  jq -er '.currentInfrastructure.ponsV2PairBuybackHistoricalGenerations.indexedLegacyFactory.adapter.runtimeCodeHash' \
+    "$mainnet_deployments"
+})"
+export PONS_V2_PAIR_BUYBACK_PRICE_GUARD="$({
+  jq -er '.currentInfrastructure.ponsV2PairBuybackHistoricalGenerations.indexedLegacyFactory.priceGuard.address' \
+    "$mainnet_deployments"
+})"
+export PONS_V2_PAIR_BUYBACK_PRICE_GUARD_RUNTIME_HASH="$({
+  jq -er '.currentInfrastructure.ponsV2PairBuybackHistoricalGenerations.indexedLegacyFactory.priceGuard.runtimeCodeHash' \
+    "$mainnet_deployments"
+})"
 export FLAP_BUYBACK_ADAPTER="$(deployment_value flapBuybackAdapter address)"
 export FLAP_BUYBACK_ADAPTER_RUNTIME_HASH="$(deployment_value flapBuybackAdapter runtimeCodeHash)"
 export FLAP_BUYBACK_PRICE_GUARD="$(deployment_value flapBuybackPriceGuard address)"
@@ -145,18 +162,83 @@ export V4_STATE_VIEW="$(manifest_value v4StateView)"
 export V4_STATE_VIEW_RUNTIME_HASH="$(manifest_value v4StateViewRuntimeHash)"
 export PERMIT2="$(manifest_value permit2)"
 export PERMIT2_RUNTIME_HASH="$(manifest_value permit2RuntimeHash)"
-export PONS_LAUNCH_FACTORY="$(manifest_value ponsLaunchFactory)"
-export PONS_LAUNCH_FACTORY_RUNTIME_HASH="$(manifest_value ponsLaunchFactoryRuntimeHash)"
-pons_owner="$(cast call "$PONS_LAUNCH_FACTORY" 'owner()(address)' --rpc-url "$RPC_URL")" \
-  || fail "could not read the Pons launch factory owner through Chainstack"
-pons_owner_verification="$(cast call "$PONS_LAUNCH_FACTORY" 'owner()(address)' --rpc-url "$RPC_VERIFICATION_URL")" \
-  || fail "could not read the Pons launch factory owner through QuickNode"
-pons_owner_lower="$(printf '%s' "$pons_owner" | tr '[:upper:]' '[:lower:]')"
-pons_owner_verification_lower="$(printf '%s' "$pons_owner_verification" | tr '[:upper:]' '[:lower:]')"
-[[ "$pons_owner_lower" == "$expected_deployer_lower" ]] \
-  || fail "Pons launch factory $PONS_LAUNCH_FACTORY is controlled by $pons_owner, not $expected_deployer; complete the explicit ownership handoff before release (no transaction was sent)"
-[[ "$pons_owner_verification_lower" == "$expected_deployer_lower" ]] \
-  || fail "QuickNode reports Pons launch factory owner $pons_owner_verification, not $expected_deployer (no transaction was sent)"
+export PONS_LAUNCH_FACTORY="${PONS_LAUNCH_FACTORY:-0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e}"
+export PONS_LAUNCH_FACTORY_RUNTIME_HASH="${PONS_LAUNCH_FACTORY_RUNTIME_HASH:-0x89a27da6f703e0a7cdd4f233e7cb57604ff75b164530962d3ff7cf8483a67d84}"
+
+public_pons_factory=0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e
+public_pons_locker=0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952
+public_pons_factory_lower="$(printf '%s' "$public_pons_factory" | tr '[:upper:]' '[:lower:]')"
+pons_factory_lower="$(printf '%s' "$PONS_LAUNCH_FACTORY" | tr '[:upper:]' '[:lower:]')"
+[[ "$pons_factory_lower" == "$public_pons_factory_lower" ]] \
+  || fail "PONS_LAUNCH_FACTORY must be the public indexed Pons factory $public_pons_factory"
+
+expected_launch_config='[["1000000000000000000000000000",100,1680000000000000000,4200000000000000000,0,200,true]]'
+ui_pair_tokens=(
+  0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168
+  0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC
+  0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa
+  0x1b0E319c6A659F002271B69dB8A7df2F911c153E
+  0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9
+  0x322F0929c4625eD5bAd873c95208D54E1c003b2d
+  0x117cc2133c37B721F49dE2A7a74833232B3B4C0C
+)
+
+verify_pons_factory() {
+  local provider="$1"
+  local rpc_url="$2"
+  local enabled fee config pair approved locker
+  locker="$(cast call "$PONS_LAUNCH_FACTORY" 'locker()(address)' --rpc-url "$rpc_url")" \
+    || fail "could not read the public Pons locker through $provider"
+  [[ "$(printf '%s' "$locker" | tr '[:upper:]' '[:lower:]')" == "$(printf '%s' "$public_pons_locker" | tr '[:upper:]' '[:lower:]')" ]] \
+    || fail "$provider reports public Pons locker $locker, expected $public_pons_locker (no transaction was sent)"
+  enabled="$(cast call "$PONS_LAUNCH_FACTORY" 'launchEnabled()(bool)' --rpc-url "$rpc_url")" \
+    || fail "could not read Pons launchEnabled through $provider"
+  [[ "$enabled" == "true" ]] \
+    || fail "$provider reports public Pons launches disabled (no transaction was sent)"
+  fee="$(cast call "$PONS_LAUNCH_FACTORY" 'launchFee()(uint256)' --rpc-url "$rpc_url" --json | jq -er '.[0]')" \
+    || fail "could not read the Pons launch fee through $provider"
+  [[ "$fee" == "500000000000000" ]] \
+    || fail "$provider reports unexpected public Pons launch fee $fee (no transaction was sent)"
+  config="$(cast call "$PONS_LAUNCH_FACTORY" \
+    'getLaunchConfig(uint256)((uint256,uint256,uint256,uint256,uint24,int24,bool))' 0 \
+    --rpc-url "$rpc_url" --json | jq -c '.')" \
+    || fail "could not read Pons launch config 0 through $provider"
+  [[ "$config" == "$expected_launch_config" ]] \
+    || fail "$provider reports unexpected public Pons launch config 0: $config (no transaction was sent)"
+  for pair in "${ui_pair_tokens[@]}"; do
+    approved="$(cast call "$PONS_LAUNCH_FACTORY" 'approvedPairTokens(address)(bool)' "$pair" --rpc-url "$rpc_url")" \
+      || fail "could not read Pons approval for $pair through $provider"
+    [[ "$approved" == "true" ]] \
+      || fail "$provider reports UI pair $pair is not approved by public Pons (no transaction was sent)"
+  done
+}
+
+verify_pons_factory Chainstack "$RPC_URL"
+verify_pons_factory QuickNode "$RPC_VERIFICATION_URL"
+
+manifest_generation_factory="$({
+  jq -er '.currentInfrastructure.ponsV2PairBuybackHistoricalGenerations.indexedLegacyFactory.launchFactory.address' \
+    "$mainnet_deployments"
+})"
+[[ "$(printf '%s' "$manifest_generation_factory" | tr '[:upper:]' '[:lower:]')" == "$pons_factory_lower" ]] \
+  || fail "selected Pons buyback generation targets $manifest_generation_factory, not $PONS_LAUNCH_FACTORY"
+
+verify_pons_buyback_binding() {
+  local provider="$1"
+  local rpc_url="$2"
+  local adapter_factory guard_factory
+  adapter_factory="$(cast call "$PONS_V2_PAIR_BUYBACK_ADAPTER" 'launchFactory()(address)' --rpc-url "$rpc_url")" \
+    || fail "could not read Pons buyback adapter launchFactory through $provider"
+  guard_factory="$(cast call "$PONS_V2_PAIR_BUYBACK_PRICE_GUARD" 'launchFactory()(address)' --rpc-url "$rpc_url")" \
+    || fail "could not read Pons buyback guard launchFactory through $provider"
+  [[ "$(printf '%s' "$adapter_factory" | tr '[:upper:]' '[:lower:]')" == "$pons_factory_lower" ]] \
+    || fail "$provider reports Pons buyback adapter $PONS_V2_PAIR_BUYBACK_ADAPTER targets $adapter_factory, not $PONS_LAUNCH_FACTORY"
+  [[ "$(printf '%s' "$guard_factory" | tr '[:upper:]' '[:lower:]')" == "$pons_factory_lower" ]] \
+    || fail "$provider reports Pons buyback guard $PONS_V2_PAIR_BUYBACK_PRICE_GUARD targets $guard_factory, not $PONS_LAUNCH_FACTORY"
+}
+
+verify_pons_buyback_binding Chainstack "$RPC_URL"
+verify_pons_buyback_binding QuickNode "$RPC_VERIFICATION_URL"
 
 # Project adapter factories bind to one immutable Project V2 launcher generation and reject any
 # later rebind. A successor release therefore requires fresh factories; reusing the prior release's
@@ -165,7 +247,10 @@ export PONS_FEE_ESCROW="$(jq -er '.dependencies.ponsV2FeeEscrow.address' "$mainn
 export PONS_FEE_ESCROW_RUNTIME_HASH="$(
   jq -er '.dependencies.ponsV2FeeEscrow.runtimeCodeHash' "$mainnet_deployments"
 )"
-export DEPLOY_FRESH_LAUNCHPAD_FACTORIES=1
+# The exact Issa/public-Pons fork gate is part of the release test suite and must always run
+# against the authenticated production source, even when the deployment target is a local
+# stateful fork.
+export SINJOH_RPC_PRIMARY="${SINJOH_RPC_PRIMARY:-$RPC_URL}"
 if [[ -n "$stateful_fork_rpc_url" ]]; then
   export RPC_URL="$stateful_fork_rpc_url"
   export RPC_VERIFICATION_URL="$stateful_fork_rpc_url"
@@ -173,6 +258,68 @@ if [[ -n "$stateful_fork_rpc_url" ]]; then
 else
   export UNLOCKED_DEPLOYMENT=0
 fi
+[[ -n "${FOUNDRY_ACCOUNT:-}" ]] \
+  || fail "FOUNDRY_ACCOUNT must name the authorized deployer keystore for Funding Bands deployment"
+repo_dir="$(git -C "$package_dir" rev-parse --show-toplevel)"
+source_changes="$({
+  git -C "$repo_dir" status --porcelain --untracked-files=normal -- \
+    sinjoh-contracts-v2 sinjoh-funding-bands sinjoh-launchpad-adapters \
+    ':(exclude)sinjoh-contracts-v2/deployments/project-launcher-v2-*.json' \
+    ':(exclude)sinjoh-funding-bands/deployments/*.json'
+})"
+[[ -z "$source_changes" ]] \
+  || fail "contracts, Funding Bands, and launchpad adapter sources must be clean before deployment"
+
+# Funding Bands launch verification is bytecode-generation-specific. Deploy the final Pons
+# adapter factory and Project implementation together with a verifier that pins both exact clone
+# runtime hashes, then bind the new escrow to that same factory. Reusing a historical verifier or
+# deploying a second adapter factory would make one of the two UI launch paths permanently fail.
+funding_bands_dir="$package_dir/../sinjoh-funding-bands"
+funding_bands_manifest="${FUNDING_BANDS_DEPLOYMENT_MANIFEST_PATH:-/tmp/sinjoh-funding-bands-successor-4663.json}"
+funding_bands_governance="$(jq -er '.currentInfrastructure.fundingBands.governance' "$mainnet_deployments")"
+funding_bands_operator="$(jq -er '.currentInfrastructure.fundingBands.operations.keeper' "$mainnet_deployments")"
+funding_bands_output="$({
+  cd "$funding_bands_dir"
+  ROBINHOOD_RPC_URL="$RPC_URL" \
+    DEPLOYER_ACCOUNT="$FOUNDRY_ACCOUNT" \
+    DEPLOYER_PASSWORD_FILE="${FOUNDRY_PASSWORD_FILE:-}" \
+    GOVERNANCE="$funding_bands_governance" \
+    KEEPER_OPERATOR="$funding_bands_operator" \
+    PONS_V2_FACTORY="$PONS_LAUNCH_FACTORY" \
+    PROTOCOL_FEE_RECIPIENT="$PROTOCOL_FEE_RECIPIENT" \
+    ./script/deploy-pons-v2-production.sh
+})" || fail "Funding Bands successor deployment failed"
+printf '%s\n' "$funding_bands_output" > "$funding_bands_manifest"
+jq -e '.chainId == 4663 and .ponsV2AdapterFactory and .ponsV2ProjectAdapterImplementation
+  and .verifier and .escrow and .manager' "$funding_bands_manifest" >/dev/null \
+  || fail "Funding Bands successor manifest is incomplete: $funding_bands_manifest"
+
+export PONS_PROJECT_ADAPTER_FACTORY="$(jq -er '.ponsV2AdapterFactory' "$funding_bands_manifest")"
+export PONS_PROJECT_ADAPTER_FACTORY_RUNTIME_HASH="$(jq -er '.codehashes.ponsV2AdapterFactory' "$funding_bands_manifest")"
+export PONS_PROJECT_ADAPTER_IMPLEMENTATION="$(jq -er '.ponsV2ProjectAdapterImplementation' "$funding_bands_manifest")"
+export PONS_PROJECT_ADAPTER_IMPLEMENTATION_RUNTIME_HASH="$(jq -er '.codehashes.ponsV2ProjectAdapterImplementation' "$funding_bands_manifest")"
+export FUNDING_BANDS_ESCROW="$(jq -er '.escrow' "$funding_bands_manifest")"
+export FUNDING_BANDS_ESCROW_RUNTIME_HASH="$(jq -er '.codehashes.escrow' "$funding_bands_manifest")"
+funding_bands_verifier="$(jq -er '.verifier' "$funding_bands_manifest")"
+ordinary_adapter_runtime_hash="$(jq -er '.ponsV2AdapterRuntimeCodehash' "$funding_bands_manifest")"
+project_adapter_runtime_hash="$(jq -er '.ponsV2ProjectAdapterRuntimeCodehash' "$funding_bands_manifest")"
+
+[[ "$(cast call "$funding_bands_verifier" 'sinjohAdapterCodehash()(bytes32)' --rpc-url "$RPC_URL" | tr '[:upper:]' '[:lower:]')" == \
+  "$(printf '%s' "$ordinary_adapter_runtime_hash" | tr '[:upper:]' '[:lower:]')" ]] \
+  || fail "Funding Bands verifier ordinary adapter runtime hash mismatch"
+[[ "$(cast call "$funding_bands_verifier" 'sinjohProjectAdapterCodehash()(bytes32)' --rpc-url "$RPC_URL" | tr '[:upper:]' '[:lower:]')" == \
+  "$(printf '%s' "$project_adapter_runtime_hash" | tr '[:upper:]' '[:lower:]')" ]] \
+  || fail "Funding Bands verifier Project adapter runtime hash mismatch"
+[[ "$(cast call "$PONS_PROJECT_ADAPTER_FACTORY" 'fundingBandsEscrow()(address)' --rpc-url "$RPC_URL" | tr '[:upper:]' '[:lower:]')" == \
+  "$(printf '%s' "$FUNDING_BANDS_ESCROW" | tr '[:upper:]' '[:lower:]')" ]] \
+  || fail "Pons adapter factory is not bound to the new dual-hash Funding Bands escrow"
+[[ "$(cast call "$FUNDING_BANDS_ESCROW" 'verifier()(address)' --rpc-url "$RPC_URL" | tr '[:upper:]' '[:lower:]')" == \
+  "$(printf '%s' "$funding_bands_verifier" | tr '[:upper:]' '[:lower:]')" ]] \
+  || fail "Funding Bands escrow is not bound to the new dual-hash verifier"
+
+export DEPLOY_FRESH_LAUNCHPAD_FACTORIES=0
+export DEPLOY_FRESH_PONS_FACTORY=0
+export DEPLOY_FRESH_POOLS_FACTORIES=1
 export SIMULATE_ONLY="$simulate_only"
 export DEPLOYMENT_MANIFEST_PATH="${DEPLOYMENT_MANIFEST_PATH:-deployments/project-launcher-v2-4663.json}"
 

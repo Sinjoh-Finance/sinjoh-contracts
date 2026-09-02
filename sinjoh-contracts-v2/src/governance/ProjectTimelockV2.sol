@@ -19,6 +19,7 @@ contract ProjectTimelockV2 is TimelockController, IProjectControlled {
     bytes32 public immutable override projectId;
     address public immutable override controller;
     address public immutable voteSource;
+    bool public immutable stakedVoteSource;
     ProjectGovernorV2 public immutable governor;
 
     error InvalidRegistry(address candidate);
@@ -38,6 +39,7 @@ contract ProjectTimelockV2 is TimelockController, IProjectControlled {
         address registry_,
         address subject_,
         address voteSource_,
+        bool stakedVoteSource_,
         TokenGovernanceConfig memory config
     ) TimelockController(config.timelockDelay, new address[](0), _openExecutors(), address(0)) {
         if (registry_.code.length == 0) revert InvalidRegistry(registry_);
@@ -47,23 +49,24 @@ contract ProjectTimelockV2 is TimelockController, IProjectControlled {
             revert InvalidTimelockDelay(config.timelockDelay);
         }
 
-        bytes32 expectedProjectId = ProjectIds.derive(block.chainid, registry_, subject_);
-        bytes32 actualProjectId = IProjectTokenIdentity(subject_).projectId();
+        bytes32 actualProjectId = ProjectIds.derive(block.chainid, registry_, subject_);
+        (bool declaresIdentity, address subjectRegistry, bytes32 subjectProjectId) =
+            ProjectIds.declaredIdentity(subject_);
         if (
-            IProjectTokenIdentity(subject_).registry() != registry_
-                || actualProjectId != expectedProjectId
-        ) {
-            revert ProjectIdentityMismatch(expectedProjectId, actualProjectId);
-        }
+            declaresIdentity
+                && (subjectRegistry != registry_ || subjectProjectId != actualProjectId)
+        ) revert ProjectIdentityMismatch(actualProjectId, subjectProjectId);
 
         registry = registry_;
         subject = subject_;
         projectId = actualProjectId;
         controller = address(this);
         voteSource = voteSource_;
+        stakedVoteSource = stakedVoteSource_;
 
-        ProjectGovernorV2 deployedGovernor =
-            new ProjectGovernorV2(registry_, subject_, voteSource_, address(this), config);
+        ProjectGovernorV2 deployedGovernor = new ProjectGovernorV2(
+            registry_, subject_, voteSource_, stakedVoteSource_, address(this), config
+        );
         governor = deployedGovernor;
         _grantRole(PROPOSER_ROLE, address(deployedGovernor));
         _grantRole(CANCELLER_ROLE, address(deployedGovernor));

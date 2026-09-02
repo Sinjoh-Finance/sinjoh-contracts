@@ -9,7 +9,10 @@ import {
     IWETH
 } from "./interfaces/IPonsV2.sol";
 import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
+import { ISinjohFundingBandsLaunchEscrow } from "./SinjohPonsV2Adapter.sol";
 import {
+    LaunchGovernanceMode,
+    LaunchVoteSource,
     ProjectLaunchConfig,
     ProjectLaunchPreview
 } from "@sinjoh-v2/core/ProjectLauncherTypes.sol";
@@ -31,19 +34,26 @@ interface IPonsV2ProjectAdapterFactoryView {
     function projectLauncher() external view returns (address);
     function projectRegistry() external view returns (address);
     function projectTokenFactory() external view returns (address);
-    function launchProjectTokenFor(
-        IPonsV2LaunchFactory.TokenParams calldata params,
-        uint256 launchConfigId,
-        address pairToken,
-        address originalDeployer,
-        address[] calldata snipeTaxExemptions
-    ) external payable returns (address token, address curve);
+    function fundingBandsEscrow() external view returns (address);
+}
+
+interface ISinjohProjectFeeRouter {
+    function launchpadAdapter() external view returns (address);
+    function bind(address subject) external;
 }
 
 /// @notice Atomic Pons v2 → Project V2 launch adapter.
 /// @dev The one Pons token is registered as the Project subject before a developer buy executes.
 contract SinjohPonsV2ProjectAdapter is ISinjohLaunchpadAdapter {
     using SafeTransferLib for address;
+
+    struct FundingBandsPlan {
+        address escrow;
+        uint8 profileId;
+        uint16 inventoryBps;
+        ISinjohFundingBandsLaunchEscrow.BandConfig[] configs;
+        uint16[] allocationBps;
+    }
 
     struct LaunchRequest {
         IPonsV2LaunchFactory.TokenParams token;
@@ -54,6 +64,7 @@ contract SinjohPonsV2ProjectAdapter is ISinjohLaunchpadAdapter {
         address[] snipeTaxExemptions;
         ProjectLaunchConfig project;
         bytes32[] launchpadApprovalProof;
+        FundingBandsPlan fundingBands;
     }
 
     error AlreadyInitialized();
@@ -76,8 +87,10 @@ contract SinjohPonsV2ProjectAdapter is ISinjohLaunchpadAdapter {
     error BuybackMustBeDisabled();
     error InvalidProjectV2Configuration();
     error MissingProjectCustodyExclusion(address account);
-    error ProjectRouterMismatch(address expected, address actual);
+    error RouterDidNotNameAdapter(address configured);
     error ProjectLaunchMismatch(address expected, address actual);
+    error InvalidFundingBandsPlan();
+    error FundingBandsEscrowMismatch(uint256 reported, uint256 spent);
 
     event Initialized(address indexed router, address indexed creator);
     event Launched(
@@ -89,6 +102,12 @@ contract SinjohPonsV2ProjectAdapter is ISinjohLaunchpadAdapter {
     );
     event DeveloperBuyDelivered(
         address indexed subject, address indexed creator, uint256 quoteIn, uint256 tokensOut
+    );
+    event DeveloperBuyEscrowed(
+        address indexed subject,
+        address indexed escrow,
+        uint256 developerBuyTokens,
+        uint256 escrowedInventory
     );
     event DeveloperBuyRefunded(address indexed asset, address indexed creator, uint256 amount);
     event Collected(
@@ -179,19 +198,17 @@ contract SinjohPonsV2ProjectAdapter is ISinjohLaunchpadAdapter {
         uint256 requiredValue = native ? launchFee + request.developerBuy : launchFee;
         if (msg.value != requiredValue) revert NativeValueMismatch(requiredValue, msg.value);
 
-        (token, curve_) = IPonsV2ProjectAdapterFactoryView(adapterFactory)
-        .launchProjectTokenFor{ value: launchFee }(
-            request.token,
-            request.launchConfigId,
-            request.pairToken,
-            creator,
-            request.snipeTaxExemptions
+        (token, curve_) = factory.launchToken{ value: launchFee }(
+            request.token, request.launchConfigId, request.pairToken, request.snipeTaxExemptions
         );
         if (token == address(0) || curve_ == address(0)) revert LaunchReturnedNoToken();
         subject = token;
         curve = curve_;
         pairToken = request.pairToken;
 
+        address configuredAdapter = ISinjohProjectFeeRouter(router).launchpadAdapter();
+        if (configuredAdapter != address(this)) revert RouterDidNotNameAdapter(configuredAdapter);
+        ISinjohProjectFeeRouter(router).bind(token);
         _registerProject(token, curve_, request.project, request.launchpadApprovalProof);
         emit Launched(token, curve_, request.pairToken, request.launchConfigId, launchFee);
 
@@ -200,9 +217,9 @@ contract SinjohPonsV2ProjectAdapter is ISinjohLaunchpadAdapter {
             tokensOut = _developerBuy(
                 token, curve_, request.pairToken, native, request.developerBuy, request.minTokensOut
             );
-            token.safeTransfer(creator, tokensOut);
         }
-        emit DeveloperBuyDelivered(token, creator, request.developerBuy, tokensOut);
+        uint256 delivered = _deliverDeveloperBuy(token, tokensOut, request.fundingBands);
+        emit DeveloperBuyDelivered(token, creator, request.developerBuy, delivered);
     }
 
     function _validate(LaunchRequest calldata request, IPonsV2LaunchFactory factory) private view {
@@ -235,8 +252,28 @@ contract SinjohPonsV2ProjectAdapter is ISinjohLaunchpadAdapter {
                 || keccak256(bytes(config.name)) != keccak256(bytes(request.token.name))
                 || keccak256(bytes(config.symbol)) != keccak256(bytes(request.token.symbol))
                 || config.totalSupply != factory.getLaunchConfig(request.launchConfigId).supply
-                || !config.modules.router
+                || config.modules.router || config.routerRoutes.length != 0
+                || (config.governanceMode == LaunchGovernanceMode.TOKEN_HOLDER
+                    && config.voteSource == LaunchVoteSource.STAKED
+                    && !config.modules.staking)
         ) revert InvalidProjectV2Configuration();
+        FundingBandsPlan calldata bands = request.fundingBands;
+        if (bands.escrow != address(0)) {
+            if (
+                request.pairToken != address(0) || bands.profileId != 0
+                    || bands.inventoryBps > 10_000 || bands.configs.length > 10
+                    || bands.escrow.code.length == 0
+                    || bands.escrow
+                        != IPonsV2ProjectAdapterFactoryView(adapterFactory).fundingBandsEscrow()
+                    || bands.inventoryBps == 0 || request.developerBuy == 0
+                    || bands.configs.length == 0
+                    || bands.configs.length != bands.allocationBps.length
+            ) revert InvalidFundingBandsPlan();
+        } else if (
+            bands.inventoryBps != 0 || bands.configs.length != 0 || bands.allocationBps.length != 0
+        ) {
+            revert InvalidFundingBandsPlan();
+        }
         IPonsV2ProjectAdapterFactoryView projectFactory =
             IPonsV2ProjectAdapterFactoryView(adapterFactory);
         if (
@@ -275,14 +312,43 @@ contract SinjohPonsV2ProjectAdapter is ISinjohLaunchpadAdapter {
             IPonsV2ProjectAdapterFactoryView(adapterFactory).projectLauncher()
         );
         ProjectLaunchPreview memory predicted = launcher.predictExistingTokenLaunch(config, token);
-        if (predicted.addresses.router != router) {
-            revert ProjectRouterMismatch(router, predicted.addresses.router);
-        }
         ProjectLaunchPreview memory result = launcher.launchExistingToken(config, token, proof);
         if (
-            result.addresses.subject != token || result.addresses.router != router
-                || result.projectId != predicted.projectId
+            result.addresses.subject != token
+                || keccak256(abi.encode(result)) != keccak256(abi.encode(predicted))
         ) revert ProjectLaunchMismatch(token, result.addresses.subject);
+    }
+
+    function _deliverDeveloperBuy(address token, uint256 tokensOut, FundingBandsPlan calldata plan)
+        private
+        returns (uint256 delivered)
+    {
+        if (tokensOut == 0) return 0;
+        if (plan.escrow == address(0)) {
+            token.safeTransfer(creator, tokensOut);
+            return tokensOut;
+        }
+
+        uint256 beforeBalance = token.safeBalanceOf(address(this));
+        token.safeApprove(plan.escrow, tokensOut);
+        uint256 escrowed = ISinjohFundingBandsLaunchEscrow(plan.escrow)
+            .prepareFromLaunch(
+                token,
+                plan.profileId,
+                plan.inventoryBps,
+                plan.configs,
+                plan.allocationBps,
+                tokensOut,
+                ""
+            );
+        token.safeApprove(plan.escrow, 0);
+        uint256 spent = beforeBalance - token.safeBalanceOf(address(this));
+        if (escrowed == 0 || spent != escrowed || escrowed > tokensOut) {
+            revert FundingBandsEscrowMismatch(escrowed, spent);
+        }
+        delivered = tokensOut - escrowed;
+        if (delivered != 0) token.safeTransfer(creator, delivered);
+        emit DeveloperBuyEscrowed(token, plan.escrow, tokensOut, escrowed);
     }
 
     function _developerBuy(

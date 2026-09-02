@@ -5,8 +5,8 @@ pragma solidity 0.8.28;
 /// Robinhood Chain mainnet, not from docs.ponsfamily.com/v2, which misstates
 /// several signatures. See PONS-V2-FINDINGS.md.
 ///
-/// Transcribed from the current 2026-08 deployment at
-/// 0x7DCeEaB0A53684b001A4900768a52eAcDb27294e, which restored the CREATE2
+/// Transcribed from the current public-indexed 2026-08 deployment at
+/// 0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e, which restored the CREATE2
 /// `salt`, added the decaying snipe tax with per-launch exemptions, and added
 /// the trusted-forwarder path used by Project V2.
 

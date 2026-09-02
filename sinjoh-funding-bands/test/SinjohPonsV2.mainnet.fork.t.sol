@@ -143,7 +143,11 @@ contract SinjohPonsV2MainnetForkTest is TestBase {
             new SinjohFeeRouterFactory(address(routerImplementation));
         address predictedRouter = routerFactory.predictLaunchpadAddress(CREATOR, adapterSalt);
         SinjohPonsV2LaunchVerifier verifier = new SinjohPonsV2LaunchVerifier(
-            PONS_FACTORY, PONS_HOOK, WETH, adapterFactory.adapterRuntimeCodehash()
+            PONS_FACTORY,
+            PONS_HOOK,
+            WETH,
+            adapterFactory.adapterRuntimeCodehash(),
+            adapterFactory.adapterRuntimeCodehash()
         );
         SinjohFundingBandsLaunchEscrow escrow =
             new SinjohFundingBandsLaunchEscrow(address(verifier), address(this));

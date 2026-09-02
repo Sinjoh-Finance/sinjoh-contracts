@@ -158,7 +158,14 @@ read -r adapter_factory adapter_factory_tx <<< "$(deploy \
 adapter_implementation="$(cast call "$adapter_factory" 'implementation()(address)' "${RPC_ARGS[@]}")"
 actual_adapter_codehash="$(cast call "$adapter_factory" \
   'adapterRuntimeCodehash()(bytes32)' "${RPC_ARGS[@]}")"
-for address in "$adapter_factory" "$adapter_implementation"; do
+read -r project_adapter_implementation project_adapter_implementation_tx <<< "$(deploy \
+  src/SinjohPonsV2ProjectAdapter.sol:SinjohPonsV2ProjectAdapter \
+  --root ../sinjoh-launchpad-adapters \
+  --constructor-args "$adapter_factory" "$PONS_V2_FACTORY" "$pons_fee_escrow" "$WETH" 4663)"
+project_adapter_implementation_hex="${project_adapter_implementation#0x}"
+project_adapter_runtime_codehash="$(cast keccak \
+  "0x363d3d373d3d3d363d73${project_adapter_implementation_hex}5af43d82803e903d91602b57fd5bf3")"
+for address in "$adapter_factory" "$adapter_implementation" "$project_adapter_implementation"; do
   [[ "$(cast code "$address" "${RPC_ARGS[@]}")" != "0x" ]] || {
     echo "missing deployed adapter bytecode at $address" >&2
     exit 1
@@ -174,6 +181,14 @@ assert_equal "Pons v2 adapter factory binder" \
   "$(cast call "$adapter_factory" 'binder()(address)' "${RPC_ARGS[@]}")" "$deployer"
 assert_equal "Pons v2 adapter implementation factory" \
   "$(cast call "$adapter_implementation" 'adapterFactory()(address)' "${RPC_ARGS[@]}")" "$adapter_factory"
+assert_equal "Pons v2 Project adapter implementation factory" \
+  "$(cast call "$project_adapter_implementation" 'adapterFactory()(address)' "${RPC_ARGS[@]}")" "$adapter_factory"
+assert_equal "Pons v2 Project adapter implementation launchFactory" \
+  "$(cast call "$project_adapter_implementation" 'launchFactory()(address)' "${RPC_ARGS[@]}")" "$PONS_V2_FACTORY"
+assert_equal "Pons v2 Project adapter implementation feeEscrow" \
+  "$(cast call "$project_adapter_implementation" 'feeEscrow()(address)' "${RPC_ARGS[@]}")" "$pons_fee_escrow"
+assert_equal "Pons v2 Project adapter implementation WETH" \
+  "$(cast call "$project_adapter_implementation" 'weth()(address)' "${RPC_ARGS[@]}")" "$WETH"
 [[ "$(cast call "$adapter_factory" 'deploymentChainId()(uint256)' "${RPC_ARGS[@]}")" == "4663" ]]
 [[ "$(cast call "$adapter_implementation" 'initialized()(bool)' "${RPC_ARGS[@]}")" == "true" ]]
 [[ "$(lower "$(cast call "$adapter_factory" 'fundingBandsEscrow()(address)' "${RPC_ARGS[@]}")")" == \
@@ -184,7 +199,7 @@ read -r oracle oracle_tx <<< "$(deploy src/oracles/SinjohV3EthUsdOracle.sol:Sinj
   "$ORACLE_TWAP_WINDOW" "$ORACLE_MAX_DEVIATION_BPS" "$ORACLE_MINIMUM_LIQUIDITY")"
 read -r verifier verifier_tx <<< "$(deploy src/profiles/SinjohPonsV2LaunchVerifier.sol:SinjohPonsV2LaunchVerifier \
   --constructor-args "$PONS_V2_FACTORY" "$PONS_V2_HOOK" "$WETH" \
-  "$actual_adapter_codehash")"
+  "$actual_adapter_codehash" "$project_adapter_runtime_codehash")"
 read -r escrow escrow_tx <<< "$(deploy src/SinjohFundingBandsLaunchEscrow.sol:SinjohFundingBandsLaunchEscrow \
   --constructor-args "$verifier" "$deployer")"
 state_view_hash="$(runtime_codehash "$V4_STATE_VIEW")"
@@ -227,6 +242,7 @@ cast call "$oracle" 'latestRoundData()(uint80,int256,uint256,uint256,uint80)' "$
 [[ "$(lower "$(cast call "$verifier" 'memeHook()(address)' "${RPC_ARGS[@]}")")" == "$(lower "$PONS_V2_HOOK")" ]]
 [[ "$(lower "$(cast call "$verifier" 'weth()(address)' "${RPC_ARGS[@]}")")" == "$(lower "$WETH")" ]]
 [[ "$(lower "$(cast call "$verifier" 'sinjohAdapterCodehash()(bytes32)' "${RPC_ARGS[@]}")")" == "$(lower "$actual_adapter_codehash")" ]]
+[[ "$(lower "$(cast call "$verifier" 'sinjohProjectAdapterCodehash()(bytes32)' "${RPC_ARGS[@]}")")" == "$(lower "$project_adapter_runtime_codehash")" ]]
 profile="$(cast call "$manager" 'getProfile(uint8)(address,address,bytes32)' 0 "${RPC_ARGS[@]}")"
 [[ "$(lower "$(sed -n '1p' <<< "$profile")")" == "$(lower "$verifier")" ]]
 [[ "$(lower "$(sed -n '2p' <<< "$profile")")" == "$(lower "$guard")" ]]
@@ -283,8 +299,11 @@ jq -n \
   --arg adapterFactory "$adapter_factory" \
   --arg adapterImplementation "$adapter_implementation" \
   --arg adapterRuntimeCodehash "$actual_adapter_codehash" \
+  --arg projectAdapterImplementation "$project_adapter_implementation" \
+  --arg projectAdapterRuntimeCodehash "$project_adapter_runtime_codehash" \
   --arg adapterFactoryCodehash "$(runtime_codehash "$adapter_factory")" \
   --arg adapterImplementationCodehash "$(runtime_codehash "$adapter_implementation")" \
+  --arg projectAdapterImplementationCodehash "$(runtime_codehash "$project_adapter_implementation")" \
   --arg fundingBandMath "$math" \
   --arg fundingBandV4 "$v4_library" \
   --arg oracle "$oracle" \
@@ -307,11 +326,14 @@ jq -n \
   --arg fundingBandMathTx "$math_tx" --arg fundingBandV4Tx "$v4_library_tx" \
   --arg escrowTx "$escrow_tx" --arg managerTx "$manager_tx" --arg bindTx "$bind_tx" \
   --arg adapterFactoryTx "$adapter_factory_tx" --arg adapterBindTx "$adapter_bind_tx" \
+  --arg projectAdapterImplementationTx "$project_adapter_implementation_tx" \
   --arg subjectSellAdapterTx "$subject_sell_adapter_tx" \
   --arg subjectPriceGuardTx "$subject_price_guard_tx" \
   '{chainId:($chainId|tonumber),governance:$governance,
     ponsV2AdapterFactory:$adapterFactory,ponsV2AdapterImplementation:$adapterImplementation,
     ponsV2AdapterRuntimeCodehash:$adapterRuntimeCodehash,fundingBandMath:$fundingBandMath,
+    ponsV2ProjectAdapterImplementation:$projectAdapterImplementation,
+    ponsV2ProjectAdapterRuntimeCodehash:$projectAdapterRuntimeCodehash,
     fundingBandV4:$fundingBandV4,oracle:$oracle,verifier:$verifier,guard:$guard,escrow:$escrow,manager:$manager,
     subjectSellAdapter:$subjectSellAdapter,subjectPriceGuard:$subjectPriceGuard,
     managerDeploymentBlock:($managerDeploymentBlock|tonumber),
@@ -319,9 +341,11 @@ jq -n \
     transactions:{fundingBandMath:$fundingBandMathTx,fundingBandV4:$fundingBandV4Tx,
       oracle:$oracleTx,verifier:$verifierTx,guard:$guardTx,escrow:$escrowTx,
       adapterFactory:$adapterFactoryTx,manager:$managerTx,subjectSellAdapter:$subjectSellAdapterTx,
+      projectAdapterImplementation:$projectAdapterImplementationTx,
       subjectPriceGuard:$subjectPriceGuardTx,bindEscrow:$bindTx,bindAdapterEscrow:$adapterBindTx},
     codehashes:{ponsV2AdapterFactory:$adapterFactoryCodehash,
       ponsV2AdapterImplementation:$adapterImplementationCodehash,
+      ponsV2ProjectAdapterImplementation:$projectAdapterImplementationCodehash,
       oracle:$oracleCodehash,verifier:$verifierCodehash,guard:$guardCodehash,
       escrow:$escrowCodehash,manager:$managerCodehash,subjectSellAdapter:$subjectSellAdapterCodehash,
       subjectPriceGuard:$subjectPriceGuardCodehash}}'

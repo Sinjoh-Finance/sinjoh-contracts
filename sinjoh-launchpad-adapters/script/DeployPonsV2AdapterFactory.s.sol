@@ -44,8 +44,10 @@ contract DeployPonsV2AdapterFactory {
         }
         address ponsV2Factory = vm.envAddress("PONS_LAUNCH_FACTORY");
         address ponsV2FeeEscrow = vm.envAddress("PONS_FEE_ESCROW");
+        address fundingBandsEscrow = vm.envAddress("FUNDING_BANDS_ESCROW");
         _assertHash(ponsV2Factory, vm.envBytes32("PONS_LAUNCH_FACTORY_RUNTIME_HASH"));
         _assertHash(ponsV2FeeEscrow, vm.envBytes32("PONS_FEE_ESCROW_RUNTIME_HASH"));
+        _assertHash(fundingBandsEscrow, vm.envBytes32("FUNDING_BANDS_ESCROW_RUNTIME_HASH"));
         _assertHash(WETH, WETH_HASH);
 
         vm.startBroadcast();
@@ -55,6 +57,7 @@ contract DeployPonsV2AdapterFactory {
         projectImplementation = new SinjohPonsV2ProjectAdapter(
             address(factory), ponsV2Factory, ponsV2FeeEscrow, WETH, ROBINHOOD_MAINNET_CHAIN_ID
         );
+        factory.bindFundingBandsEscrow(fundingBandsEscrow);
         vm.stopBroadcast();
 
         if (
@@ -62,7 +65,8 @@ contract DeployPonsV2AdapterFactory {
                 || factory.launchFactory() != ponsV2Factory
                 || factory.feeEscrow() != ponsV2FeeEscrow || factory.weth() != WETH
                 || factory.deploymentChainId() != ROBINHOOD_MAINNET_CHAIN_ID
-                || factory.binder() == address(0) || factory.fundingBandsEscrow() != address(0)
+                || factory.binder() == address(0)
+                || factory.fundingBandsEscrow() != fundingBandsEscrow
                 || SinjohPonsV2Adapter(payable(factory.implementation())).adapterFactory()
                     != address(factory)
                 || !SinjohPonsV2Adapter(payable(factory.implementation())).initialized()

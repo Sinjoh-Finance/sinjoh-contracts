@@ -101,6 +101,95 @@ function validateDeploymentManifests() {
   }
 }
 
+function valueAtPath(document, path) {
+  return path.split(".").reduce((value, segment) => value?.[segment], document);
+}
+
+function validateDeploymentProvenance(chainId) {
+  const mainnet = readJson("mainnet-deployments.json");
+  const relativePath = `deployments/provenance/${chainId}/project-v2-public-pons-dual-funding-receipts.json`;
+  const provenance = readJson(relativePath);
+  if (!mainnet || !provenance) return;
+
+  requireValue(provenance.schemaVersion === 1, `${relativePath}: schemaVersion must be 1`);
+  requireValue(provenance.chainId === chainId, `${relativePath}: chainId must be ${chainId}`);
+  requireValue(
+    provenance.sourceCommit === mainnet.currentInfrastructure?.projectV2?.sourceCommit,
+    `${relativePath}: sourceCommit must match current Project V2`,
+  );
+  requireValue(provenance.broadcasts?.length === 2, `${relativePath}: both exact Forge broadcasts are required`);
+  for (const broadcast of provenance.broadcasts ?? []) {
+    requireValue(
+      typeof broadcast.script === "string" && broadcast.script.endsWith(".s.sol"),
+      `${relativePath}: invalid Forge broadcast script`,
+    );
+    requireValue(
+      typeof broadcast.sha256 === "string" && /^[0-9a-f]{64}$/.test(broadcast.sha256),
+      `${relativePath}: invalid Forge broadcast sha256`,
+    );
+  }
+  requireValue(Array.isArray(provenance.receipts), `${relativePath}: receipts must be an array`);
+
+  const paths = new Set();
+  const transactionHashes = new Set();
+  for (const receipt of provenance.receipts ?? []) {
+    requireValue(
+      typeof receipt.path === "string" && receipt.path.startsWith("currentInfrastructure.projectV2."),
+      `${relativePath}: invalid current Project V2 path`,
+    );
+    requireValue(!paths.has(receipt.path), `${relativePath}: duplicate path ${receipt.path}`);
+    paths.add(receipt.path);
+    requireValue(addressPattern.test(receipt.address), `${relativePath}: ${receipt.path} invalid receipt contractAddress`);
+    requireValue(hashPattern.test(receipt.transactionHash), `${relativePath}: ${receipt.path} invalid transactionHash`);
+    requireValue(receipt.status === "0x1", `${relativePath}: ${receipt.path} receipt status must be 0x1`);
+    requireValue(/^0x[0-9a-f]+$/i.test(receipt.blockNumber), `${relativePath}: ${receipt.path} invalid blockNumber`);
+
+    const deployment = valueAtPath(mainnet, receipt.path);
+    requireValue(deployment && typeof deployment === "object", `${relativePath}: missing ${receipt.path}`);
+    requireValue(
+      deployment?.address?.toLowerCase() === receipt.address.toLowerCase(),
+      `${relativePath}: ${receipt.path} receipt contractAddress does not match current address`,
+    );
+    requireValue(
+      deployment?.deploymentTransaction?.toLowerCase() === receipt.transactionHash.toLowerCase(),
+      `${relativePath}: ${receipt.path} receipt transactionHash does not match deploymentTransaction`,
+    );
+    requireValue(
+      deployment?.deploymentBlock === Number.parseInt(receipt.blockNumber, 16),
+      `${relativePath}: ${receipt.path} receipt blockNumber does not match deploymentBlock`,
+    );
+    requireValue(
+      !transactionHashes.has(receipt.transactionHash.toLowerCase()),
+      `${relativePath}: duplicate create receipt ${receipt.transactionHash}`,
+    );
+    transactionHashes.add(receipt.transactionHash.toLowerCase());
+  }
+
+  const requiredPaths = [
+    "currentInfrastructure.projectV2.raffleImplementation",
+    "currentInfrastructure.projectV2.fundingBandV3IntegrationFactory",
+    "currentInfrastructure.projectV2.fundingBandQuoteUsdOracle",
+    "currentInfrastructure.projectV2.projectV3PriceGuard500",
+    "currentInfrastructure.projectV2.projectV3PriceGuard3000",
+    "currentInfrastructure.projectV2.projectV3PriceGuard10000",
+    "currentInfrastructure.projectV2.projectWethUnwrapPriceGuard",
+    "currentInfrastructure.projectV2.ponsProjectTokenFactory",
+    "currentInfrastructure.projectV2.launchpadProjectTokenFactory",
+    "currentInfrastructure.projectV2.registry",
+    "currentInfrastructure.projectV2.deploymentEngine",
+    "currentInfrastructure.projectV2.launchValidator",
+    "currentInfrastructure.projectV2.launcher",
+    "currentInfrastructure.projectV2.poolsInstantProjectAdapterFactory",
+    "currentInfrastructure.projectV2.poolsInstantNoFeeProjectAdapterFactory",
+    "currentInfrastructure.projectV2.poolsLbpProjectAdapterFactory",
+    "currentInfrastructure.projectV2.poolsProjectRegistrationHelper",
+  ];
+  requireValue(paths.size === requiredPaths.length, `${relativePath}: receipt path set must be exact`);
+  for (const requiredPath of requiredPaths) {
+    requireValue(paths.has(requiredPath), `${relativePath}: missing required receipt ${requiredPath}`);
+  }
+}
+
 function validateOnchainAssertions(chainId) {
   const relativePath = `deployments/assertions/${chainId}.json`;
   const document = readJson(relativePath);
@@ -120,17 +209,19 @@ function validateOnchainAssertions(chainId) {
     requireValue(addressPattern.test(assertion.address), `${relativePath}: ${assertion.id} address`);
     requireValue(
       typeof assertion.signature === "string"
-        && /^[A-Za-z_][A-Za-z0-9_]*\(\)\((address|bool|uint(8|16|24|32|48|64|128|256)?)\)$/.test(assertion.signature),
+        && /^[A-Za-z_][A-Za-z0-9_]*\(\)\((address|bool|bytes32|uint(8|16|24|32|48|64|128|256)?)\)$/.test(assertion.signature),
       `${relativePath}: ${assertion.id} signature`,
     );
     requireValue(
-      ["address", "bool", "uint"].includes(assertion.type),
+      ["address", "bool", "bytes32", "uint"].includes(assertion.type),
       `${relativePath}: ${assertion.id} type`,
     );
     if (assertion.type === "address") {
       requireValue(addressPattern.test(assertion.expected), `${relativePath}: ${assertion.id} expected address`);
     } else if (assertion.type === "bool") {
       requireValue(typeof assertion.expected === "boolean", `${relativePath}: ${assertion.id} expected bool`);
+    } else if (assertion.type === "bytes32") {
+      requireValue(hashPattern.test(assertion.expected), `${relativePath}: ${assertion.id} expected bytes32`);
     } else if (assertion.type === "uint") {
       requireValue(
         typeof assertion.expected === "string" && /^(0|[1-9][0-9]*)$/.test(assertion.expected),
@@ -335,6 +426,7 @@ function validateConsumerBindings() {
 validateNetwork(4663);
 validateNetwork(46630);
 validateDeploymentManifests();
+validateDeploymentProvenance(4663);
 validateOnchainAssertions(4663);
 validateDeploymentPlan(4663);
 validateDeploymentPlan(46630);

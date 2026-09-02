@@ -31,14 +31,15 @@ import {
 contract ProjectLaunchDeployerV2 {
     uint32 private constant PROTOCOL_VERSION = 2;
     address private constant BURN_ADDRESS = SinjohV2Constants.BURN_ADDRESS;
-    address private constant PONS_LOCKER = 0x1006fA85294A9c38AA4214d52c86CC970Ddc5647;
+    address private constant PONS_LOCKER = 0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952;
     address private constant PONS_POOL_MANAGER = 0x8366a39CC670B4001A1121B8F6A443A643e40951;
-    uint256 private constant REQUIRED_CODE_STORES = 10;
-    uint256 private constant REQUIRED_CODE_STORES_WITHOUT_BASKET = 9;
+    uint256 private constant REQUIRED_CODE_STORES = 11;
+    uint256 private constant REQUIRED_CODE_STORES_WITHOUT_BASKET = 10;
 
     bytes32 private constant TOKEN = keccak256("TOKEN");
     bytes32 private constant MULTISIG = keccak256("MULTISIG");
     bytes32 private constant TIMELOCK = keccak256("TIMELOCK");
+    bytes32 private constant LIQUID_VOTES = keccak256("LIQUID_VOTES");
     bytes32 private constant STAKING = keccak256("STAKING");
     bytes32 private constant TREASURY = keccak256("TREASURY");
     bytes32 private constant AIRDROP = keccak256("AIRDROP");
@@ -242,6 +243,22 @@ contract ProjectLaunchDeployerV2 {
             );
             _requireExpected(MULTISIG, a.multisigAccount, deployed);
         }
+        if (a.liquidVotes != address(0)) {
+            address deployed = _deploy(
+                LIQUID_VOTES,
+                config,
+                abi.encode(
+                    registry,
+                    a.subject,
+                    config.creator,
+                    config.totalSupply,
+                    string.concat(config.name, " Liquid Votes"),
+                    string.concat("v", config.symbol),
+                    tokenExclusions(config, a)
+                )
+            );
+            _requireExpected(LIQUID_VOTES, a.liquidVotes, deployed);
+        }
         if (
             config.modules.staking
                 && (config.governanceMode == LaunchGovernanceMode.MULTISIG
@@ -251,7 +268,13 @@ contract ProjectLaunchDeployerV2 {
             address deployed = _deploy(
                 TIMELOCK,
                 config,
-                abi.encode(registry, a.subject, a.voteSource, config.governance.tokenGovernance)
+                abi.encode(
+                    registry,
+                    a.subject,
+                    a.voteSource,
+                    config.voteSource == LaunchVoteSource.STAKED,
+                    config.governance.tokenGovernance
+                )
             );
             _requireExpected(TIMELOCK, a.tokenTimelock, deployed);
             if (address(ProjectTimelockV2(payable(deployed)).governor()) != a.tokenGovernor) {
@@ -316,7 +339,7 @@ contract ProjectLaunchDeployerV2 {
         ProjectLaunchAddresses memory a = preview.addresses;
         if (config.modules.airdrop) {
             address source = config.airdrop.eligibilityMode == AirdropEligibilityMode.HOLDERS
-                ? a.subject
+                ? (a.liquidVotes == address(0) ? a.subject : a.liquidVotes)
                 : a.stakingPool;
             address deployed = _deploy(
                 AIRDROP,
@@ -687,9 +710,9 @@ contract ProjectLaunchDeployerV2 {
     }
 
     function _isCreationCodeKey(bytes32 key) private pure returns (bool) {
-        return key == TOKEN || key == MULTISIG || key == TIMELOCK || key == STAKING
-            || key == TREASURY || key == AIRDROP || key == ROUTER || key == BASKET || key == BANDS
-            || key == LIQUIDITY;
+        return key == TOKEN || key == MULTISIG || key == TIMELOCK || key == LIQUID_VOTES
+            || key == STAKING || key == TREASURY || key == AIRDROP || key == ROUTER || key == BASKET
+            || key == BANDS || key == LIQUIDITY;
     }
 
     function _requireExpected(bytes32 key, address expected, address deployed) private pure {

@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { AirdropEligibilityMode } from "../airdrop/AirdropTypes.sol";
 import { ERC4626BasketYieldAdapterFactory } from "../adapters/ERC4626BasketYieldAdapterFactory.sol";
 import { BasketManagerV2 } from "../basket/BasketManagerV2.sol";
 import { FundingBandV3IntegrationConfig } from "../bands/FundingBandV3IntegrationFactory.sol";
@@ -35,12 +36,13 @@ import { ProjectRegistryV2 } from "./ProjectRegistryV2.sol";
 contract ProjectLauncherV2 is ReentrancyGuard {
     uint32 public constant PROTOCOL_VERSION = 2;
     address public constant BURN_ADDRESS = SinjohV2Constants.BURN_ADDRESS;
-    address public constant PONS_LOCKER = 0x1006fA85294A9c38AA4214d52c86CC970Ddc5647;
+    address public constant PONS_LOCKER = 0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952;
     address public constant PONS_POOL_MANAGER = 0x8366a39CC670B4001A1121B8F6A443A643e40951;
 
     bytes32 public constant TOKEN = keccak256("TOKEN");
     bytes32 public constant MULTISIG = keccak256("MULTISIG");
     bytes32 public constant TIMELOCK = keccak256("TIMELOCK");
+    bytes32 public constant LIQUID_VOTES = keccak256("LIQUID_VOTES");
     bytes32 public constant STAKING = keccak256("STAKING");
     bytes32 public constant TREASURY = keccak256("TREASURY");
     bytes32 public constant AIRDROP = keccak256("AIRDROP");
@@ -280,9 +282,16 @@ contract ProjectLauncherV2 is ReentrancyGuard {
             a.stakingPool = _predict(config, configHash, STAKING);
             a.posNft = _firstCreateAddress(a.stakingPool);
         }
-        a.voteSource = config.governanceMode == LaunchGovernanceMode.TOKEN_HOLDER
-            ? (config.voteSource == LaunchVoteSource.STAKED ? a.stakingPool : a.subject)
-            : address(0);
+        if (_needsLiquidVotes(config, externalSubject, a.subject)) {
+            a.liquidVotes = _predict(config, configHash, LIQUID_VOTES);
+        }
+        if (config.governanceMode == LaunchGovernanceMode.TOKEN_HOLDER) {
+            if (config.voteSource == LaunchVoteSource.STAKED) {
+                a.voteSource = a.stakingPool;
+            } else {
+                a.voteSource = a.liquidVotes == address(0) ? a.subject : a.liquidVotes;
+            }
+        }
         if (config.modules.treasury) a.treasury = _predict(config, configHash, TREASURY);
         if (config.modules.airdrop) a.airdrop = _predict(config, configHash, AIRDROP);
         if (config.modules.raffle) a.raffle = _predict(config, configHash, RAFFLE);
@@ -353,6 +362,20 @@ contract ProjectLauncherV2 is ReentrancyGuard {
             ProjectRouterV2(payable(a.router))
                 .initializeRoutesFromLauncher(_materializeRouterRoutes(config, a));
         }
+    }
+
+    function _needsLiquidVotes(
+        ProjectLaunchConfig calldata config,
+        address externalSubject,
+        address subject
+    ) private view returns (bool) {
+        if (externalSubject == address(0)) return false;
+        (bool declaresIdentity,,) = ProjectIds.declaredIdentity(subject);
+        if (declaresIdentity) return false;
+        return (config.governanceMode == LaunchGovernanceMode.TOKEN_HOLDER
+                && config.voteSource == LaunchVoteSource.LIQUID)
+            || (config.modules.airdrop
+                && config.airdrop.eligibilityMode == AirdropEligibilityMode.HOLDERS);
     }
 
     function _finalizeVotingExclusionsIfSupported(address subject, address[] memory exclusions)

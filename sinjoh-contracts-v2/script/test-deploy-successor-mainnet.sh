@@ -18,11 +18,41 @@ case "${1:-}" in
     fi
     ;;
   call)
-    if [[ "${FAKE_PRIMARY_OWNER_MATCH:-0}" == "1" && "$*" == *"chainstack.com"* ]]; then
-      echo 0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49
-    else
-      echo 0xe4605138e185FBeE40ff6193A044aa0BE2909216
-    fi
+    case "$*" in
+      *"launchEnabled()(bool)"*)
+        if [[ "${FAKE_LAUNCH_DISABLED:-0}" == "1" && "$*" == *"chainstack.com"* ]]; then
+          echo false
+        else
+          echo true
+        fi
+        ;;
+      *"launchFee()(uint256)"*) echo '["500000000000000"]' ;;
+      *"getLaunchConfig(uint256)"*)
+        echo '[["1000000000000000000000000000",100,1680000000000000000,4200000000000000000,0,200,true]]'
+        ;;
+      *"approvedPairTokens(address)(bool)"*)
+        if [[ "${FAKE_PAIR_UNAPPROVED:-0}" == "1" && "$*" == *"quiknode.pro"* ]]; then
+          echo false
+        else
+          echo true
+        fi
+        ;;
+      *"locker()(address)"*)
+        if [[ "${FAKE_LOCKER_MISMATCH:-0}" == "1" && "$*" == *"quiknode.pro"* ]]; then
+          echo 0x1006fA85294A9c38AA4214d52c86CC970Ddc5647
+        else
+          echo 0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952
+        fi
+        ;;
+      *"launchFactory()(address)"*)
+        if [[ "${FAKE_BINDING_MISMATCH:-0}" == "1" && "$*" == *"quiknode.pro"* ]]; then
+          echo 0x7DCeEaB0A53684b001A4900768a52eAcDb27294e
+        else
+          echo 0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e
+        fi
+        ;;
+      *) exit 64 ;;
+    esac
     ;;
   *) exit 64 ;;
 esac
@@ -109,52 +139,91 @@ set -e
 }
 
 set +e
-output="$({
+disabled_output="$({
   PATH="$fake_bin:$PATH" \
+  FAKE_LAUNCH_DISABLED=1 \
   RPC_URL=https://robinhood-mainnet.core.chainstack.com/primary-secret \
   RPC_VERIFICATION_URL=https://verified.robinhood-mainnet.quiknode.pro/secondary-secret \
   FOUNDRY_ACCOUNT=test-account \
     "$package_dir/script/deploy-successor-mainnet.sh"
 } 2>&1)"
-status=$?
+disabled_status=$?
 set -e
 
-[[ "$status" -ne 0 ]] || {
-  echo "expected the successor wrapper to reject a mismatched Pons owner" >&2
+[[ "$disabled_status" -ne 0 ]] || {
+  echo "expected the successor wrapper to reject disabled public Pons launches" >&2
   exit 1
 }
-[[ "$output" == *"0xe4605138e185FBeE40ff6193A044aa0BE2909216"* ]] || {
-  echo "mismatched Pons owner was not reported" >&2
+[[ "$disabled_output" == *"public Pons launches disabled"* ]] || {
+  echo "disabled public Pons launch state was not reported" >&2
   exit 1
 }
-[[ "$output" == *"0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49"* ]] || {
-  echo "authorized deployer was not reported" >&2
-  exit 1
-}
-[[ "$output" == *"no transaction was sent"* ]] || {
+[[ "$disabled_output" == *"no transaction was sent"* ]] || {
   echo "pre-broadcast failure guarantee was not reported" >&2
   exit 1
 }
 
 set +e
-secondary_owner_output="$({
+pair_output="$({
   PATH="$fake_bin:$PATH" \
-  FAKE_PRIMARY_OWNER_MATCH=1 \
+  FAKE_PAIR_UNAPPROVED=1 \
   RPC_URL=https://robinhood-mainnet.core.chainstack.com/primary-secret \
   RPC_VERIFICATION_URL=https://verified.robinhood-mainnet.quiknode.pro/secondary-secret \
   FOUNDRY_ACCOUNT=test-account \
     "$package_dir/script/deploy-successor-mainnet.sh"
 } 2>&1)"
-secondary_owner_status=$?
+pair_status=$?
 set -e
 
-[[ "$secondary_owner_status" -ne 0 ]] || {
-  echo "expected the successor wrapper to reject a QuickNode owner mismatch" >&2
+[[ "$pair_status" -ne 0 ]] || {
+  echo "expected the successor wrapper to reject an unapproved UI pair" >&2
   exit 1
 }
-[[ "$secondary_owner_output" == *"QuickNode reports Pons launch factory owner"* ]] || {
-  echo "QuickNode owner mismatch was not reported" >&2
+[[ "$pair_output" == *"reports UI pair"*"is not approved by public Pons"* ]] || {
+  echo "QuickNode pair mismatch was not reported" >&2
   exit 1
 }
 
-echo "Successor RPC and owner preflight tests passed"
+set +e
+locker_output="$({
+  PATH="$fake_bin:$PATH" \
+  FAKE_LOCKER_MISMATCH=1 \
+  RPC_URL=https://robinhood-mainnet.core.chainstack.com/primary-secret \
+  RPC_VERIFICATION_URL=https://verified.robinhood-mainnet.quiknode.pro/secondary-secret \
+  FOUNDRY_ACCOUNT=test-account \
+    "$package_dir/script/deploy-successor-mainnet.sh"
+} 2>&1)"
+locker_status=$?
+set -e
+
+[[ "$locker_status" -ne 0 ]] || {
+  echo "expected the successor wrapper to reject the wrong public Pons locker" >&2
+  exit 1
+}
+[[ "$locker_output" == *"reports public Pons locker"*"expected 0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952"* ]] || {
+  echo "public Pons locker mismatch was not reported" >&2
+  exit 1
+}
+
+set +e
+binding_output="$({
+  PATH="$fake_bin:$PATH" \
+  FAKE_BINDING_MISMATCH=1 \
+  RPC_URL=https://robinhood-mainnet.core.chainstack.com/primary-secret \
+  RPC_VERIFICATION_URL=https://verified.robinhood-mainnet.quiknode.pro/secondary-secret \
+  FOUNDRY_ACCOUNT=test-account \
+    "$package_dir/script/deploy-successor-mainnet.sh"
+} 2>&1)"
+binding_status=$?
+set -e
+
+[[ "$binding_status" -ne 0 ]] || {
+  echo "expected the successor wrapper to reject a crossed Pons generation" >&2
+  exit 1
+}
+[[ "$binding_output" == *"Pons buyback adapter"*"not 0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e"* ]] || {
+  echo "crossed Pons generation was not reported" >&2
+  exit 1
+}
+
+echo "Successor RPC, public-factory, pair, and generation preflight tests passed"

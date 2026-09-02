@@ -64,7 +64,9 @@ abstract contract GovernanceTestBase is TestBase {
     }
 
     function _deployGovernance(address voteSource, TokenGovernanceConfig memory config) internal {
-        timelock = new ProjectTimelockV2(address(registry), address(token), voteSource, config);
+        timelock = new ProjectTimelockV2(
+            address(registry), address(token), voteSource, voteSource != address(token), config
+        );
         governor = timelock.governor();
     }
 

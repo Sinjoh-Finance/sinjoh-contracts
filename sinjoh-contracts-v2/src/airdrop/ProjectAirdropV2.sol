@@ -21,6 +21,7 @@ import { IProjectEligibilitySource } from "../interfaces/IProjectEligibilitySour
 import { IProjectFundable } from "../interfaces/IProjectFundable.sol";
 import { IProjectModule } from "../interfaces/IProjectModule.sol";
 import { IProjectStakedVoteSource } from "../interfaces/IProjectStakedVoteSource.sol";
+import { IProjectReferenceSupply } from "../interfaces/IProjectReferenceSupply.sol";
 import { IProjectTokenIdentity } from "../interfaces/IProjectTokenIdentity.sol";
 import { ProjectIds } from "../libraries/ProjectIds.sol";
 import { SinjohV2Constants } from "../libraries/SinjohV2Constants.sol";
@@ -32,7 +33,7 @@ contract ProjectAirdropV2 is IProjectModule, IProjectFundable, ReentrancyGuard {
 
     address public constant NATIVE_ASSET = address(0);
     address public constant BURN_ADDRESS = SinjohV2Constants.BURN_ADDRESS;
-    address public constant PONS_LOCKER = 0x1006fA85294A9c38AA4214d52c86CC970Ddc5647;
+    address public constant PONS_LOCKER = 0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952;
     address public constant PONS_POOL_MANAGER = 0x8366a39CC670B4001A1121B8F6A443A643e40951;
     uint16 public constant BPS = 10_000;
     uint16 public constant PROTOCOL_FEE_BPS = 100;
@@ -279,10 +280,11 @@ contract ProjectAirdropV2 is IProjectModule, IProjectFundable, ReentrancyGuard {
         }
 
         bytes32 expectedProjectId = ProjectIds.derive(block.chainid, registry_, subject_);
-        bytes32 subjectProjectId = IProjectTokenIdentity(subject_).projectId();
+        (bool declaresIdentity, address subjectRegistry, bytes32 subjectProjectId) =
+            ProjectIds.declaredIdentity(subject_);
         if (
-            IProjectTokenIdentity(subject_).registry() != registry_
-                || subjectProjectId != expectedProjectId
+            declaresIdentity
+                && (subjectRegistry != registry_ || subjectProjectId != expectedProjectId)
         ) revert ProjectIdentityMismatch(expectedProjectId, subjectProjectId);
         bytes32 sourceProjectId = IProjectTokenIdentity(eligibilitySource_).projectId();
         if (
@@ -291,7 +293,13 @@ contract ProjectAirdropV2 is IProjectModule, IProjectFundable, ReentrancyGuard {
         ) revert ProjectIdentityMismatch(expectedProjectId, sourceProjectId);
         if (eligibilityMode_ == AirdropEligibilityMode.HOLDERS) {
             if (eligibilitySource_ != subject_) {
-                revert InvalidEligibilitySource(eligibilitySource_);
+                address sourceSubject =
+                    address(IProjectStakedVoteSource(eligibilitySource_).subject());
+                if (
+                    sourceSubject != subject_
+                        || IProjectReferenceSupply(eligibilitySource_).initialSupply()
+                            != IERC20(subject_).totalSupply()
+                ) revert InvalidEligibilitySource(eligibilitySource_);
             }
         } else {
             if (eligibilitySource_ == subject_) {
@@ -360,6 +368,26 @@ contract ProjectAirdropV2 is IProjectModule, IProjectFundable, ReentrancyGuard {
         uint256 amount,
         bytes calldata config
     ) external payable nonReentrant returns (uint256 received) {
+        return _fund(projectId_, subject_, asset, amount, config);
+    }
+
+    /// @notice Agnostic fee-router sink compatibility for this immutable Project account.
+    function fund(address subject_, address asset, uint256 amount, bytes calldata config)
+        external
+        payable
+        nonReentrant
+        returns (uint256 received)
+    {
+        return _fund(projectId, subject_, asset, amount, config);
+    }
+
+    function _fund(
+        bytes32 projectId_,
+        address subject_,
+        address asset,
+        uint256 amount,
+        bytes calldata config
+    ) private returns (uint256 received) {
         if (projectId_ != projectId || subject_ != subject) {
             revert InvalidFundingIdentity(projectId_, subject_);
         }

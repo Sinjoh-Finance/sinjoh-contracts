@@ -2,6 +2,9 @@
 pragma solidity 0.8.28;
 
 import { Test } from "forge-std/Test.sol";
+import { RouterTypes as AgnosticRouterTypes } from "sinjoh-fee-router/src/RouterTypes.sol";
+import { SinjohFeeRouter } from "sinjoh-fee-router/src/SinjohFeeRouter.sol";
+import { SinjohFeeRouterFactory } from "sinjoh-fee-router/src/SinjohFeeRouterFactory.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {
@@ -53,6 +56,7 @@ import {
     RouterSwapAndFundConfig
 } from "../../src/router/RouterTypes.sol";
 import { ProjectStakingPoolV2 } from "../../src/staking/ProjectStakingPoolV2.sol";
+import { ProjectLiquidVotesWrapperV2 } from "../../src/token/ProjectLiquidVotesWrapperV2.sol";
 import { PonsProjectVotesToken } from "../../src/token/PonsProjectVotesToken.sol";
 import { ProjectVotesToken } from "../../src/token/ProjectVotesToken.sol";
 import { ProjectVotesTokenFactoryV2 } from "../../src/token/ProjectVotesTokenFactoryV2.sol";
@@ -162,12 +166,20 @@ contract ProjectLauncherV2Test is Test {
         address vault;
     }
 
+    struct ExternalModuleCase {
+        bool treasury;
+        bool staking;
+        bool airdrop;
+        bool raffle;
+        bool stakerEligibility;
+    }
+
     function setUp() public {
         releaseRandomness = new MockRaffleRandomness();
         _installLauncher(keccak256("TEST_APPROVAL_ROOT"), true);
     }
 
-    function _installLauncher(bytes32 approvalRoot, bool basketEnabled) private {
+    function _installLauncher(bytes32 approvalRoot, bool basketEnabled) internal {
         ProjectRaffleV2 raffleImplementation = new ProjectRaffleV2();
         address basketVaultImplementation;
         address erc4626YieldAdapterFactory;
@@ -387,6 +399,344 @@ contract ProjectLauncherV2Test is Test {
         assertEq(record.treasury, launched.addresses.treasury);
     }
 
+    function testApprovedOrdinaryPonsTokenUsesStakingAsItsProjectVoteSource() public {
+        MockProjectLaunchAdapterFactory adapterFactory = new MockProjectLaunchAdapterFactory();
+        _installLauncher(_launchpadFactoryLeaf(address(adapterFactory)), true);
+
+        ProjectLaunchConfig memory config = _baseTokenGovernanceConfig();
+        config.salt = keccak256("ORDINARY_PONS_STAKED_GOVERNANCE");
+        config.voteSource = LaunchVoteSource.STAKED;
+        config.modules.treasury = true;
+        config.modules.router = true;
+        config.modules.staking = true;
+        config.staking = StakingLaunchConfig({ guardian: CREATOR, lockDuration: 30 days });
+        config.tokenAllocations = new LaunchTokenAllocation[](0);
+
+        address predictedSubject =
+            vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
+        MockProjectLaunchAdapter adapter = adapterFactory.deploy(CREATOR, predictedSubject);
+        MockERC20 subject = new MockERC20(config.name, config.symbol);
+        assertEq(address(subject), predictedSubject);
+        subject.mint(CREATOR, config.totalSupply);
+
+        ProjectLaunchPreview memory launched = adapter.finalize(launcher, config, new bytes32[](0));
+
+        assertEq(launched.addresses.subject, address(subject));
+        assertEq(launched.addresses.voteSource, launched.addresses.stakingPool);
+        assertGt(launched.addresses.treasury.code.length, 0);
+        assertGt(launched.addresses.router.code.length, 0);
+        assertGt(launched.addresses.stakingPool.code.length, 0);
+        assertEq(
+            address(ProjectGovernorV2(payable(launched.addresses.tokenGovernor)).token()),
+            launched.addresses.stakingPool
+        );
+
+        ProjectRegistryV2.ProjectRecord memory record = registry.project(launched.projectId);
+        assertEq(record.subject, address(subject));
+        assertEq(record.voteSource, launched.addresses.stakingPool);
+        assertEq(record.treasury, launched.addresses.treasury);
+        assertEq(record.router, launched.addresses.router);
+        assertEq(record.stakingPool, launched.addresses.stakingPool);
+    }
+
+    function testApprovedOrdinaryPonsTokenUsesLiquidWrapperForGovernanceLifecycle() public {
+        MockProjectLaunchAdapterFactory adapterFactory = new MockProjectLaunchAdapterFactory();
+        _installLauncher(_launchpadFactoryLeaf(address(adapterFactory)), true);
+
+        ProjectLaunchConfig memory config = _baseTokenGovernanceConfig();
+        config.salt = keccak256("ORDINARY_PONS_LIQUID_GOVERNANCE");
+        config.modules.treasury = true;
+        config.modules.router = true;
+        config.modules.staking = true;
+        config.staking = StakingLaunchConfig({ guardian: CREATOR, lockDuration: 30 days });
+        config.tokenAllocations = new LaunchTokenAllocation[](0);
+
+        address predictedSubject =
+            vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
+        MockProjectLaunchAdapter adapter = adapterFactory.deploy(CREATOR, predictedSubject);
+        MockERC20 subject = new MockERC20(config.name, config.symbol);
+        assertEq(address(subject), predictedSubject);
+        subject.mint(CREATOR, config.totalSupply);
+
+        ProjectLaunchPreview memory launched = adapter.finalize(launcher, config, new bytes32[](0));
+
+        assertEq(launched.addresses.subject, address(subject));
+        assertNotEq(launched.addresses.liquidVotes, address(0));
+        assertEq(launched.addresses.voteSource, launched.addresses.liquidVotes);
+        ProjectLiquidVotesWrapperV2 wrapper =
+            ProjectLiquidVotesWrapperV2(launched.addresses.liquidVotes);
+        assertEq(address(wrapper.subject()), address(subject));
+        assertEq(wrapper.projectId(), launched.projectId);
+        assertEq(wrapper.initialSupply(), config.totalSupply);
+
+        uint256 wrapped = 200_000e18;
+        vm.startPrank(CREATOR);
+        subject.approve(address(wrapper), wrapped);
+        assertTrue(wrapper.depositFor(CREATOR, wrapped));
+        vm.stopPrank();
+        vm.warp(block.timestamp + 1);
+        assertEq(wrapper.getPastVotes(CREATOR, block.timestamp - 1), wrapped);
+
+        ProjectGovernorV2 governor = ProjectGovernorV2(payable(launched.addresses.tokenGovernor));
+        assertFalse(governor.stakedVoteSource());
+        assertEq(address(governor.token()), address(wrapper));
+        address[] memory targets = new address[](1);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        targets[0] = address(subject);
+        calldatas[0] = abi.encodeCall(subject.transfer, (CREATOR, 0));
+        _executeGovernanceProposal(
+            governor, CREATOR, targets, values, calldatas, "Prove liquid wrapper governance"
+        );
+
+        ProjectRegistryV2.ProjectRecord memory record = registry.project(launched.projectId);
+        assertEq(record.subject, address(subject));
+        assertEq(record.voteSource, address(wrapper));
+    }
+
+    function testOrdinaryPonsMultisigSupportsEveryTreasuryStakingAirdropRaffleCombination() public {
+        _externalModuleMatrix(LaunchGovernanceMode.MULTISIG, LaunchVoteSource.LIQUID, false);
+        _externalModuleMatrix(LaunchGovernanceMode.MULTISIG, LaunchVoteSource.LIQUID, true);
+    }
+
+    function testOrdinaryPonsLiquidGovernanceSupportsEveryModuleCombination() public {
+        _externalModuleMatrix(LaunchGovernanceMode.TOKEN_HOLDER, LaunchVoteSource.LIQUID, false);
+        _externalModuleMatrix(LaunchGovernanceMode.TOKEN_HOLDER, LaunchVoteSource.LIQUID, true);
+    }
+
+    function testOrdinaryPonsStakedGovernanceSupportsEveryValidModuleCombination() public {
+        _externalModuleMatrix(LaunchGovernanceMode.TOKEN_HOLDER, LaunchVoteSource.STAKED, false);
+        _externalModuleMatrix(LaunchGovernanceMode.TOKEN_HOLDER, LaunchVoteSource.STAKED, true);
+    }
+
+    function testOrdinaryPonsLaunchAtomicallyDeploysProjectFundingBandsAndLiquidity() public {
+        MockProjectLaunchAdapterFactory adapterFactory = new MockProjectLaunchAdapterFactory();
+        address predictedSubject =
+            vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
+        MockProjectLaunchAdapter adapter = adapterFactory.deploy(CREATOR, predictedSubject);
+        MockERC20 subject = new MockERC20("Launch Token", "LAUNCH");
+        assertEq(address(subject), predictedSubject);
+        subject.mint(CREATOR, 1_000_000e18);
+
+        MockBasketAsset quote = new MockBasketAsset("Quote", "QUOTE");
+        MockFundingBandPool pool = new MockFundingBandPool();
+        MockFundingBandGuard guard = new MockFundingBandGuard(
+            address(subject), address(quote), address(pool), subject.totalSupply()
+        );
+        MockFundingBandPositionAdapter positionAdapter =
+            new MockFundingBandPositionAdapter(address(subject), address(quote), address(pool));
+        bytes32 launchpadLeaf = _launchpadFactoryLeaf(address(adapterFactory));
+        bytes32 bandLeaf = _bandIntegrationLeaf(address(guard), address(positionAdapter));
+        _installLauncher(_hashPair(launchpadLeaf, bandLeaf), true);
+
+        ProjectLaunchConfig memory config = _baseMultisigConfig();
+        config.salt = keccak256("ORDINARY_PONS_PROJECT_BANDS_AND_LIQUIDITY");
+        config.totalSupply = subject.totalSupply();
+        config.tokenAllocations = new LaunchTokenAllocation[](0);
+        config.modules.treasury = true;
+        config.modules.fundingBands = true;
+        config.modules.liquidity = true;
+        config.launchProfile.canonicalPool = address(pool);
+        config.bands.quoteAsset = address(quote);
+        config.bands.marketCapGuard = address(guard);
+        config.bands.positionAdapter = address(positionAdapter);
+        config.bands.confirmationPeriod = 15 minutes;
+        config.bands.maximumObservationAge = 25 hours;
+        config.bands.integrationApprovalProof = _proof(launchpadLeaf);
+
+        ProjectLaunchPreview memory preview =
+            launcher.predictExistingTokenLaunch(config, address(subject));
+        guard.bind(preview.addresses.fundingBands);
+        positionAdapter.bind(preview.addresses.fundingBands);
+        ProjectLaunchPreview memory launched = adapter.finalize(launcher, config, _proof(bandLeaf));
+
+        assertEq(launched.addresses.subject, address(subject));
+        assertEq(launched.addresses.fundingBands, preview.addresses.fundingBands);
+        assertEq(launched.addresses.liquidityManager, preview.addresses.liquidityManager);
+        assertGt(launched.addresses.fundingBands.code.length, 0);
+        assertGt(launched.addresses.liquidityManager.code.length, 0);
+        assertEq(ProjectFundingBandsV2(launched.addresses.fundingBands).subject(), address(subject));
+        assertEq(
+            ProjectLiquidityManagerV2(payable(launched.addresses.liquidityManager)).subject(),
+            address(subject)
+        );
+        ProjectRegistryV2.ProjectRecord memory record = registry.project(launched.projectId);
+        assertEq(record.fundingBands, launched.addresses.fundingBands);
+        assertEq(record.liquidityManager, launched.addresses.liquidityManager);
+    }
+
+    function testOrdinaryPonsHolderAirdropUsesLiquidWrapperSnapshotAndPush() public {
+        MockProjectLaunchAdapterFactory adapterFactory = new MockProjectLaunchAdapterFactory();
+        _installLauncher(_launchpadFactoryLeaf(address(adapterFactory)), true);
+
+        ProjectLaunchConfig memory config = _baseMultisigConfig();
+        config.salt = keccak256("ORDINARY_PONS_HOLDER_AIRDROP");
+        config.modules.airdrop = true;
+        config.airdrop.attestor = vm.addr(ATTESTOR_KEY);
+        config.airdrop.eligibilityMode = AirdropEligibilityMode.HOLDERS;
+        config.tokenAllocations = new LaunchTokenAllocation[](0);
+
+        address predictedSubject =
+            vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
+        MockProjectLaunchAdapter adapter = adapterFactory.deploy(CREATOR, predictedSubject);
+        MockERC20 subject = new MockERC20(config.name, config.symbol);
+        assertEq(address(subject), predictedSubject);
+        subject.mint(CREATOR, config.totalSupply);
+        ProjectLaunchPreview memory launched = adapter.finalize(launcher, config, new bytes32[](0));
+
+        ProjectLiquidVotesWrapperV2 wrapper =
+            ProjectLiquidVotesWrapperV2(launched.addresses.liquidVotes);
+        ProjectAirdropV2 airdrop = ProjectAirdropV2(payable(launched.addresses.airdrop));
+        assertEq(airdrop.eligibilitySource(), address(wrapper));
+        uint256 votingAmount = 1_000e18;
+        vm.startPrank(CREATOR);
+        subject.approve(address(wrapper), votingAmount);
+        wrapper.depositFor(CREATOR, votingAmount);
+        vm.stopPrank();
+        vm.warp(block.timestamp + 1);
+
+        MockBasketAsset reward = new MockBasketAsset("Reward", "REWARD");
+        uint256 gross = 10_000;
+        reward.mint(address(this), gross);
+        reward.approve(address(airdrop), gross);
+        AirdropAccountConfig memory accountConfig = AirdropAccountConfig({
+            maxPushBatchSize: 16,
+            minimumSnapshotConfirmations: 5,
+            cadence: AirdropCadence.ON_DEMAND,
+            dustDestination: AirdropDustDestination.NEXT_EPOCH
+        });
+        airdrop.fund(address(subject), address(reward), gross, abi.encode(accountConfig));
+        bytes32 accountId = airdrop.accountId(address(this), address(reward));
+
+        uint64 snapshotBlock = uint64(block.number);
+        uint48 snapshotTime = uint48(block.timestamp);
+        bytes32 snapshotHash = keccak256("ordinary pons holder snapshot");
+        vm.warp(uint256(snapshotTime) + 1);
+        vm.roll(block.number + 6);
+        vm.setBlockhash(snapshotBlock, snapshotHash);
+        AirdropLeaf memory leaf =
+            AirdropLeaf({ holder: CREATOR, weight: votingAmount, amount: 9_900 });
+        bytes32 root = airdrop.leafHash(accountId, 1, snapshotBlock, snapshotTime, leaf);
+        AirdropEpochCommitment memory commitment = AirdropEpochCommitment({
+            accountId: accountId,
+            epochId: 1,
+            snapshotBlock: snapshotBlock,
+            snapshotBlockHash: snapshotHash,
+            snapshotTime: snapshotTime,
+            rootHash: root,
+            rootSum: 9_900,
+            epochAmount: 9_900,
+            totalEligibleWeight: votingAmount,
+            leafCount: 1,
+            artifactHash: keccak256("ordinary pons holder airdrop artifact")
+        });
+        bytes32 digest = airdrop.commitmentDigest(commitment);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ATTESTOR_KEY, digest);
+        airdrop.commitEpoch(commitment, abi.encodePacked(r, s, v));
+        AirdropLeaf[] memory leaves = new AirdropLeaf[](1);
+        leaves[0] = leaf;
+        AirdropProof[] memory proofs = new AirdropProof[](1);
+        airdrop.push(accountId, 1, leaves, proofs);
+        airdrop.finalizeEpoch(accountId, 1);
+        assertEq(reward.balanceOf(CREATOR), 9_900);
+        assertTrue(airdrop.processed(accountId, 1, CREATOR));
+    }
+
+    function testAgnosticFeeRouterFundsProjectAirdropAndRaffleSinksEndToEnd() public {
+        string memory rpcUrl = vm.envOr("SINJOH_RPC_PRIMARY", string(""));
+        if (bytes(rpcUrl).length == 0) return;
+        vm.createSelectFork(rpcUrl);
+        releaseRandomness = new MockRaffleRandomness();
+        MockProjectLaunchAdapterFactory adapterFactory = new MockProjectLaunchAdapterFactory();
+        _installLauncher(_launchpadFactoryLeaf(address(adapterFactory)), true);
+
+        address weth = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
+        ProjectLaunchConfig memory config = _baseMultisigConfig();
+        config.salt = keccak256("AGNOSTIC_PROJECT_SINKS");
+        config.modules.airdrop = true;
+        config.modules.raffle = true;
+        config.airdrop.attestor = vm.addr(ATTESTOR_KEY);
+        config.airdrop.eligibilityMode = AirdropEligibilityMode.HOLDERS;
+        config.raffle = _raffleConfig(address(0), weth);
+        config.tokenAllocations = new LaunchTokenAllocation[](0);
+
+        address predictedSubject =
+            vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
+        MockProjectLaunchAdapter adapter = adapterFactory.deploy(CREATOR, predictedSubject);
+        MockERC20 subject = new MockERC20(config.name, config.symbol);
+        assertEq(address(subject), predictedSubject);
+        subject.mint(CREATOR, config.totalSupply);
+        ProjectLaunchPreview memory launched = adapter.finalize(launcher, config, new bytes32[](0));
+
+        AirdropAccountConfig memory accountConfig = AirdropAccountConfig({
+            maxPushBatchSize: 16,
+            minimumSnapshotConfirmations: 5,
+            cadence: AirdropCadence.ON_DEMAND,
+            dustDestination: AirdropDustDestination.NEXT_EPOCH
+        });
+        AgnosticRouterTypes.Allocation[] memory allocations =
+            new AgnosticRouterTypes.Allocation[](2);
+        allocations[0] = AgnosticRouterTypes.Allocation({
+            destination: launched.addresses.airdrop,
+            bps: 5_000,
+            isSink: true,
+            creatorMayRepoint: false,
+            sinkConfig: abi.encode(accountConfig)
+        });
+        allocations[1] = AgnosticRouterTypes.Allocation({
+            destination: launched.addresses.raffle,
+            bps: 5_000,
+            isSink: true,
+            creatorMayRepoint: false,
+            sinkConfig: ""
+        });
+        AgnosticRouterTypes.Config memory routerConfig;
+        routerConfig.creator = CREATOR;
+        routerConfig.protocolFeeRecipient = FEE_RECIPIENT;
+        routerConfig.weth = weth;
+        routerConfig.normalizations = new AgnosticRouterTypes.Normalization[](0);
+        routerConfig.buckets = new AgnosticRouterTypes.Bucket[](1);
+        routerConfig.buckets[0] = AgnosticRouterTypes.Bucket({
+            output: AgnosticRouterTypes.AssetRef(AgnosticRouterTypes.AssetKind.FIXED_ERC20, weth),
+            bps: 10_000,
+            route: AgnosticRouterTypes.Route(address(0), ""),
+            priceGuard: address(0),
+            maxAmountInPerCall: 0.01 ether,
+            allocations: allocations
+        });
+
+        SinjohFeeRouterFactory feeRouterFactory =
+            SinjohFeeRouterFactory(0xA1F721a697Dd03a45f264F53bCBFd121212318eD);
+        vm.prank(CREATOR);
+        SinjohFeeRouter router = SinjohFeeRouter(
+            payable(feeRouterFactory.deployForLaunchpad(
+                    CREATOR, keccak256("AGNOSTIC_PROJECT_SINK_ROUTER"), routerConfig
+                ))
+        );
+        vm.prank(CREATOR);
+        router.bind(address(subject));
+
+        uint256 gross = 0.001 ether;
+        deal(weth, address(router), gross);
+        (uint256 synchronized, uint256 routerFee) = router.sync(weth);
+        assertEq(synchronized, gross);
+        assertEq(routerFee, gross / 100);
+        uint256 net = gross - routerFee;
+        assertEq(router.processBucket(0, weth, net, 0, ""), net);
+        uint256 share = net / 2;
+        router.fundSink(0, 0, share);
+        router.fundSink(0, 1, share);
+
+        ProjectAirdropV2 airdrop = ProjectAirdropV2(payable(launched.addresses.airdrop));
+        bytes32 accountId = airdrop.accountId(address(router), weth);
+        (ProjectAirdropV2.AccountState memory account,,) = airdrop.accountStatus(accountId);
+        assertEq(account.uncommittedFunding + airdrop.protocolOwed(weth), share);
+        ProjectRaffleV2 raffle = ProjectRaffleV2(payable(launched.addresses.raffle));
+        assertEq(raffle.availablePool() + raffle.protocolOwed(), share);
+        assertEq(router.sinkOwed(router.allocationKey(0, 0), weth), 0);
+        assertEq(router.sinkOwed(router.allocationKey(0, 1), weth), 0);
+    }
+
     function testExistingTokenLaunchRejectsUnapprovedAdapterFactory() public {
         MockProjectLaunchAdapterFactory approvedFactory = new MockProjectLaunchAdapterFactory();
         _installLauncher(_launchpadFactoryLeaf(address(approvedFactory)), true);
@@ -498,7 +848,7 @@ contract ProjectLauncherV2Test is Test {
         address predictedV3Factory = vm.computeCreateAddress(address(this), nonce + 6);
         address predictedV3PositionManager = vm.computeCreateAddress(address(this), nonce + 7);
         address predictedIntegrationFactory = vm.computeCreateAddress(address(this), nonce + 8);
-        address predictedEngine = vm.computeCreateAddress(address(this), nonce + 23);
+        address predictedEngine = vm.computeCreateAddress(address(this), nonce + 24);
         bytes32 salt = keccak256("AUTO_FUNDING_BANDS");
         address predictedSubject = _predictFromEngine(predictedEngine, salt, keccak256("TOKEN"));
 
@@ -1255,10 +1605,10 @@ contract ProjectLauncherV2Test is Test {
         predicted.erc4626 = vm.computeCreateAddress(address(this), nonce + 4);
         predicted.basketImplementation =
             vm.computeCreateAddress(address(this), nonce + integrationCount + 1);
-        predicted.registry = vm.computeCreateAddress(address(this), nonce + integrationCount + 19);
-        predicted.engine = vm.computeCreateAddress(address(this), nonce + integrationCount + 20);
+        predicted.registry = vm.computeCreateAddress(address(this), nonce + integrationCount + 20);
+        predicted.engine = vm.computeCreateAddress(address(this), nonce + integrationCount + 21);
         // Registry, deployment engine, validator, then Launcher.
-        predicted.launcher = vm.computeCreateAddress(address(this), nonce + integrationCount + 22);
+        predicted.launcher = vm.computeCreateAddress(address(this), nonce + integrationCount + 23);
 
         bytes32 userSalt = keccak256("ALL_MODULES");
         predicted.subject = _predictFromEngine(predicted.engine, userSalt, keccak256("TOKEN"));
@@ -1379,6 +1729,123 @@ contract ProjectLauncherV2Test is Test {
         quote.mint(address(this), amount);
         quote.approve(address(treasury), amount);
         treasury.deposit(address(quote), amount, false);
+    }
+
+    function _externalModuleMatrix(
+        LaunchGovernanceMode governanceMode,
+        LaunchVoteSource voteSource,
+        bool stakerEligibilityOnly
+    ) private {
+        MockProjectLaunchAdapterFactory adapterFactory = new MockProjectLaunchAdapterFactory();
+        _installLauncher(_launchpadFactoryLeaf(address(adapterFactory)), true);
+        MockBasketAsset prize = new MockBasketAsset("Matrix Prize", "MPRIZE");
+
+        for (uint256 mask; mask < 16; ++mask) {
+            ExternalModuleCase memory expected = ExternalModuleCase({
+                treasury: mask & 1 != 0,
+                staking: mask & 2 != 0,
+                airdrop: mask & 4 != 0,
+                raffle: mask & 8 != 0,
+                stakerEligibility: stakerEligibilityOnly
+            });
+            if (
+                governanceMode == LaunchGovernanceMode.TOKEN_HOLDER
+                    && voteSource == LaunchVoteSource.STAKED && !expected.staking
+            ) continue;
+            if (stakerEligibilityOnly && (!expected.staking || !expected.airdrop)) continue;
+            _launchExternalModuleCase(
+                adapterFactory, prize, governanceMode, voteSource, mask, expected
+            );
+        }
+    }
+
+    function _launchExternalModuleCase(
+        MockProjectLaunchAdapterFactory adapterFactory,
+        MockBasketAsset prize,
+        LaunchGovernanceMode governanceMode,
+        LaunchVoteSource voteSource,
+        uint256 mask,
+        ExternalModuleCase memory expected
+    ) private {
+        ProjectLaunchConfig memory config = governanceMode == LaunchGovernanceMode.MULTISIG
+            ? _baseMultisigConfig()
+            : _baseTokenGovernanceConfig();
+        config.salt = keccak256(
+            abi.encode(
+                "EXTERNAL_MODULE_MATRIX",
+                governanceMode,
+                voteSource,
+                expected.stakerEligibility,
+                mask
+            )
+        );
+        config.voteSource = voteSource;
+        config.modules.treasury = expected.treasury;
+        config.modules.staking = expected.staking;
+        config.modules.airdrop = expected.airdrop;
+        config.modules.raffle = expected.raffle;
+        config.staking = StakingLaunchConfig({ guardian: CREATOR, lockDuration: 30 days });
+        config.airdrop.attestor = vm.addr(ATTESTOR_KEY);
+        config.airdrop.eligibilityMode = expected.stakerEligibility
+            ? AirdropEligibilityMode.STAKERS
+            : AirdropEligibilityMode.HOLDERS;
+        config.raffle = _raffleConfig(address(0), address(prize));
+        config.tokenAllocations = new LaunchTokenAllocation[](0);
+
+        address predictedSubject =
+            vm.computeCreateAddress(address(this), vm.getNonce(address(this)));
+        MockProjectLaunchAdapter adapter = adapterFactory.deploy(CREATOR, predictedSubject);
+        MockERC20 subject = new MockERC20(config.name, config.symbol);
+        assertEq(address(subject), predictedSubject);
+        subject.mint(CREATOR, config.totalSupply);
+        ProjectLaunchPreview memory launched = adapter.finalize(launcher, config, new bytes32[](0));
+        _assertExternalModuleCase(launched, subject, governanceMode, voteSource, expected);
+    }
+
+    function _assertExternalModuleCase(
+        ProjectLaunchPreview memory launched,
+        MockERC20 subject,
+        LaunchGovernanceMode governanceMode,
+        LaunchVoteSource voteSource,
+        ExternalModuleCase memory expected
+    ) private view {
+        assertEq(launched.addresses.subject, address(subject));
+        assertEq(launched.addresses.treasury != address(0), expected.treasury);
+        assertEq(launched.addresses.stakingPool != address(0), expected.staking);
+        assertEq(launched.addresses.airdrop != address(0), expected.airdrop);
+        assertEq(launched.addresses.raffle != address(0), expected.raffle);
+        assertEq(launched.addresses.router, address(0));
+        if (expected.airdrop) {
+            address expectedSource = expected.stakerEligibility
+                ? launched.addresses.stakingPool
+                : launched.addresses.liquidVotes;
+            assertNotEq(expectedSource, address(0));
+            assertEq(
+                ProjectAirdropV2(payable(launched.addresses.airdrop)).eligibilitySource(),
+                expectedSource
+            );
+        }
+        if (
+            governanceMode == LaunchGovernanceMode.TOKEN_HOLDER
+                && voteSource == LaunchVoteSource.LIQUID
+        ) {
+            assertNotEq(launched.addresses.liquidVotes, address(0));
+            assertEq(launched.addresses.voteSource, launched.addresses.liquidVotes);
+            assertFalse(
+                ProjectGovernorV2(payable(launched.addresses.tokenGovernor)).stakedVoteSource()
+            );
+        } else if (governanceMode == LaunchGovernanceMode.TOKEN_HOLDER) {
+            assertEq(launched.addresses.voteSource, launched.addresses.stakingPool);
+            assertTrue(
+                ProjectGovernorV2(payable(launched.addresses.tokenGovernor)).stakedVoteSource()
+            );
+        }
+        ProjectRegistryV2.ProjectRecord memory record = registry.project(launched.projectId);
+        assertEq(record.subject, address(subject));
+        assertEq(record.treasury, launched.addresses.treasury);
+        assertEq(record.stakingPool, launched.addresses.stakingPool);
+        assertEq(record.airdrop, launched.addresses.airdrop);
+        assertEq(record.raffle, launched.addresses.raffle);
     }
 
     function _treasurySendProposal(
@@ -1508,7 +1975,7 @@ contract ProjectLauncherV2Test is Test {
         return a < b ? keccak256(bytes.concat(a, b)) : keccak256(bytes.concat(b, a));
     }
 
-    function _swapIntegrationLeaf(address adapter, address guard) private view returns (bytes32) {
+    function _swapIntegrationLeaf(address adapter, address guard) internal view returns (bytes32) {
         bytes32 inner = keccak256(
             abi.encode(
                 keccak256("SINJOH_V2_SWAP_INTEGRATION_APPROVAL"),
@@ -1522,7 +1989,7 @@ contract ProjectLauncherV2Test is Test {
         return keccak256(bytes.concat(inner));
     }
 
-    function _launchpadFactoryLeaf(address factory) private view returns (bytes32) {
+    function _launchpadFactoryLeaf(address factory) internal view returns (bytes32) {
         bytes32 inner = keccak256(
             abi.encode(
                 keccak256("SINJOH_V2_LAUNCHPAD_FACTORY_APPROVAL"),
@@ -1534,7 +2001,7 @@ contract ProjectLauncherV2Test is Test {
         return keccak256(bytes.concat(inner));
     }
 
-    function _proof(bytes32 sibling) private pure returns (bytes32[] memory result) {
+    function _proof(bytes32 sibling) internal pure returns (bytes32[] memory result) {
         result = new bytes32[](1);
         result[0] = sibling;
     }
@@ -1632,7 +2099,11 @@ contract ProjectLauncherV2Test is Test {
         config.metadataURI = "ipfs://launch-metadata";
     }
 
-    function _baseTokenGovernanceConfig() private pure returns (ProjectLaunchConfig memory config) {
+    function _baseTokenGovernanceConfig()
+        internal
+        pure
+        returns (ProjectLaunchConfig memory config)
+    {
         config = _baseMultisigConfig();
         config.salt = keccak256("STAKED_GOVERNANCE");
         config.governanceMode = LaunchGovernanceMode.TOKEN_HOLDER;
@@ -1656,18 +2127,20 @@ contract ProjectLauncherV2Test is Test {
     }
 
     function _deployCreationCodeStores(bool basketEnabled)
-        private
+        internal
         returns (CreationCodeBinding[] memory bindings)
     {
-        bindings = new CreationCodeBinding[](basketEnabled ? 10 : 9);
+        bindings = new CreationCodeBinding[](basketEnabled ? 11 : 10);
         bindings[0] = _binding(keccak256("TOKEN"), type(ProjectVotesToken).creationCode);
         bindings[1] = _binding(keccak256("MULTISIG"), type(ProjectMultisigAccountV2).creationCode);
         bindings[2] = _binding(keccak256("TIMELOCK"), type(ProjectTimelockV2).creationCode);
-        bindings[3] = _binding(keccak256("STAKING"), type(ProjectStakingPoolV2).creationCode);
-        bindings[4] = _binding(keccak256("TREASURY"), type(ProjectTreasuryVaultV2).creationCode);
-        bindings[5] = _binding(keccak256("AIRDROP"), type(ProjectAirdropV2).creationCode);
-        bindings[6] = _binding(keccak256("ROUTER"), type(ProjectRouterV2).creationCode);
-        uint256 index = 7;
+        bindings[3] =
+            _binding(keccak256("LIQUID_VOTES"), type(ProjectLiquidVotesWrapperV2).creationCode);
+        bindings[4] = _binding(keccak256("STAKING"), type(ProjectStakingPoolV2).creationCode);
+        bindings[5] = _binding(keccak256("TREASURY"), type(ProjectTreasuryVaultV2).creationCode);
+        bindings[6] = _binding(keccak256("AIRDROP"), type(ProjectAirdropV2).creationCode);
+        bindings[7] = _binding(keccak256("ROUTER"), type(ProjectRouterV2).creationCode);
+        uint256 index = 8;
         if (basketEnabled) {
             bindings[index++] = _binding(keccak256("BASKET"), type(BasketManagerV2).creationCode);
         }
@@ -1677,7 +2150,7 @@ contract ProjectLauncherV2Test is Test {
     }
 
     function _binding(bytes32 key, bytes memory creationCode)
-        private
+        internal
         returns (CreationCodeBinding memory)
     {
         return CreationCodeBinding({

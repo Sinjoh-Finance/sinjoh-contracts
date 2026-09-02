@@ -12,6 +12,7 @@ import {
 import { GovernorVotes } from "@openzeppelin/contracts/governance/extensions/GovernorVotes.sol";
 import { IVotes } from "@openzeppelin/contracts/governance/utils/IVotes.sol";
 import { IERC5805 } from "@openzeppelin/contracts/interfaces/IERC5805.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { IProjectControlled } from "../interfaces/IProjectControlled.sol";
 import { IProjectReferenceSupply } from "../interfaces/IProjectReferenceSupply.sol";
@@ -71,6 +72,7 @@ contract ProjectGovernorV2 is
         address registry_,
         address subject_,
         address voteSource_,
+        bool stakedVoteSource_,
         address timelock_,
         TokenGovernanceConfig memory config
     )
@@ -86,14 +88,14 @@ contract ProjectGovernorV2 is
         }
 
         bytes32 expectedProjectId = ProjectIds.derive(block.chainid, registry_, subject_);
-        bytes32 subjectProjectId = IProjectTokenIdentity(subject_).projectId();
+        bool isExternalVoteSource = voteSource_ != subject_;
+        (bool declaresIdentity, address subjectRegistry, bytes32 subjectProjectId) =
+            ProjectIds.declaredIdentity(subject_);
         if (
-            IProjectTokenIdentity(subject_).registry() != registry_
-                || subjectProjectId != expectedProjectId
-        ) {
-            revert ProjectIdentityMismatch(expectedProjectId, subjectProjectId);
-        }
-
+            (!isExternalVoteSource && !declaresIdentity)
+                || (declaresIdentity
+                    && (subjectRegistry != registry_ || subjectProjectId != expectedProjectId))
+        ) revert ProjectIdentityMismatch(expectedProjectId, subjectProjectId);
         bytes32 voteProjectId = IProjectTokenIdentity(voteSource_).projectId();
         if (
             IProjectTokenIdentity(voteSource_).registry() != registry_
@@ -102,8 +104,7 @@ contract ProjectGovernorV2 is
             revert ProjectIdentityMismatch(expectedProjectId, voteProjectId);
         }
 
-        bool isStaked = voteSource_ != subject_;
-        if (isStaked) {
+        if (isExternalVoteSource) {
             address voteSubject = address(IProjectStakedVoteSource(voteSource_).subject());
             if (voteSubject != subject_) {
                 revert StakedVoteSourceSubjectMismatch(subject_, voteSubject);
@@ -121,7 +122,9 @@ contract ProjectGovernorV2 is
         }
 
         _validateConfig(config);
-        uint256 subjectReferenceSupply = IProjectReferenceSupply(subject_).initialSupply();
+        uint256 subjectReferenceSupply = stakedVoteSource_
+            ? IERC20(subject_).totalSupply()
+            : IProjectReferenceSupply(voteSource_).initialSupply();
         if (config.referenceSupply != subjectReferenceSupply) {
             revert ReferenceSupplyMismatch(subjectReferenceSupply, config.referenceSupply);
         }
@@ -134,7 +137,7 @@ contract ProjectGovernorV2 is
         projectId = expectedProjectId;
         controller = timelock_;
         voteSource = voteSource_;
-        stakedVoteSource = isStaked;
+        stakedVoteSource = stakedVoteSource_;
         referenceSupply = config.referenceSupply;
         votingDelaySeconds = config.votingDelay;
         votingPeriodSeconds = config.votingPeriod;

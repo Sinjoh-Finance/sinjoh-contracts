@@ -157,8 +157,8 @@ contract PonsV2MainnetForkTest is TestBase {
         );
     }
 
-    function test_usdgIsNotApprovedByCurrentFactory() public view {
-        assertTrue(!IPonsV2LaunchFactory(LAUNCH_FACTORY).approvedPairTokens(USDG));
+    function test_usdgIsApprovedByCurrentFactory() public view {
+        assertTrue(IPonsV2LaunchFactory(LAUNCH_FACTORY).approvedPairTokens(USDG));
         assertEq(uint256(IERC20Like(USDG).decimals()), 6);
     }
 
@@ -234,18 +234,22 @@ contract PonsV2MainnetForkTest is TestBase {
         assertEq(IERC20Like(WETH).balanceOf(address(adapter)), 0);
     }
 
-    /// @dev The current factory exposes no approved custom pair. The adapter
-    /// must reject a stale USDG choice before pulling funds or launching.
-    function test_unapprovedUsdgPairFailsClosed() public {
+    /// @dev Pair approval remains fail-closed even as the factory's approved
+    /// set evolves. A pair outside that live set is rejected before funds move.
+    function test_unapprovedPairFailsClosed() public {
         SinjohPonsV2Adapter adapter = _deployAdapter();
         uint256 launchFee = IPonsV2LaunchFactory(LAUNCH_FACTORY).launchFee();
+        address unapprovedPair = address(0x1234);
+        assertTrue(!IPonsV2LaunchFactory(LAUNCH_FACTORY).approvedPairTokens(unapprovedPair));
 
-        IPonsV2LaunchFactory.TokenParams memory params = _params(address(adapter), _economics(USDG));
+        IPonsV2LaunchFactory.TokenParams memory params = _params(address(adapter), bytes32(0));
         vm.prank(creator);
         vm.expectRevert(
-            abi.encodeWithSelector(SinjohPonsV2Adapter.PairTokenNotApproved.selector, USDG)
+            abi.encodeWithSelector(
+                SinjohPonsV2Adapter.PairTokenNotApproved.selector, unapprovedPair
+            )
         );
-        adapter.launch{ value: launchFee }(params, 0, USDG, 0, 0, _none());
+        adapter.launch{ value: launchFee }(params, 0, unapprovedPair, 0, 0, _none());
     }
 
     /// @dev The end state of every successful launch. A buy that crosses the

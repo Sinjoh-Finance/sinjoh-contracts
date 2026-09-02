@@ -19,6 +19,7 @@ import { ProjectRaffleV2 } from "../src/raffle/ProjectRaffleV2.sol";
 import { ProjectRouterV2 } from "../src/router/ProjectRouterV2.sol";
 import { ProjectStakingPoolV2 } from "../src/staking/ProjectStakingPoolV2.sol";
 import { ProjectVotesToken } from "../src/token/ProjectVotesToken.sol";
+import { ProjectLiquidVotesWrapperV2 } from "../src/token/ProjectLiquidVotesWrapperV2.sol";
 import { ProjectTreasuryVaultV2 } from "../src/treasury/ProjectTreasuryVaultV2.sol";
 import { CreationCodeStoreV2 } from "../src/core/CreationCodeStoreV2.sol";
 import { ProjectLaunchDeployerV2 } from "../src/core/ProjectLaunchDeployerV2.sol";
@@ -42,10 +43,6 @@ interface IRecoveryPonsFactory {
         address tokenFactory,
         address implementation
     ) external;
-}
-
-interface IRecoveryPonsLaunchFactory {
-    function setLaunchForwarder(address forwarder) external;
 }
 
 interface IRecoveryPoolsInstantFactory {
@@ -116,11 +113,65 @@ contract RecoverProjectLauncherV2 is Script {
         deployed = _deployGuard(10_000, "RECOVERY_PROJECT_V3_PRICE_GUARD_10000");
     }
 
+    function deployTokenStore() external productionContext returns (address deployed) {
+        return _deployStore(type(ProjectVotesToken).creationCode, "TOKEN_CREATION_CODE_STORE");
+    }
+
+    function deployMultisigStore() external productionContext returns (address deployed) {
+        return
+            _deployStore(
+                type(ProjectMultisigAccountV2).creationCode, "MULTISIG_CREATION_CODE_STORE"
+            );
+    }
+
+    function deployTimelockStore() external productionContext returns (address deployed) {
+        return _deployStore(type(ProjectTimelockV2).creationCode, "TIMELOCK_CREATION_CODE_STORE");
+    }
+
+    function deployLiquidVotesStore() external productionContext returns (address deployed) {
+        return _deployStore(
+            type(ProjectLiquidVotesWrapperV2).creationCode,
+            "RECOVERY_LIQUID_VOTES_CREATION_CODE_STORE"
+        );
+    }
+
     function deployStakingStore() external productionContext returns (address deployed) {
+        return _deployStore(
+            type(ProjectStakingPoolV2).creationCode, "RECOVERY_STAKING_CREATION_CODE_STORE"
+        );
+    }
+
+    function deployTreasuryStore() external productionContext returns (address deployed) {
+        return
+            _deployStore(type(ProjectTreasuryVaultV2).creationCode, "TREASURY_CREATION_CODE_STORE");
+    }
+
+    function deployAirdropStore() external productionContext returns (address deployed) {
+        return _deployStore(type(ProjectAirdropV2).creationCode, "AIRDROP_CREATION_CODE_STORE");
+    }
+
+    function deployRouterStore() external productionContext returns (address deployed) {
+        return _deployStore(type(ProjectRouterV2).creationCode, "ROUTER_CREATION_CODE_STORE");
+    }
+
+    function deployBandsStore() external productionContext returns (address deployed) {
+        return _deployStore(type(ProjectFundingBandsV2).creationCode, "BANDS_CREATION_CODE_STORE");
+    }
+
+    function deployLiquidityStore() external productionContext returns (address deployed) {
+        return _deployStore(
+            type(ProjectLiquidityManagerV2).creationCode, "LIQUIDITY_CREATION_CODE_STORE"
+        );
+    }
+
+    function _deployStore(bytes memory creationCode, string memory expectedEnvironmentKey)
+        private
+        returns (address deployed)
+    {
         vm.startBroadcast();
-        deployed = address(new CreationCodeStoreV2(type(ProjectStakingPoolV2).creationCode));
+        deployed = address(new CreationCodeStoreV2(creationCode));
         vm.stopBroadcast();
-        _requireExpected(deployed, "RECOVERY_STAKING_CREATION_CODE_STORE");
+        _requireExpected(deployed, expectedEnvironmentKey);
     }
 
     function deployPonsTokenFactory() external productionContext returns (address deployed) {
@@ -196,13 +247,6 @@ contract RecoverProjectLauncherV2 is Script {
         vm.stopBroadcast();
     }
 
-    function setPonsLaunchForwarder() external productionContext {
-        vm.startBroadcast();
-        IRecoveryPonsLaunchFactory(vm.envAddress("PONS_LAUNCH_FACTORY"))
-            .setLaunchForwarder(vm.envAddress("PONS_PROJECT_ADAPTER_FACTORY"));
-        vm.stopBroadcast();
-    }
-
     function bindPoolsInstantProjectV2() external productionContext {
         _bindPoolsInstant(vm.envAddress("POOLS_INSTANT_PROJECT_ADAPTER_FACTORY"));
     }
@@ -269,7 +313,7 @@ contract RecoverProjectLauncherV2 is Script {
     }
 
     function _verifiedBindings() private view returns (CreationCodeBinding[] memory bindings) {
-        bindings = new CreationCodeBinding[](9);
+        bindings = new CreationCodeBinding[](10);
         bindings[0] = _verifiedBinding(
             "TOKEN", "TOKEN_CREATION_CODE_STORE", type(ProjectVotesToken).creationCode
         );
@@ -280,23 +324,28 @@ contract RecoverProjectLauncherV2 is Script {
             "TIMELOCK", "TIMELOCK_CREATION_CODE_STORE", type(ProjectTimelockV2).creationCode
         );
         bindings[3] = _verifiedBinding(
+            "LIQUID_VOTES",
+            "RECOVERY_LIQUID_VOTES_CREATION_CODE_STORE",
+            type(ProjectLiquidVotesWrapperV2).creationCode
+        );
+        bindings[4] = _verifiedBinding(
             "STAKING",
             "RECOVERY_STAKING_CREATION_CODE_STORE",
             type(ProjectStakingPoolV2).creationCode
         );
-        bindings[4] = _verifiedBinding(
+        bindings[5] = _verifiedBinding(
             "TREASURY", "TREASURY_CREATION_CODE_STORE", type(ProjectTreasuryVaultV2).creationCode
         );
-        bindings[5] = _verifiedBinding(
+        bindings[6] = _verifiedBinding(
             "AIRDROP", "AIRDROP_CREATION_CODE_STORE", type(ProjectAirdropV2).creationCode
         );
-        bindings[6] = _verifiedBinding(
+        bindings[7] = _verifiedBinding(
             "ROUTER", "ROUTER_CREATION_CODE_STORE", type(ProjectRouterV2).creationCode
         );
-        bindings[7] = _verifiedBinding(
+        bindings[8] = _verifiedBinding(
             "BANDS", "BANDS_CREATION_CODE_STORE", type(ProjectFundingBandsV2).creationCode
         );
-        bindings[8] = _verifiedBinding(
+        bindings[9] = _verifiedBinding(
             "LIQUIDITY",
             "LIQUIDITY_CREATION_CODE_STORE",
             type(ProjectLiquidityManagerV2).creationCode

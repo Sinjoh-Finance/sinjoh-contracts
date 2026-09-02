@@ -100,6 +100,7 @@ struct ProjectLaunchAddresses {
     address tokenGovernor;
     address tokenTimelock;
     address voteSource;
+    address liquidVotes;
     address treasury;
     address router;
     address stakingPool;

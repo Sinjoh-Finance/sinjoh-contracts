@@ -72,7 +72,10 @@ contract ProjectRaffleV2Test is Test {
     }
 
     function testCommonFundingSelectorIsExact() public pure {
-        assertEq(ProjectRaffleV2.fund.selector, IProjectFundable.fund.selector);
+        assertEq(
+            bytes4(keccak256("fund(bytes32,address,address,uint256,bytes)")),
+            IProjectFundable.fund.selector
+        );
     }
 
     function testInitializationRejectsUnknownRegistryAndMismatchedSubject() public {
@@ -112,6 +115,15 @@ contract ProjectRaffleV2Test is Test {
         raffle.fund(bytes32(uint256(1)), address(subject), address(prizeAsset), 1, "");
         vm.expectRevert(ProjectRaffleV2.ConfigurationMismatch.selector);
         raffle.fund(projectId, address(subject), address(prizeAsset), 1, hex"bad0");
+    }
+
+    function testAgnosticRouterFundingOverloadUsesImmutableProjectIdentity() public {
+        assertEq(raffle.fund(address(subject), address(prizeAsset), 1_000, ""), 1_000);
+        assertEq(raffle.protocolOwed(), 10);
+        assertEq(raffle.availablePool(), 990);
+
+        vm.expectPartialRevert(ProjectRaffleV2.InvalidFundingIdentity.selector);
+        raffle.fund(HOLDER, address(prizeAsset), 1, "");
     }
 
     function testSyncCreditsOnlyUnaccountedPrizeAssetOnce() public {

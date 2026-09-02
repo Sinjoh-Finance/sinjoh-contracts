@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 1,
+  "chainId": 4663,
+  "sourceCommit": "cb46aa8fc291f6d8ddabe2d7f315623e78611f2a",
+  "description": "Receipt-authoritative deployment provenance extracted from the exact final Forge broadcasts. Forge transactions[] contractAddress metadata is intentionally not trusted.",
+  "broadcasts": [
+    {
+      "script": "sinjoh-contracts-v2/script/DeployProjectLauncherV2.s.sol",
+      "sha256": "c3ec94a0c3b1c93660ad96d1fef4594fda32cc741e7ae17141d3ba9cb14b1f4c"
+    },
+    {
+      "script": "sinjoh-launchpad-adapters/script/DeployPoolsTradeAdapterFactories.s.sol",
+      "sha256": "d15294c3982dc7e74eb9293c5d6a9ff3f5f71ccaa0ad9f5922fd7d4bbf36a82f"
+    }
+  ],
+  "receipts": [
+    {
+      "path": "currentInfrastructure.projectV2.raffleImplementation",
+      "address": "0xdDcF1aE6C97675CA74C6F56D6ABDA1F19de252e1",
+      "transactionHash": "0x739a0b85e817440bb38e17d3b53c2fd1e282bb0f3f183c23452775ef3ca05a4e",
+      "status": "0x1",
+      "blockNumber": "0x2c18b27"
+    },
+    {
+      "path": "currentInfrastructure.projectV2.fundingBandV3IntegrationFactory",
+      "address": "0x554bF316B7dfbF4221A3fc5F56D3414cC3F584D1",
+      "transactionHash": "0x0bf345fa97c1cd328343d6ffb657c6d226e5a493201294c9a3e70343a4e191aa",
+      "status": "0x1",
+      "blockNumber": "0x2c18b27"
+    },
+    {
+      "path": "currentInfrastructure.projectV2.fundingBandQuoteUsdOracle",
+      "address": "0x785339dadd748d410B286dd195F1644400B17772",
+      "transactionHash": "0x61a718889624d656d79ac9bbde3b4511da8a57d24d4edc18f5941456fef5a69f",
+      "status": "0x1",
+      "blockNumber": "0x2c18b27"
+    },
+    {
+      "path": "currentInfrastructure.projectV2.projectV3PriceGuard500",
+      "address": "0xc14653f62dA1dFBD5b3Bb07f28d2Ab420281C3Ce",
+      "transactionHash": "0x632f100662c7ffc3f3c132c0e6da4508b812b4a018de16926c527e5f2383e7b9",
+      "status": "0x1",
+      "blockNumber": "0x2c18b27"
+    },
+    {
+      "path": "currentInfrastructure.projectV2.projectV3PriceGuard3000",
+      "address": "0x2CDf0a31d0D9EF627A709e683d982812aF702011",
+      "transactionHash": "0x202a9e8176a4d5dde09af1041975148cfc964795e25464205d2a8bff1ebdc9f7",
+      "status": "0x1",
+      "blockNumber": "0x2c18b27"
+    },
+    {
+      "path": "currentInfrastructure.projectV2.projectV3PriceGuard10000",
+      "address": "0x68a262e65B994AbC5EFAcC415CCa967D3d729D17",
+      "transactionHash": "0x6cc5803c8a86935ca755adef047def991c69427521b40d3323d0ca1ab6ec94f4",
+      "status": "0x1",
+      "blockNumber": "0x2c18b27"
+    },
+    {
+      "path": "currentInfrastructure.projectV2.projectWethUnwrapPriceGuard",
+      "address": "0x65f3fA3654A080cb9f1AC962200BeC884D204420",
+      "transactionHash": "0xe3381af544f8c4acba761ae5880b786a2ef20ce7b58cec66f71044f1df290153",
+      "status": "0x1",
+      "blockNumber": "0x2c18b27"
+    },
+    {
+      "path": "currentInfrastructure.projectV2.ponsProjectTokenFactory",
+      "address": "0x39701Ef4704Ce44957e0a8B6b802181ce4f635e2",
+      "transactionHash": "0xaa6d1a069798e8af0878d301796cb31cac90f99aa619969a2a09e55fd8b68e5a",
+      "status": "0x1",
+      "blockNumber": "0x2c18b2a"
+    },
+    {
+      "path": "currentInfrastructure.projectV2.launchpadProjectTokenFactory",
+      "address": "0xE81962ba0B7eBA2c5d6060096Cd3634b4aC57d24",
+      "transactionHash": "0xd2fda3da203e99d5600faad0abbf99cda08dc074459b41773867da142b7509dd",
+      "status": "0x1",
+      "blockNumber": "0x2c18b2a"
+    },
+    {
+      "path": "currentInfrastructure.projectV2.registry",
+      "address": "0xF2F0C38dd9E4DCBa46A4b8bE2E7441377c103Bf4",
+      "transactionHash": "0xbe3a8d6ba5924e5886a72c4a433c6e503c3bc2c3a5bd2f2e33172bd0419de99f",
+      "status": "0x1",
+      "blockNumber": "0x2c18b2a"
+    },
+    {
+      "path": "currentInfrastructure.projectV2.deploymentEngine",
+      "address": "0xF2844Cd17F45adA05894AF938a96CB4417158f3B",
+      "transactionHash": "0x2c421416a0304155c60941a614131a52fabfcfa8a526351dc5005f11f224d6ca",
+      "status": "0x1",
+      "blockNumber": "0x2c18b2b"
+    },
+    {
+      "path": "currentInfrastructure.projectV2.launchValidator",
+      "address": "0xA227633Cc64FeB8c36c63602cd3480e26c0F26Eb",
+      "transactionHash": "0xe6e4d3bb2e06789a6e20b29325bdff9d00396d00db0faf42cb84cf6a403c6417",
+      "status": "0x1",
+      "blockNumber": "0x2c18b2b"
+    },
+    {
+      "path": "currentInfrastructure.projectV2.launcher",
+      "address": "0x6b5e99b344C0671f77BAC00c5ADbE453Ffa39100",
+      "transactionHash": "0x7d1b0443dfcd5e0169438904764ef781afe0dfb41909410968d45ff7173f69bd",
+      "status": "0x1",
+      "blockNumber": "0x2c18b2b"
+    },
+    {
+      "path": "currentInfrastructure.projectV2.poolsInstantProjectAdapterFactory",
+      "address": "0x7e49bbC2b1A96d635C66E192972D90467cbEbBe8",
+      "transactionHash": "0xb8232b8f9cf9aa857d923c2d4cf308797e96820bd23b8280abd0761b1eddbda3",
+      "status": "0x1",
+      "blockNumber": "0x2c18aeb"
+    },
+    {
+      "path": "currentInfrastructure.projectV2.poolsInstantNoFeeProjectAdapterFactory",
+      "address": "0xbF6c13570B255826A438319EdFE986764039557B",
+      "transactionHash": "0xcded7ef81666c3091bad8b0444c9977252a62bb3300af3cf1d69899980770a53",
+      "status": "0x1",
+      "blockNumber": "0x2c18aec"
+    },
+    {
+      "path": "currentInfrastructure.projectV2.poolsLbpProjectAdapterFactory",
+      "address": "0xCcC944A29D6eb84b4a4B9522800e3f2FdD53da19",
+      "transactionHash": "0x7370c5eeeea911f49878a4bed5c133307b173b9f74e5f1ea37f5217cc4664381",
+      "status": "0x1",
+      "blockNumber": "0x2c18aec"
+    },
+    {
+      "path": "currentInfrastructure.projectV2.poolsProjectRegistrationHelper",
+      "address": "0xE0F87B203384c48DE52Fe5A57a3Fc4A1704e49fa",
+      "transactionHash": "0x74691f8ac60059bc9000ba4e9db7214fd6e472e86b789d961f623b62b2507513",
+      "status": "0x1",
+      "blockNumber": "0x2c18aec"
+    }
+  ]
+}
