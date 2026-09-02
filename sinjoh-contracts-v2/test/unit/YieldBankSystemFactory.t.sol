@@ -10,7 +10,7 @@ import { YieldBankSystemFactory } from "../../src/yield-banks/YieldBankSystemFac
 import {
     YieldBankSystemFactoryDeployer
 } from "../../src/yield-banks/YieldBankSystemFactoryDeployer.sol";
-import { YieldBankConfig } from "../../src/yield-banks/YieldBankTypes.sol";
+import { YieldBankConfig, YieldBankFeeWeightRange } from "../../src/yield-banks/YieldBankTypes.sol";
 import {
     MockYieldBankAsset,
     MockYieldBankEligibilityPolicy,
@@ -22,6 +22,18 @@ contract YieldBankSystemFactoryTest is Test {
     bytes32 private constant VERSION = keccak256("YIELD_BANK_SYSTEM_FACTORY_V1");
     bytes32 private constant COLLECTION_ID = keccak256("SYSTEM_FACTORY_COLLECTION");
     bytes32 private constant COLLECTION_SALT = keccak256("COLLECTION_SALT");
+
+    function testDeploymentJsonDecodesFeeWeightRangeStructArray() external view {
+        string memory json =
+            '{"ranges":[{"endTokenId":3000,"feeWeight":2},{"endTokenId":3333,"feeWeight":60}]}';
+        YieldBankFeeWeightRange[] memory ranges =
+            abi.decode(vm.parseJson(json, ".ranges"), (YieldBankFeeWeightRange[]));
+        assertEq(ranges.length, 2);
+        assertEq(ranges[0].endTokenId, 3_000);
+        assertEq(ranges[0].feeWeight, 2);
+        assertEq(ranges[1].endTokenId, 3_333);
+        assertEq(ranges[1].feeWeight, 60);
+    }
 
     function testFactoryAddressIsDeterministicFromFactorySalt() external {
         YieldBankProtocolRegistry registry = new YieldBankProtocolRegistry(address(this));
@@ -77,6 +89,11 @@ contract YieldBankSystemFactoryTest is Test {
         }
 
         YieldBankConfig memory config = _config(weth, policy, renderer, predicted);
+        config.feeWeightRanges = new YieldBankFeeWeightRange[](4);
+        config.feeWeightRanges[0] = YieldBankFeeWeightRange({ endTokenId: 700, feeWeight: 2 });
+        config.feeWeightRanges[1] = YieldBankFeeWeightRange({ endTokenId: 750, feeWeight: 5 });
+        config.feeWeightRanges[2] = YieldBankFeeWeightRange({ endTokenId: 770, feeWeight: 15 });
+        config.feeWeightRanges[3] = YieldBankFeeWeightRange({ endTokenId: 777, feeWeight: 60 });
         bytes memory collectionCreationCode = type(YieldBankCollection).creationCode;
         address predictedCollection = _predictCreate2(
             predictedFactory,
@@ -99,6 +116,18 @@ contract YieldBankSystemFactoryTest is Test {
         uint16[6] memory economics = [
             uint16(7_500), uint16(1_200), uint16(1_300), uint16(4_000), uint16(3_750), uint16(2_250)
         ];
+        address[11] memory bindings;
+        bindings[0] = predicted[1];
+        bindings[1] = predicted[0];
+        bindings[2] = predicted[2];
+        bindings[3] = address(0x6A4D1A);
+        bindings[4] = address(policy);
+        bindings[5] = address(0xC0FFEE);
+        bindings[6] = address(0x51A70A);
+        bindings[7] = predicted[7];
+        bindings[8] = predicted[3];
+        bindings[9] = predicted[4];
+        bindings[10] = predicted[5];
         for (uint256 i; i < 6; ++i) {
             address dependency = i == 1 ? predicted[7] : predicted[(i + 1) % 6];
             components[i] = YieldBankSystemFactory.ComponentDeployment({
@@ -106,7 +135,7 @@ contract YieldBankSystemFactoryTest is Test {
                 salt: salts[i],
                 initCode: abi.encodePacked(
                     type(MockYieldBankPlannedComponent).creationCode,
-                    abi.encode(predictedCollection, dependency, economics)
+                    abi.encode(predictedCollection, dependency, economics, bindings)
                 ),
                 expectedRuntimeCodeHash: expectedRuntimeHash
             });
@@ -122,7 +151,7 @@ contract YieldBankSystemFactoryTest is Test {
             salt: salts[7],
             initCode: abi.encodePacked(
                 type(MockYieldBankPlannedComponent).creationCode,
-                abi.encode(predictedCollection, predicted[1], economics)
+                abi.encode(predictedCollection, predicted[1], economics, bindings)
             ),
             expectedRuntimeCodeHash: expectedRuntimeHash
         });
@@ -142,6 +171,10 @@ contract YieldBankSystemFactoryTest is Test {
         address deployed =
             factory.deploySystem(components, collectionCreationCode, config, COLLECTION_SALT);
         assertEq(deployed, predictedCollection);
+        assertEq(YieldBankCollection(deployed).feeWeightOf(700), 2);
+        assertEq(YieldBankCollection(deployed).feeWeightOf(701), 5);
+        assertEq(YieldBankCollection(deployed).feeWeightOf(751), 15);
+        assertEq(YieldBankCollection(deployed).feeWeightOf(771), 60);
         for (uint256 i; i < 6; ++i) {
             assertEq(factory.predictComponent(salts[i]), predicted[i]);
             MockYieldBankPlannedComponent component = MockYieldBankPlannedComponent(predicted[i]);
@@ -165,6 +198,7 @@ contract YieldBankSystemFactoryTest is Test {
         config = YieldBankConfig({
             collectionId: COLLECTION_ID,
             maxSupply: 777,
+            feeWeightRanges: new YieldBankFeeWeightRange[](0),
             secondaryRoyaltyBps: 500,
             primaryBackingBps: 7_500,
             primaryCreatorBps: 1_200,

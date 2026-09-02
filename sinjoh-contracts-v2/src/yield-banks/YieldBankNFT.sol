@@ -75,7 +75,7 @@ contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungi
         address seaDrop_,
         uint256 maxSupply_,
         uint96 royaltyBps_
-    ) ERC721("Sinjoh Yield Banks", "SYB") Ownable(owner_) {
+    ) ERC721("", "") Ownable(owner_) {
         if (
             collection_ == address(0) || owner_ == address(0) || revenueRouter_ == address(0)
                 || renderer_.code.length == 0 || seaDrop_.code.length == 0 || maxSupply_ == 0
@@ -92,6 +92,14 @@ contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungi
         allowed[0] = seaDrop_;
         emit AllowedSeaDropUpdated(allowed);
         emit MaxSupplyUpdated(maxSupply_);
+    }
+
+    function name() public view override returns (string memory) {
+        return IYieldBankRenderer(renderer).collectionName();
+    }
+
+    function symbol() public view override returns (string memory) {
+        return IYieldBankRenderer(renderer).collectionSymbol();
     }
 
     function setProceedsVault(address value) external onlyCollection {

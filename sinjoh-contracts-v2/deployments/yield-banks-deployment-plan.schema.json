@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://sinjoh.com/schemas/yield-banks-deployment-plan-1.0.json",
+  "$id": "https://sinjoh.com/schemas/yield-banks-deployment-plan-1.1.json",
   "title": "Sinjoh Yield Banks deterministic deployment plan",
   "type": "object",
   "additionalProperties": false,
@@ -34,10 +34,15 @@
     "config": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["collectionId", "maxSupply", "secondaryRoyaltyBps", "primaryBackingBps", "primaryCreatorBps", "primarySinjohBps", "coreWeightBps", "marketMakingWeightBps", "usdgWeightBps", "creator", "openSeaManager", "sinjohFeeRecipient", "redemptionToken", "redemptionTokenAmount", "redemptionTokenCodeHash", "revenueRouter", "eligibilityPolicy", "portfolioAllocator", "allocationOperator", "collectionTimelock", "guardian", "renderer", "weth", "seaDrop", "coreSleeve", "marketMakingSleeve", "usdgSleeve", "accountImplementation", "integrationCodeHashes"],
+      "required": ["collectionId", "maxSupply", "feeWeightRanges", "secondaryRoyaltyBps", "primaryBackingBps", "primaryCreatorBps", "primarySinjohBps", "coreWeightBps", "marketMakingWeightBps", "usdgWeightBps", "creator", "openSeaManager", "sinjohFeeRecipient", "redemptionToken", "redemptionTokenAmount", "redemptionTokenCodeHash", "revenueRouter", "eligibilityPolicy", "portfolioAllocator", "allocationOperator", "collectionTimelock", "guardian", "renderer", "weth", "seaDrop", "coreSleeve", "marketMakingSleeve", "usdgSleeve", "accountImplementation", "integrationCodeHashes"],
       "properties": {
         "collectionId": { "$ref": "#/$defs/nonzeroBytes32" },
         "maxSupply": { "type": "integer", "minimum": 1, "maximum": 18446744073709551615 },
+        "feeWeightRanges": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/feeWeightRange" }
+        },
         "secondaryRoyaltyBps": { "$ref": "#/$defs/bps" },
         "primaryBackingBps": { "$ref": "#/$defs/positiveBps" },
         "primaryCreatorBps": { "$ref": "#/$defs/bps" },
@@ -80,7 +85,16 @@
     "bytes": { "type": "string", "pattern": "^0x(?:[0-9a-fA-F]{2})+$" },
     "bps": { "type": "integer", "minimum": 0, "maximum": 10000 },
     "positiveBps": { "type": "integer", "minimum": 1, "maximum": 10000 },
-    "nonzeroBytes32": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$", "not": { "const": "0x0000000000000000000000000000000000000000000000000000000000000000" } }
-    ,"bytes32": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$" }
+    "nonzeroBytes32": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$", "not": { "const": "0x0000000000000000000000000000000000000000000000000000000000000000" } },
+    "feeWeightRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["endTokenId", "feeWeight"],
+      "properties": {
+        "endTokenId": { "type": "integer", "minimum": 1, "maximum": 18446744073709551615 },
+        "feeWeight": { "type": "integer", "minimum": 1, "maximum": 79228162514264337593543950335 }
+      }
+    },
+    "bytes32": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$" }
   }
 }

@@ -42,8 +42,8 @@ Still required from the operator and review process:
 5. each Delta infrastructure generation's factory, position manager, position builder, runtime
    hashes, and approved Yield Banks route/sleeve/adapter/feed creation-code hashes;
 6. runtime hashes, source commit, dependency lock hash, deployment transaction hashes, and audit hashes;
-7. immutable collection-specific `maxSupply`, `secondaryRoyaltyBps`, and per-sleeve strategy
-   count/cap/operator-loss limits; and
+7. immutable collection-specific `maxSupply`, fee-weight schedule, `secondaryRoyaltyBps`, and
+   per-sleeve strategy count/cap/operator-loss limits; and
 8. timelock authorization of each Project V2 revenue bridge for `YIELD_BANK_PROJECT_REVENUE`.
 
 The deployment plan must declare an `openSeaManager` wallet separately from the creator payout
@@ -85,6 +85,19 @@ amount; timelock-bound route addresses and runtime hashes cannot be caller-selec
 The deployment input must validate against `yield-banks-deployment-plan.schema.json`. It must
 contain the full encoded component init code and collection configuration—never environment-derived
 addresses. Execute it with:
+
+The collection configuration's `feeWeightRanges` is an ordered list of inclusive token-id
+boundaries and positive relative weights. The final boundary must equal `maxSupply`; up to 16
+ranges are supported. Use an empty list for equal-weight collections. The 16-range limit keeps the
+complete constructor bytecode plus its encoded configuration below EIP-3860 on mainnet. This schedule is immutable
+after deployment and governs collection-wide fee distributions and exit-tax redistributions; it
+does not alter the primary backing actually recorded for each NFT.
+
+Fee weights are collection configuration, not protocol constants. Every collection deployed from
+this factory generation may choose its own supply and range schedule. Because the configuration ABI
+and collection creation-code hash include the schedule, deployments made with the previous factory
+generation remain unchanged and a newly registered factory version is required for weighted
+collections.
 
 ```sh
 YIELD_BANK_DEPLOYMENT_PLAN=/absolute/path/to/reviewed-plan.json \

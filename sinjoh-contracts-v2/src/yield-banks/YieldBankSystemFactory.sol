@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { YieldBankConfig } from "./YieldBankTypes.sol";
+import { YieldBankConfigValidator } from "./YieldBankConfigValidator.sol";
 import { YieldBankProtocolRegistry } from "./YieldBankProtocolRegistry.sol";
 import { Create3V2 } from "../libraries/Create3V2.sol";
 
@@ -11,6 +12,8 @@ interface IYieldBankSystemComponents {
     function distributor() external view returns (address);
     function proceedsVault() external view returns (address);
     function accountImplementation() external view returns (address);
+    function maximumTotalFeeWeight() external view returns (uint256);
+    function feeWeightRangeCount() external view returns (uint256);
 }
 
 interface IYieldBankSystemAllocatorIdentity {
@@ -104,6 +107,12 @@ contract YieldBankSystemFactory is ReentrancyGuard {
         uint256 redemptionTokenAmount,
         bytes32 redemptionTokenCodeHash
     );
+    event CollectionFeeWeightScheduleRegistered(
+        address indexed collection,
+        bytes32 indexed scheduleHash,
+        uint256 maximumTotalFeeWeight,
+        uint256 rangeCount
+    );
 
     constructor(
         address registry_,
@@ -165,6 +174,8 @@ contract YieldBankSystemFactory is ReentrancyGuard {
             abi.encodePacked(collectionCreationCode, abi.encode(config));
         address predictedCollection = _predict(collectionSalt, keccak256(collectionInitCode));
         _validateDeployedConfig(config, deployed, predictedCollection);
+        YieldBankConfigValidator.validate(config);
+        YieldBankConfigValidator.validateBindings(config, predictedCollection, deployed[7]);
         assembly ("memory-safe") {
             collection := create2(
                 0,
@@ -215,6 +226,12 @@ contract YieldBankSystemFactory is ReentrancyGuard {
             config.redemptionToken,
             config.redemptionTokenAmount,
             config.redemptionTokenCodeHash
+        );
+        emit CollectionFeeWeightScheduleRegistered(
+            collection,
+            keccak256(abi.encode(config.feeWeightRanges)),
+            internals.maximumTotalFeeWeight(),
+            internals.feeWeightRangeCount()
         );
     }
 

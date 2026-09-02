@@ -46,7 +46,7 @@ const assert = (condition, message) => { if (!condition) throw new Error(message
 const hashText = (value) => keccak256(stringToHex(value));
 const sameAddress = (left, right) => getAddress(left) === getAddress(right);
 
-assert(manifest.schemaVersion === "1.1", "unsupported Yield Banks manifest schema");
+assert(manifest.schemaVersion === "1.2", "unsupported Yield Banks manifest schema");
 assert(manifest.chainId === 4663, "Yield Banks release manifests require Robinhood mainnet chain 4663");
 assert(bytes32.test(manifest.collectionId), "collectionId must be bytes32");
 assert(Number(await client.getChainId()) === manifest.chainId, "RPC chain does not match manifest");
@@ -54,6 +54,41 @@ const verificationBlock = await client.getBlock();
 const chainNow = verificationBlock.timestamp;
 assert(Number.isSafeInteger(manifest.economics.maxSupply) && manifest.economics.maxSupply > 0,
   "maxSupply must be a positive safe integer");
+assert(Array.isArray(manifest.economics.feeWeightRanges)
+  && manifest.economics.feeWeightRanges.length <= 16,
+"feeWeightRanges must be an array containing at most 16 ranges");
+let previousFeeWeightEnd = 0;
+let calculatedMaximumTotalFeeWeight = 0n;
+for (const [index, range] of manifest.economics.feeWeightRanges.entries()) {
+  assert(Number.isSafeInteger(range.endTokenId) && range.endTokenId > previousFeeWeightEnd,
+    `feeWeightRanges[${index}].endTokenId must be a strictly increasing safe integer`);
+  assert(Number.isSafeInteger(range.feeWeight) && range.feeWeight > 0,
+    `feeWeightRanges[${index}].feeWeight must be a positive safe integer`);
+  calculatedMaximumTotalFeeWeight += BigInt(range.endTokenId - previousFeeWeightEnd)
+    * BigInt(range.feeWeight);
+  previousFeeWeightEnd = range.endTokenId;
+}
+if (manifest.economics.feeWeightRanges.length === 0) {
+  calculatedMaximumTotalFeeWeight = BigInt(manifest.economics.maxSupply);
+} else {
+  assert(previousFeeWeightEnd === manifest.economics.maxSupply,
+    "the final fee-weight range must end at maxSupply");
+}
+assert(Number.isSafeInteger(manifest.economics.maximumTotalFeeWeight)
+  && BigInt(manifest.economics.maximumTotalFeeWeight) === calculatedMaximumTotalFeeWeight,
+"maximumTotalFeeWeight does not match feeWeightRanges");
+const calculatedFeeWeightScheduleHash = keccak256(encodeAbiParameters(
+  [{ type: "tuple[]", components: [
+    { name: "endTokenId", type: "uint64" },
+    { name: "feeWeight", type: "uint96" },
+  ] }],
+  [manifest.economics.feeWeightRanges.map((range) => ({
+    endTokenId: BigInt(range.endTokenId), feeWeight: BigInt(range.feeWeight),
+  }))],
+));
+assert(manifest.economics.feeWeightScheduleHash.toLowerCase()
+  === calculatedFeeWeightScheduleHash.toLowerCase(),
+"feeWeightScheduleHash does not match feeWeightRanges");
 const isBps = (value) => Number.isInteger(value) && value >= 0 && value <= 10_000;
 for (const key of [
   "secondaryRoyaltyBps",
@@ -487,6 +522,9 @@ const deployerAbi = [
 const collectionAbi = [
   { type: "function", name: "collectionId", stateMutability: "view", inputs: [], outputs: [{ type: "bytes32" }] },
   { type: "function", name: "maxSupply", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "maximumTotalFeeWeight", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "feeWeightRangeCount", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "feeWeightRange", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "uint64" }, { type: "uint96" }] },
   { type: "function", name: "nft", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "distributor", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "proceedsVault", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
@@ -724,7 +762,9 @@ const read = (address, abi, functionName, args = []) => client.readContract({
 });
 const factory = manifest.contracts.factory.address;
 const [predictedFactory, factoryVersion, collectionCodeHash, systemPlanHash,
-  collectionId, collectionMaxSupply, collectionNft, collectionDistributor,
+  collectionId, collectionMaxSupply, collectionMaximumTotalFeeWeight,
+  collectionFeeWeightRangeCount,
+  collectionNft, collectionDistributor,
   collectionProceedsVault, collectionAccountImplementation, collectionEligibilityPolicy,
   collectionRedemptionToken, collectionRedemptionTokenAmount, collectionRedemptionTokenCodeHash,
   collectionCreator, collectionOpenSeaManager, collectionSinjohFeeRecipient,
@@ -740,6 +780,8 @@ const [predictedFactory, factoryVersion, collectionCodeHash, systemPlanHash,
   read(factory, factoryAbi, "systemPlanHash"),
   read(manifest.contracts.collection.address, collectionAbi, "collectionId"),
   read(manifest.contracts.collection.address, collectionAbi, "maxSupply"),
+  read(manifest.contracts.collection.address, collectionAbi, "maximumTotalFeeWeight"),
+  read(manifest.contracts.collection.address, collectionAbi, "feeWeightRangeCount"),
   read(manifest.contracts.collection.address, collectionAbi, "nft"),
   read(manifest.contracts.collection.address, collectionAbi, "distributor"),
   read(manifest.contracts.collection.address, collectionAbi, "proceedsVault"),
@@ -794,6 +836,20 @@ assert(sameAddress(collectionRecord[0], factory)
 assert(collectionId.toLowerCase() === manifest.collectionId.toLowerCase(), "collectionId mismatch");
 assert(collectionMaxSupply === BigInt(manifest.economics.maxSupply)
   && nftMaxSupply === BigInt(manifest.economics.maxSupply), "onchain maxSupply mismatch");
+assert(collectionMaximumTotalFeeWeight === BigInt(manifest.economics.maximumTotalFeeWeight),
+  "onchain maximumTotalFeeWeight mismatch");
+assert(collectionFeeWeightRangeCount === BigInt(manifest.economics.feeWeightRanges.length),
+  "onchain feeWeightRangeCount mismatch");
+const onchainFeeWeightRanges = await Promise.all(
+  manifest.economics.feeWeightRanges.map((_, index) => read(
+    manifest.contracts.collection.address, collectionAbi, "feeWeightRange", [BigInt(index)],
+  )),
+);
+for (const [index, range] of manifest.economics.feeWeightRanges.entries()) {
+  assert(onchainFeeWeightRanges[index][0] === BigInt(range.endTokenId)
+    && onchainFeeWeightRanges[index][1] === BigInt(range.feeWeight),
+  `onchain feeWeightRanges[${index}] mismatch`);
+}
 assert(collectionSecondaryRoyaltyBps === BigInt(manifest.economics.secondaryRoyaltyBps),
   "collection secondary royalty mismatch");
 assert(sameAddress(collectionProceedsVault, manifest.contracts.proceedsVault.address),

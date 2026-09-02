@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://sinjoh.com/schemas/yield-banks-manifest-1.1.json",
+  "$id": "https://sinjoh.com/schemas/yield-banks-manifest-1.2.json",
   "title": "Sinjoh Yield Banks release manifest",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "chainId", "collectionId", "factoryVersion", "compiler", "deployment", "economics", "redemption", "equityModel", "policyCaps", "openSea", "contracts", "dependencies", "equityAssets", "coreConstituents", "adapters", "feeds", "deltaInfrastructure", "routeBindings", "roles", "auditHashes"],
   "properties": {
-    "schemaVersion": { "const": "1.1" },
+    "schemaVersion": { "const": "1.2" },
     "chainId": { "const": 4663 },
     "collectionId": { "$ref": "#/$defs/bytes32" },
     "factoryVersion": { "$ref": "#/$defs/bytes32" },
@@ -40,9 +40,16 @@
     "economics": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["maxSupply", "secondaryRoyaltyBps", "primaryBackingBps", "primaryCreatorBps", "primarySinjohBps", "royaltyBackingBps", "royaltyCreatorBps", "royaltySinjohBps", "exitTaxBps", "coreWeightBps", "marketMakingWeightBps", "usdgWeightBps"],
+      "required": ["maxSupply", "feeWeightRanges", "feeWeightScheduleHash", "maximumTotalFeeWeight", "secondaryRoyaltyBps", "primaryBackingBps", "primaryCreatorBps", "primarySinjohBps", "royaltyBackingBps", "royaltyCreatorBps", "royaltySinjohBps", "exitTaxBps", "coreWeightBps", "marketMakingWeightBps", "usdgWeightBps"],
       "properties": {
         "maxSupply": { "type": "integer", "minimum": 1, "maximum": 18446744073709551615 },
+        "feeWeightRanges": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/feeWeightRange" }
+        },
+        "feeWeightScheduleHash": { "$ref": "#/$defs/bytes32" },
+        "maximumTotalFeeWeight": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
         "secondaryRoyaltyBps": { "$ref": "#/$defs/bps" },
         "primaryBackingBps": { "$ref": "#/$defs/positiveBps" },
         "primaryCreatorBps": { "$ref": "#/$defs/bps" },
@@ -331,6 +338,15 @@
         "inputAsset": { "$ref": "#/$defs/address" },
         "route": { "$ref": "#/$defs/address" },
         "runtimeCodeHash": { "$ref": "#/$defs/bytes32" }
+      }
+    },
+    "feeWeightRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["endTokenId", "feeWeight"],
+      "properties": {
+        "endTokenId": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "feeWeight": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
       }
     },
     "address": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$", "not": { "const": "0x0000000000000000000000000000000000000000" } },

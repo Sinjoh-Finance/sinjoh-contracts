@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { YieldBankConfig } from "./YieldBankTypes.sol";
+import { YieldBankConfigValidator } from "./YieldBankConfigValidator.sol";
 import { YieldBankProtocolRegistry } from "./YieldBankProtocolRegistry.sol";
 
 interface IYieldBankDeployedComponents {
@@ -10,6 +11,12 @@ interface IYieldBankDeployedComponents {
     function distributor() external view returns (address);
     function proceedsVault() external view returns (address);
     function accountImplementation() external view returns (address);
+    function maximumTotalFeeWeight() external view returns (uint256);
+    function feeWeightRangeCount() external view returns (uint256);
+}
+
+interface IYieldBankCollectionFactoryAllocatorIdentity {
+    function deltaPoolController() external view returns (address);
 }
 
 /// @notice Version-pinned CREATE2 deployer for immutable Yield Banks collection systems.
@@ -29,6 +36,13 @@ contract YieldBankCollectionFactory is ReentrancyGuard {
         bytes32 indexed configurationHash,
         bytes32 factoryVersion
     );
+    event YieldBankSystemDeployed(
+        address indexed collection,
+        bytes32 indexed collectionId,
+        bytes32 indexed collectionSalt,
+        bytes32 configurationHash,
+        bytes32 factoryVersion
+    );
     event CollectionComponentsRegistered(
         address indexed collection,
         bytes32 indexed collectionId,
@@ -42,6 +56,7 @@ contract YieldBankCollectionFactory is ReentrancyGuard {
         address seaDrop,
         uint256 maxSupply,
         address allocationOperator,
+        address deltaPoolController,
         address coreSleeve,
         address marketMakingSleeve,
         address usdgSleeve
@@ -62,6 +77,12 @@ contract YieldBankCollectionFactory is ReentrancyGuard {
         uint256 redemptionTokenAmount,
         bytes32 redemptionTokenCodeHash
     );
+    event CollectionFeeWeightScheduleRegistered(
+        address indexed collection,
+        bytes32 indexed scheduleHash,
+        uint256 maximumTotalFeeWeight,
+        uint256 rangeCount
+    );
 
     constructor(address registry_, bytes32 factoryVersion_, bytes32 collectionCreationCodeHash_) {
         if (
@@ -78,12 +99,18 @@ contract YieldBankCollectionFactory is ReentrancyGuard {
         YieldBankConfig calldata config,
         bytes32 salt
     ) external nonReentrant returns (address collection) {
+        YieldBankConfigValidator.validate(config);
         bytes32 actualCreationCodeHash = keccak256(collectionCreationCode);
         if (actualCreationCodeHash != collectionCreationCodeHash) {
             revert CreationCodeHashMismatch(collectionCreationCodeHash, actualCreationCodeHash);
         }
         bytes memory initializationCode =
             abi.encodePacked(collectionCreationCode, abi.encode(config));
+        address predictedCollection = _predict(salt, keccak256(initializationCode));
+        address deltaPoolController = IYieldBankCollectionFactoryAllocatorIdentity(
+                config.portfolioAllocator
+            ).deltaPoolController();
+        YieldBankConfigValidator.validateBindings(config, predictedCollection, deltaPoolController);
         assembly ("memory-safe") {
             collection := create2(0, add(initializationCode, 0x20), mload(initializationCode), salt)
         }
@@ -91,6 +118,9 @@ contract YieldBankCollectionFactory is ReentrancyGuard {
         bytes32 configurationHash = keccak256(abi.encode(config));
         registry.registerCollection(collection, configurationHash);
         emit CollectionDeployed(collection, salt, configurationHash, factoryVersion);
+        emit YieldBankSystemDeployed(
+            collection, config.collectionId, salt, configurationHash, factoryVersion
+        );
         IYieldBankDeployedComponents components = IYieldBankDeployedComponents(collection);
         emit CollectionComponentsRegistered(
             collection,
@@ -105,6 +135,7 @@ contract YieldBankCollectionFactory is ReentrancyGuard {
             config.seaDrop,
             config.maxSupply,
             config.allocationOperator,
+            deltaPoolController,
             config.coreSleeve,
             config.marketMakingSleeve,
             config.usdgSleeve
@@ -125,6 +156,12 @@ contract YieldBankCollectionFactory is ReentrancyGuard {
             config.redemptionTokenAmount,
             config.redemptionTokenCodeHash
         );
+        emit CollectionFeeWeightScheduleRegistered(
+            collection,
+            keccak256(abi.encode(config.feeWeightRanges)),
+            components.maximumTotalFeeWeight(),
+            components.feeWeightRangeCount()
+        );
     }
 
     function predictAddress(
@@ -138,6 +175,14 @@ contract YieldBankCollectionFactory is ReentrancyGuard {
         }
         bytes32 initializationCodeHash =
             keccak256(abi.encodePacked(collectionCreationCode, abi.encode(config)));
+        predicted = _predict(salt, initializationCodeHash);
+    }
+
+    function _predict(bytes32 salt, bytes32 initializationCodeHash)
+        private
+        view
+        returns (address predicted)
+    {
         predicted = address(
             uint160(
                 uint256(

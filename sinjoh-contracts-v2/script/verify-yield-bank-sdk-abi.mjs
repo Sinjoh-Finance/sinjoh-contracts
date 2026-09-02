@@ -25,6 +25,7 @@ const surfaces = [
   ["yieldBankAllocatorAbi", "CollectionPortfolioAllocator.sol/CollectionPortfolioAllocator.json"],
   ["yieldBankDeltaPoolControllerAbi", "DeltaPoolController.sol/DeltaPoolController.json"],
   ["yieldBankSystemFactoryAbi", "YieldBankSystemFactory.sol/YieldBankSystemFactory.json"],
+  ["yieldBankPublicFactoryAbi", "YieldBankPublicFactory.sol/YieldBankPublicFactory.json"],
   ["yieldBankProtocolRegistryAbi", "YieldBankProtocolRegistry.sol/YieldBankProtocolRegistry.json"],
   ["yieldBankSeaDropReadAbi", "ISeaDrop.sol/ISeaDrop.json"],
 ];

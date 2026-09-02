@@ -260,6 +260,14 @@ contract MockYieldBankEligibilityPolicy is IYieldBankEligibilityPolicy {
 }
 
 contract MockYieldBankRenderer is IYieldBankRenderer {
+    function collectionName() external pure returns (string memory) {
+        return "Sinjoh Yield Banks";
+    }
+
+    function collectionSymbol() external pure returns (string memory) {
+        return "SYB";
+    }
+
     function tokenURI(address, uint256, address, uint8) external pure returns (string memory) {
         return "ipfs://yield-bank";
     }
@@ -296,6 +304,15 @@ contract MockYieldBankTimelock { }
 contract MockYieldBankPlannedComponent {
     address public collection;
     address public dependency;
+    address public allocator;
+    address public revenueRouter;
+    address public timelock;
+    address public guardian;
+    address public eligibilityPolicy;
+    address public creatorRecipient;
+    address public sinjohRecipient;
+    address public deltaPoolController;
+    address[3] public sleeves;
     uint16 public primaryBackingBps;
     uint16 public primaryCreatorBps;
     uint16 public primarySinjohBps;
@@ -303,10 +320,24 @@ contract MockYieldBankPlannedComponent {
     uint16 public marketMakingWeightBps;
     uint16 public usdgWeightBps;
 
-    constructor(address collection_, address dependency_, uint16[6] memory economics_) {
+    constructor(
+        address collection_,
+        address dependency_,
+        uint16[6] memory economics_,
+        address[11] memory bindings_
+    ) {
         require(collection_ != address(0) && dependency_ != address(0));
         collection = collection_;
         dependency = dependency_;
+        allocator = bindings_[0];
+        revenueRouter = bindings_[1];
+        timelock = bindings_[2];
+        guardian = bindings_[3];
+        eligibilityPolicy = bindings_[4];
+        creatorRecipient = bindings_[5];
+        sinjohRecipient = bindings_[6];
+        deltaPoolController = bindings_[7];
+        sleeves = [bindings_[8], bindings_[9], bindings_[10]];
         primaryBackingBps = economics_[0];
         primaryCreatorBps = economics_[1];
         primarySinjohBps = economics_[2];
@@ -317,14 +348,6 @@ contract MockYieldBankPlannedComponent {
 
     function activeDeltaPoolOf(uint256) external pure returns (address) {
         return address(0);
-    }
-
-    function deltaPoolController() external view returns (address) {
-        return dependency;
-    }
-
-    function allocator() external view returns (address) {
-        return dependency;
     }
 }
 
@@ -588,15 +611,26 @@ contract MockYieldBankDistributorHarness {
     }
 
     function createAccount(uint256 tokenId) external returns (address account) {
+        return _createAccount(tokenId, 1);
+    }
+
+    function createWeightedAccount(uint256 tokenId, uint96 feeWeight)
+        external
+        returns (address account)
+    {
+        return _createAccount(tokenId, feeWeight);
+    }
+
+    function _createAccount(uint256 tokenId, uint96 feeWeight) private returns (address account) {
         account = Clones.clone(accountImplementation);
         YieldBankAccount(account)
             .initialize(address(this), address(1), tokenId, address(distributor));
-        distributor.initializeTokenDebt(tokenId);
+        distributor.initializeTokenDebt(tokenId, feeWeight);
     }
 
-    function accrue(address asset, uint256 amount, uint256 liveSupply) external {
+    function accrue(address asset, uint256 amount, uint256 totalLiveFeeWeight) external {
         IERC20(asset).approve(address(distributor), amount);
-        distributor.accrueFrom(asset, address(this), amount, liveSupply);
+        distributor.accrueFrom(asset, address(this), amount, totalLiveFeeWeight);
     }
 
     function settle(uint256 tokenId, address account, bool terminal) external {

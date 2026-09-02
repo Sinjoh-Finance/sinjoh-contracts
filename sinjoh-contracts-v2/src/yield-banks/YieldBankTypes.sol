@@ -26,9 +26,17 @@ enum YieldBankRedemptionMode {
     IN_KIND
 }
 
+/// @notice An inclusive token-id boundary and its relative collection-fee weight.
+/// @dev Ranges are contiguous from token id 1. An empty schedule means every token has weight 1.
+struct YieldBankFeeWeightRange {
+    uint64 endTokenId;
+    uint96 feeWeight;
+}
+
 struct YieldBankConfig {
     bytes32 collectionId;
     uint256 maxSupply;
+    YieldBankFeeWeightRange[] feeWeightRanges;
     uint96 secondaryRoyaltyBps;
     uint16 primaryBackingBps;
     uint16 primaryCreatorBps;

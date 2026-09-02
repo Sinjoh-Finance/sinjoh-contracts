@@ -5,9 +5,12 @@ import { Test } from "forge-std/Test.sol";
 import { IERC721Receiver } from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { YieldBankCollection } from "../../src/yield-banks/YieldBankCollection.sol";
+import { YieldBankCollectionFactory } from "../../src/yield-banks/YieldBankCollectionFactory.sol";
+import { YieldBankConfigValidator } from "../../src/yield-banks/YieldBankConfigValidator.sol";
 import { YieldBankNFT } from "../../src/yield-banks/YieldBankNFT.sol";
 import { YieldBankAccount } from "../../src/yield-banks/YieldBankAccount.sol";
 import { YieldBankProceedsVault } from "../../src/yield-banks/YieldBankProceedsVault.sol";
+import { YieldBankProtocolRegistry } from "../../src/yield-banks/YieldBankProtocolRegistry.sol";
 import {
     CollectionPortfolioAllocator
 } from "../../src/yield-banks/CollectionPortfolioAllocator.sol";
@@ -20,6 +23,7 @@ import {
 import {
     YieldBankCollectionState,
     YieldBankConfig,
+    YieldBankFeeWeightRange,
     YieldBankTokenState
 } from "../../src/yield-banks/YieldBankTypes.sol";
 import {
@@ -51,6 +55,12 @@ contract HostileYieldBankReceiver is IERC721Receiver {
             burnBlocked = bytes4(reason) == YieldBankCollection.PrimaryPayoutPending.selector;
         }
         return IERC721Receiver.onERC721Received.selector;
+    }
+}
+
+contract YieldBankConfigValidatorHarness {
+    function validate(YieldBankConfig calldata config) external view {
+        YieldBankConfigValidator.validate(config);
     }
 }
 
@@ -122,12 +132,180 @@ contract YieldBankCollectionTest is Test {
         assertTrue(collection.accountOf(1) != address(0));
     }
 
-    function testCollectionRejectsEconomicsThatDoNotMatchBoundComponents() public {
+    function testEmptyFeeWeightScheduleDefaultsToEqualWeights() public {
+        assertEq(collection.feeWeightRangeCount(), 0);
+        assertEq(collection.maximumTotalFeeWeight(), 7);
+        assertEq(collection.feeWeightOf(0), 0);
+        assertEq(collection.feeWeightOf(1), 1);
+        assertEq(collection.feeWeightOf(7), 1);
+        assertEq(collection.feeWeightOf(8), 0);
+
+        _mint(ALICE, 2, 1 ether);
+        assertEq(collection.totalLiveFeeWeight(), 2);
+        assertEq(collection.distributor().feeWeightOf(1), 1);
+        assertEq(collection.distributor().feeWeightOf(2), 1);
+    }
+
+    function testCollectionInitializationCodeFitsMainnetLimit() public view {
+        YieldBankConfig memory config = _config(16);
+        config.feeWeightRanges = new YieldBankFeeWeightRange[](16);
+        for (uint256 i; i < 16; ++i) {
+            config.feeWeightRanges[i] =
+                YieldBankFeeWeightRange({ endTokenId: uint64(i + 1), feeWeight: uint96(i + 1) });
+        }
+        uint256 initializationCodeLength =
+            type(YieldBankCollection).creationCode.length + abi.encode(config).length;
+        assertLe(initializationCodeLength, 49_152);
+    }
+
+    function testCollectionSupportsImmutableConfigurableFeeWeightRanges() public {
+        YieldBankConfig memory config = _config(4);
+        config.feeWeightRanges = new YieldBankFeeWeightRange[](4);
+        config.feeWeightRanges[0] = YieldBankFeeWeightRange({ endTokenId: 1, feeWeight: 2 });
+        config.feeWeightRanges[1] = YieldBankFeeWeightRange({ endTokenId: 2, feeWeight: 5 });
+        config.feeWeightRanges[2] = YieldBankFeeWeightRange({ endTokenId: 3, feeWeight: 15 });
+        config.feeWeightRanges[3] = YieldBankFeeWeightRange({ endTokenId: 4, feeWeight: 60 });
+        YieldBankCollection weightedCollection = new YieldBankCollection(config);
+
+        assertEq(weightedCollection.feeWeightRangeCount(), 4);
+        assertEq(weightedCollection.maximumTotalFeeWeight(), 82);
+        assertEq(weightedCollection.feeWeightOf(1), 2);
+        assertEq(weightedCollection.feeWeightOf(2), 5);
+        assertEq(weightedCollection.feeWeightOf(3), 15);
+        assertEq(weightedCollection.feeWeightOf(4), 60);
+        (uint64 finalEndTokenId, uint96 finalWeight) = weightedCollection.feeWeightRange(3);
+        assertEq(finalEndTokenId, 4);
+        assertEq(finalWeight, 60);
+
+        vm.prank(ALICE);
+        seaDrop.mint{ value: 4 ether }(weightedCollection.nft(), ALICE, 4);
+        assertEq(weightedCollection.totalLiveFeeWeight(), 82);
+
+        core.mint(address(revenueRouter), 82 ether);
+        vm.startPrank(address(revenueRouter));
+        core.approve(address(weightedCollection.distributor()), 82 ether);
+        weightedCollection.accrueDistribution(address(core), 82 ether);
+        vm.stopPrank();
+        for (uint256 tokenId = 1; tokenId <= 4; ++tokenId) {
+            weightedCollection.settle(tokenId);
+        }
+        assertEq(core.balanceOf(weightedCollection.accountOf(1)), 2 ether);
+        assertEq(core.balanceOf(weightedCollection.accountOf(2)), 5 ether);
+        assertEq(core.balanceOf(weightedCollection.accountOf(3)), 15 ether);
+        assertEq(core.balanceOf(weightedCollection.accountOf(4)), 60 ether);
+    }
+
+    function testPiggyBankTierScheduleAccountsForAll3333Tokens() public {
+        YieldBankConfig memory config = _config(3_333);
+        config.feeWeightRanges = new YieldBankFeeWeightRange[](4);
+        config.feeWeightRanges[0] = YieldBankFeeWeightRange({ endTokenId: 3_000, feeWeight: 2 });
+        config.feeWeightRanges[1] = YieldBankFeeWeightRange({ endTokenId: 3_300, feeWeight: 5 });
+        config.feeWeightRanges[2] = YieldBankFeeWeightRange({ endTokenId: 3_330, feeWeight: 15 });
+        config.feeWeightRanges[3] = YieldBankFeeWeightRange({ endTokenId: 3_333, feeWeight: 60 });
+        assertEq(
+            keccak256(abi.encode(config.feeWeightRanges)),
+            0x09e456a352ef04c1876c453e7d9ed7d9fd42c5d5d86aa2e2ddff15ddc65d22a2
+        );
+        YieldBankCollection piggyBanks = new YieldBankCollection(config);
+
+        assertEq(piggyBanks.maxSupply(), 3_333);
+        assertEq(piggyBanks.maximumTotalFeeWeight(), 8_130);
+        assertEq(piggyBanks.feeWeightOf(1), 2);
+        assertEq(piggyBanks.feeWeightOf(3_000), 2);
+        assertEq(piggyBanks.feeWeightOf(3_001), 5);
+        assertEq(piggyBanks.feeWeightOf(3_300), 5);
+        assertEq(piggyBanks.feeWeightOf(3_301), 15);
+        assertEq(piggyBanks.feeWeightOf(3_330), 15);
+        assertEq(piggyBanks.feeWeightOf(3_331), 60);
+        assertEq(piggyBanks.feeWeightOf(3_333), 60);
+    }
+
+    function testGenericFactoryRejectsComponentsBoundToAnotherCollection() public {
+        bytes memory creationCode = type(YieldBankCollection).creationCode;
+        bytes32 version = keccak256("YIELD_BANK_COLLECTION_FACTORY_V2");
+        YieldBankProtocolRegistry registry = new YieldBankProtocolRegistry(address(this));
+        YieldBankCollectionFactory factory =
+            new YieldBankCollectionFactory(address(registry), version, keccak256(creationCode));
+        registry.registerFactory(address(factory), version, address(factory).codehash);
+
+        YieldBankConfig memory first = _config(3_333);
+        first.collectionId = keccak256("INDEPENDENT_COLLECTION_A");
+        first.feeWeightRanges = new YieldBankFeeWeightRange[](4);
+        first.feeWeightRanges[0] = YieldBankFeeWeightRange({ endTokenId: 3_000, feeWeight: 2 });
+        first.feeWeightRanges[1] = YieldBankFeeWeightRange({ endTokenId: 3_300, feeWeight: 5 });
+        first.feeWeightRanges[2] = YieldBankFeeWeightRange({ endTokenId: 3_330, feeWeight: 15 });
+        first.feeWeightRanges[3] = YieldBankFeeWeightRange({ endTokenId: 3_333, feeWeight: 60 });
+
+        vm.expectRevert(YieldBankConfigValidator.InvalidConfiguration.selector);
+        vm.prank(ALICE);
+        factory.deploy(creationCode, first, keccak256("CALLER_A_SALT"));
+    }
+
+    function testRedeemingTokenRemovesItsWeightFromFutureDistributions() public {
+        YieldBankConfig memory config = _config(2);
+        config.feeWeightRanges = new YieldBankFeeWeightRange[](2);
+        config.feeWeightRanges[0] = YieldBankFeeWeightRange({ endTokenId: 1, feeWeight: 2 });
+        config.feeWeightRanges[1] = YieldBankFeeWeightRange({ endTokenId: 2, feeWeight: 5 });
+        YieldBankCollection weightedCollection = new YieldBankCollection(config);
+        vm.prank(ALICE);
+        seaDrop.mint{ value: 2 ether }(weightedCollection.nft(), ALICE, 2);
+
+        vm.prank(ALICE);
+        weightedCollection.burnToken(1, "");
+        assertEq(weightedCollection.liveSupply(), 1);
+        assertEq(weightedCollection.totalLiveFeeWeight(), 5);
+        assertEq(weightedCollection.distributor().feeWeightOf(1), 0);
+
+        core.mint(address(revenueRouter), 5 ether);
+        vm.startPrank(address(revenueRouter));
+        core.approve(address(weightedCollection.distributor()), 5 ether);
+        weightedCollection.accrueDistribution(address(core), 5 ether);
+        vm.stopPrank();
+        weightedCollection.settle(2);
+        assertEq(core.balanceOf(weightedCollection.accountOf(2)), 5 ether);
+    }
+
+    function testFeeWeightScheduleMustCoverMaxSupplyWithPositiveOrderedRanges() public {
+        YieldBankConfig memory config = _config(4);
+        config.feeWeightRanges = new YieldBankFeeWeightRange[](1);
+        config.feeWeightRanges[0] = YieldBankFeeWeightRange({ endTokenId: 3, feeWeight: 1 });
+        vm.expectRevert(YieldBankCollection.InvalidConfiguration.selector);
+        new YieldBankCollection(config);
+
+        config.feeWeightRanges[0] = YieldBankFeeWeightRange({ endTokenId: 4, feeWeight: 0 });
+        vm.expectRevert(YieldBankCollection.InvalidConfiguration.selector);
+        new YieldBankCollection(config);
+
+        config.feeWeightRanges = new YieldBankFeeWeightRange[](2);
+        config.feeWeightRanges[0] = YieldBankFeeWeightRange({ endTokenId: 3, feeWeight: 1 });
+        config.feeWeightRanges[1] = YieldBankFeeWeightRange({ endTokenId: 2, feeWeight: 2 });
+        vm.expectRevert(YieldBankCollection.InvalidConfiguration.selector);
+        new YieldBankCollection(config);
+
+        config.feeWeightRanges = new YieldBankFeeWeightRange[](17);
+        for (uint256 i; i < 17; ++i) {
+            config.feeWeightRanges[i] =
+                YieldBankFeeWeightRange({ endTokenId: uint64(i + 1), feeWeight: 1 });
+        }
+        config.maxSupply = 17;
+        vm.expectRevert(YieldBankCollection.InvalidConfiguration.selector);
+        new YieldBankCollection(config);
+
+        config = _config(1);
+        config.feeWeightRanges = new YieldBankFeeWeightRange[](1);
+        config.feeWeightRanges[0] =
+            YieldBankFeeWeightRange({ endTokenId: 1, feeWeight: uint96(1e27 + 1) });
+        vm.expectRevert(YieldBankCollection.InvalidConfiguration.selector);
+        new YieldBankCollection(config);
+    }
+
+    function testFactoryValidatorRejectsEconomicsThatDoNotMatchBoundComponents() public {
         YieldBankConfig memory config = _config(7);
         config.primaryBackingBps = 7_400;
         config.primaryCreatorBps = 1_300;
-        vm.expectRevert(YieldBankCollection.InvalidConfiguration.selector);
-        new YieldBankCollection(config);
+        YieldBankConfigValidatorHarness validator = new YieldBankConfigValidatorHarness();
+        vm.expectRevert(YieldBankConfigValidator.InvalidConfiguration.selector);
+        validator.validate(config);
     }
 
     function testReceiverCannotRedeemBeforeSeaDropPayoutCompletes() public {
@@ -626,6 +804,7 @@ contract YieldBankCollectionTest is Test {
         c = YieldBankConfig({
             collectionId: keccak256("SINJOH_YIELD_BANKS_TEST"),
             maxSupply: supply,
+            feeWeightRanges: new YieldBankFeeWeightRange[](0),
             secondaryRoyaltyBps: 500,
             primaryBackingBps: PRIMARY_BACKING_BPS,
             primaryCreatorBps: PRIMARY_CREATOR_BPS,

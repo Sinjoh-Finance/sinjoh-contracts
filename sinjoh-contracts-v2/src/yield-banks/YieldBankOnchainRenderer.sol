@@ -11,9 +11,26 @@ contract YieldBankOnchainRenderer is IYieldBankRenderer {
     using Strings for address;
     using Strings for uint256;
 
+    string public collectionName;
+    string public collectionSymbol;
+
+    error InvalidConfiguration();
+
+    constructor(string memory collectionName_, string memory collectionSymbol_) {
+        bytes memory nameBytes = bytes(collectionName_);
+        bytes memory symbolBytes = bytes(collectionSymbol_);
+        if (
+            nameBytes.length == 0 || nameBytes.length > 128 || symbolBytes.length == 0
+                || symbolBytes.length > 32 || !_isSafeText(nameBytes, true)
+                || !_isSafeText(symbolBytes, false)
+        ) revert InvalidConfiguration();
+        collectionName = collectionName_;
+        collectionSymbol = collectionSymbol_;
+    }
+
     function tokenURI(address collection, uint256 tokenId, address account, uint8 state)
         external
-        pure
+        view
         returns (string memory)
     {
         string memory id = tokenId.toString();
@@ -26,8 +43,10 @@ contract YieldBankOnchainRenderer is IYieldBankRenderer {
             '<stop stop-color="#07111f"/><stop offset="1" stop-color="#153b35"/>',
             '</linearGradient></defs><rect width="1200" height="1200" fill="url(#g)"/>',
             '<circle cx="930" cy="260" r="190" fill="none" stroke="#70e1b2" stroke-width="6" opacity=".45"/>',
-            '<text x="90" y="150" fill="#70e1b2" font-family="monospace" font-size="42">SINJOH</text>',
-            '<text x="90" y="245" fill="white" font-family="sans-serif" font-size="76" font-weight="700">YIELD BANK #',
+            '<text x="90" y="150" fill="#70e1b2" font-family="monospace" font-size="42">YIELD BANKS</text>',
+            '<text x="90" y="245" fill="white" font-family="sans-serif" font-size="76" font-weight="700">',
+            collectionName,
+            " #",
             id,
             '</text><text x="90" y="340" fill="#b7c8c2" font-family="sans-serif" font-size="34">Collection-configured Stock Token / Market Making / USDG sleeves</text>',
             '<text x="90" y="840" fill="#70e1b2" font-family="monospace" font-size="30">STATE  ',
@@ -42,7 +61,9 @@ contract YieldBankOnchainRenderer is IYieldBankRenderer {
         );
         string memory image = string.concat("data:image/svg+xml;base64,", Base64.encode(bytes(svg)));
         bytes memory json = abi.encodePacked(
-            '{"name":"Sinjoh Yield Bank #',
+            '{"name":"',
+            collectionName,
+            " #",
             id,
             '","description":"A bearer claim on a deterministic treasury holding shares in permanent Stock Token, Market-Making, and USDG sleeves.","image":"',
             image,
@@ -65,5 +86,19 @@ contract YieldBankOnchainRenderer is IYieldBankRenderer {
         if (state == 2) return "BURNING";
         if (state == 3) return "BURNED";
         return "UNKNOWN";
+    }
+
+    function _isSafeText(bytes memory value, bool allowSpaceAndDot) private pure returns (bool) {
+        for (uint256 i; i < value.length; ++i) {
+            bytes1 character = value[i];
+            bool alphanumeric = (character >= 0x30 && character <= 0x39)
+                || (character >= 0x41 && character <= 0x5a)
+                || (character >= 0x61 && character <= 0x7a);
+            if (
+                !alphanumeric && character != 0x2d && character != 0x5f
+                    && !(allowSpaceAndDot && (character == 0x20 || character == 0x2e))
+            ) return false;
+        }
+        return true;
     }
 }

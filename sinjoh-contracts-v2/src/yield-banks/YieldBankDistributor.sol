@@ -7,7 +7,7 @@ import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.s
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { YieldBankAccount } from "./YieldBankAccount.sol";
 
-/// @notice O(1) per-live-token distribution accounting with bounded settlement.
+/// @notice O(1) weighted per-live-token distribution accounting with bounded settlement.
 contract YieldBankDistributor is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -17,8 +17,10 @@ contract YieldBankDistributor is ReentrancyGuard {
     address public immutable collection;
     address[] private _assets;
     mapping(address asset => bool registered) public isDistributionAsset;
-    mapping(address asset => uint256 index) public accPerLiveNftRay;
+    mapping(address asset => uint256 index) public accPerFeeWeightRay;
+    mapping(uint256 tokenId => uint96 weight) public feeWeightOf;
     mapping(uint256 tokenId => mapping(address asset => uint256 debt)) public debtRay;
+    mapping(uint256 tokenId => mapping(address asset => uint256 remainder)) public remainderRay;
     mapping(address asset => uint256 amount) public totalReceived;
     mapping(address asset => uint256 amount) public totalSettled;
     mapping(uint256 tokenId => mapping(address asset => uint256 amount)) public cumulativeSettled;
@@ -29,11 +31,13 @@ contract YieldBankDistributor is ReentrancyGuard {
     error TooManyAssets(uint256 supplied);
     error InvalidSupply(uint256 supplied);
     error InvalidAmount(uint256 supplied);
+    error InvalidFeeWeight(uint256 supplied);
+    error TokenAlreadyInitialized(uint256 tokenId);
     error InexactReceipt(address asset, uint256 expected, uint256 measured);
 
     event DistributionAssetRegistered(address indexed asset);
     event DistributionAccrued(
-        address indexed asset, uint256 amount, uint256 liveSupply, uint256 indexIncrease
+        address indexed asset, uint256 amount, uint256 totalLiveFeeWeight, uint256 indexIncrease
     );
     event TokenSettled(uint256 indexed tokenId, address indexed account, bool terminal);
     event AssetSettled(
@@ -61,28 +65,31 @@ contract YieldBankDistributor is ReentrancyGuard {
         emit DistributionAssetRegistered(asset);
     }
 
-    function initializeTokenDebt(uint256 tokenId) external onlyCollection {
+    function initializeTokenDebt(uint256 tokenId, uint96 feeWeight) external onlyCollection {
+        if (feeWeight == 0) revert InvalidFeeWeight(feeWeight);
+        if (feeWeightOf[tokenId] != 0) revert TokenAlreadyInitialized(tokenId);
+        feeWeightOf[tokenId] = feeWeight;
         uint256 length = _assets.length;
         for (uint256 i; i < length; ++i) {
             address asset = _assets[i];
-            debtRay[tokenId][asset] = accPerLiveNftRay[asset];
+            debtRay[tokenId][asset] = accPerFeeWeightRay[asset];
         }
     }
 
-    function accrueFrom(address asset, address source, uint256 amount, uint256 liveSupply)
+    function accrueFrom(address asset, address source, uint256 amount, uint256 totalLiveFeeWeight)
         external
         onlyCollection
         nonReentrant
     {
         if (!isDistributionAsset[asset]) revert InvalidAsset(asset);
         if (amount == 0) revert InvalidAmount(amount);
-        if (liveSupply == 0) revert InvalidSupply(liveSupply);
+        if (totalLiveFeeWeight == 0) revert InvalidSupply(totalLiveFeeWeight);
         IERC20 token = IERC20(asset);
         uint256 beforeBalance = token.balanceOf(address(this));
         token.safeTransferFrom(source, address(this), amount);
         uint256 measured = token.balanceOf(address(this)) - beforeBalance;
         if (measured != amount) revert InexactReceipt(asset, amount, measured);
-        _accrue(asset, amount, liveSupply);
+        _accrue(asset, amount, totalLiveFeeWeight);
     }
 
     function settle(uint256 tokenId, address account, bool terminal)
@@ -90,17 +97,27 @@ contract YieldBankDistributor is ReentrancyGuard {
         onlyCollection
         nonReentrant
     {
+        uint96 feeWeight = feeWeightOf[tokenId];
+        if (feeWeight == 0) revert InvalidFeeWeight(feeWeight);
         uint256 length = _assets.length;
         for (uint256 i; i < length; ++i) {
             address asset = _assets[i];
             uint256 amount;
             if (terminal) {
                 amount = accountedBalance[asset];
-                debtRay[tokenId][asset] = accPerLiveNftRay[asset];
+                debtRay[tokenId][asset] = accPerFeeWeightRay[asset];
+                remainderRay[tokenId][asset] = 0;
             } else {
-                uint256 pendingRay = accPerLiveNftRay[asset] - debtRay[tokenId][asset];
-                amount = pendingRay / RAY;
-                debtRay[tokenId][asset] += amount * RAY;
+                uint256 indexDelta = accPerFeeWeightRay[asset] - debtRay[tokenId][asset];
+                amount = Math.mulDiv(indexDelta, feeWeight, RAY);
+                uint256 remainder =
+                    remainderRay[tokenId][asset] + mulmod(indexDelta, feeWeight, RAY);
+                if (remainder >= RAY) {
+                    amount += 1;
+                    remainder -= RAY;
+                }
+                debtRay[tokenId][asset] = accPerFeeWeightRay[asset];
+                remainderRay[tokenId][asset] = remainder;
             }
             if (amount == 0) continue;
             YieldBankAccount(account).trackAsset(asset);
@@ -117,14 +134,21 @@ contract YieldBankDistributor is ReentrancyGuard {
         uint256 length = _assets.length;
         for (uint256 i; i < length; ++i) {
             address asset = _assets[i];
-            debtRay[tokenId][asset] = accPerLiveNftRay[asset];
+            debtRay[tokenId][asset] = accPerFeeWeightRay[asset];
+            remainderRay[tokenId][asset] = 0;
         }
+        delete feeWeightOf[tokenId];
         emit TokenRetired(tokenId);
     }
 
     function pending(uint256 tokenId, address asset) external view returns (uint256) {
         if (!isDistributionAsset[asset]) return 0;
-        return (accPerLiveNftRay[asset] - debtRay[tokenId][asset]) / RAY;
+        uint96 feeWeight = feeWeightOf[tokenId];
+        if (feeWeight == 0) return 0;
+        uint256 indexDelta = accPerFeeWeightRay[asset] - debtRay[tokenId][asset];
+        uint256 amount = Math.mulDiv(indexDelta, feeWeight, RAY);
+        uint256 remainder = remainderRay[tokenId][asset] + mulmod(indexDelta, feeWeight, RAY);
+        return amount + remainder / RAY;
     }
 
     function distributionAssets() external view returns (address[] memory) {
@@ -139,11 +163,11 @@ contract YieldBankDistributor is ReentrancyGuard {
         return IERC20(asset).balanceOf(address(this)) >= accountedBalance[asset];
     }
 
-    function _accrue(address asset, uint256 amount, uint256 liveSupply) private {
-        uint256 indexIncrease = Math.mulDiv(amount, RAY, liveSupply);
-        accPerLiveNftRay[asset] += indexIncrease;
+    function _accrue(address asset, uint256 amount, uint256 totalLiveFeeWeight) private {
+        uint256 indexIncrease = Math.mulDiv(amount, RAY, totalLiveFeeWeight);
+        accPerFeeWeightRay[asset] += indexIncrease;
         accountedBalance[asset] += amount;
         totalReceived[asset] += amount;
-        emit DistributionAccrued(asset, amount, liveSupply, indexIncrease);
+        emit DistributionAccrued(asset, amount, totalLiveFeeWeight, indexIncrease);
     }
 }

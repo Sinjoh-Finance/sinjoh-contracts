@@ -2,7 +2,7 @@
 pragma solidity 0.8.28;
 
 import { Script } from "forge-std/Script.sol";
-import { YieldBankConfig } from "../src/yield-banks/YieldBankTypes.sol";
+import { YieldBankConfig, YieldBankFeeWeightRange } from "../src/yield-banks/YieldBankTypes.sol";
 import { YieldBankProtocolRegistry } from "../src/yield-banks/YieldBankProtocolRegistry.sol";
 import { YieldBankSystemFactory } from "../src/yield-banks/YieldBankSystemFactory.sol";
 import {
@@ -116,9 +116,13 @@ contract DeployYieldBanks is Script {
         for (uint256 i; i < 10; ++i) {
             pinnedHashes[i] = integrationCodeHashes[i];
         }
+        YieldBankFeeWeightRange[] memory feeWeightRanges = abi.decode(
+            vm.parseJson(json, ".config.feeWeightRanges"), (YieldBankFeeWeightRange[])
+        );
         plan.config = YieldBankConfig({
             collectionId: vm.parseJsonBytes32(json, ".config.collectionId"),
             maxSupply: vm.parseJsonUint(json, ".config.maxSupply"),
+            feeWeightRanges: feeWeightRanges,
             secondaryRoyaltyBps: uint96(_parseBps(json, ".config.secondaryRoyaltyBps")),
             primaryBackingBps: _parseBps(json, ".config.primaryBackingBps"),
             primaryCreatorBps: _parseBps(json, ".config.primaryCreatorBps"),

@@ -10,7 +10,11 @@ import { YieldBankProceedsVault } from "../../src/yield-banks/YieldBankProceedsV
 import {
     CollectionPortfolioAllocator
 } from "../../src/yield-banks/CollectionPortfolioAllocator.sol";
-import { YieldBankConfig, YieldBankTokenState } from "../../src/yield-banks/YieldBankTypes.sol";
+import {
+    YieldBankConfig,
+    YieldBankFeeWeightRange,
+    YieldBankTokenState
+} from "../../src/yield-banks/YieldBankTypes.sol";
 import {
     MockYieldBankAsset,
     MockYieldBankEligibilityPolicy,
@@ -209,12 +213,14 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
 
     function invariantTokenLifecycleAndSupplyAreOneWay() public view {
         uint256 active;
+        uint256 activeFeeWeight;
         uint256 pendingBacking;
         for (uint256 tokenId = 1; tokenId <= collection.mintedSupply(); ++tokenId) {
             uint8 tokenState = collection.tokenState(tokenId);
             uint8 primaryState = vault.primaryStateOf(tokenId);
             if (tokenState == uint8(YieldBankTokenState.ACTIVE)) {
                 active += 1;
+                activeFeeWeight += collection.distributor().feeWeightOf(tokenId);
                 collection.nft().ownerOf(tokenId);
                 assertTrue(
                     primaryState == vault.PRIMARY_PENDING()
@@ -235,6 +241,7 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
             }
         }
         assertEq(active, collection.liveSupply());
+        assertEq(activeFeeWeight, collection.totalLiveFeeWeight());
         assertLe(collection.liveSupply(), collection.mintedSupply());
         assertLe(collection.mintedSupply(), collection.maxSupply());
         assertEq(pendingBacking, vault.totalPendingBacking());
@@ -266,6 +273,7 @@ contract YieldBankCollectionInvariantTest is StdInvariant, Test {
         c = YieldBankConfig({
             collectionId: keccak256("SINJOH_YIELD_BANKS_INVARIANT"),
             maxSupply: MAX_SUPPLY,
+            feeWeightRanges: new YieldBankFeeWeightRange[](0),
             secondaryRoyaltyBps: 500,
             primaryBackingBps: PRIMARY_BACKING_BPS,
             primaryCreatorBps: PRIMARY_CREATOR_BPS,

@@ -5,8 +5,16 @@ import { Test } from "forge-std/Test.sol";
 import { YieldBankOnchainRenderer } from "../../src/yield-banks/YieldBankOnchainRenderer.sol";
 
 contract YieldBankOnchainRendererTest is Test {
+    function testCollectionMetadataRejectsMarkupAndEmptyValues() external {
+        vm.expectRevert(YieldBankOnchainRenderer.InvalidConfiguration.selector);
+        new YieldBankOnchainRenderer("<script>", "SYB");
+        vm.expectRevert(YieldBankOnchainRenderer.InvalidConfiguration.selector);
+        new YieldBankOnchainRenderer("Piggy Banks", "");
+    }
+
     function testMetadataIsOnchainAndBoundToProtocolAddresses() external {
-        YieldBankOnchainRenderer renderer = new YieldBankOnchainRenderer();
+        YieldBankOnchainRenderer renderer =
+            new YieldBankOnchainRenderer("Sinjoh Yield Banks", "SYB");
         address collection = 0x1111111111111111111111111111111111111111;
         address account = 0x2222222222222222222222222222222222222222;
         string memory uri = renderer.tokenURI(collection, 42, account, 1);

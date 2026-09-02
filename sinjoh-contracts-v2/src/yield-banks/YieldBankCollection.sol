@@ -9,6 +9,7 @@ import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import {
     YieldBankCollectionState,
     YieldBankConfig,
+    YieldBankFeeWeightRange,
     YieldBankTokenState
 } from "./YieldBankTypes.sol";
 import { IYieldBankEligibilityPolicy } from "./interfaces/IYieldBankEligibilityPolicy.sol";
@@ -16,12 +17,6 @@ import { YieldBankAccount } from "./YieldBankAccount.sol";
 import { YieldBankDistributor } from "./YieldBankDistributor.sol";
 import { YieldBankNFT } from "./YieldBankNFT.sol";
 import { YieldBankProceedsVault } from "./YieldBankProceedsVault.sol";
-
-interface IYieldBankRevenueEconomics {
-    function primaryBackingBps() external view returns (uint16);
-    function primaryCreatorBps() external view returns (uint16);
-    function primarySinjohBps() external view returns (uint16);
-}
 
 interface IYieldBankBurnableToken is IERC20 {
     function burnFrom(address account, uint256 amount) external;
@@ -41,11 +36,14 @@ contract YieldBankCollection is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint256 public constant MAX_SETTLE_BATCH = 20;
+    uint256 public constant MAX_FEE_WEIGHT_RANGES = 16;
+    uint256 public constant MAX_TOTAL_FEE_WEIGHT = 1e27;
     uint16 public constant BPS = 10_000;
     uint16 public constant EXIT_TAX_BPS = 500;
 
     bytes32 public immutable collectionId;
     uint256 public immutable maxSupply;
+    uint256 public immutable maximumTotalFeeWeight;
     uint96 public immutable secondaryRoyaltyBps;
     uint16 public immutable primaryBackingBps;
     uint16 public immutable primaryCreatorBps;
@@ -75,6 +73,8 @@ contract YieldBankCollection is ReentrancyGuard {
     YieldBankCollectionState public state;
     uint256 public mintedSupply;
     uint256 public liveSupply;
+    uint256 public totalLiveFeeWeight;
+    YieldBankFeeWeightRange[] private _feeWeightRanges;
     mapping(uint256 => address) public accountOf;
     mapping(uint256 => YieldBankTokenState) private _tokenStates;
     mapping(address => bool) public isSleeveAsset;
@@ -108,7 +108,9 @@ contract YieldBankCollection is ReentrancyGuard {
         address distributor,
         address accountImplementation
     );
-    event YieldBankMinted(uint256 indexed tokenId, address indexed owner, address indexed account);
+    event YieldBankMinted(
+        uint256 indexed tokenId, address indexed owner, address indexed account, uint96 feeWeight
+    );
     event DistributionSettled(uint256 indexed tokenId, address indexed account);
     event PrimarySharesClaimed(uint256 indexed tokenId, address indexed account);
     event YieldBankRedeemed(
@@ -121,9 +123,9 @@ contract YieldBankCollection is ReentrancyGuard {
     );
 
     constructor(YieldBankConfig memory config) {
-        _validateConfig(config);
         collectionId = config.collectionId;
         maxSupply = config.maxSupply;
+        maximumTotalFeeWeight = _storeFeeWeightSchedule(config);
         secondaryRoyaltyBps = config.secondaryRoyaltyBps;
         primaryBackingBps = config.primaryBackingBps;
         primaryCreatorBps = config.primaryCreatorBps;
@@ -206,8 +208,10 @@ contract YieldBankCollection is ReentrancyGuard {
         if (!eligibilityPolicy.canMint(minter, "")) revert Ineligible(minter);
         if (quantity == 0 || mintedSupply + quantity > maxSupply) revert InvalidConfiguration();
         firstTokenId = mintedSupply + 1;
+        uint256 addedFeeWeight;
         for (uint256 i; i < quantity; ++i) {
             uint256 tokenId = firstTokenId + i;
+            uint96 feeWeight = feeWeightOf(tokenId);
             address account =
                 Clones.cloneDeterministic(accountImplementation, _accountSalt(tokenId));
             YieldBankAccount(account)
@@ -220,11 +224,13 @@ contract YieldBankCollection is ReentrancyGuard {
             }
             accountOf[tokenId] = account;
             _tokenStates[tokenId] = YieldBankTokenState.ACTIVE;
-            distributor.initializeTokenDebt(tokenId);
-            emit YieldBankMinted(tokenId, minter, account);
+            distributor.initializeTokenDebt(tokenId, feeWeight);
+            addedFeeWeight += feeWeight;
+            emit YieldBankMinted(tokenId, minter, account, feeWeight);
         }
         mintedSupply += quantity;
         liveSupply += quantity;
+        totalLiveFeeWeight += addedFeeWeight;
         proceedsVault.noteMint(firstTokenId, quantity);
     }
 
@@ -269,7 +275,7 @@ contract YieldBankCollection is ReentrancyGuard {
     function accrueDistribution(address asset, uint256 amount) external nonReentrant {
         if (msg.sender != revenueRouter) revert OnlyRevenueRouter(msg.sender);
         if (liveSupply == 0) revert InvalidConfiguration();
-        distributor.accrueFrom(asset, msg.sender, amount, liveSupply);
+        distributor.accrueFrom(asset, msg.sender, amount, totalLiveFeeWeight);
     }
 
     function registerDistributionAsset(address asset) external {
@@ -312,6 +318,35 @@ contract YieldBankCollection is ReentrancyGuard {
         return Clones.predictDeterministicAddress(accountImplementation, _accountSalt(tokenId));
     }
 
+    function feeWeightRangeCount() external view returns (uint256) {
+        return _feeWeightRanges.length;
+    }
+
+    function feeWeightRange(uint256 index)
+        external
+        view
+        returns (uint64 endTokenId, uint96 weight)
+    {
+        YieldBankFeeWeightRange memory range = _feeWeightRanges[index];
+        return (range.endTokenId, range.feeWeight);
+    }
+
+    /// @notice Returns the immutable relative collection-fee weight for a possible token id.
+    /// @dev Returns zero outside this collection's configured token-id range.
+    function feeWeightOf(uint256 tokenId) public view returns (uint96) {
+        if (tokenId == 0 || tokenId > maxSupply) return 0;
+        uint256 length = _feeWeightRanges.length;
+        if (length == 0) return 1;
+        uint256 low;
+        uint256 high = length;
+        while (low < high) {
+            uint256 mid = (low + high) >> 1;
+            if (tokenId <= _feeWeightRanges[mid].endTokenId) high = mid;
+            else low = mid + 1;
+        }
+        return _feeWeightRanges[low].feeWeight;
+    }
+
     function _settle(uint256 tokenId) private {
         if (_tokenStates[tokenId] != YieldBankTokenState.ACTIVE) {
             revert InvalidTokenState(tokenId, _tokenStates[tokenId]);
@@ -341,12 +376,14 @@ contract YieldBankCollection is ReentrancyGuard {
         uint8 primaryState = proceedsVault.primaryStateOf(tokenId);
         if (primaryState == proceedsVault.PRIMARY_ALLOCATED()) _claimPrimary(tokenId);
         bool terminal = liveSupply == 1;
+        uint96 redeemedFeeWeight = distributor.feeWeightOf(tokenId);
         YieldBankAccount account = YieldBankAccount(accountOf[tokenId]);
         distributor.settle(tokenId, address(account), terminal);
         address[] memory assets = account.trackedAssets();
         _tokenStates[tokenId] = YieldBankTokenState.BURNING;
         nft.burn(tokenId);
         liveSupply -= 1;
+        totalLiveFeeWeight -= redeemedFeeWeight;
         distributor.retireToken(tokenId);
         for (uint256 i; i < assets.length; ++i) {
             address asset = assets[i];
@@ -354,7 +391,7 @@ contract YieldBankCollection is ReentrancyGuard {
             uint256 tax = terminal ? 0 : Math.mulDiv(balance, EXIT_TAX_BPS, BPS);
             if (tax != 0) {
                 account.approveDistribution(asset, tax);
-                distributor.accrueFrom(asset, address(account), tax, liveSupply);
+                distributor.accrueFrom(asset, address(account), tax, totalLiveFeeWeight);
                 account.clearDistributionApproval(asset);
             }
             if (isSleeveAsset[asset]) {
@@ -368,7 +405,7 @@ contract YieldBankCollection is ReentrancyGuard {
             uint256 tax = terminal ? 0 : Math.mulDiv(released, EXIT_TAX_BPS, BPS);
             if (tax != 0) {
                 weth.forceApprove(address(distributor), tax);
-                distributor.accrueFrom(address(weth), address(this), tax, liveSupply);
+                distributor.accrueFrom(address(weth), address(this), tax, totalLiveFeeWeight);
                 weth.forceApprove(address(distributor), 0);
             }
             weth.safeTransfer(beneficiary, released - tax);
@@ -427,47 +464,25 @@ contract YieldBankCollection is ReentrancyGuard {
         emit CollectionStateChanged(old, value);
     }
 
-    function _validateConfig(YieldBankConfig memory c) private view {
-        bool redemptionDisabled = c.redemptionToken == address(0) && c.redemptionTokenAmount == 0
-            && c.redemptionTokenCodeHash == bytes32(0);
-        bool redemptionEnabled = c.redemptionToken.code.length != 0 && c.redemptionTokenAmount != 0
-            && c.redemptionToken.codehash == c.redemptionTokenCodeHash;
-        if (
-            c.collectionId == bytes32(0) || c.maxSupply == 0 || c.maxSupply > type(uint64).max
-                || c.secondaryRoyaltyBps > BPS || c.creator == address(0)
-                || c.openSeaManager == address(0) || c.sinjohFeeRecipient == address(0)
-                || c.revenueRouter.code.length == 0 || c.eligibilityPolicy.code.length == 0
-                || c.portfolioAllocator.code.length == 0 || c.allocationOperator == address(0)
-                || c.collectionTimelock.code.length == 0 || c.guardian == address(0)
-                || c.renderer.code.length == 0 || c.weth.code.length == 0
-                || c.seaDrop.code.length == 0 || c.coreSleeve.code.length == 0
-                || c.marketMakingSleeve.code.length == 0 || c.usdgSleeve.code.length == 0
-                || c.accountImplementation.code.length == 0 || c.coreSleeve == c.marketMakingSleeve
-                || c.coreSleeve == c.usdgSleeve || c.marketMakingSleeve == c.usdgSleeve
-                || c.primaryBackingBps == 0
-                || uint256(c.primaryBackingBps) + c.primaryCreatorBps + c.primarySinjohBps != BPS
-                || c.coreWeightBps == 0 || c.marketMakingWeightBps == 0 || c.usdgWeightBps == 0
-                || uint256(c.coreWeightBps) + c.marketMakingWeightBps + c.usdgWeightBps != BPS
-                || (!redemptionDisabled && !redemptionEnabled)
-        ) revert InvalidConfiguration();
-        bytes32[10] memory h = c.integrationCodeHashes;
-        if (
-            c.revenueRouter.codehash != h[0] || c.eligibilityPolicy.codehash != h[1]
-                || c.portfolioAllocator.codehash != h[2] || c.collectionTimelock.codehash != h[3]
-                || c.renderer.codehash != h[4] || c.weth.codehash != h[5]
-                || c.seaDrop.codehash != h[6] || c.coreSleeve.codehash != h[7]
-                || c.marketMakingSleeve.codehash != h[8] || c.usdgSleeve.codehash != h[9]
-        ) revert InvalidConfiguration();
-        IYieldBankRevenueEconomics revenueEconomics = IYieldBankRevenueEconomics(c.revenueRouter);
-        IYieldBankPortfolioEconomics portfolioEconomics =
-            IYieldBankPortfolioEconomics(c.portfolioAllocator);
-        if (
-            revenueEconomics.primaryBackingBps() != c.primaryBackingBps
-                || revenueEconomics.primaryCreatorBps() != c.primaryCreatorBps
-                || revenueEconomics.primarySinjohBps() != c.primarySinjohBps
-                || portfolioEconomics.coreWeightBps() != c.coreWeightBps
-                || portfolioEconomics.marketMakingWeightBps() != c.marketMakingWeightBps
-                || portfolioEconomics.usdgWeightBps() != c.usdgWeightBps
-        ) revert InvalidConfiguration();
+    function _storeFeeWeightSchedule(YieldBankConfig memory c)
+        private
+        returns (uint256 maximumWeight)
+    {
+        uint256 length = c.feeWeightRanges.length;
+        if (length == 0) return c.maxSupply;
+        if (length > MAX_FEE_WEIGHT_RANGES) revert InvalidConfiguration();
+        uint64 previousEnd;
+        for (uint256 i; i < length; ++i) {
+            YieldBankFeeWeightRange memory range = c.feeWeightRanges[i];
+            if (range.endTokenId <= previousEnd || range.feeWeight == 0) {
+                revert InvalidConfiguration();
+            }
+            _feeWeightRanges.push(range);
+            maximumWeight += uint256(range.endTokenId - previousEnd) * range.feeWeight;
+            previousEnd = range.endTokenId;
+        }
+        if (previousEnd != c.maxSupply || maximumWeight > MAX_TOTAL_FEE_WEIGHT) {
+            revert InvalidConfiguration();
+        }
     }
 }
