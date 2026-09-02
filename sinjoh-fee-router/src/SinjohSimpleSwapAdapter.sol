@@ -56,7 +56,9 @@ contract SinjohSimpleSwapAdapter is ISinjohSwapAdapter {
         uint256 minimumAmountOut,
         bytes calldata routeData
     ) external payable {
-        if (msg.value != 0 || assetIn == address(0) || assetIn == assetOut || amountIn == 0) revert InvalidAmount();
+        if (msg.value != 0 || assetIn == address(0) || assetIn == assetOut || amountIn == 0) {
+            revert InvalidAmount();
+        }
 
         uint256 inputBefore = assetIn.safeBalanceOf(address(this));
         assetIn.safeTransferFrom(msg.sender, address(this), amountIn);

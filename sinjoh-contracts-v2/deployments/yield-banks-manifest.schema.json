@@ -1,0 +1,413 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sinjoh.com/schemas/yield-banks-manifest-1.3.json",
+  "title": "Sinjoh Yield Banks release manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "chainId", "collectionId", "factoryVersion", "compiler", "deployment", "economics", "redemption", "equityModel", "policyCaps", "openSea", "contracts", "dependencies", "equityAssets", "coreConstituents", "adapters", "feeds", "deltaInfrastructure", "routeBindings", "roles", "auditHashes"],
+  "properties": {
+    "schemaVersion": { "const": "1.3" },
+    "chainId": { "const": 4663 },
+    "collectionId": { "$ref": "#/$defs/bytes32" },
+    "factoryVersion": { "$ref": "#/$defs/bytes32" },
+    "compiler": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "optimizerRuns", "sourceCommit", "dependencyLockHash"],
+      "properties": {
+        "version": { "const": "0.8.28" },
+        "optimizerRuns": { "const": 200 },
+        "sourceCommit": { "$ref": "#/$defs/bytes32" },
+        "dependencyLockHash": { "$ref": "#/$defs/bytes32" }
+      }
+    },
+    "deployment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["factorySalt", "collectionSalt", "collectionConfigurationHash", "systemPlanHash", "collectionCreationCodeHash", "metadataBaseUri", "metadataBaseUriHash", "contractUri", "contractUriHash"],
+      "properties": {
+        "factorySalt": { "$ref": "#/$defs/bytes32" },
+        "collectionSalt": { "$ref": "#/$defs/bytes32" },
+        "collectionConfigurationHash": { "$ref": "#/$defs/bytes32" },
+        "systemPlanHash": { "$ref": "#/$defs/bytes32" },
+        "collectionCreationCodeHash": { "$ref": "#/$defs/bytes32" },
+        "metadataBaseUri": { "type": "string", "minLength": 1 },
+        "metadataBaseUriHash": { "$ref": "#/$defs/bytes32" },
+        "contractUri": { "type": "string", "minLength": 1 },
+        "contractUriHash": { "$ref": "#/$defs/bytes32" }
+      }
+    },
+    "economics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maxSupply", "feeWeightRanges", "feeWeightScheduleHash", "maximumTotalFeeWeight", "secondaryRoyaltyBps", "primaryBackingBps", "primaryCreatorBps", "primarySinjohBps", "royaltyBackingBps", "royaltyCreatorBps", "royaltySinjohBps", "exitTaxBps", "coreWeightBps", "marketMakingWeightBps", "usdgWeightBps"],
+      "properties": {
+        "maxSupply": { "type": "integer", "minimum": 1, "maximum": 18446744073709551615 },
+        "feeWeightRanges": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "$ref": "#/$defs/feeWeightRange" }
+        },
+        "feeWeightScheduleHash": { "$ref": "#/$defs/bytes32" },
+        "maximumTotalFeeWeight": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "secondaryRoyaltyBps": { "$ref": "#/$defs/bps" },
+        "primaryBackingBps": { "$ref": "#/$defs/positiveBps" },
+        "primaryCreatorBps": { "$ref": "#/$defs/bps" },
+        "primarySinjohBps": { "$ref": "#/$defs/bps" },
+        "royaltyBackingBps": { "$ref": "#/$defs/positiveBps" },
+        "royaltyCreatorBps": { "$ref": "#/$defs/bps" },
+        "royaltySinjohBps": { "$ref": "#/$defs/bps" },
+        "exitTaxBps": { "$ref": "#/$defs/bps" },
+        "coreWeightBps": { "$ref": "#/$defs/bps" },
+        "marketMakingWeightBps": { "$ref": "#/$defs/bps" },
+        "usdgWeightBps": { "$ref": "#/$defs/bps" }
+      }
+    },
+    "redemption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["token", "amount", "tokenRuntimeCodeHash"],
+      "properties": {
+        "token": { "$ref": "#/$defs/addressOrZero" },
+        "amount": { "type": "integer", "minimum": 0 },
+        "tokenRuntimeCodeHash": { "$ref": "#/$defs/bytes32" }
+      }
+    },
+    "equityModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["custody", "income", "disclosureUri"],
+      "properties": {
+        "custody": { "enum": ["robinhood-stock-token", "offchain-custody-receipt"] },
+        "income": { "enum": ["balance-appreciation", "cash-distribution", "mixed"] },
+        "disclosureUri": { "type": "string", "format": "uri", "pattern": "^https://" }
+      }
+    },
+    "policyCaps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["core", "marketMaking", "usdg", "deltaPool", "deltaPoolFeed"],
+      "properties": {
+        "core": { "$ref": "#/$defs/sleevePolicy" },
+        "marketMaking": { "$ref": "#/$defs/sleevePolicy" },
+        "usdg": { "$ref": "#/$defs/sleevePolicy" },
+        "deltaPool": { "$ref": "#/$defs/deltaPoolPolicy" },
+        "deltaPoolFeed": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["maximumHeartbeat", "maximumGracePeriod", "minimumTwapWindow", "maximumReferenceDeviationBps", "maximumSpotDeviationBps"],
+          "properties": {
+            "maximumHeartbeat": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
+            "maximumGracePeriod": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+            "minimumTwapWindow": { "type": "integer", "minimum": 1, "maximum": 86400 },
+            "maximumReferenceDeviationBps": { "$ref": "#/$defs/positiveBps" },
+            "maximumSpotDeviationBps": { "type": "integer", "minimum": 1, "maximum": 2000 }
+          }
+        }
+      }
+    },
+    "openSea": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["collectionSlug", "collectionUrl", "mintStagesHash", "publicDrop", "allowListMerkleRoot", "allowedFeeRecipients", "allowedPayers", "tokenGatedDrops", "signedMintValidations", "creatorPayoutAddress", "observedPrimaryPlatformFeeBps", "observedSecondaryRoyaltyBps", "observedSecondaryRoyaltyRecipient", "observedAt"],
+      "properties": {
+        "collectionSlug": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "collectionUrl": { "type": "string", "format": "uri", "pattern": "^https://opensea\\.io/collection/[a-z0-9][a-z0-9-]*/overview$" },
+        "mintStagesHash": { "$ref": "#/$defs/bytes32" },
+        "publicDrop": { "$ref": "#/$defs/publicDrop" },
+        "allowListMerkleRoot": { "const": "0x0000000000000000000000000000000000000000000000000000000000000000" },
+        "allowedFeeRecipients": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/address" }
+        },
+        "allowedPayers": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/address" }
+        },
+        "tokenGatedDrops": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/tokenGatedDrop" }
+        },
+        "signedMintValidations": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/signedMintValidation" }
+        },
+        "creatorPayoutAddress": { "$ref": "#/$defs/address" },
+        "observedPrimaryPlatformFeeBps": { "type": "integer", "minimum": 0, "maximum": 10000 },
+        "observedSecondaryRoyaltyBps": { "$ref": "#/$defs/bps" },
+        "observedSecondaryRoyaltyRecipient": { "$ref": "#/$defs/address" },
+        "observedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "contracts": {
+      "type": "object",
+      "required": ["registry", "factoryDeployer", "factory", "collection", "nft", "accountImplementation", "proceedsVault", "distributor", "revenueRouter", "timelock", "allocator", "deltaPoolController", "priceHub", "strategyRegistry", "metadata", "coreSleeve", "marketMakingSleeve", "usdgSleeve", "rebalanceValueGuard"],
+      "additionalProperties": { "$ref": "#/$defs/deployment" }
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/deployment" },
+      "required": ["WETH", "USDG", "seaDrop", "seaport", "eligibilityPolicy"]
+    },
+    "equityAssets": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/deployment" } },
+    "coreConstituents": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 7,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/coreConstituent" }
+    },
+    "adapters": { "type": "object", "additionalProperties": { "$ref": "#/$defs/deployment" } },
+    "feeds": {
+      "type": "array",
+      "minItems": 0,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/feedBinding" }
+    },
+    "deltaInfrastructure": {
+      "type": "array",
+      "minItems": 0,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["factory", "positionManager", "positionBuilder", "weth", "factoryRuntimeCodeHash", "positionManagerRuntimeCodeHash", "positionBuilderRuntimeCodeHash", "routeCreationCodeHash", "sleeveCreationCodeHash", "adapterCreationCodeHash", "feedCreationCodeHash", "active"],
+        "properties": {
+          "factory": { "$ref": "#/$defs/address" },
+          "positionManager": { "$ref": "#/$defs/address" },
+          "positionBuilder": { "$ref": "#/$defs/address" },
+          "weth": { "$ref": "#/$defs/address" },
+          "factoryRuntimeCodeHash": { "$ref": "#/$defs/bytes32" },
+          "positionManagerRuntimeCodeHash": { "$ref": "#/$defs/bytes32" },
+          "positionBuilderRuntimeCodeHash": { "$ref": "#/$defs/bytes32" },
+          "routeCreationCodeHash": { "$ref": "#/$defs/bytes32" },
+          "sleeveCreationCodeHash": { "$ref": "#/$defs/bytes32" },
+          "adapterCreationCodeHash": { "$ref": "#/$defs/bytes32" },
+          "feedCreationCodeHash": { "$ref": "#/$defs/bytes32" },
+          "active": { "type": "boolean" }
+        }
+      }
+    },
+    "routeBindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allocations", "rebalances"],
+      "properties": {
+        "allocations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/allocationRoute" }
+        },
+        "rebalances": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/rebalanceRoute" }
+        }
+      }
+    },
+    "roles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["creator", "openSeaManager", "sinjoh", "allocationOperator", "guardian", "timelock"],
+      "properties": {
+        "creator": { "$ref": "#/$defs/address" },
+        "openSeaManager": { "$ref": "#/$defs/address" },
+        "sinjoh": { "$ref": "#/$defs/address" },
+        "allocationOperator": { "$ref": "#/$defs/address" },
+        "guardian": { "$ref": "#/$defs/address" },
+        "timelock": { "$ref": "#/$defs/address" }
+      }
+    },
+    "auditHashes": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/bytes32" }, "uniqueItems": true }
+  },
+  "$defs": {
+    "bps": { "type": "integer", "minimum": 0, "maximum": 10000 },
+    "seaDropFeeBps": { "type": "integer", "minimum": 0, "maximum": 9999 },
+    "positiveBps": { "type": "integer", "minimum": 1, "maximum": 10000 },
+    "publicDrop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mintPrice", "startTime", "endTime", "maxTotalMintableByWallet", "feeBps", "restrictFeeRecipients"],
+      "properties": {
+        "mintPrice": { "type": "string", "pattern": "^[0-9]+$" },
+        "startTime": { "type": "integer", "minimum": 0, "maximum": 281474976710655 },
+        "endTime": { "type": "integer", "minimum": 1, "maximum": 281474976710655 },
+        "maxTotalMintableByWallet": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "feeBps": { "$ref": "#/$defs/seaDropFeeBps" },
+        "restrictFeeRecipients": { "type": "boolean" }
+      }
+    },
+    "tokenGatedDrop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowedNftToken", "mintPrice", "maxTotalMintableByWallet", "startTime", "endTime", "dropStageIndex", "maxTokenSupplyForStage", "feeBps", "restrictFeeRecipients"],
+      "properties": {
+        "allowedNftToken": { "$ref": "#/$defs/address" },
+        "mintPrice": { "type": "string", "pattern": "^[0-9]+$" },
+        "maxTotalMintableByWallet": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "startTime": { "type": "integer", "minimum": 0, "maximum": 281474976710655 },
+        "endTime": { "type": "integer", "minimum": 1, "maximum": 281474976710655 },
+        "dropStageIndex": { "type": "integer", "minimum": 0, "maximum": 255 },
+        "maxTokenSupplyForStage": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
+        "feeBps": { "$ref": "#/$defs/seaDropFeeBps" },
+        "restrictFeeRecipients": { "type": "boolean" }
+      }
+    },
+    "signedMintValidation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["signer", "minMintPrice", "maxMaxTotalMintableByWallet", "minStartTime", "maxEndTime", "maxMaxTokenSupplyForStage", "minFeeBps", "maxFeeBps"],
+      "properties": {
+        "signer": { "$ref": "#/$defs/address" },
+        "minMintPrice": { "type": "string", "pattern": "^[0-9]+$" },
+        "maxMaxTotalMintableByWallet": { "type": "integer", "minimum": 1, "maximum": 16777215 },
+        "minStartTime": { "type": "integer", "minimum": 0, "maximum": 1099511627775 },
+        "maxEndTime": { "type": "integer", "minimum": 1, "maximum": 1099511627775 },
+        "maxMaxTokenSupplyForStage": { "type": "integer", "minimum": 1, "maximum": 1099511627775 },
+        "minFeeBps": { "$ref": "#/$defs/seaDropFeeBps" },
+        "maxFeeBps": { "$ref": "#/$defs/seaDropFeeBps" }
+      }
+    },
+    "sleevePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maximumStrategies", "maximumAdapterCapBps", "maximumOperatorLossBps"],
+      "properties": {
+        "maximumStrategies": { "type": "integer", "minimum": 0, "maximum": 8 },
+        "maximumAdapterCapBps": { "$ref": "#/$defs/bps" },
+        "maximumOperatorLossBps": { "$ref": "#/$defs/bps" }
+      }
+    },
+    "deltaPoolPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maximumAdapterCapBps", "maximumOperatorLossBps"],
+      "properties": {
+        "maximumAdapterCapBps": { "$ref": "#/$defs/positiveBps" },
+        "maximumOperatorLossBps": { "$ref": "#/$defs/bps" }
+      }
+    },
+    "feedBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "asset", "feed", "referenceSource", "heartbeat", "gracePeriod", "maxDeviationBps", "weekdaysOnly", "checkAssetOraclePause", "description", "decimals", "sourceUrl", "observedAt", "wethUsdFeed", "twapWindow", "maxSpotDeviationBps", "comparisonAmount", "minimumLiquidity"],
+      "properties": {
+        "kind": { "enum": ["chainlink", "delta-v3-twap"] },
+        "asset": { "$ref": "#/$defs/address" },
+        "feed": { "$ref": "#/$defs/deployment" },
+        "referenceSource": { "$ref": "#/$defs/addressOrZero" },
+        "heartbeat": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
+        "gracePeriod": { "type": "integer", "minimum": 0, "maximum": 4294967295 },
+        "maxDeviationBps": { "$ref": "#/$defs/bps" },
+        "weekdaysOnly": { "type": "boolean" },
+        "checkAssetOraclePause": { "type": "boolean" },
+        "description": { "type": "string", "minLength": 1 },
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 18 },
+        "sourceUrl": { "type": "string", "format": "uri", "pattern": "^https://(?:docs\\.chain\\.link/|robinhoodchain\\.blockscout\\.com/address/)" },
+        "observedAt": { "type": "string", "format": "date-time" },
+        "wethUsdFeed": { "$ref": "#/$defs/addressOrZero" },
+        "twapWindow": { "type": "integer", "minimum": 0, "maximum": 86400 },
+        "maxSpotDeviationBps": { "$ref": "#/$defs/bps" },
+        "comparisonAmount": { "type": "string", "pattern": "^[0-9]+$" }
+        ,"minimumLiquidity": { "type": "string", "pattern": "^[0-9]+$" }
+      }
+    },
+    "coreConstituent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["asset", "route", "routeRuntimeCodeHash", "weightBps"],
+      "properties": {
+        "asset": { "$ref": "#/$defs/address" },
+        "route": { "$ref": "#/$defs/address" },
+        "routeRuntimeCodeHash": { "$ref": "#/$defs/bytes32" },
+        "weightBps": { "$ref": "#/$defs/positiveBps" }
+      }
+    },
+    "allocationRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inputAsset", "sleeve", "route", "runtimeCodeHash"],
+      "properties": {
+        "inputAsset": { "$ref": "#/$defs/address" },
+        "sleeve": { "$ref": "#/$defs/address" },
+        "route": { "$ref": "#/$defs/address" },
+        "runtimeCodeHash": { "$ref": "#/$defs/bytes32" }
+      }
+    },
+    "rebalanceRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inputAsset", "route", "runtimeCodeHash"],
+      "properties": {
+        "inputAsset": { "$ref": "#/$defs/address" },
+        "route": { "$ref": "#/$defs/address" },
+        "runtimeCodeHash": { "$ref": "#/$defs/bytes32" }
+      }
+    },
+    "feeWeightRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["endTokenId", "feeWeight"],
+      "properties": {
+        "endTokenId": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "feeWeight": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+      }
+    },
+    "address": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$", "not": { "const": "0x0000000000000000000000000000000000000000" } },
+    "addressOrZero": { "type": "string", "pattern": "^0x[0-9a-fA-F]{40}$" },
+    "bytes32": { "type": "string", "pattern": "^0x[0-9a-fA-F]{64}$" },
+    "deployment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["address", "runtimeCodeHash", "version", "provenance", "deploymentTransaction", "verificationTransaction"],
+      "properties": {
+        "address": { "$ref": "#/$defs/address" },
+        "runtimeCodeHash": { "$ref": "#/$defs/bytes32" },
+        "version": { "type": "string", "minLength": 1 },
+        "provenance": { "type": "string", "minLength": 1 },
+        "deploymentTransaction": { "$ref": "#/$defs/bytes32" },
+        "verificationTransaction": { "$ref": "#/$defs/bytes32" },
+        "auditHash": { "$ref": "#/$defs/bytes32" },
+        "implementationBinding": { "$ref": "#/$defs/implementationBinding" }
+      }
+    },
+    "implementationBinding": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": { "kind": { "const": "immutable" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "implementation", "implementationRuntimeCodeHash"],
+          "properties": {
+            "kind": { "const": "eip1967" },
+            "implementation": { "$ref": "#/$defs/address" },
+            "implementationRuntimeCodeHash": { "$ref": "#/$defs/bytes32" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "beacon", "beaconRuntimeCodeHash", "implementation", "implementationRuntimeCodeHash"],
+          "properties": {
+            "kind": { "const": "beacon" },
+            "beacon": { "$ref": "#/$defs/address" },
+            "beaconRuntimeCodeHash": { "$ref": "#/$defs/bytes32" },
+            "implementation": { "$ref": "#/$defs/address" },
+            "implementationRuntimeCodeHash": { "$ref": "#/$defs/bytes32" }
+          }
+        }
+      ]
+    }
+  }
+}

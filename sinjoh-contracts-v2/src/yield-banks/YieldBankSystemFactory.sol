@@ -1,0 +1,331 @@
+// SPDX-License-Identifier: Apache-2.0
+pragma solidity 0.8.28;
+
+import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { YieldBankConfig } from "./YieldBankTypes.sol";
+import { YieldBankConfigValidator } from "./YieldBankConfigValidator.sol";
+import { YieldBankProtocolRegistry } from "./YieldBankProtocolRegistry.sol";
+import { Create3V2 } from "../libraries/Create3V2.sol";
+
+interface IYieldBankSystemComponents {
+    function nft() external view returns (address);
+    function distributor() external view returns (address);
+    function proceedsVault() external view returns (address);
+    function accountImplementation() external view returns (address);
+    function maximumTotalFeeWeight() external view returns (uint256);
+    function feeWeightRangeCount() external view returns (uint256);
+}
+
+interface IYieldBankSystemAllocatorIdentity {
+    function collection() external view returns (address);
+    function deltaPoolController() external view returns (address);
+}
+
+interface IYieldBankSystemDeltaControllerIdentity {
+    function allocator() external view returns (address);
+    function collection() external view returns (address);
+}
+
+/// @notice Version-pinned atomic deterministic deployer for one complete Yield Banks collection system.
+/// @dev Collection components use CREATE3 so mutually bound immutable constructor arguments can be
+///      planned from addresses that do not depend on their init code. The collection uses CREATE2
+///      after all component addresses are fixed. Every init-code and runtime-code hash remains pinned.
+contract YieldBankSystemFactory is ReentrancyGuard {
+    struct ComponentDeployment {
+        bytes32 kind;
+        bytes32 salt;
+        bytes initCode;
+        bytes32 expectedRuntimeCodeHash;
+    }
+
+    bytes32 public constant KIND_REVENUE_ROUTER = keccak256("REVENUE_ROUTER");
+    bytes32 public constant KIND_PORTFOLIO_ALLOCATOR = keccak256("PORTFOLIO_ALLOCATOR");
+    bytes32 public constant KIND_COLLECTION_TIMELOCK = keccak256("COLLECTION_TIMELOCK");
+    bytes32 public constant KIND_CORE_SLEEVE = keccak256("CORE_SLEEVE");
+    bytes32 public constant KIND_MARKET_MAKING_SLEEVE = keccak256("MARKET_MAKING_SLEEVE");
+    bytes32 public constant KIND_USDG_SLEEVE = keccak256("USDG_SLEEVE");
+    bytes32 public constant KIND_ACCOUNT_IMPLEMENTATION = keccak256("ACCOUNT_IMPLEMENTATION");
+    bytes32 public constant KIND_DELTA_POOL_CONTROLLER = keccak256("DELTA_POOL_CONTROLLER");
+    uint256 public constant COMPONENT_COUNT = 8;
+
+    YieldBankProtocolRegistry public immutable registry;
+    bytes32 public immutable factoryVersion;
+    bytes32 public immutable collectionCreationCodeHash;
+    bytes32 public immutable systemPlanHash;
+
+    error InvalidConfiguration();
+    error SystemPlanHashMismatch(bytes32 expected, bytes32 actual);
+    error CreationCodeHashMismatch(bytes32 expected, bytes32 actual);
+    error ComponentDeploymentFailed(bytes32 kind, bytes32 salt);
+    error RuntimeCodeHashMismatch(bytes32 kind, bytes32 expected, bytes32 actual);
+    error DuplicateComponentKind(bytes32 kind);
+
+    event SystemComponentDeployed(
+        bytes32 indexed kind,
+        address indexed component,
+        bytes32 indexed salt,
+        bytes32 runtimeCodeHash
+    );
+    event YieldBankSystemDeployed(
+        address indexed collection,
+        bytes32 indexed collectionId,
+        bytes32 indexed collectionSalt,
+        bytes32 configurationHash,
+        bytes32 factoryVersion
+    );
+    event CollectionComponentsRegistered(
+        address indexed collection,
+        bytes32 indexed collectionId,
+        address indexed nft,
+        address distributor,
+        address proceedsVault,
+        address accountImplementation,
+        address revenueRouter,
+        address portfolioAllocator,
+        address collectionTimelock,
+        address seaDrop,
+        uint256 maxSupply,
+        address allocationOperator,
+        address deltaPoolController,
+        address coreSleeve,
+        address marketMakingSleeve,
+        address usdgSleeve
+    );
+    event CollectionEconomicsRegistered(
+        address indexed collection,
+        uint96 secondaryRoyaltyBps,
+        uint16 primaryBackingBps,
+        uint16 primaryCreatorBps,
+        uint16 primarySinjohBps,
+        uint16 royaltyBackingBps,
+        uint16 royaltyCreatorBps,
+        uint16 royaltySinjohBps,
+        uint16 exitTaxBps,
+        uint16 coreWeightBps,
+        uint16 marketMakingWeightBps,
+        uint16 usdgWeightBps
+    );
+    event CollectionRedemptionRequirementRegistered(
+        address indexed collection,
+        address indexed redemptionToken,
+        uint256 redemptionTokenAmount,
+        bytes32 redemptionTokenCodeHash
+    );
+    event CollectionFeeWeightScheduleRegistered(
+        address indexed collection,
+        bytes32 indexed scheduleHash,
+        uint256 maximumTotalFeeWeight,
+        uint256 rangeCount
+    );
+
+    constructor(
+        address registry_,
+        bytes32 factoryVersion_,
+        bytes32 collectionCreationCodeHash_,
+        bytes32 systemPlanHash_
+    ) {
+        if (
+            registry_.code.length == 0 || factoryVersion_ == bytes32(0)
+                || collectionCreationCodeHash_ == bytes32(0) || systemPlanHash_ == bytes32(0)
+        ) revert InvalidConfiguration();
+        registry = YieldBankProtocolRegistry(registry_);
+        factoryVersion = factoryVersion_;
+        collectionCreationCodeHash = collectionCreationCodeHash_;
+        systemPlanHash = systemPlanHash_;
+    }
+
+    function deploySystem(
+        ComponentDeployment[] calldata components,
+        bytes calldata collectionCreationCode,
+        YieldBankConfig calldata config,
+        bytes32 collectionSalt
+    ) external nonReentrant returns (address collection) {
+        if (components.length != COMPONENT_COUNT) {
+            revert InvalidConfiguration();
+        }
+        bytes32 actualPlanHash = planHash(
+            components,
+            keccak256(collectionCreationCode),
+            keccak256(abi.encode(config)),
+            collectionSalt
+        );
+        if (actualPlanHash != systemPlanHash) {
+            revert SystemPlanHashMismatch(systemPlanHash, actualPlanHash);
+        }
+        address[8] memory deployed;
+        uint256 seen;
+        for (uint256 i; i < COMPONENT_COUNT; ++i) {
+            ComponentDeployment calldata component = components[i];
+            uint256 bit = _kindBit(component.kind);
+            if (seen & bit != 0) revert DuplicateComponentKind(component.kind);
+            seen |= bit;
+            bytes memory initCode = component.initCode;
+            address instance = Create3V2.deploy(component.salt, initCode);
+            bytes32 runtimeCodeHash = instance.codehash;
+            if (instance.code.length == 0 || runtimeCodeHash != component.expectedRuntimeCodeHash) {
+                revert RuntimeCodeHashMismatch(
+                    component.kind, component.expectedRuntimeCodeHash, runtimeCodeHash
+                );
+            }
+            deployed[_kindIndex(component.kind)] = instance;
+            emit SystemComponentDeployed(component.kind, instance, component.salt, runtimeCodeHash);
+        }
+        bytes32 actualCollectionCodeHash = keccak256(collectionCreationCode);
+        if (actualCollectionCodeHash != collectionCreationCodeHash) {
+            revert CreationCodeHashMismatch(collectionCreationCodeHash, actualCollectionCodeHash);
+        }
+        bytes memory collectionInitCode =
+            abi.encodePacked(collectionCreationCode, abi.encode(config));
+        address predictedCollection = _predict(collectionSalt, keccak256(collectionInitCode));
+        _validateDeployedConfig(config, deployed, predictedCollection);
+        YieldBankConfigValidator.validate(config);
+        YieldBankConfigValidator.validateBindings(config, predictedCollection, deployed[7]);
+        assembly ("memory-safe") {
+            collection := create2(
+                0,
+                add(collectionInitCode, 0x20),
+                mload(collectionInitCode),
+                collectionSalt
+            )
+        }
+        if (collection == address(0)) {
+            revert ComponentDeploymentFailed(keccak256("COLLECTION"), collectionSalt);
+        }
+        bytes32 configurationHash = keccak256(abi.encode(config));
+        registry.registerCollection(collection, configurationHash);
+        emit YieldBankSystemDeployed(
+            collection, config.collectionId, collectionSalt, configurationHash, factoryVersion
+        );
+        IYieldBankSystemComponents internals = IYieldBankSystemComponents(collection);
+        emit CollectionComponentsRegistered(
+            collection,
+            config.collectionId,
+            internals.nft(),
+            internals.distributor(),
+            internals.proceedsVault(),
+            internals.accountImplementation(),
+            config.revenueRouter,
+            config.portfolioAllocator,
+            config.collectionTimelock,
+            config.seaDrop,
+            config.maxSupply,
+            config.allocationOperator,
+            deployed[7],
+            config.coreSleeve,
+            config.marketMakingSleeve,
+            config.usdgSleeve
+        );
+        emit CollectionEconomicsRegistered(
+            collection,
+            config.secondaryRoyaltyBps,
+            config.primaryBackingBps,
+            config.primaryCreatorBps,
+            config.primarySinjohBps,
+            config.royaltyBackingBps,
+            config.royaltyCreatorBps,
+            config.royaltySinjohBps,
+            config.exitTaxBps,
+            config.coreWeightBps,
+            config.marketMakingWeightBps,
+            config.usdgWeightBps
+        );
+        emit CollectionRedemptionRequirementRegistered(
+            collection,
+            config.redemptionToken,
+            config.redemptionTokenAmount,
+            config.redemptionTokenCodeHash
+        );
+        emit CollectionFeeWeightScheduleRegistered(
+            collection,
+            keccak256(abi.encode(config.feeWeightRanges)),
+            internals.maximumTotalFeeWeight(),
+            internals.feeWeightRangeCount()
+        );
+    }
+
+    function planHash(
+        ComponentDeployment[] calldata components,
+        bytes32 collectionCodeHash,
+        bytes32 configurationHash,
+        bytes32 collectionSalt
+    ) public pure returns (bytes32) {
+        bytes32[] memory records = new bytes32[](components.length);
+        for (uint256 i; i < components.length; ++i) {
+            ComponentDeployment calldata component = components[i];
+            records[i] = keccak256(
+                abi.encode(
+                    component.kind,
+                    component.salt,
+                    keccak256(component.initCode),
+                    component.expectedRuntimeCodeHash
+                )
+            );
+        }
+        return keccak256(abi.encode(records, collectionCodeHash, configurationHash, collectionSalt));
+    }
+
+    function predictComponent(bytes32 salt) external view returns (address) {
+        return Create3V2.predict(address(this), salt);
+    }
+
+    function predictCollection(
+        bytes calldata collectionCreationCode,
+        YieldBankConfig calldata config,
+        bytes32 salt
+    ) external view returns (address) {
+        bytes32 actual = keccak256(collectionCreationCode);
+        if (actual != collectionCreationCodeHash) {
+            revert CreationCodeHashMismatch(collectionCreationCodeHash, actual);
+        }
+        return
+            _predict(salt, keccak256(abi.encodePacked(collectionCreationCode, abi.encode(config))));
+    }
+
+    function _validateDeployedConfig(
+        YieldBankConfig calldata config,
+        address[8] memory deployed,
+        address predictedCollection
+    ) private view {
+        if (
+            config.revenueRouter != deployed[0] || config.portfolioAllocator != deployed[1]
+                || config.collectionTimelock != deployed[2] || config.coreSleeve != deployed[3]
+                || config.marketMakingSleeve != deployed[4] || config.usdgSleeve != deployed[5]
+                || config.accountImplementation != deployed[6]
+        ) revert InvalidConfiguration();
+        IYieldBankSystemAllocatorIdentity allocator = IYieldBankSystemAllocatorIdentity(deployed[1]);
+        IYieldBankSystemDeltaControllerIdentity controller =
+            IYieldBankSystemDeltaControllerIdentity(deployed[7]);
+        if (
+            allocator.collection() != predictedCollection
+                || allocator.deltaPoolController() != deployed[7]
+                || controller.allocator() != deployed[1]
+                || controller.collection() != predictedCollection
+        ) revert InvalidConfiguration();
+    }
+
+    function _kindIndex(bytes32 kind) private pure returns (uint256) {
+        if (kind == KIND_REVENUE_ROUTER) return 0;
+        if (kind == KIND_PORTFOLIO_ALLOCATOR) return 1;
+        if (kind == KIND_COLLECTION_TIMELOCK) return 2;
+        if (kind == KIND_CORE_SLEEVE) return 3;
+        if (kind == KIND_MARKET_MAKING_SLEEVE) return 4;
+        if (kind == KIND_USDG_SLEEVE) return 5;
+        if (kind == KIND_ACCOUNT_IMPLEMENTATION) return 6;
+        if (kind == KIND_DELTA_POOL_CONTROLLER) return 7;
+        revert InvalidConfiguration();
+    }
+
+    function _kindBit(bytes32 kind) private pure returns (uint256) {
+        return 2 ** _kindIndex(kind);
+    }
+
+    function _predict(bytes32 salt, bytes32 initCodeHash) private view returns (address) {
+        return address(
+            uint160(
+                uint256(
+                    keccak256(abi.encodePacked(bytes1(0xff), address(this), salt, initCodeHash))
+                )
+            )
+        );
+    }
+}

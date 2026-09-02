@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "1.0",
+  "run": {
+    "id": "20260828-195505",
+    "date": "2026-08-28",
+    "requirements": "Direct Stock Token and USDG custody with a manual Delta LP adapter"
+  },
+  "summary": {
+    "building": "Direct Stock Token and USDG custody with a manually operated self-custodied Delta V3 ladder adapter",
+    "verdict": "caution",
+    "topRisk": "A mismatched Delta token, pool, route, or runtime hash can direct backing into the wrong market",
+    "mustDecideFirst": "Pin the collection-specific INJOH token, pool, feeds, routes, position limit, and allocation cap",
+    "watchOutFor": "Live V3 fees are conservatively omitted from NAV until collected"
+  },
+  "components": [
+    {
+      "name": "OpenZeppelin Contracts",
+      "type": "SDK",
+      "version": "5.6.1",
+      "sourceUrl": "https://github.com/OpenZeppelin/openzeppelin-contracts/releases/tag/v5.6.1",
+      "status": "cached",
+      "risks": [
+        { "severity": "medium", "title": "External-call lifecycle risk", "detail": "Adapter calls require reentrancy protection, measured receipts, and cleared temporary allowances" },
+        { "severity": "low", "title": "Ownership handoff risk", "detail": "Two-step registry ownership must be accepted before production activation" }
+      ]
+    },
+    {
+      "name": "Robinhood Stock Tokens",
+      "type": "Blockchain",
+      "version": "unversioned",
+      "sourceUrl": "https://docs.robinhood.com/chain/stock-tokens/",
+      "status": "fresh",
+      "risks": [
+        { "severity": "critical", "title": "Restricted-holder incompatibility", "detail": "Production exposure requires a counsel-approved holder eligibility policy" },
+        { "severity": "high", "title": "Multiplier double counting", "detail": "The official per-token price feed already includes the Stock Token multiplier" }
+      ]
+    },
+    {
+      "name": "Delta Liquidity",
+      "type": "Blockchain",
+      "version": "unversioned",
+      "sourceUrl": "https://deltaliquidity.app/docs",
+      "status": "fresh",
+      "risks": [
+        { "severity": "high", "title": "Activation binding mismatch", "detail": "The collection deployment must bind the same token, pool, feeds, routes, factory, position manager, builder, caps, and runtime hashes" },
+        { "severity": "medium", "title": "Conservative fee valuation", "detail": "Live fees not yet crystallized into tokensOwed are omitted from adapter NAV until collection" }
+      ]
+    }
+  ],
+  "riskTotals": { "critical": 1, "high": 2, "medium": 2, "low": 1 },
+  "preCodingDecisions": [
+    { "title": "Collection Delta bindings", "detail": "Exact INJOH token, pool, feeds, routes, addresses, runtime hashes, maximum positions, cap, and loss policy are required before activation", "immutable": true }
+  ],
+  "requirementsCorrections": [
+    { "kind": "wrong_assumption", "detail": "Stock Token dividends are reinvested through uiMultiplier rather than separately paid to the sleeve" },
+    { "kind": "wrong_assumption", "detail": "USDG is a direct holding in the MVP and must not be described as a yield sleeve" },
+    { "kind": "immutable_choice", "detail": "Every production collection must explicitly bind its Delta token, pool, feeds, routes, dependencies, runtime hashes, and caps" }
+  ],
+  "openQuestions": []
+}

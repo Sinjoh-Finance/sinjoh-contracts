@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "1.0",
+  "run": {
+    "id": "20260831-121412",
+    "date": "2026-08-31",
+    "requirements": "Source-verified owner-selectable Delta V3 pools with isolated Yield Bank accounting"
+  },
+  "summary": {
+    "building": "Pool-neutral Delta V3 strategies selected per Yield Bank owner",
+    "verdict": "caution",
+    "topRisk": "Proxy implementations and live pool state can change after review",
+    "mustDecideFirst": "Use one isolated sleeve and adapter per admitted pool with an independent reference source",
+    "watchOutFor": "Pool existence does not prove token, liquidity, oracle, or eligibility safety"
+  },
+  "components": [
+    {
+      "name": "Robinhood Chain",
+      "type": "Blockchain",
+      "version": "4663",
+      "sourceUrl": "https://docs.robinhood.com/chain/contracts/",
+      "status": "fresh",
+      "risks": [
+        {"severity":"high","title":"Permissionless pool admission","detail":"An existing pool may contain an unsuitable token and must pass deterministic admission checks."},
+        {"severity":"medium","title":"Public RPC throttling","detail":"Activation and transaction construction require redundant production RPC endpoints."}
+      ]
+    },
+    {
+      "name": "Delta V3 builder",
+      "type": "Other",
+      "version": "unversioned",
+      "sourceUrl": "https://robinhoodchain.blockscout.com/address/0x6235cF6bd8419b34942F4EDDB39C880BD96dD700",
+      "status": "fresh",
+      "risks": [
+        {"severity":"high","title":"Unversioned deployment and proxy drift","detail":"Builder dependencies, token proxy implementations, pool graph, and runtime hashes must be re-read at activation."},
+        {"severity":"medium","title":"Position-NFT custody","detail":"Every returned position must be enumerated, identity-checked, and fully exit-capable."}
+      ]
+    },
+    {
+      "name": "Uniswap V3",
+      "type": "SDK",
+      "version": "1.0.1",
+      "sourceUrl": "https://github.com/Uniswap/v3-core/blob/main/contracts/interfaces/IUniswapV3Factory.sol",
+      "status": "fresh",
+      "risks": [
+        {"severity":"high","title":"Thin or manipulable pools","detail":"Factory authenticity does not prove external price integrity or adequate liquidity."},
+        {"severity":"medium","title":"Pool state changes","detail":"Liquidity, observation history, lock state, price deviation, and execution minima require live checks."}
+      ]
+    }
+  ],
+  "riskTotals": {"critical":0,"high":3,"medium":3,"low":0},
+  "preCodingDecisions": [
+    {"title":"Pool isolation model","detail":"Use a separate restricted share sleeve and adapter for every admitted Delta pool.","immutable":true},
+    {"title":"Independent pricing","detail":"A pool-derived TWAP requires a separate manifest-bound reference source.","immutable":false}
+  ],
+  "requirementsCorrections": [
+    {"kind":"wrong_assumption","detail":"The live builder does not require $INJOH; the paired asset is pool-specific."},
+    {"kind":"missing_constraint","detail":"Existing pools require factory, token, route, oracle, liquidity, cap, and codehash validation."},
+    {"kind":"underspecified","detail":"The live $INJOH token and Delta pool are verified; deployed Yield Banks routes, independent feed, minimum liquidity, and caps remain activation inputs."},
+    {"kind":"wrong_assumption","detail":"The operations reserve and its fee legs were not requested and were removed."}
+  ],
+  "openQuestions": []
+}
