@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import { Test } from "forge-std/Test.sol";
+import { CreationCodeStoreV2 } from "../../src/core/CreationCodeStoreV2.sol";
 import {
     CollectionPortfolioAllocator
 } from "../../src/yield-banks/CollectionPortfolioAllocator.sol";
@@ -37,13 +38,18 @@ contract YieldBankPublicFactoryTest is Test {
         seaDrop = new MockYieldBankSeaDrop();
         registry = new YieldBankProtocolRegistry(address(this));
         factory = new YieldBankPublicFactory(
-            address(registry), VERSION, address(weth), address(usdg), address(seaDrop), _hashes()
+            address(registry),
+            VERSION,
+            address(weth),
+            address(usdg),
+            address(seaDrop),
+            _stores(),
+            _hashes()
         );
         registry.registerFactory(address(factory), VERSION, address(factory).codehash);
     }
 
     function testAnyWalletCanCreateAndRegisterAnIndependentCollection() public {
-        YieldBankPublicFactory.CreationCode memory code = _code();
         YieldBankPublicFactory.CollectionRequest memory aliceRequest = _request(ALICE, "A", "A");
         YieldBankPublicFactory.CollectionRequest memory bobRequest = _request(BOB, "B", "B");
         bytes32 sharedUserSalt = keccak256("1");
@@ -57,10 +63,10 @@ contract YieldBankPublicFactoryTest is Test {
 
         vm.prank(ALICE);
         YieldBankPublicFactory.SystemAddresses memory aliceSystem =
-            factory.createCollection(code, aliceRequest, sharedUserSalt);
+            factory.createCollection(aliceRequest, sharedUserSalt);
         vm.prank(BOB);
         YieldBankPublicFactory.SystemAddresses memory bobSystem =
-            factory.createCollection(code, bobRequest, sharedUserSalt);
+            factory.createCollection(bobRequest, sharedUserSalt);
 
         assertEq(aliceSystem.supportBundle, alicePredicted.supportBundle);
         assertEq(bobSystem.supportBundle, bobPredicted.supportBundle);
@@ -102,7 +108,7 @@ contract YieldBankPublicFactoryTest is Test {
 
         vm.prank(ALICE);
         YieldBankPublicFactory.SystemAddresses memory system =
-            factory.createCollection(_code(), request, keccak256("PIGGY"));
+            factory.createCollection(request, keccak256("PIGGY"));
         YieldBankCollection collection = YieldBankCollection(system.collection);
 
         assertEq(collection.maxSupply(), 3_333);
@@ -128,7 +134,7 @@ contract YieldBankPublicFactoryTest is Test {
 
         vm.prank(ALICE);
         YieldBankPublicFactory.SystemAddresses memory system =
-            factory.createCollection(_code(), request, keccak256("CONFIGURABLE"));
+            factory.createCollection(request, keccak256("CONFIGURABLE"));
         YieldBankCollection collection = YieldBankCollection(system.collection);
 
         assertEq(collection.coreWeightBps(), 0);
@@ -142,40 +148,29 @@ contract YieldBankPublicFactoryTest is Test {
         assertEq(CollectionTimelock(payable(system.collectionTimelock)).getMinDelay(), 0);
     }
 
-    function testCallerCannotSubstituteUnapprovedCreationCode() public {
-        YieldBankPublicFactory.CreationCode memory code = _code();
-        code.accountImplementation = hex"00";
-        bytes32 actual = keccak256(code.accountImplementation);
-        vm.prank(ALICE);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                YieldBankPublicFactory.CreationCodeHashMismatch.selector,
-                factory.KIND_ACCOUNT_IMPLEMENTATION(),
-                keccak256(type(YieldBankAccount).creationCode),
-                actual
-            )
-        );
-        factory.createCollection(code, _request(ALICE, "A", "A"), keccak256("2"));
+    function testCollectionCreationCalldataIsCompact() public view {
+        bytes memory callData =
+            abi.encodeCall(factory.createCollection, (_request(ALICE, "A", "A"), keccak256("2")));
+        assertLt(callData.length, 10_000);
     }
 
     function testSameCallerCannotReuseSalt() public {
-        YieldBankPublicFactory.CreationCode memory code = _code();
         YieldBankPublicFactory.CollectionRequest memory request = _request(ALICE, "A", "A");
         bytes32 salt = keccak256("3");
         vm.prank(ALICE);
-        factory.createCollection(code, request, salt);
+        factory.createCollection(request, salt);
         bytes32 id = factory.deploymentId(ALICE, salt);
         vm.prank(ALICE);
         vm.expectRevert(
             abi.encodeWithSelector(YieldBankPublicFactory.DeploymentAlreadyUsed.selector, id)
         );
-        factory.createCollection(code, request, salt);
+        factory.createCollection(request, salt);
     }
 
     function testZeroSaltIsRejectedBeforeDeployment() public {
         vm.prank(ALICE);
         vm.expectRevert(YieldBankPublicFactory.InvalidConfiguration.selector);
-        factory.createCollection(_code(), _request(ALICE, "A", "A"), bytes32(0));
+        factory.createCollection(_request(ALICE, "A", "A"), bytes32(0));
     }
 
     function testInvalidSleeveAndDeltaLimitsAreRejectedBeforeDeployment() public {
@@ -183,13 +178,13 @@ contract YieldBankPublicFactoryTest is Test {
         request.coreSleeve.maximumStrategies = 9;
         vm.prank(ALICE);
         vm.expectRevert(YieldBankPublicFactory.InvalidConfiguration.selector);
-        factory.createCollection(_code(), request, keccak256("4"));
+        factory.createCollection(request, keccak256("4"));
 
         request = _request(ALICE, "A", "A");
         request.deltaRisk.maximumPoolSpotDeviationBps = 2_001;
         vm.prank(ALICE);
         vm.expectRevert(YieldBankPublicFactory.InvalidConfiguration.selector);
-        factory.createCollection(_code(), request, keccak256("5"));
+        factory.createCollection(request, keccak256("5"));
     }
 
     function testInvalidFeeWeightScheduleIsRejectedBeforeDeployment() public {
@@ -198,7 +193,7 @@ contract YieldBankPublicFactoryTest is Test {
         request.feeWeightRanges[0] = YieldBankFeeWeightRange({ endTokenId: 2, feeWeight: 1 });
         vm.prank(ALICE);
         vm.expectRevert(YieldBankPublicFactory.InvalidConfiguration.selector);
-        factory.createCollection(_code(), request, keccak256("BAD-WEIGHTS"));
+        factory.createCollection(request, keccak256("BAD-WEIGHTS"));
 
         request = _request(ALICE, "A", "A");
         request.maxSupply = 1;
@@ -207,7 +202,7 @@ contract YieldBankPublicFactoryTest is Test {
             YieldBankFeeWeightRange({ endTokenId: 1, feeWeight: uint96(1e27 + 1) });
         vm.prank(ALICE);
         vm.expectRevert(YieldBankPublicFactory.InvalidConfiguration.selector);
-        factory.createCollection(_code(), request, keccak256("EXCESS-WEIGHT"));
+        factory.createCollection(request, keccak256("EXCESS-WEIGHT"));
     }
 
     function testDeprecatedFactoryCannotRegisterNewCollections() public {
@@ -218,14 +213,22 @@ contract YieldBankPublicFactoryTest is Test {
                 YieldBankProtocolRegistry.FactoryUnavailable.selector, address(factory)
             )
         );
-        factory.createCollection(_code(), _request(ALICE, "A", "A"), keccak256("6"));
+        factory.createCollection(_request(ALICE, "A", "A"), keccak256("6"));
     }
 
     function testDependencyRuntimeDriftFailsClosed() public {
         vm.etch(address(weth), hex"00");
         vm.prank(ALICE);
         vm.expectRevert(YieldBankPublicFactory.InvalidConfiguration.selector);
-        factory.createCollection(_code(), _request(ALICE, "A", "A"), keccak256("7"));
+        factory.createCollection(_request(ALICE, "A", "A"), keccak256("7"));
+    }
+
+    function testCreationCodeStoreRuntimeDriftFailsClosed() public {
+        YieldBankPublicFactory.CreationCodeStores memory stores = factory.creationCodeStores();
+        vm.etch(stores.collection, hex"00");
+        vm.prank(ALICE);
+        vm.expectRevert(YieldBankPublicFactory.InvalidConfiguration.selector);
+        factory.createCollection(_request(ALICE, "A", "A"), keccak256("8"));
     }
 
     function _hashes() private pure returns (YieldBankPublicFactory.CreationCodeHashes memory h) {
@@ -243,18 +246,32 @@ contract YieldBankPublicFactoryTest is Test {
         });
     }
 
-    function _code() private pure returns (YieldBankPublicFactory.CreationCode memory code) {
-        code = YieldBankPublicFactory.CreationCode({
-            supportBundle: type(YieldBankSupportBundle).creationCode,
-            revenueRouter: type(CollectionRevenueRouter).creationCode,
-            portfolioAllocator: type(CollectionPortfolioAllocator).creationCode,
-            collectionTimelock: type(CollectionTimelock).creationCode,
-            coreSleeve: type(CoreStockTokenSleeve).creationCode,
-            marketMakingSleeve: type(MarketMakingSleeve).creationCode,
-            usdgSleeve: type(USDGSleeve).creationCode,
-            accountImplementation: type(YieldBankAccount).creationCode,
-            deltaPoolController: type(DeltaPoolController).creationCode,
-            collection: type(YieldBankCollection).creationCode
+    function _stores() private returns (YieldBankPublicFactory.CreationCodeStores memory stores) {
+        stores = YieldBankPublicFactory.CreationCodeStores({
+            supportBundle: address(
+                new CreationCodeStoreV2(type(YieldBankSupportBundle).creationCode)
+            ),
+            revenueRouter: address(
+                new CreationCodeStoreV2(type(CollectionRevenueRouter).creationCode)
+            ),
+            portfolioAllocator: address(
+                new CreationCodeStoreV2(type(CollectionPortfolioAllocator).creationCode)
+            ),
+            collectionTimelock: address(
+                new CreationCodeStoreV2(type(CollectionTimelock).creationCode)
+            ),
+            coreSleeve: address(new CreationCodeStoreV2(type(CoreStockTokenSleeve).creationCode)),
+            marketMakingSleeve: address(
+                new CreationCodeStoreV2(type(MarketMakingSleeve).creationCode)
+            ),
+            usdgSleeve: address(new CreationCodeStoreV2(type(USDGSleeve).creationCode)),
+            accountImplementation: address(
+                new CreationCodeStoreV2(type(YieldBankAccount).creationCode)
+            ),
+            deltaPoolController: address(
+                new CreationCodeStoreV2(type(DeltaPoolController).creationCode)
+            ),
+            collection: address(new CreationCodeStoreV2(type(YieldBankCollection).creationCode))
         });
     }
 

@@ -3,19 +3,10 @@ pragma solidity 0.8.28;
 
 import { Script } from "forge-std/Script.sol";
 import { console2 } from "forge-std/console2.sol";
-import { CollectionPortfolioAllocator } from "../src/yield-banks/CollectionPortfolioAllocator.sol";
-import { CollectionRevenueRouter } from "../src/yield-banks/CollectionRevenueRouter.sol";
-import { CollectionTimelock } from "../src/yield-banks/CollectionTimelock.sol";
-import { DeltaPoolController } from "../src/yield-banks/DeltaPoolController.sol";
-import { YieldBankAccount } from "../src/yield-banks/YieldBankAccount.sol";
 import { YieldBankCollection } from "../src/yield-banks/YieldBankCollection.sol";
 import { YieldBankProtocolRegistry } from "../src/yield-banks/YieldBankProtocolRegistry.sol";
 import { YieldBankPublicFactory } from "../src/yield-banks/YieldBankPublicFactory.sol";
-import { YieldBankSupportBundle } from "../src/yield-banks/YieldBankSupportBundle.sol";
 import { YieldBankFeeWeightRange } from "../src/yield-banks/YieldBankTypes.sol";
-import { CoreStockTokenSleeve } from "../src/yield-banks/sleeves/CoreStockTokenSleeve.sol";
-import { MarketMakingSleeve } from "../src/yield-banks/sleeves/MarketMakingSleeve.sol";
-import { USDGSleeve } from "../src/yield-banks/sleeves/USDGSleeve.sol";
 
 /// @notice Deploys one explicitly configured disposable mainnet collection through the public
 /// factory. This script is not the Piggy Banks collection release script.
@@ -114,7 +105,7 @@ contract DeployYieldBankTestCollectionMainnet is Script {
         });
 
         vm.startBroadcast();
-        deployed = factory.createCollection(_creationCode(), request, userSalt);
+        deployed = factory.createCollection(request, userSalt);
         vm.stopBroadcast();
 
         YieldBankCollection collection = YieldBankCollection(deployed.collection);
@@ -139,25 +130,6 @@ contract DeployYieldBankTestCollectionMainnet is Script {
         console2.log("CoreSleeve", deployed.coreSleeve);
         console2.log("MarketMakingSleeve", deployed.marketMakingSleeve);
         console2.log("USDGSleeve", deployed.usdgSleeve);
-    }
-
-    function _creationCode()
-        private
-        pure
-        returns (YieldBankPublicFactory.CreationCode memory code)
-    {
-        code = YieldBankPublicFactory.CreationCode({
-                supportBundle: type(YieldBankSupportBundle).creationCode,
-                revenueRouter: type(CollectionRevenueRouter).creationCode,
-                portfolioAllocator: type(CollectionPortfolioAllocator).creationCode,
-                collectionTimelock: type(CollectionTimelock).creationCode,
-                coreSleeve: type(CoreStockTokenSleeve).creationCode,
-                marketMakingSleeve: type(MarketMakingSleeve).creationCode,
-                usdgSleeve: type(USDGSleeve).creationCode,
-                accountImplementation: type(YieldBankAccount).creationCode,
-                deltaPoolController: type(DeltaPoolController).creationCode,
-                collection: type(YieldBankCollection).creationCode
-            });
     }
 
     function _toUint16(uint256 value) private pure returns (uint16 result) {

@@ -2,6 +2,7 @@
 pragma solidity 0.8.28;
 
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import { CreationCodeStoreV2 } from "../core/CreationCodeStoreV2.sol";
 import { Create3V2 } from "../libraries/Create3V2.sol";
 import { YieldBankCollection } from "./YieldBankCollection.sol";
 import { YieldBankConfigValidator } from "./YieldBankConfigValidator.sol";
@@ -16,9 +17,9 @@ interface IYieldBankPublicCollectionInternals {
 }
 
 /// @notice One governance-approved factory release that any wallet can use to create a Yield Bank.
-/// @dev Callers supply large creation-code blobs to avoid EIP-170 factory size limits. Every blob
-/// is hash-pinned by the factory, while all constructor arguments are assembled here from structured
-/// configuration. A caller can configure its collection but cannot substitute component behavior.
+/// @dev Approved creation code is held in immutable, chunked bytecode stores. Collection creators
+/// submit only structured configuration, avoiding oversized transactions without permitting callers
+/// to substitute component behavior.
 contract YieldBankPublicFactory is ReentrancyGuard {
     uint16 private constant BPS = 10_000;
     uint8 private constant MAX_STRATEGIES = 8;
@@ -48,17 +49,17 @@ contract YieldBankPublicFactory is ReentrancyGuard {
         bytes32 collection;
     }
 
-    struct CreationCode {
-        bytes supportBundle;
-        bytes revenueRouter;
-        bytes portfolioAllocator;
-        bytes collectionTimelock;
-        bytes coreSleeve;
-        bytes marketMakingSleeve;
-        bytes usdgSleeve;
-        bytes accountImplementation;
-        bytes deltaPoolController;
-        bytes collection;
+    struct CreationCodeStores {
+        address supportBundle;
+        address revenueRouter;
+        address portfolioAllocator;
+        address collectionTimelock;
+        address coreSleeve;
+        address marketMakingSleeve;
+        address usdgSleeve;
+        address accountImplementation;
+        address deltaPoolController;
+        address collection;
     }
 
     struct SleeveConfig {
@@ -133,10 +134,12 @@ contract YieldBankPublicFactory is ReentrancyGuard {
     bytes32 public immutable usdgRuntimeCodeHash;
     bytes32 public immutable seaDropRuntimeCodeHash;
     CreationCodeHashes private _creationCodeHashes;
+    CreationCodeStores private _creationCodeStores;
+    CreationCodeHashes private _creationCodeStoreRuntimeCodeHashes;
     mapping(bytes32 deploymentId => bool used) public deploymentUsed;
 
     error InvalidConfiguration();
-    error CreationCodeHashMismatch(bytes32 kind, bytes32 expected, bytes32 actual);
+    error CreationCodeStoreMismatch(address store, bytes32 expected, bytes32 actual);
     error DeploymentAlreadyUsed(bytes32 deploymentId);
     error AddressMismatch(address expected, address actual);
 
@@ -215,12 +218,13 @@ contract YieldBankPublicFactory is ReentrancyGuard {
         address weth_,
         address usdg_,
         address seaDrop_,
+        CreationCodeStores memory creationCodeStores_,
         CreationCodeHashes memory creationCodeHashes_
     ) {
         if (
             registry_.code.length == 0 || factoryVersion_ == bytes32(0) || weth_.code.length == 0
                 || usdg_.code.length == 0 || seaDrop_.code.length == 0
-                || !_allHashesSet(creationCodeHashes_)
+                || !_allStoresSet(creationCodeStores_) || !_allHashesSet(creationCodeHashes_)
         ) revert InvalidConfiguration();
         registry = YieldBankProtocolRegistry(registry_);
         factoryVersion = factoryVersion_;
@@ -230,11 +234,25 @@ contract YieldBankPublicFactory is ReentrancyGuard {
         wethRuntimeCodeHash = weth_.codehash;
         usdgRuntimeCodeHash = usdg_.codehash;
         seaDropRuntimeCodeHash = seaDrop_.codehash;
+        _creationCodeStores = creationCodeStores_;
         _creationCodeHashes = creationCodeHashes_;
+        _creationCodeStoreRuntimeCodeHashes = _pinStores(creationCodeStores_, creationCodeHashes_);
     }
 
     function creationCodeHashes() external view returns (CreationCodeHashes memory) {
         return _creationCodeHashes;
+    }
+
+    function creationCodeStores() external view returns (CreationCodeStores memory) {
+        return _creationCodeStores;
+    }
+
+    function creationCodeStoreRuntimeCodeHashes()
+        external
+        view
+        returns (CreationCodeHashes memory)
+    {
+        return _creationCodeStoreRuntimeCodeHashes;
     }
 
     function deploymentId(address caller, bytes32 userSalt) public view returns (bytes32) {
@@ -261,13 +279,12 @@ contract YieldBankPublicFactory is ReentrancyGuard {
         a.deltaPoolController = _predictComponent(id, KIND_DELTA_POOL_CONTROLLER);
     }
 
-    function createCollection(
-        CreationCode calldata code,
-        CollectionRequest calldata request,
-        bytes32 userSalt
-    ) external nonReentrant returns (SystemAddresses memory a) {
+    function createCollection(CollectionRequest calldata request, bytes32 userSalt)
+        external
+        nonReentrant
+        returns (SystemAddresses memory a)
+    {
         _validateDependencies();
-        _validateCode(code);
         _validateRequest(request);
         bytes32 id = deploymentId(msg.sender, userSalt);
         if (userSalt == bytes32(0)) revert InvalidConfiguration();
@@ -279,7 +296,9 @@ contract YieldBankPublicFactory is ReentrancyGuard {
             id,
             KIND_SUPPORT_BUNDLE,
             abi.encodePacked(
-                code.supportBundle,
+                _loadCreationCode(
+                    _creationCodeStores.supportBundle, _creationCodeHashes.supportBundle
+                ),
                 abi.encode(request.name, request.symbol, a.collectionTimelock, request.guardian)
             )
         );
@@ -293,8 +312,10 @@ contract YieldBankPublicFactory is ReentrancyGuard {
 
         YieldBankConfig memory config =
             _buildConfig(id, a, support, eligibilityPolicy, eligibilityPolicyCodeHash, request);
+        bytes memory collectionCreationCode =
+            _loadCreationCode(_creationCodeStores.collection, _creationCodeHashes.collection);
         bytes32 collectionInitCodeHash =
-            keccak256(abi.encodePacked(code.collection, abi.encode(config)));
+            keccak256(abi.encodePacked(collectionCreationCode, abi.encode(config)));
         a.collection = _predictCollection(id, collectionInitCodeHash);
         config = _buildConfig(id, a, support, eligibilityPolicy, eligibilityPolicyCodeHash, request);
 
@@ -302,14 +323,17 @@ contract YieldBankPublicFactory is ReentrancyGuard {
             id,
             KIND_COLLECTION_TIMELOCK,
             abi.encodePacked(
-                code.collectionTimelock, abi.encode(request.timelockProposer, request.timelockDelay)
+                _loadCreationCode(
+                    _creationCodeStores.collectionTimelock, _creationCodeHashes.collectionTimelock
+                ),
+                abi.encode(request.timelockProposer, request.timelockDelay)
             )
         );
         a.coreSleeve = _deploy(
             id,
             KIND_CORE_SLEEVE,
             abi.encodePacked(
-                code.coreSleeve,
+                _loadCreationCode(_creationCodeStores.coreSleeve, _creationCodeHashes.coreSleeve),
                 abi.encode(
                     string.concat(request.name, " Stock Token Sleeve"),
                     string.concat(request.symbol, "-STOCK"),
@@ -330,7 +354,9 @@ contract YieldBankPublicFactory is ReentrancyGuard {
             id,
             KIND_MARKET_MAKING_SLEEVE,
             abi.encodePacked(
-                code.marketMakingSleeve,
+                _loadCreationCode(
+                    _creationCodeStores.marketMakingSleeve, _creationCodeHashes.marketMakingSleeve
+                ),
                 abi.encode(
                     string.concat(request.name, " Delta Liquidity Sleeve"),
                     string.concat(request.symbol, "-DELTA"),
@@ -351,7 +377,7 @@ contract YieldBankPublicFactory is ReentrancyGuard {
             id,
             KIND_USDG_SLEEVE,
             abi.encodePacked(
-                code.usdgSleeve,
+                _loadCreationCode(_creationCodeStores.usdgSleeve, _creationCodeHashes.usdgSleeve),
                 abi.encode(
                     string.concat(request.name, " USDG Sleeve"),
                     string.concat(request.symbol, "-USDG"),
@@ -372,7 +398,9 @@ contract YieldBankPublicFactory is ReentrancyGuard {
             id,
             KIND_PORTFOLIO_ALLOCATOR,
             abi.encodePacked(
-                code.portfolioAllocator,
+                _loadCreationCode(
+                    _creationCodeStores.portfolioAllocator, _creationCodeHashes.portfolioAllocator
+                ),
                 abi.encode(
                     a.collection,
                     a.revenueRouter,
@@ -392,7 +420,9 @@ contract YieldBankPublicFactory is ReentrancyGuard {
             id,
             KIND_DELTA_POOL_CONTROLLER,
             abi.encodePacked(
-                code.deltaPoolController,
+                _loadCreationCode(
+                    _creationCodeStores.deltaPoolController, _creationCodeHashes.deltaPoolController
+                ),
                 abi.encode(
                     a.portfolioAllocator,
                     a.collectionTimelock,
@@ -417,7 +447,9 @@ contract YieldBankPublicFactory is ReentrancyGuard {
             id,
             KIND_REVENUE_ROUTER,
             abi.encodePacked(
-                code.revenueRouter,
+                _loadCreationCode(
+                    _creationCodeStores.revenueRouter, _creationCodeHashes.revenueRouter
+                ),
                 abi.encode(
                     a.collection,
                     a.portfolioAllocator,
@@ -433,12 +465,17 @@ contract YieldBankPublicFactory is ReentrancyGuard {
                 )
             )
         );
-        a.accountImplementation =
-            _deploy(id, KIND_ACCOUNT_IMPLEMENTATION, code.accountImplementation);
+        a.accountImplementation = _deploy(
+            id,
+            KIND_ACCOUNT_IMPLEMENTATION,
+            _loadCreationCode(
+                _creationCodeStores.accountImplementation, _creationCodeHashes.accountImplementation
+            )
+        );
 
         YieldBankConfigValidator.validatePinnedCreation(config);
         YieldBankConfigValidator.validateBindings(config, a.collection, a.deltaPoolController);
-        a.collection = _deployCollection(id, code.collection, config, a.collection);
+        a.collection = _deployCollection(id, collectionCreationCode, config, a.collection);
         bytes32 configurationHash = keccak256(abi.encode(config));
         registry.registerCollection(a.collection, configurationHash);
         IYieldBankPublicCollectionInternals internals =
@@ -570,7 +607,7 @@ contract YieldBankPublicFactory is ReentrancyGuard {
 
     function _deployCollection(
         bytes32 id,
-        bytes calldata creationCode,
+        bytes memory creationCode,
         YieldBankConfig memory config,
         address expected
     ) private returns (address collection) {
@@ -582,24 +619,6 @@ contract YieldBankPublicFactory is ReentrancyGuard {
         if (collection == address(0) || collection != expected) {
             revert AddressMismatch(expected, collection);
         }
-    }
-
-    function _validateCode(CreationCode calldata code) private view {
-        CreationCodeHashes memory h = _creationCodeHashes;
-        _requireCodeHash(KIND_SUPPORT_BUNDLE, h.supportBundle, code.supportBundle);
-        _requireCodeHash(KIND_REVENUE_ROUTER, h.revenueRouter, code.revenueRouter);
-        _requireCodeHash(KIND_PORTFOLIO_ALLOCATOR, h.portfolioAllocator, code.portfolioAllocator);
-        _requireCodeHash(KIND_COLLECTION_TIMELOCK, h.collectionTimelock, code.collectionTimelock);
-        _requireCodeHash(KIND_CORE_SLEEVE, h.coreSleeve, code.coreSleeve);
-        _requireCodeHash(KIND_MARKET_MAKING_SLEEVE, h.marketMakingSleeve, code.marketMakingSleeve);
-        _requireCodeHash(KIND_USDG_SLEEVE, h.usdgSleeve, code.usdgSleeve);
-        _requireCodeHash(
-            KIND_ACCOUNT_IMPLEMENTATION, h.accountImplementation, code.accountImplementation
-        );
-        _requireCodeHash(
-            KIND_DELTA_POOL_CONTROLLER, h.deltaPoolController, code.deltaPoolController
-        );
-        _requireCodeHash(keccak256("COLLECTION"), h.collection, code.collection);
     }
 
     function _validateRequest(CollectionRequest calldata r) private view {
@@ -656,14 +675,17 @@ contract YieldBankPublicFactory is ReentrancyGuard {
             weth.codehash != wethRuntimeCodeHash || usdg.codehash != usdgRuntimeCodeHash
                 || seaDrop.codehash != seaDropRuntimeCodeHash
         ) revert InvalidConfiguration();
+        _validateStores();
     }
 
-    function _requireCodeHash(bytes32 kind, bytes32 expected, bytes calldata creationCode)
+    function _loadCreationCode(address store, bytes32 expected)
         private
-        pure
+        view
+        returns (bytes memory creationCode)
     {
+        creationCode = CreationCodeStoreV2(store).creationCode();
         bytes32 actual = keccak256(creationCode);
-        if (actual != expected) revert CreationCodeHashMismatch(kind, expected, actual);
+        if (actual != expected) revert CreationCodeStoreMismatch(store, expected, actual);
     }
 
     function _predictComponent(bytes32 id, bytes32 kind) private view returns (address) {
@@ -680,6 +702,61 @@ contract YieldBankPublicFactory is ReentrancyGuard {
                 uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), id, initCodeHash)))
             )
         );
+    }
+
+    function _pinStores(CreationCodeStores memory s, CreationCodeHashes memory h)
+        private
+        view
+        returns (CreationCodeHashes memory runtimeHashes)
+    {
+        runtimeHashes.supportBundle = _pinStore(s.supportBundle, h.supportBundle);
+        runtimeHashes.revenueRouter = _pinStore(s.revenueRouter, h.revenueRouter);
+        runtimeHashes.portfolioAllocator = _pinStore(s.portfolioAllocator, h.portfolioAllocator);
+        runtimeHashes.collectionTimelock = _pinStore(s.collectionTimelock, h.collectionTimelock);
+        runtimeHashes.coreSleeve = _pinStore(s.coreSleeve, h.coreSleeve);
+        runtimeHashes.marketMakingSleeve = _pinStore(s.marketMakingSleeve, h.marketMakingSleeve);
+        runtimeHashes.usdgSleeve = _pinStore(s.usdgSleeve, h.usdgSleeve);
+        runtimeHashes.accountImplementation =
+            _pinStore(s.accountImplementation, h.accountImplementation);
+        runtimeHashes.deltaPoolController = _pinStore(s.deltaPoolController, h.deltaPoolController);
+        runtimeHashes.collection = _pinStore(s.collection, h.collection);
+    }
+
+    function _pinStore(address store, bytes32 expectedCreationCodeHash)
+        private
+        view
+        returns (bytes32 runtimeCodeHash)
+    {
+        if (
+            store.code.length == 0
+                || CreationCodeStoreV2(store).creationCodeHash() != expectedCreationCodeHash
+        ) revert InvalidConfiguration();
+        runtimeCodeHash = store.codehash;
+    }
+
+    function _validateStores() private view {
+        CreationCodeStores memory s = _creationCodeStores;
+        CreationCodeHashes memory h = _creationCodeStoreRuntimeCodeHashes;
+        if (
+            s.supportBundle.codehash != h.supportBundle
+                || s.revenueRouter.codehash != h.revenueRouter
+                || s.portfolioAllocator.codehash != h.portfolioAllocator
+                || s.collectionTimelock.codehash != h.collectionTimelock
+                || s.coreSleeve.codehash != h.coreSleeve
+                || s.marketMakingSleeve.codehash != h.marketMakingSleeve
+                || s.usdgSleeve.codehash != h.usdgSleeve
+                || s.accountImplementation.codehash != h.accountImplementation
+                || s.deltaPoolController.codehash != h.deltaPoolController
+                || s.collection.codehash != h.collection
+        ) revert InvalidConfiguration();
+    }
+
+    function _allStoresSet(CreationCodeStores memory s) private pure returns (bool) {
+        return s.supportBundle != address(0) && s.revenueRouter != address(0)
+            && s.portfolioAllocator != address(0) && s.collectionTimelock != address(0)
+            && s.coreSleeve != address(0) && s.marketMakingSleeve != address(0)
+            && s.usdgSleeve != address(0) && s.accountImplementation != address(0)
+            && s.deltaPoolController != address(0) && s.collection != address(0);
     }
 
     function _allHashesSet(CreationCodeHashes memory h) private pure returns (bool) {

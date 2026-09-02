@@ -6,6 +6,9 @@ contract, API, SDK, indexer, keeper, and UI naming consistently uses **Yield Ban
 ## Implemented protocol
 
 - `YieldBankProtocolRegistry`: append-only factory, collection, and integration provenance.
+- `YieldBankPublicFactory`: permissionless collection creation from caller-supplied configuration.
+  Its reviewed component creation code lives in immutable onchain stores, so collection creators
+  neither upload executable code nor submit an oversized transaction.
 - `YieldBankSystemFactoryDeployer`: governance-only CREATE3 deployment of a system factory from a reviewed factory salt.
 - `YieldBankCollectionFactory`: CREATE2 deployment with pinned collection creation code.
 - `YieldBankSystemFactory`: atomic, version-pinned CREATE3 deployment of eight mutually bound

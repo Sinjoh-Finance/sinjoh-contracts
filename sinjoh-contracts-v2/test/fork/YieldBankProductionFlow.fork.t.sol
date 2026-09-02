@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import { Test } from "forge-std/Test.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { CreationCodeStoreV2 } from "../../src/core/CreationCodeStoreV2.sol";
 import {
     CollectionPortfolioAllocator
 } from "../../src/yield-banks/CollectionPortfolioAllocator.sol";
@@ -61,10 +62,11 @@ contract YieldBankProductionFlowForkTest is Test {
         YieldBankProtocolRegistry registry = YieldBankProtocolRegistry(REGISTRY);
         YieldBankPublicFactory factory = new YieldBankPublicFactory(
             REGISTRY,
-            keccak256("SINJOH_YIELD_BANK_PUBLIC_FACTORY_V1_0_1_FORK_PROOF"),
+            keccak256("SINJOH_YIELD_BANK_PUBLIC_FACTORY_V1_0_2_FORK_PROOF"),
             WETH,
             USDG,
             SEA_DROP,
+            _creationCodeStores(),
             _creationCodeHashes()
         );
         bytes32 factoryVersion = factory.factoryVersion();
@@ -77,7 +79,7 @@ contract YieldBankProductionFlowForkTest is Test {
 
         vm.prank(SIDE_WALLET);
         YieldBankPublicFactory.SystemAddresses memory system =
-            factory.createCollection(_creationCode(), _request(), keccak256("A-1"));
+            factory.createCollection(_request(), keccak256("A-1"));
         YieldBankCollection collection = YieldBankCollection(system.collection);
         YieldBankNFT nft = collection.nft();
         YieldBankProceedsVault vault = collection.proceedsVault();
@@ -216,23 +218,36 @@ contract YieldBankProductionFlowForkTest is Test {
         });
     }
 
-    function _creationCode()
+    function _creationCodeStores()
         private
-        pure
-        returns (YieldBankPublicFactory.CreationCode memory code)
+        returns (YieldBankPublicFactory.CreationCodeStores memory stores)
     {
-        code = YieldBankPublicFactory.CreationCode({
-                supportBundle: type(YieldBankSupportBundle).creationCode,
-                revenueRouter: type(CollectionRevenueRouter).creationCode,
-                portfolioAllocator: type(CollectionPortfolioAllocator).creationCode,
-                collectionTimelock: type(CollectionTimelock).creationCode,
-                coreSleeve: type(CoreStockTokenSleeve).creationCode,
-                marketMakingSleeve: type(MarketMakingSleeve).creationCode,
-                usdgSleeve: type(USDGSleeve).creationCode,
-                accountImplementation: type(YieldBankAccount).creationCode,
-                deltaPoolController: type(DeltaPoolController).creationCode,
-                collection: type(YieldBankCollection).creationCode
-            });
+        stores = YieldBankPublicFactory.CreationCodeStores({
+            supportBundle: address(
+                new CreationCodeStoreV2(type(YieldBankSupportBundle).creationCode)
+            ),
+            revenueRouter: address(
+                new CreationCodeStoreV2(type(CollectionRevenueRouter).creationCode)
+            ),
+            portfolioAllocator: address(
+                new CreationCodeStoreV2(type(CollectionPortfolioAllocator).creationCode)
+            ),
+            collectionTimelock: address(
+                new CreationCodeStoreV2(type(CollectionTimelock).creationCode)
+            ),
+            coreSleeve: address(new CreationCodeStoreV2(type(CoreStockTokenSleeve).creationCode)),
+            marketMakingSleeve: address(
+                new CreationCodeStoreV2(type(MarketMakingSleeve).creationCode)
+            ),
+            usdgSleeve: address(new CreationCodeStoreV2(type(USDGSleeve).creationCode)),
+            accountImplementation: address(
+                new CreationCodeStoreV2(type(YieldBankAccount).creationCode)
+            ),
+            deltaPoolController: address(
+                new CreationCodeStoreV2(type(DeltaPoolController).creationCode)
+            ),
+            collection: address(new CreationCodeStoreV2(type(YieldBankCollection).creationCode))
+        });
     }
 
     function _creationCodeHashes()
@@ -240,18 +255,17 @@ contract YieldBankProductionFlowForkTest is Test {
         pure
         returns (YieldBankPublicFactory.CreationCodeHashes memory hashes)
     {
-        YieldBankPublicFactory.CreationCode memory code = _creationCode();
         hashes = YieldBankPublicFactory.CreationCodeHashes({
-            supportBundle: keccak256(code.supportBundle),
-            revenueRouter: keccak256(code.revenueRouter),
-            portfolioAllocator: keccak256(code.portfolioAllocator),
-            collectionTimelock: keccak256(code.collectionTimelock),
-            coreSleeve: keccak256(code.coreSleeve),
-            marketMakingSleeve: keccak256(code.marketMakingSleeve),
-            usdgSleeve: keccak256(code.usdgSleeve),
-            accountImplementation: keccak256(code.accountImplementation),
-            deltaPoolController: keccak256(code.deltaPoolController),
-            collection: keccak256(code.collection)
+            supportBundle: keccak256(type(YieldBankSupportBundle).creationCode),
+            revenueRouter: keccak256(type(CollectionRevenueRouter).creationCode),
+            portfolioAllocator: keccak256(type(CollectionPortfolioAllocator).creationCode),
+            collectionTimelock: keccak256(type(CollectionTimelock).creationCode),
+            coreSleeve: keccak256(type(CoreStockTokenSleeve).creationCode),
+            marketMakingSleeve: keccak256(type(MarketMakingSleeve).creationCode),
+            usdgSleeve: keccak256(type(USDGSleeve).creationCode),
+            accountImplementation: keccak256(type(YieldBankAccount).creationCode),
+            deltaPoolController: keccak256(type(DeltaPoolController).creationCode),
+            collection: keccak256(type(YieldBankCollection).creationCode)
         });
     }
 }
