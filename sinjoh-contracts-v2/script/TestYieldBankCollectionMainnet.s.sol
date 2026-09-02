@@ -5,9 +5,7 @@ import { Script } from "forge-std/Script.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { TimelockController } from "@openzeppelin/contracts/governance/TimelockController.sol";
-import {
-    CollectionPortfolioAllocator
-} from "../src/yield-banks/CollectionPortfolioAllocator.sol";
+import { CollectionPortfolioAllocator } from "../src/yield-banks/CollectionPortfolioAllocator.sol";
 import { PriceHub } from "../src/yield-banks/PriceHub.sol";
 import { YieldBankCollection } from "../src/yield-banks/YieldBankCollection.sol";
 import { YieldBankDistributor } from "../src/yield-banks/YieldBankDistributor.sol";
@@ -98,8 +96,7 @@ contract TestYieldBankCollectionMainnet is Script {
         uint256 buyerKey = vm.envUint("TEST_BUYER_PRIVATE_KEY");
         address side = vm.addr(sideKey);
         address buyer = vm.addr(buyerKey);
-        YieldBankCollection collection =
-            YieldBankCollection(vm.envAddress("TEST_COLLECTION"));
+        YieldBankCollection collection = YieldBankCollection(vm.envAddress("TEST_COLLECTION"));
         YieldBankSupportBundle support =
             YieldBankSupportBundle(vm.envAddress("TEST_SUPPORT_BUNDLE"));
         YieldBankNFT nft = collection.nft();
@@ -119,10 +116,8 @@ contract TestYieldBankCollectionMainnet is Script {
         MockYieldBankAggregator wethFeed = new MockYieldBankAggregator(8, 3_000e8);
         MockYieldBankAggregator stockFeed = new MockYieldBankAggregator(8, 3_000e8);
         MockYieldBankAsset stockAsset = new MockYieldBankAsset("B", "B");
-        TestYieldBankRoute toStock =
-            new TestYieldBankRoute(weth, address(stockAsset), side, true);
-        TestYieldBankRoute toWeth =
-            new TestYieldBankRoute(address(stockAsset), weth, side, false);
+        TestYieldBankRoute toStock = new TestYieldBankRoute(weth, address(stockAsset), side, true);
+        TestYieldBankRoute toWeth = new TestYieldBankRoute(address(stockAsset), weth, side, false);
         ITestWETH(weth).deposit{ value: MINT_PRICE }();
         IERC20(weth).safeTransfer(address(toWeth), MINT_PRICE);
         PriceHub priceHub = support.priceHub();
@@ -206,9 +201,8 @@ contract TestYieldBankCollectionMainnet is Script {
         IERC20(address(directAsset)).safeTransfer(account, DIRECT_ASSET_AMOUNT);
         if (
             directAsset.balanceOf(account) != DIRECT_ASSET_AMOUNT
-                || YieldBankDistributor(address(collection.distributor())).isDistributionAsset(
-                    address(directAsset)
-                )
+                || YieldBankDistributor(address(collection.distributor()))
+                    .isDistributionAsset(address(directAsset))
         ) revert VerificationFailed("DIRECT_ASSET");
 
         uint16[3] memory marketWeights = [uint16(0), uint16(BPS), uint16(0)];
@@ -276,14 +270,8 @@ contract TestYieldBankCollectionMainnet is Script {
         uint256 stockBefore = stockAsset.balanceOf(side);
         uint256[] memory minimumOutputs = new uint256[](2);
         minimumOutputs[1] = MINT_PRICE;
-        IYieldBankSleeve(coreSleeve).redeem(
-            sleeveShares,
-            side,
-            side,
-            YieldBankRedemptionMode.IN_KIND,
-            minimumOutputs,
-            ""
-        );
+        IYieldBankSleeve(coreSleeve)
+            .redeem(sleeveShares, side, side, YieldBankRedemptionMode.IN_KIND, minimumOutputs, "");
         toStock.recover(weth, side);
         toWeth.recover(address(stockAsset), side);
         vm.stopBroadcast();
