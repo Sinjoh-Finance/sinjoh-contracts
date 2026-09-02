@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.28;
 
-import { ISinjohSwapAdapter } from "./interfaces/ISinjohSwapAdapter.sol";
-import { SafeTransferLib } from "./libraries/SafeTransferLib.sol";
+import {ISinjohSwapAdapter} from "./interfaces/ISinjohSwapAdapter.sol";
+import {SafeTransferLib} from "./libraries/SafeTransferLib.sol";
 
 /// @dev Robinhood Chain mainnet runs SwapRouter02, whose
 /// ExactInputSingleParams has no deadline field. Selector verified against
@@ -18,10 +18,7 @@ interface ISimpleV3SwapRouter {
         uint160 sqrtPriceLimitX96;
     }
 
-    function exactInputSingle(ExactInputSingleParams calldata params)
-        external
-        payable
-        returns (uint256 amountOut);
+    function exactInputSingle(ExactInputSingleParams calldata params) external payable returns (uint256 amountOut);
 }
 
 interface IWrappedEther {
@@ -47,7 +44,7 @@ contract SinjohSimpleSwapAdapter is ISinjohSwapAdapter {
         weth = weth_;
     }
 
-    receive() external payable { }
+    receive() external payable {}
 
     function swap(
         address assetIn,
@@ -56,7 +53,9 @@ contract SinjohSimpleSwapAdapter is ISinjohSwapAdapter {
         uint256 minimumAmountOut,
         bytes calldata routeData
     ) external payable {
-        if (msg.value != 0 || assetIn == address(0) || assetIn == assetOut || amountIn == 0) revert InvalidAmount();
+        if (msg.value != 0 || assetIn == address(0) || assetIn == assetOut || amountIn == 0) {
+            revert InvalidAmount();
+        }
 
         uint256 inputBefore = assetIn.safeBalanceOf(address(this));
         assetIn.safeTransferFrom(msg.sender, address(this), amountIn);
