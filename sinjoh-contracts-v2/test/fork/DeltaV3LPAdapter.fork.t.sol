@@ -11,10 +11,13 @@ import {
 import { DeltaV3LPAdapter } from "../../src/yield-banks/adapters/DeltaV3LPAdapter.sol";
 import { DeltaV3SinglePoolRoute } from "../../src/yield-banks/adapters/DeltaV3SinglePoolRoute.sol";
 import { DeltaV3TwapUsdFeed } from "../../src/yield-banks/adapters/DeltaV3TwapUsdFeed.sol";
+import { CoreStockTokenSleeve } from "../../src/yield-banks/sleeves/CoreStockTokenSleeve.sol";
 import { MarketMakingSleeve } from "../../src/yield-banks/sleeves/MarketMakingSleeve.sol";
+import { USDGSleeve } from "../../src/yield-banks/sleeves/USDGSleeve.sol";
 import { DeltaPoolController } from "../../src/yield-banks/DeltaPoolController.sol";
 import { PriceHub } from "../../src/yield-banks/PriceHub.sol";
 import { StrategyRegistry } from "../../src/yield-banks/StrategyRegistry.sol";
+import { YieldBankRedemptionMode } from "../../src/yield-banks/YieldBankTypes.sol";
 import { YieldBankIds } from "../../src/yield-banks/libraries/YieldBankIds.sol";
 import {
     MockYieldBankAggregator,
@@ -44,20 +47,27 @@ contract DeltaV3LPAdapterForkTest is Test {
     address private constant POOL = 0x52e65B17fB6E5BA00Ed806f37Afcd2DaA50271Ca;
     address private constant INJOH = 0x2cC0FAC44B8252f6B10208B091aFf2c94B4da77D;
     address private constant INJOH_POOL = 0xB09fa4f04032b9d9e690ac4a1d29523b5f9A72DC;
+    address private constant NVDA = 0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC;
+    address private constant NVDA_POOL = 0x62AB521f71431f78ac374CdbadC6cda3c8916b6C;
     address private constant FACTORY = 0x1f7d7550B1b028f7571E69A784071F0205FD2EfA;
     address private constant POSITION_MANAGER = 0x73991a25C818Bf1f1128dEAaB1492D45638DE0D3;
     address private constant POSITION_BUILDER = 0x6235cF6bd8419b34942F4EDDB39C880BD96dD700;
+    address private constant WETH_USD_FEED = 0x78F3556b67E17Df817D51Ef5a990cDaF09E8d3A9;
 
     bytes32 private constant POOL_CODE_HASH =
         0x3298b5dd4e6f115074c526a55ad05a36fd73a0034ac22ec6cbaab32cc9c1e8d2;
     bytes32 private constant INJOH_POOL_CODE_HASH =
         0xfae0473dfc8dbfe849e964297fb68e7bbb2a0d588c457f0b74d2e93572c08eb0;
+    bytes32 private constant NVDA_POOL_CODE_HASH =
+        0xce2cc8d0b5f2124c8f4994e1fa6cd567e3af933d860acffb8c08dc8b99b97e04;
     bytes32 private constant FACTORY_CODE_HASH =
         0xec72b1abd1f2faee020cfea9c646bd8994f9fb389054f6e574f103a895091739;
     bytes32 private constant POSITION_MANAGER_CODE_HASH =
         0x0a493d1af3d0f25fed8efa205244ebee14114267a08647fc38c515c7cd6ead4f;
     bytes32 private constant POSITION_BUILDER_CODE_HASH =
         0xb9b462897f26b3d9082e6db057e363ea01cee5931f39bc62d52eeaa4aa7a9039;
+    bytes32 private constant WETH_USD_FEED_CODE_HASH =
+        0xbd6f524cdc4268b6bd1bb6f77a8821faeea9c52ee9e0afa0b6d948ce82c966c2;
 
     function testLiveControllerDiscoversCanonicalPoolsWithoutSharedPoolHashOrPoolList() external {
         string memory rpcUrl = vm.envOr("ROBINHOOD_MAINNET_RPC_URL", string(""));
@@ -329,5 +339,160 @@ contract DeltaV3LPAdapterForkTest is Test {
             })
         );
         manager.burn(tokenIds[0]);
+    }
+
+    /// @dev These addresses are fork assertions for reviewed live dependencies, not protocol
+    ///      defaults. The production contracts receive every asset, pool, and route via config.
+    function testLiveStockTokenAndUsdgSleeveRoutesDepositRedeemAndRoundTrip() external {
+        string memory rpcUrl = vm.envOr("ROBINHOOD_MAINNET_RPC_URL", string(""));
+        if (bytes(rpcUrl).length == 0) vm.skip(true);
+        vm.createSelectFork(rpcUrl);
+        assertEq(block.chainid, ROBINHOOD_MAINNET_CHAIN_ID);
+
+        assertEq(NVDA_POOL.codehash, NVDA_POOL_CODE_HASH);
+        assertEq(WETH_USD_FEED.codehash, WETH_USD_FEED_CODE_HASH);
+        assertEq(IYieldBankV3Pool(NVDA_POOL).factory(), FACTORY);
+        assertEq(IYieldBankV3Pool(NVDA_POOL).token0(), WETH);
+        assertEq(IYieldBankV3Pool(NVDA_POOL).token1(), NVDA);
+        assertEq(IYieldBankV3Pool(NVDA_POOL).fee(), 500);
+        assertGt(IYieldBankV3Pool(NVDA_POOL).liquidity(), 0);
+
+        PriceHub priceHub = new PriceHub(address(this), address(this));
+        DeltaV3TwapUsdFeed nvdaFeed = new DeltaV3TwapUsdFeed(
+            NVDA,
+            WETH,
+            NVDA_POOL,
+            FACTORY,
+            WETH_USD_FEED,
+            NVDA_POOL_CODE_HASH,
+            FACTORY_CODE_HASH,
+            WETH_USD_FEED_CODE_HASH,
+            60,
+            2_000,
+            1e18,
+            1,
+            "NVDA / USD (Delta V3 TWAP)"
+        );
+        DeltaV3TwapUsdFeed usdgFeed = new DeltaV3TwapUsdFeed(
+            USDG,
+            WETH,
+            POOL,
+            FACTORY,
+            WETH_USD_FEED,
+            POOL_CODE_HASH,
+            FACTORY_CODE_HASH,
+            WETH_USD_FEED_CODE_HASH,
+            60,
+            2_000,
+            1e6,
+            1,
+            "USDG / USD (Delta V3 TWAP)"
+        );
+        (uint80 nvdaRound, int256 nvdaPrice,,, uint80 nvdaAnsweredInRound) =
+            nvdaFeed.latestRoundData();
+        (uint80 usdgRound, int256 usdgPrice,,, uint80 usdgAnsweredInRound) =
+            usdgFeed.latestRoundData();
+        assertGt(nvdaPrice, 0);
+        assertGe(nvdaAnsweredInRound, nvdaRound);
+        assertGt(usdgPrice, 0);
+        assertGe(usdgAnsweredInRound, usdgRound);
+
+        priceHub.configureFeed(WETH, WETH_USD_FEED, address(0), 1 days, 1 days, false, 100);
+        priceHub.configureFeed(NVDA, address(nvdaFeed), address(0), 1 days, 1 days, false, 100);
+        priceHub.configureFeed(USDG, address(usdgFeed), address(0), 1 days, 1 days, false, 100);
+
+        StrategyRegistry registry = new StrategyRegistry(address(this));
+        MockYieldBankEligibilityPolicy eligibility = new MockYieldBankEligibilityPolicy();
+        CoreStockTokenSleeve stockSleeve = new CoreStockTokenSleeve(
+            "Live Stock Route Test",
+            "T-STOCK",
+            WETH,
+            address(this),
+            address(this),
+            address(this),
+            address(priceHub),
+            address(registry),
+            address(eligibility),
+            0,
+            0,
+            0
+        );
+        USDGSleeve usdgSleeve = new USDGSleeve(
+            "Live USDG Route Test",
+            "T-USDG",
+            USDG,
+            address(this),
+            address(this),
+            address(this),
+            address(priceHub),
+            address(registry),
+            address(eligibility),
+            0,
+            0,
+            0
+        );
+
+        DeltaV3SinglePoolRoute wethToNvda = new DeltaV3SinglePoolRoute(
+            NVDA_POOL, FACTORY, WETH, NVDA, NVDA_POOL_CODE_HASH, FACTORY_CODE_HASH
+        );
+        DeltaV3SinglePoolRoute nvdaToWeth = new DeltaV3SinglePoolRoute(
+            NVDA_POOL, FACTORY, NVDA, WETH, NVDA_POOL_CODE_HASH, FACTORY_CODE_HASH
+        );
+        DeltaV3SinglePoolRoute wethToUsdg = new DeltaV3SinglePoolRoute(
+            POOL, FACTORY, WETH, USDG, POOL_CODE_HASH, FACTORY_CODE_HASH
+        );
+        DeltaV3SinglePoolRoute usdgToWeth = new DeltaV3SinglePoolRoute(
+            POOL, FACTORY, USDG, WETH, POOL_CODE_HASH, FACTORY_CODE_HASH
+        );
+        stockSleeve.addConstituent(NVDA, address(wethToNvda), address(wethToNvda).codehash, 10_000);
+
+        vm.deal(address(this), 0.02 ether);
+        IForkWETH(WETH).deposit{ value: 0.01 ether }();
+
+        CoreStockTokenSleeve.ConstituentCall[] memory constituentCalls =
+            new CoreStockTokenSleeve.ConstituentCall[](1);
+        constituentCalls[0].minimumOutput = 1;
+        IERC20(WETH).approve(address(stockSleeve), 0.003 ether);
+        uint256 stockShares =
+            stockSleeve.deposit(0.003 ether, address(this), 1, abi.encode(constituentCalls));
+        uint256 nvdaInSleeve = IERC20(NVDA).balanceOf(address(stockSleeve));
+        assertGt(stockShares, 0);
+        assertGt(nvdaInSleeve, 0);
+
+        uint256[] memory stockMinimums = new uint256[](2);
+        stockMinimums[1] = nvdaInSleeve;
+        stockSleeve.redeem(
+            stockShares,
+            address(this),
+            address(this),
+            YieldBankRedemptionMode.IN_KIND,
+            stockMinimums,
+            ""
+        );
+        uint256 nvdaReceived = IERC20(NVDA).balanceOf(address(this));
+        assertEq(nvdaReceived, nvdaInSleeve);
+        IERC20(NVDA).approve(address(nvdaToWeth), nvdaReceived);
+        assertGt(nvdaToWeth.convert(nvdaReceived, 1, address(this), ""), 0);
+
+        IERC20(WETH).approve(address(wethToUsdg), 0.003 ether);
+        uint256 usdgReceived = wethToUsdg.convert(0.003 ether, 1, address(this), "");
+        IERC20(USDG).approve(address(usdgSleeve), usdgReceived);
+        uint256 usdgShares = usdgSleeve.deposit(usdgReceived, address(this), 1, "");
+        assertGt(usdgShares, 0);
+        assertEq(IERC20(USDG).balanceOf(address(usdgSleeve)), usdgReceived);
+
+        uint256[] memory usdgMinimums = new uint256[](1);
+        usdgMinimums[0] = usdgReceived;
+        usdgSleeve.redeem(
+            usdgShares,
+            address(this),
+            address(this),
+            YieldBankRedemptionMode.IN_KIND,
+            usdgMinimums,
+            ""
+        );
+        assertEq(IERC20(USDG).balanceOf(address(this)), usdgReceived);
+        IERC20(USDG).approve(address(usdgToWeth), usdgReceived);
+        assertGt(usdgToWeth.convert(usdgReceived, 1, address(this), ""), 0);
     }
 }

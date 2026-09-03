@@ -847,7 +847,7 @@ contract YieldBankCollectionTest is Test {
         nft.transferFrom(ALICE, BOB, 1);
     }
 
-    function testConfiguredProjectTokenIsActuallyBurnedWithTheNft() public {
+    function testConfiguredProjectTokenIsSentToBurnAddressWithTheNft() public {
         MockYieldBankBurnableAsset projectToken =
             new MockYieldBankBurnableAsset("Project Token", "PROJECT");
         uint256 burnAmount = 10_000e18;
@@ -864,11 +864,17 @@ contract YieldBankCollectionTest is Test {
         projectToken.approve(address(gatedCollection), burnAmount);
 
         uint256 supplyBefore = projectToken.totalSupply();
+        uint256 burnBalanceBefore =
+            projectToken.balanceOf(gatedCollection.REDEMPTION_BURN_ADDRESS());
         vm.prank(ALICE);
         gatedCollection.burnToken(1, "");
 
         assertEq(projectToken.balanceOf(ALICE), 0);
-        assertEq(projectToken.totalSupply(), supplyBefore - burnAmount);
+        assertEq(projectToken.totalSupply(), supplyBefore);
+        assertEq(
+            projectToken.balanceOf(gatedCollection.REDEMPTION_BURN_ADDRESS()),
+            burnBalanceBefore + burnAmount
+        );
         assertEq(gatedCollection.liveSupply(), 0);
         assertEq(gatedCollection.tokenState(1), uint8(YieldBankTokenState.BURNED));
     }

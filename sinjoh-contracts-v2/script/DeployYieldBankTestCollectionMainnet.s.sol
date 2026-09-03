@@ -50,6 +50,10 @@ contract DeployYieldBankTestCollectionMainnet is Script {
         uint16 coreWeightBps = _toUint16(vm.envUint("TEST_CORE_WEIGHT_BPS"));
         uint16 marketMakingWeightBps = _toUint16(vm.envUint("TEST_MARKET_MAKING_WEIGHT_BPS"));
         uint16 usdgWeightBps = _toUint16(vm.envUint("TEST_USDG_WEIGHT_BPS"));
+        address redemptionToken = vm.envAddress("TEST_REDEMPTION_TOKEN");
+        uint256 redemptionTokenAmount = vm.envUint("TEST_REDEMPTION_TOKEN_AMOUNT");
+        bytes32 redemptionTokenCodeHash = vm.envBytes32("TEST_REDEMPTION_TOKEN_RUNTIME_CODE_HASH");
+        bool redemptionDisabled = redemptionToken == address(0);
 
         if (
             owner == address(0) || bytes(name).length == 0 || bytes(symbol).length == 0
@@ -59,6 +63,10 @@ contract DeployYieldBankTestCollectionMainnet is Script {
                 || uint256(royaltyBackingBps) + royaltyCreatorBps + royaltySinjohBps != BPS
                 || royaltyBackingBps == 0
                 || uint256(coreWeightBps) + marketMakingWeightBps + usdgWeightBps != BPS
+                || (redemptionDisabled
+                        ? redemptionTokenAmount != 0 || redemptionTokenCodeHash != bytes32(0)
+                        : redemptionTokenAmount == 0
+                        || redemptionToken.codehash != redemptionTokenCodeHash)
         ) revert InvalidConfiguration();
 
         YieldBankPublicFactory factory = YieldBankPublicFactory(publicFactory);
@@ -85,6 +93,9 @@ contract DeployYieldBankTestCollectionMainnet is Script {
         request.timelockProposer = owner;
         request.timelockDelay = _toUint48(vm.envUint("TEST_TIMELOCK_DELAY"));
         request.guardian = owner;
+        request.redemptionToken = redemptionToken;
+        request.redemptionTokenAmount = redemptionTokenAmount;
+        request.redemptionTokenCodeHash = redemptionTokenCodeHash;
         request.coreSleeve = YieldBankPublicFactory.SleeveConfig({
             maximumStrategies: 8, maximumAdapterCapBps: BPS, maximumOperatorLossBps: 0
         });
@@ -118,6 +129,9 @@ contract DeployYieldBankTestCollectionMainnet is Script {
                 || collection.creator() != owner || collection.nft().owner() != owner
                 || collection.proceedsVault().allocationOperator() != owner
                 || collection.maxSupply() != maxSupply
+                || address(collection.redemptionToken()) != redemptionToken
+                || collection.redemptionTokenAmount() != redemptionTokenAmount
+                || collection.redemptionTokenCodeHash() != redemptionTokenCodeHash
                 || keccak256(bytes(collection.nft().name())) != keccak256(bytes(name))
                 || keccak256(bytes(collection.nft().symbol())) != keccak256(bytes(symbol))
         ) revert DeploymentVerificationFailed();
