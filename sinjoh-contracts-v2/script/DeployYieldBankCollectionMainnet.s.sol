@@ -6,6 +6,7 @@ import { console2 } from "forge-std/console2.sol";
 import { YieldBankCollection } from "../src/yield-banks/YieldBankCollection.sol";
 import { YieldBankProtocolRegistry } from "../src/yield-banks/YieldBankProtocolRegistry.sol";
 import { YieldBankPublicFactory } from "../src/yield-banks/YieldBankPublicFactory.sol";
+import { YieldBankSupportBundle } from "../src/yield-banks/YieldBankSupportBundle.sol";
 import { YieldBankFeeWeightRange } from "../src/yield-banks/YieldBankTypes.sol";
 
 /// @notice Deploys one explicitly configured mainnet collection through an approved public factory.
@@ -181,6 +182,9 @@ contract DeployYieldBankCollectionMainnet is Script {
         vm.stopBroadcast();
 
         YieldBankCollection collection = YieldBankCollection(deployed.collection);
+        address expectedEligibilityPolicy = eligibilityPolicy == address(0)
+            ? address(YieldBankSupportBundle(deployed.supportBundle).eligibilityPolicy())
+            : eligibilityPolicy;
         if (
             deployed.collection.code.length == 0
                 || !YieldBankProtocolRegistry(registry).isActiveCollection(deployed.collection)
@@ -191,7 +195,7 @@ contract DeployYieldBankCollectionMainnet is Script {
                 || address(collection.redemptionToken()) != redemptionToken
                 || collection.redemptionTokenAmount() != redemptionTokenAmount
                 || collection.redemptionTokenCodeHash() != redemptionTokenCodeHash
-                || address(collection.eligibilityPolicy()) != eligibilityPolicy
+                || address(collection.eligibilityPolicy()) != expectedEligibilityPolicy
                 || collection.maximumTotalFeeWeight() != maximumTotalFeeWeight
                 || collection.feeWeightRangeCount() != feeWeightEnds.length
                 || keccak256(bytes(collection.nft().name())) != keccak256(bytes(name))
