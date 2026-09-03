@@ -32,7 +32,7 @@ contract YieldBankCollection is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint256 public constant MAX_REVENUE_DELIVERY_BATCH = 20;
-    uint256 public constant MAX_FEE_WEIGHT_RANGES = 16;
+    uint256 public constant MAX_FEE_WEIGHT_RANGES = 4;
     uint256 public constant MAX_TOTAL_FEE_WEIGHT = 1e27;
     uint16 public constant BPS = 10_000;
     address public constant REDEMPTION_BURN_ADDRESS = 0x000000000000000000000000000000000000dEaD;
@@ -184,7 +184,7 @@ contract YieldBankCollection is ReentrancyGuard {
         emit CollectionStateChanged(YieldBankCollectionState.DEPLOYED, state);
     }
 
-    function prepareSeaDropMint(address minter, uint256 quantity)
+    function prepareSeaDropMint(address minter, uint256 quantity, uint256 expectedNetProceeds)
         external
         returns (uint256 firstTokenId)
     {
@@ -219,7 +219,7 @@ contract YieldBankCollection is ReentrancyGuard {
         mintedSupply += quantity;
         liveSupply += quantity;
         totalLiveFeeWeight += addedFeeWeight;
-        proceedsVault.noteMint(firstTokenId, quantity);
+        proceedsVault.noteMint(firstTokenId, quantity, expectedNetProceeds);
     }
 
     function deliverRevenue(uint256 tokenId) external nonReentrant {
@@ -259,7 +259,7 @@ contract YieldBankCollection is ReentrancyGuard {
             state != YieldBankCollectionState.ACTIVE
                 && state != YieldBankCollectionState.INVESTMENT_PAUSED
         ) revert InvalidState(state);
-        (, uint256 pendingMintQuantity) = proceedsVault.pendingMint();
+        (, uint256 pendingMintQuantity,) = proceedsVault.pendingMint();
         if (pendingMintQuantity != 0) revert PrimaryPayoutPending();
         if (nft.ownerOf(tokenId) != msg.sender) revert InvalidTokenOwner(tokenId, msg.sender);
         address activeDeltaPool =

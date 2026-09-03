@@ -18,6 +18,8 @@
   ],
   "scripts": {
     "generate:abis": "forge build -q --root .. && node ./scripts/generate-abis.mjs",
+    "generate:yield-bank-allowlist": "node ./scripts/generate-yield-bank-allowlist.mjs",
+    "test:yield-bank-allowlist": "node --test ./scripts/generate-yield-bank-allowlist.test.mjs",
     "build": "npm run generate:abis && tsc -p tsconfig.json",
     "test": "npm run build && node --test dist/test/*.test.js",
     "check": "npm test"

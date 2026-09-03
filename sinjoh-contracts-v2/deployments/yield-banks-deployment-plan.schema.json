@@ -40,7 +40,7 @@
         "maxSupply": { "type": "integer", "minimum": 1, "maximum": 18446744073709551615 },
         "feeWeightRanges": {
           "type": "array",
-          "maxItems": 16,
+          "maxItems": 4,
           "items": { "$ref": "#/$defs/feeWeightRange" }
         },
         "secondaryRoyaltyBps": { "$ref": "#/$defs/bps" },

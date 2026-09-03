@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://sinjoh.com/schemas/yield-banks-manifest-1.3.json",
+  "$id": "https://sinjoh.com/schemas/yield-banks-manifest-1.4.json",
   "title": "Sinjoh Yield Banks release manifest",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "chainId", "collectionId", "factoryVersion", "compiler", "deployment", "economics", "redemption", "equityModel", "policyCaps", "openSea", "contracts", "dependencies", "equityAssets", "coreConstituents", "adapters", "feeds", "deltaInfrastructure", "routeBindings", "roles", "auditHashes"],
   "properties": {
-    "schemaVersion": { "const": "1.3" },
+    "schemaVersion": { "const": "1.4" },
     "chainId": { "const": 4663 },
     "collectionId": { "$ref": "#/$defs/bytes32" },
     "factoryVersion": { "$ref": "#/$defs/bytes32" },
@@ -45,7 +45,7 @@
         "maxSupply": { "type": "integer", "minimum": 1, "maximum": 18446744073709551615 },
         "feeWeightRanges": {
           "type": "array",
-          "maxItems": 16,
+          "maxItems": 4,
           "items": { "$ref": "#/$defs/feeWeightRange" }
         },
         "feeWeightScheduleHash": { "$ref": "#/$defs/bytes32" },
@@ -109,13 +109,19 @@
     "openSea": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["collectionSlug", "collectionUrl", "mintStagesHash", "publicDrop", "allowListMerkleRoot", "allowedFeeRecipients", "allowedPayers", "tokenGatedDrops", "signedMintValidations", "creatorPayoutAddress", "observedPrimaryPlatformFeeBps", "observedSecondaryRoyaltyBps", "observedSecondaryRoyaltyRecipient", "observedAt"],
+      "required": ["collectionSlug", "collectionUrl", "mintStagesHash", "publicDrop", "allowListMerkleRoot", "allowListStages", "allowedFeeRecipients", "allowedPayers", "tokenGatedDrops", "signedMintValidations", "creatorPayoutAddress", "observedPrimaryPlatformFeeBps", "observedSecondaryRoyaltyBps", "observedSecondaryRoyaltyRecipient", "observedAt"],
       "properties": {
         "collectionSlug": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
         "collectionUrl": { "type": "string", "format": "uri", "pattern": "^https://opensea\\.io/collection/[a-z0-9][a-z0-9-]*/overview$" },
         "mintStagesHash": { "$ref": "#/$defs/bytes32" },
         "publicDrop": { "$ref": "#/$defs/publicDrop" },
-        "allowListMerkleRoot": { "const": "0x0000000000000000000000000000000000000000000000000000000000000000" },
+        "allowListMerkleRoot": { "$ref": "#/$defs/bytes32" },
+        "allowListStages": {
+          "type": "array",
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/allowListStage" }
+        },
         "allowedFeeRecipients": {
           "type": "array",
           "uniqueItems": true,
@@ -231,14 +237,43 @@
     "seaDropFeeBps": { "type": "integer", "minimum": 0, "maximum": 9999 },
     "positiveBps": { "type": "integer", "minimum": 1, "maximum": 10000 },
     "publicDrop": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mintPrice", "startTime", "endTime", "maxTotalMintableByWallet", "feeBps", "restrictFeeRecipients"],
+          "properties": {
+            "mintPrice": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+            "startTime": { "type": "integer", "minimum": 0, "maximum": 281474976710655 },
+            "endTime": { "type": "integer", "minimum": 1, "maximum": 281474976710655 },
+            "maxTotalMintableByWallet": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "feeBps": { "$ref": "#/$defs/seaDropFeeBps" },
+            "restrictFeeRecipients": { "type": "boolean" }
+          }
+        },
+        {
+          "const": {
+            "mintPrice": "0",
+            "startTime": 0,
+            "endTime": 0,
+            "maxTotalMintableByWallet": 0,
+            "feeBps": 0,
+            "restrictFeeRecipients": false
+          }
+        }
+      ]
+    },
+    "allowListStage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mintPrice", "startTime", "endTime", "maxTotalMintableByWallet", "feeBps", "restrictFeeRecipients"],
+      "required": ["mintPrice", "maxTotalMintableByWallet", "startTime", "endTime", "dropStageIndex", "maxTokenSupplyForStage", "feeBps", "restrictFeeRecipients"],
       "properties": {
-        "mintPrice": { "type": "string", "pattern": "^[0-9]+$" },
+        "mintPrice": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+        "maxTotalMintableByWallet": { "type": "integer", "minimum": 1, "maximum": 65535 },
         "startTime": { "type": "integer", "minimum": 0, "maximum": 281474976710655 },
         "endTime": { "type": "integer", "minimum": 1, "maximum": 281474976710655 },
-        "maxTotalMintableByWallet": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "dropStageIndex": { "type": "integer", "minimum": 0, "maximum": 255 },
+        "maxTokenSupplyForStage": { "type": "integer", "minimum": 1, "maximum": 4294967295 },
         "feeBps": { "$ref": "#/$defs/seaDropFeeBps" },
         "restrictFeeRecipients": { "type": "boolean" }
       }

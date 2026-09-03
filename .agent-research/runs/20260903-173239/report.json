@@ -1,0 +1,78 @@
+{
+  "schemaVersion": "1.0",
+  "run": {
+    "id": "20260903-173239",
+    "date": "2026-09-03",
+    "requirements": ".agent-research/runs/20260903-173239/requirements.md"
+  },
+  "summary": {
+    "building": "Generic sequential paid mint stages with a cascading SeaDrop allowlist for the first Piggy Banks collection",
+    "verdict": "caution",
+    "topRisk": "SeaDrop does not pass leaf price, fee, or stage parameters to the NFT mint callback.",
+    "mustDecideFirst": "Finalize stage times and verify OpenSea's actual primary-drop fee before generating the Merkle root.",
+    "watchOutFor": "OpenSea documents a required final public sale, which conflicts with excluding balances below 10,000 $INJOH if presales do not sell out."
+  },
+  "components": [
+    {
+      "name": "OpenSea SeaDrop",
+      "type": "Blockchain",
+      "version": "unversioned",
+      "sourceUrl": "https://github.com/ProjectOpenSea/seadrop/blob/main/src/SeaDrop.sol",
+      "status": "fresh",
+      "risks": [
+        {"severity": "critical", "title": "Opaque callback parameters", "detail": "The NFT callback cannot directly authenticate the allowlist leaf's price, fee, or stage."},
+        {"severity": "high", "title": "Lifetime wallet stats", "detail": "Default lifetime accounting cannot enforce additive stage-local wallet limits."},
+        {"severity": "high", "title": "Cross-stage batch mint", "detail": "A mint must not cross a configured cumulative stage boundary."},
+        {"severity": "medium", "title": "Fee rounding", "detail": "Expected net proceeds must match SeaDrop's floor-rounded fee calculation."}
+      ]
+    },
+    {
+      "name": "OpenSea Drops",
+      "type": "API",
+      "version": "unversioned",
+      "sourceUrl": "https://docs.opensea.io/docs/part-4-edit-drop-settings",
+      "status": "fresh",
+      "risks": [
+        {"severity": "critical", "title": "Hosted public-stage conflict", "detail": "The documented required final public sale conflicts with whitelist-only eligibility for unsold supply."},
+        {"severity": "high", "title": "Mutable external fee", "detail": "The primary-drop fee must be verified immediately before root generation and publication."},
+        {"severity": "medium", "title": "External publication state", "detail": "Correct contracts do not automatically create or publish the hosted drop page."}
+      ]
+    },
+    {
+      "name": "OpenZeppelin Contracts",
+      "type": "SDK",
+      "version": "5.6.1",
+      "sourceUrl": "https://github.com/OpenZeppelin/openzeppelin-contracts/releases/tag/v5.6.1",
+      "status": "cached",
+      "risks": [
+        {"severity": "medium", "title": "ERC-721 hook regression", "detail": "Mint, transfer, and burn paths must retain the existing _update eligibility behavior."},
+        {"severity": "low", "title": "Reentrancy interaction", "detail": "SeaDrop and safe-mint receiver callbacks require rollback tests."}
+      ]
+    },
+    {
+      "name": "Robinhood Chain",
+      "type": "Blockchain",
+      "version": "4663",
+      "sourceUrl": "https://chainlist.org/chain/4663",
+      "status": "fresh",
+      "risks": [
+        {"severity": "high", "title": "Wrong external deployment", "detail": "The release must pin and verify SeaDrop runtime code on chain ID 4663."},
+        {"severity": "low", "title": "Reorganization", "detail": "Release scripts must wait for confirmations and re-verify deployed code."}
+      ]
+    }
+  ],
+  "riskTotals": {"critical": 2, "high": 4, "medium": 3, "low": 2},
+  "preCodingDecisions": [
+    {"title": "Stage times and fee", "detail": "Finalize the four time windows and observe the primary fee BPS before generating leaves.", "immutable": true},
+    {"title": "Whitelist-only hosting", "detail": "Confirm OpenSea can omit or neutralize its documented final public stage, otherwise use a custom mint page.", "immutable": false}
+  ],
+  "requirementsCorrections": [
+    {"kind": "wrong_assumption", "detail": "Tier eligibility cascades downward rather than assigning one exclusive leaf per wallet."},
+    {"kind": "wrong_assumption", "detail": "SeaDrop lifetime wallet stats do not implement per-stage caps."},
+    {"kind": "immutable_choice", "detail": "Allowlist leaves bind stage times, prices, fee BPS, and cumulative supply caps."},
+    {"kind": "underspecified", "detail": "The documented hosted final public stage conflicts with a fully whitelist-only launch."}
+  ],
+  "openQuestions": [
+    "Can OpenSea publish this custom SeaDrop collection without an effective final public stage? Public documentation does not answer this."
+  ]
+}

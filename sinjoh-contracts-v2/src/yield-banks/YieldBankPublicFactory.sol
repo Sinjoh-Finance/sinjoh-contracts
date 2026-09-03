@@ -22,7 +22,7 @@ interface IYieldBankPublicCollectionInternals {
 contract YieldBankPublicFactory is ReentrancyGuard {
     uint16 private constant BPS = 10_000;
     uint8 private constant MAX_STRATEGIES = 8;
-    uint256 private constant MAX_FEE_WEIGHT_RANGES = 16;
+    uint256 private constant MAX_FEE_WEIGHT_RANGES = 4;
     uint256 private constant MAX_TOTAL_FEE_WEIGHT = 1e27;
 
     bytes32 public constant KIND_SUPPORT_BUNDLE = keccak256("SUPPORT_BUNDLE");

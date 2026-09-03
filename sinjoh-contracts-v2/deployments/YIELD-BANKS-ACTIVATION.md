@@ -87,8 +87,8 @@ contain the full encoded component init code and collection configuration—neve
 addresses. Execute it with:
 
 The collection configuration's `feeWeightRanges` is an ordered list of inclusive token-id
-boundaries and positive relative weights. The final boundary must equal `maxSupply`; up to 16
-ranges are supported. Use an empty list for equal-weight collections. The 16-range limit keeps the
+boundaries and positive relative weights. The final boundary must equal `maxSupply`; up to 4
+ranges are supported. Use an empty list for equal-weight collections. The 4-range limit keeps the
 complete constructor bytecode plus its encoded configuration below EIP-3860 on mainnet. This schedule is immutable
 after deployment and governs collection-wide fee distributions and exit-tax redistributions; it
 does not alter the primary backing actually recorded for each NFT.
@@ -185,12 +185,14 @@ match the collection's immutable `secondaryRoyaltyBps` and revenue router exactl
 drift blocks release even though ERC-2981 itself cannot force a marketplace to pay.
 
 It must also record every enumerable SeaDrop mint path and authorization set: the public-stage
-tuple, empty allowlist root, fee recipients, payers, token-gated assets and stages, signed-mint
+tuple, allowlist root and stages, fee recipients, payers, token-gated assets and stages, signed-mint
 signers and validation bounds. The verifier reads these values from
 `0x00005EA00Ac477B1030CE78506496e8C2dE24bf5`, recomputes `mintStagesHash`, and rejects any payout,
 price, time window, supply or wallet cap, fee, restriction, payer, signer, gate-token, or allowlist
-drift. A nonempty allowlist root is rejected because SeaDrop's allowlist callback does not expose
-the leaf price or fee to `YieldBankNFT`; paid gated sales must use token-gated or signed minting.
+drift. A nonempty allowlist requires an immutable, NFT-bound `YieldBankMintStagePolicy`. The
+verifier checks every policy stage against the recorded allowlist price, cumulative supply cap,
+stage-local wallet limit, and fee rate. The proceeds vault also rejects a payout that differs from
+the policy's exact expected net amount.
 The configured eligibility policy is separately codehash-pinned and read back from the collection
 and all three sleeves.
 Because Seaport supplies no eligibility proof, `canReceiveNFT(recipient, "")` must decide NFT
@@ -232,7 +234,6 @@ hard-coded or listed in the collection release manifest. A valid PriceHub quote 
 materialization parameters are still required before funds can enter it. Do not substitute the
 USDG/WETH canary pool or infer an address from a ticker.
 
-The canary must use a positive-priced public, token-gated, or signed SeaDrop stage with fee basis
-points below 10,000. Use signed mint validation for address-gated access. The NFT intentionally
-rejects nonempty SeaDrop Merkle allow lists because their leaf-level price and fee are not visible
-to the NFT callback and therefore cannot enforce the protocol's paid-mint invariant.
+The canary must use a positive-priced public, token-gated, signed, or policy-backed Merkle SeaDrop
+stage with fee basis points below 10,000. A policy-backed allowlist must be generated from reviewed
+stage inputs and verified against its published root before minting.

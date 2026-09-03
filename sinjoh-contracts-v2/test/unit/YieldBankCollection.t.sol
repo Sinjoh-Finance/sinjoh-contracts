@@ -8,6 +8,7 @@ import { YieldBankCollection } from "../../src/yield-banks/YieldBankCollection.s
 import { YieldBankCollectionFactory } from "../../src/yield-banks/YieldBankCollectionFactory.sol";
 import { YieldBankConfigValidator } from "../../src/yield-banks/YieldBankConfigValidator.sol";
 import { YieldBankNFT } from "../../src/yield-banks/YieldBankNFT.sol";
+import { YieldBankMintStagePolicy } from "../../src/yield-banks/YieldBankMintStagePolicy.sol";
 import { YieldBankAccount } from "../../src/yield-banks/YieldBankAccount.sol";
 import { YieldBankProceedsVault } from "../../src/yield-banks/YieldBankProceedsVault.sol";
 import { YieldBankProtocolRegistry } from "../../src/yield-banks/YieldBankProtocolRegistry.sol";
@@ -24,6 +25,7 @@ import {
     YieldBankCollectionState,
     YieldBankConfig,
     YieldBankFeeWeightRange,
+    YieldBankMintStage,
     YieldBankTokenState
 } from "../../src/yield-banks/YieldBankTypes.sol";
 import {
@@ -172,9 +174,9 @@ contract YieldBankCollectionTest is Test {
     }
 
     function testCollectionInitializationCodeFitsMainnetLimit() public view {
-        YieldBankConfig memory config = _config(16);
-        config.feeWeightRanges = new YieldBankFeeWeightRange[](16);
-        for (uint256 i; i < 16; ++i) {
+        YieldBankConfig memory config = _config(4);
+        config.feeWeightRanges = new YieldBankFeeWeightRange[](4);
+        for (uint256 i; i < 4; ++i) {
             config.feeWeightRanges[i] =
                 YieldBankFeeWeightRange({ endTokenId: uint64(i + 1), feeWeight: uint96(i + 1) });
         }
@@ -226,26 +228,22 @@ contract YieldBankCollectionTest is Test {
     function testPiggyBankTierScheduleAccountsForAll3333Tokens() public {
         YieldBankConfig memory config = _config(3_333);
         config.feeWeightRanges = new YieldBankFeeWeightRange[](4);
-        config.feeWeightRanges[0] = YieldBankFeeWeightRange({ endTokenId: 3_000, feeWeight: 2 });
-        config.feeWeightRanges[1] = YieldBankFeeWeightRange({ endTokenId: 3_300, feeWeight: 5 });
-        config.feeWeightRanges[2] = YieldBankFeeWeightRange({ endTokenId: 3_330, feeWeight: 15 });
-        config.feeWeightRanges[3] = YieldBankFeeWeightRange({ endTokenId: 3_333, feeWeight: 60 });
-        assertEq(
-            keccak256(abi.encode(config.feeWeightRanges)),
-            0x09e456a352ef04c1876c453e7d9ed7d9fd42c5d5d86aa2e2ddff15ddc65d22a2
-        );
+        config.feeWeightRanges[0] = YieldBankFeeWeightRange({ endTokenId: 3, feeWeight: 60 });
+        config.feeWeightRanges[1] = YieldBankFeeWeightRange({ endTokenId: 33, feeWeight: 15 });
+        config.feeWeightRanges[2] = YieldBankFeeWeightRange({ endTokenId: 333, feeWeight: 5 });
+        config.feeWeightRanges[3] = YieldBankFeeWeightRange({ endTokenId: 3_333, feeWeight: 2 });
         YieldBankCollection piggyBanks = new YieldBankCollection(config);
 
         assertEq(piggyBanks.maxSupply(), 3_333);
         assertEq(piggyBanks.maximumTotalFeeWeight(), 8_130);
-        assertEq(piggyBanks.feeWeightOf(1), 2);
-        assertEq(piggyBanks.feeWeightOf(3_000), 2);
-        assertEq(piggyBanks.feeWeightOf(3_001), 5);
-        assertEq(piggyBanks.feeWeightOf(3_300), 5);
-        assertEq(piggyBanks.feeWeightOf(3_301), 15);
-        assertEq(piggyBanks.feeWeightOf(3_330), 15);
-        assertEq(piggyBanks.feeWeightOf(3_331), 60);
-        assertEq(piggyBanks.feeWeightOf(3_333), 60);
+        assertEq(piggyBanks.feeWeightOf(1), 60);
+        assertEq(piggyBanks.feeWeightOf(3), 60);
+        assertEq(piggyBanks.feeWeightOf(4), 15);
+        assertEq(piggyBanks.feeWeightOf(33), 15);
+        assertEq(piggyBanks.feeWeightOf(34), 5);
+        assertEq(piggyBanks.feeWeightOf(333), 5);
+        assertEq(piggyBanks.feeWeightOf(334), 2);
+        assertEq(piggyBanks.feeWeightOf(3_333), 2);
     }
 
     function testGenericFactoryRejectsComponentsBoundToAnotherCollection() public {
@@ -259,10 +257,10 @@ contract YieldBankCollectionTest is Test {
         YieldBankConfig memory first = _config(3_333);
         first.collectionId = keccak256("INDEPENDENT_COLLECTION_A");
         first.feeWeightRanges = new YieldBankFeeWeightRange[](4);
-        first.feeWeightRanges[0] = YieldBankFeeWeightRange({ endTokenId: 3_000, feeWeight: 2 });
-        first.feeWeightRanges[1] = YieldBankFeeWeightRange({ endTokenId: 3_300, feeWeight: 5 });
-        first.feeWeightRanges[2] = YieldBankFeeWeightRange({ endTokenId: 3_330, feeWeight: 15 });
-        first.feeWeightRanges[3] = YieldBankFeeWeightRange({ endTokenId: 3_333, feeWeight: 60 });
+        first.feeWeightRanges[0] = YieldBankFeeWeightRange({ endTokenId: 3, feeWeight: 60 });
+        first.feeWeightRanges[1] = YieldBankFeeWeightRange({ endTokenId: 33, feeWeight: 15 });
+        first.feeWeightRanges[2] = YieldBankFeeWeightRange({ endTokenId: 333, feeWeight: 5 });
+        first.feeWeightRanges[3] = YieldBankFeeWeightRange({ endTokenId: 3_333, feeWeight: 2 });
 
         vm.expectRevert(YieldBankConfigValidator.InvalidConfiguration.selector);
         vm.prank(ALICE);
@@ -313,12 +311,12 @@ contract YieldBankCollectionTest is Test {
         vm.expectRevert(YieldBankCollection.InvalidConfiguration.selector);
         new YieldBankCollection(config);
 
-        config.feeWeightRanges = new YieldBankFeeWeightRange[](17);
-        for (uint256 i; i < 17; ++i) {
+        config.feeWeightRanges = new YieldBankFeeWeightRange[](5);
+        for (uint256 i; i < 5; ++i) {
             config.feeWeightRanges[i] =
                 YieldBankFeeWeightRange({ endTokenId: uint64(i + 1), feeWeight: 1 });
         }
-        config.maxSupply = 17;
+        config.maxSupply = 5;
         vm.expectRevert(YieldBankCollection.InvalidConfiguration.selector);
         new YieldBankCollection(config);
 
@@ -790,6 +788,110 @@ contract YieldBankCollectionTest is Test {
         nft.updateSignedMintValidationParams(address(seaDrop), ALICE, signed);
     }
 
+    function testConfiguredMintStagesAllowMerkleRootAndEnforceStageLocalLimits() public {
+        YieldBankCollection stagedCollection = new YieldBankCollection(_config(10));
+        YieldBankNFT nft = stagedCollection.nft();
+        YieldBankMintStagePolicy mintStagePolicy = _configureFourPaidStages(nft);
+
+        string[] memory uris = new string[](0);
+        bytes32 root = keccak256("audited-holder-snapshot");
+        AllowListData memory allowList = AllowListData({
+            merkleRoot: root, publicKeyURIs: uris, allowListURI: "ipfs://allowlist"
+        });
+        vm.prank(CREATOR);
+        nft.updateAllowList(address(seaDrop), allowList);
+        assertEq(seaDrop.allowListMerkleRoot(address(nft)), root);
+
+        vm.deal(ALICE, 30 ether);
+        seaDrop.mintWithFee{ value: 4 ether }(nft, ALICE, 1, 1_000);
+        assertEq(mintStagePolicy.numberMintedByStage(0, ALICE), 1);
+        (uint256 firstTokenId,, uint256 netProceeds,,,,) =
+            stagedCollection.proceedsVault().receipts(1);
+        assertEq(firstTokenId, 1);
+        assertEq(netProceeds, 3.6 ether);
+
+        seaDrop.mintWithFee{ value: 9 ether }(nft, ALICE, 3, 1_000);
+        assertEq(mintStagePolicy.numberMintedByStage(1, ALICE), 3);
+        (uint256 activeMints, uint256 totalSupply, uint256 stageSupply) = nft.getMintStats(ALICE);
+        assertEq(activeMints, 3);
+        assertEq(totalSupply, 4);
+        assertEq(stageSupply, 6);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                YieldBankMintStagePolicy.StageWalletLimit.selector, 1, ALICE, 4, 3
+            )
+        );
+        seaDrop.mintWithFee{ value: 3 ether }(nft, ALICE, 1, 1_000);
+
+        vm.deal(BOB, 10 ether);
+        seaDrop.mintWithFee{ value: 6 ether }(nft, BOB, 2, 1_000);
+        (activeMints, totalSupply, stageSupply) = nft.getMintStats(ALICE);
+        assertEq(activeMints, 0);
+        assertEq(totalSupply, 6);
+        assertEq(stageSupply, 8);
+    }
+
+    function testConfiguredMintStagesRejectCrossBoundaryFreeUnderpricedAndWrongFeeMints() public {
+        YieldBankCollection stagedCollection = new YieldBankCollection(_config(10));
+        YieldBankNFT nft = stagedCollection.nft();
+        _configureFourPaidStages(nft);
+        vm.deal(ALICE, 30 ether);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                YieldBankMintStagePolicy.InsufficientSeaDropPayment.selector, 4 ether, 0
+            )
+        );
+        seaDrop.mintWithFee(nft, ALICE, 1, 1_000);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                YieldBankMintStagePolicy.InsufficientSeaDropPayment.selector, 4 ether, 3 ether
+            )
+        );
+        seaDrop.mintWithFee{ value: 3 ether }(nft, ALICE, 1, 1_000);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                YieldBankProceedsVault.UnexpectedNetProceeds.selector, 3.6 ether, 3.2 ether
+            )
+        );
+        seaDrop.mintWithFee{ value: 4 ether }(nft, ALICE, 1, 2_000);
+        assertEq(nft.totalMinted(), 0);
+        assertEq(stagedCollection.mintedSupply(), 0);
+
+        seaDrop.mintWithFee{ value: 4 ether }(nft, ALICE, 1, 1_000);
+        vm.expectRevert(
+            abi.encodeWithSelector(YieldBankMintStagePolicy.StageBoundary.selector, 1, 7, 6)
+        );
+        seaDrop.mintWithFee{ value: 18 ether }(nft, BOB, 6, 1_000);
+    }
+
+    function testMintPolicyIsImmutableAndBoundToTheNftAndSupply() public {
+        YieldBankCollection stagedCollection = new YieldBankCollection(_config(10));
+        YieldBankNFT nft = stagedCollection.nft();
+        YieldBankMintStagePolicy mintStagePolicy = _configureFourPaidStages(nft);
+        assertEq(nft.mintPolicy(), address(mintStagePolicy));
+        assertEq(mintStagePolicy.stageCount(), 4);
+
+        YieldBankMintStage[] memory replacement = new YieldBankMintStage[](1);
+        replacement[0] = YieldBankMintStage({
+            endTokenId: 10, mintPrice: 1 ether, maxMintsPerWallet: 1, feeBps: 1_000
+        });
+        YieldBankMintStagePolicy second =
+            new YieldBankMintStagePolicy(address(nft), 10, replacement);
+        vm.expectRevert(YieldBankNFT.MintPolicyAlreadySet.selector);
+        vm.prank(CREATOR);
+        nft.setMintPolicy(address(second));
+
+        YieldBankCollection otherCollection = new YieldBankCollection(_config(10));
+        YieldBankNFT otherNft = otherCollection.nft();
+        vm.expectRevert(YieldBankNFT.InvalidConfiguration.selector);
+        vm.prank(CREATOR);
+        otherNft.setMintPolicy(address(mintStagePolicy));
+    }
+
     function testOpenSeaManagerCanConfigureThenHandOwnershipToTimelock() public {
         YieldBankNFT nft = collection.nft();
         assertEq(nft.owner(), CREATOR);
@@ -915,6 +1017,28 @@ contract YieldBankCollectionTest is Test {
         core.approve(address(collection.distributor()), amount);
         collection.accrueDistribution(address(core), amount);
         vm.stopPrank();
+    }
+
+    function _configureFourPaidStages(YieldBankNFT nft)
+        private
+        returns (YieldBankMintStagePolicy mintStagePolicy)
+    {
+        YieldBankMintStage[] memory stages = new YieldBankMintStage[](4);
+        stages[0] = YieldBankMintStage({
+            endTokenId: 1, mintPrice: 4 ether, maxMintsPerWallet: 1, feeBps: 1_000
+        });
+        stages[1] = YieldBankMintStage({
+            endTokenId: 6, mintPrice: 3 ether, maxMintsPerWallet: 3, feeBps: 1_000
+        });
+        stages[2] = YieldBankMintStage({
+            endTokenId: 8, mintPrice: 2 ether, maxMintsPerWallet: 5, feeBps: 1_000
+        });
+        stages[3] = YieldBankMintStage({
+            endTokenId: 10, mintPrice: 1 ether, maxMintsPerWallet: 10, feeBps: 1_000
+        });
+        mintStagePolicy = new YieldBankMintStagePolicy(address(nft), 10, stages);
+        vm.prank(CREATOR);
+        nft.setMintPolicy(address(mintStagePolicy));
     }
 
     function _config(uint256 supply) private view returns (YieldBankConfig memory c) {

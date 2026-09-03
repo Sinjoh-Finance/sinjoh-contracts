@@ -26,6 +26,13 @@ const contracts = [
   ["projectLiquidityManagerV2Abi", "ProjectLiquidityManagerV2"],
   ["erc4626BasketYieldAdapterAbi", "ERC4626BasketYieldAdapter"],
   ["erc4626BasketYieldAdapterFactoryAbi", "ERC4626BasketYieldAdapterFactory"],
+  ["yieldBankPublicFactoryAbi", "YieldBankPublicFactory"],
+  ["yieldBankCollectionAbi", "YieldBankCollection"],
+  ["yieldBankNftAbi", "YieldBankNFT"],
+  ["yieldBankMintStagePolicyAbi", "YieldBankMintStagePolicy"],
+  ["yieldBankProceedsVaultAbi", "YieldBankProceedsVault"],
+  ["yieldBankDistributorAbi", "YieldBankDistributor"],
+  ["collectionPortfolioAllocatorAbi", "CollectionPortfolioAllocator"],
 ];
 
 const declarations = [];

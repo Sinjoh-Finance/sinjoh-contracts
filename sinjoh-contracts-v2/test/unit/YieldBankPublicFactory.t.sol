@@ -99,10 +99,10 @@ contract YieldBankPublicFactoryTest is Test {
             _request(ALICE, "Piggy Banks", "PIGGY");
         request.maxSupply = 3_333;
         request.feeWeightRanges = new YieldBankFeeWeightRange[](4);
-        request.feeWeightRanges[0] = YieldBankFeeWeightRange({ endTokenId: 3_000, feeWeight: 2 });
-        request.feeWeightRanges[1] = YieldBankFeeWeightRange({ endTokenId: 3_300, feeWeight: 5 });
-        request.feeWeightRanges[2] = YieldBankFeeWeightRange({ endTokenId: 3_330, feeWeight: 15 });
-        request.feeWeightRanges[3] = YieldBankFeeWeightRange({ endTokenId: 3_333, feeWeight: 60 });
+        request.feeWeightRanges[0] = YieldBankFeeWeightRange({ endTokenId: 3, feeWeight: 60 });
+        request.feeWeightRanges[1] = YieldBankFeeWeightRange({ endTokenId: 33, feeWeight: 15 });
+        request.feeWeightRanges[2] = YieldBankFeeWeightRange({ endTokenId: 333, feeWeight: 5 });
+        request.feeWeightRanges[3] = YieldBankFeeWeightRange({ endTokenId: 3_333, feeWeight: 2 });
 
         YieldBankPublicFactory.SystemAddresses memory system =
             _createAs(ALICE, request, keccak256("PIGGY"));
@@ -110,10 +110,10 @@ contract YieldBankPublicFactoryTest is Test {
 
         assertEq(collection.maxSupply(), 3_333);
         assertEq(collection.maximumTotalFeeWeight(), 8_130);
-        assertEq(collection.feeWeightOf(1), 2);
-        assertEq(collection.feeWeightOf(3_001), 5);
-        assertEq(collection.feeWeightOf(3_301), 15);
-        assertEq(collection.feeWeightOf(3_331), 60);
+        assertEq(collection.feeWeightOf(1), 60);
+        assertEq(collection.feeWeightOf(4), 15);
+        assertEq(collection.feeWeightOf(34), 5);
+        assertEq(collection.feeWeightOf(334), 2);
         assertEq(collection.nft().name(), "Piggy Banks");
         assertEq(collection.nft().symbol(), "PIGGY");
     }

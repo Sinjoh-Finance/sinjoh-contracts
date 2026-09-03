@@ -46,7 +46,7 @@ const assert = (condition, message) => { if (!condition) throw new Error(message
 const hashText = (value) => keccak256(stringToHex(value));
 const sameAddress = (left, right) => getAddress(left) === getAddress(right);
 
-assert(manifest.schemaVersion === "1.3", "unsupported Yield Banks manifest schema");
+assert(manifest.schemaVersion === "1.4", "unsupported Yield Banks manifest schema");
 assert(manifest.chainId === 4663, "Yield Banks release manifests require Robinhood mainnet chain 4663");
 assert(bytes32.test(manifest.collectionId), "collectionId must be bytes32");
 assert(Number(await client.getChainId()) === manifest.chainId, "RPC chain does not match manifest");
@@ -55,8 +55,8 @@ const chainNow = verificationBlock.timestamp;
 assert(Number.isSafeInteger(manifest.economics.maxSupply) && manifest.economics.maxSupply > 0,
   "maxSupply must be a positive safe integer");
 assert(Array.isArray(manifest.economics.feeWeightRanges)
-  && manifest.economics.feeWeightRanges.length <= 16,
-"feeWeightRanges must be an array containing at most 16 ranges");
+  && manifest.economics.feeWeightRanges.length <= 4,
+"feeWeightRanges must be an array containing at most 4 ranges");
 let previousFeeWeightEnd = 0;
 let calculatedMaximumTotalFeeWeight = 0n;
 for (const [index, range] of manifest.economics.feeWeightRanges.entries()) {
@@ -327,22 +327,51 @@ assert(manifest.openSea.collectionUrl
 const canonicalAddresses = (addresses) => [...new Set(addresses.map((address) => getAddress(address)))]
   .sort((left, right) => left.toLowerCase().localeCompare(right.toLowerCase()));
 const publicDrop = manifest.openSea.publicDrop;
-assert(publicDrop && /^\d+$/.test(publicDrop.mintPrice)
+const publicDropDisabled = publicDrop && publicDrop.mintPrice === "0"
+  && publicDrop.startTime === 0 && publicDrop.endTime === 0
+  && publicDrop.maxTotalMintableByWallet === 0 && publicDrop.feeBps === 0
+  && publicDrop.restrictFeeRecipients === false;
+assert(publicDropDisabled || (publicDrop && /^\d+$/.test(publicDrop.mintPrice)
   && BigInt(publicDrop.mintPrice) > 0n && BigInt(publicDrop.mintPrice) < (1n << 80n)
   && Number.isSafeInteger(publicDrop.startTime) && publicDrop.startTime >= 0
   && Number.isSafeInteger(publicDrop.endTime) && publicDrop.endTime > publicDrop.startTime
   && Number.isInteger(publicDrop.maxTotalMintableByWallet)
   && publicDrop.maxTotalMintableByWallet >= 1 && publicDrop.maxTotalMintableByWallet <= 65_535
   && isBps(publicDrop.feeBps) && publicDrop.feeBps < 10_000
-  && typeof publicDrop.restrictFeeRecipients === "boolean",
+  && typeof publicDrop.restrictFeeRecipients === "boolean"),
 "OpenSea public drop configuration is invalid");
 const allowedFeeRecipients = canonicalAddresses(manifest.openSea.allowedFeeRecipients);
 assert(allowedFeeRecipients.length === manifest.openSea.allowedFeeRecipients.length,
   "OpenSea allowed fee recipients must be unique");
-assert(!publicDrop.restrictFeeRecipients || allowedFeeRecipients.length > 0,
+assert(publicDropDisabled || !publicDrop.restrictFeeRecipients || allowedFeeRecipients.length > 0,
   "restricted SeaDrop stages require an allowed fee recipient");
-assert(manifest.openSea.allowListMerkleRoot === zeroBytes32,
-  "YieldBankNFT rejects nonempty SeaDrop allowlists because their price and fee are not callback-bound");
+const allowListStages = manifest.openSea.allowListStages;
+assert(Array.isArray(allowListStages) && allowListStages.length <= 16,
+  "OpenSea allowListStages must be an array containing at most 16 stages");
+assert((allowListStages.length === 0)
+  === (manifest.openSea.allowListMerkleRoot.toLowerCase() === zeroBytes32),
+  "a nonempty SeaDrop allowlist root and its recorded stages must be present together");
+assert(allowListStages.length === 0 || manifest.contracts.mintPolicy,
+  "a nonempty SeaDrop allowlist requires contracts.mintPolicy");
+let previousAllowListSupply = 0;
+for (const [index, stage] of allowListStages.entries()) {
+  assert(/^\d+$/.test(stage.mintPrice) && BigInt(stage.mintPrice) > 0n
+    && BigInt(stage.mintPrice) < (1n << 80n)
+    && Number.isInteger(stage.maxTotalMintableByWallet)
+    && stage.maxTotalMintableByWallet >= 1 && stage.maxTotalMintableByWallet <= 65_535
+    && Number.isSafeInteger(stage.startTime) && stage.startTime >= 0
+    && Number.isSafeInteger(stage.endTime) && stage.endTime > stage.startTime
+    && Number.isInteger(stage.dropStageIndex) && stage.dropStageIndex >= 0
+    && stage.dropStageIndex <= 255 && Number.isInteger(stage.maxTokenSupplyForStage)
+    && stage.maxTokenSupplyForStage > previousAllowListSupply
+    && stage.maxTokenSupplyForStage <= 4_294_967_295
+    && isBps(stage.feeBps) && stage.feeBps < 10_000
+    && typeof stage.restrictFeeRecipients === "boolean",
+  `invalid SeaDrop allowlist stage ${index}`);
+  assert(!stage.restrictFeeRecipients || allowedFeeRecipients.length > 0,
+    `restricted allowlist stage ${index} requires an allowed fee recipient`);
+  previousAllowListSupply = stage.maxTokenSupplyForStage;
+}
 const allowedPayers = canonicalAddresses(manifest.openSea.allowedPayers);
 assert(allowedPayers.length === manifest.openSea.allowedPayers.length,
   "OpenSea allowed payers must be unique");
@@ -397,7 +426,17 @@ const mintStagesHash = keccak256(encodeAbiParameters(
     { name: "feeBps", type: "uint16" },
     { name: "restrictFeeRecipients", type: "bool" },
     ] },
-    { type: "bytes32" }, { type: "address[]" }, { type: "address[]" },
+    { type: "bytes32" },
+    { type: "tuple[]", components: [
+      { name: "mintPrice", type: "uint80" },
+      { name: "maxTotalMintableByWallet", type: "uint16" },
+      { name: "startTime", type: "uint48" }, { name: "endTime", type: "uint48" },
+      { name: "dropStageIndex", type: "uint8" },
+      { name: "maxTokenSupplyForStage", type: "uint32" },
+      { name: "feeBps", type: "uint16" },
+      { name: "restrictFeeRecipients", type: "bool" },
+    ] },
+    { type: "address[]" }, { type: "address[]" },
     { type: "tuple[]", components: [
       { name: "allowedNftToken", type: "address" }, { name: "mintPrice", type: "uint80" },
       { name: "maxTotalMintableByWallet", type: "uint16" },
@@ -418,6 +457,7 @@ const mintStagesHash = keccak256(encodeAbiParameters(
   [
     { ...publicDrop, mintPrice: BigInt(publicDrop.mintPrice) },
     manifest.openSea.allowListMerkleRoot,
+    allowListStages.map((stage) => ({ ...stage, mintPrice: BigInt(stage.mintPrice) })),
     allowedFeeRecipients,
     allowedPayers,
     tokenGatedDrops.map((stage) => ({ ...stage, mintPrice: BigInt(stage.mintPrice) })),
@@ -428,8 +468,14 @@ const mintStagesHash = keccak256(encodeAbiParameters(
 ));
 assert(mintStagesHash.toLowerCase() === manifest.openSea.mintStagesHash.toLowerCase(),
   "OpenSea mintStagesHash does not bind every recorded SeaDrop mint path");
-assert(manifest.openSea.observedPrimaryPlatformFeeBps === publicDrop.feeBps,
-  "observed primary fee must match the onchain public drop fee");
+const configuredPrimaryFees = [
+  ...(publicDropDisabled ? [] : [publicDrop.feeBps]),
+  ...allowListStages.map((stage) => stage.feeBps),
+  ...tokenGatedDrops.map((stage) => stage.feeBps),
+];
+assert(configuredPrimaryFees.length > 0
+  && configuredPrimaryFees.every((fee) => fee === manifest.openSea.observedPrimaryPlatformFeeBps),
+"observed primary fee must match every configured mint stage");
 assert(sameAddress(manifest.openSea.creatorPayoutAddress, manifest.contracts.proceedsVault.address),
   "OpenSea creator payout must be the proceeds vault");
 assert(manifest.openSea.observedSecondaryRoyaltyBps === manifest.economics.secondaryRoyaltyBps,
@@ -555,9 +601,19 @@ const nftAbi = [
   { type: "function", name: "proceedsVault", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "baseURI", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
   { type: "function", name: "contractURI", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
+  { type: "function", name: "mintPolicy", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "royaltyReceiver", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "royaltyBps", stateMutability: "view", inputs: [], outputs: [{ type: "uint96" }] },
   { type: "function", name: "owner", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+];
+const mintPolicyAbi = [
+  { type: "function", name: "nft", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+  { type: "function", name: "maxSupply", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "stageCount", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "stage", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "tuple", components: [
+    { name: "endTokenId", type: "uint64" }, { name: "mintPrice", type: "uint80" },
+    { name: "maxMintsPerWallet", type: "uint16" }, { name: "feeBps", type: "uint16" },
+  ] }] },
 ];
 const vaultAbi = [
   { type: "function", name: "allocationOperator", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
@@ -789,7 +845,8 @@ const [predictedFactory, factoryVersion, collectionCodeHash, systemPlanHash,
   collectionRevenueRouter, collectionPortfolioAllocator,
   collectionTimelock, collectionGuardian,
   collectionSecondaryRoyaltyBps, nftMaxSupply, nftSeaDrop, nftCollection, nftRoyaltyReceiver,
-  nftRoyaltyBps, nftOwner, allocationOperator, collectionRecord, seaDropCreatorPayout,
+  nftRoyaltyBps, nftOwner, nftMintPolicy, mintPolicyNft, mintPolicyMaxSupply,
+  mintPolicyStageCount, allocationOperator, collectionRecord, seaDropCreatorPayout,
   seaDropPublicDrop, seaDropAllowListMerkleRoot, seaDropFeeRecipients, seaDropPayers,
   seaDropSigners, seaDropTokenGatedTokens, ...onchainEconomicValues] = await Promise.all([
   read(manifest.contracts.factoryDeployer.address, deployerAbi, "predict", [manifest.deployment.factorySalt]),
@@ -821,6 +878,16 @@ const [predictedFactory, factoryVersion, collectionCodeHash, systemPlanHash,
   read(manifest.contracts.nft.address, nftAbi, "royaltyReceiver"),
   read(manifest.contracts.nft.address, nftAbi, "royaltyBps"),
   read(manifest.contracts.nft.address, nftAbi, "owner"),
+  read(manifest.contracts.nft.address, nftAbi, "mintPolicy"),
+  allowListStages.length
+    ? read(manifest.contracts.mintPolicy.address, mintPolicyAbi, "nft")
+    : Promise.resolve("0x0000000000000000000000000000000000000000"),
+  allowListStages.length
+    ? read(manifest.contracts.mintPolicy.address, mintPolicyAbi, "maxSupply")
+    : Promise.resolve(0n),
+  allowListStages.length
+    ? read(manifest.contracts.mintPolicy.address, mintPolicyAbi, "stageCount")
+    : Promise.resolve(0n),
   read(manifest.contracts.proceedsVault.address, vaultAbi, "allocationOperator"),
   read(manifest.contracts.registry.address, registryAbi, "collections", [manifest.contracts.collection.address]),
   read(manifest.dependencies.seaDrop.address, seaDropAbi, "getCreatorPayoutAddress", [manifest.contracts.nft.address]),
@@ -1023,6 +1090,30 @@ assert(sameAddress(nftRoyaltyReceiver, manifest.contracts.revenueRouter.address)
 "NFT royalty receiver or rate mismatch");
 assert(sameAddress(nftOwner, manifest.roles.timelock),
   "NFT ownership has not been accepted by the collection timelock");
+if (allowListStages.length === 0) {
+  assert(nftMintPolicy === "0x0000000000000000000000000000000000000000",
+    "NFT has an unrecorded mint policy");
+} else {
+  assert(sameAddress(nftMintPolicy, manifest.contracts.mintPolicy.address),
+    "NFT mint policy mismatch");
+  assert(sameAddress(mintPolicyNft, manifest.contracts.nft.address),
+    "mint policy NFT binding mismatch");
+  assert(mintPolicyMaxSupply === BigInt(manifest.economics.maxSupply),
+    "mint policy maxSupply mismatch");
+  assert(Number(mintPolicyStageCount) === allowListStages.length,
+    "mint policy stage count mismatch");
+  const policyStages = await Promise.all(allowListStages.map((_, index) => read(
+    manifest.contracts.mintPolicy.address, mintPolicyAbi, "stage", [BigInt(index)],
+  )));
+  for (const [index, stage] of allowListStages.entries()) {
+    const configured = policyStages[index];
+    assert(Number(configured.endTokenId) === stage.maxTokenSupplyForStage
+      && configured.mintPrice === BigInt(stage.mintPrice)
+      && Number(configured.maxMintsPerWallet) === stage.maxTotalMintableByWallet
+      && Number(configured.feeBps) === stage.feeBps,
+    `mint policy stage ${index} mismatch`);
+  }
+}
 assert(sameAddress(seaDropCreatorPayout, manifest.contracts.proceedsVault.address),
   "SeaDrop creator payout address mismatch");
 assert(BigInt(publicDrop.mintPrice) === seaDropPublicDrop.mintPrice

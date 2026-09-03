@@ -34,6 +34,10 @@ import {
   projectRegistryV2Abi,
   projectTreasuryVaultV2Abi,
   simpleFundingBandConfig,
+  yieldBankCollectionAbi,
+  yieldBankMintStagePolicyAbi,
+  yieldBankNftAbi,
+  yieldBankPublicFactoryAbi,
   launchErrorMessage,
   launchpadFactoryApprovalLeaf,
   planAirdropPushBatches,
@@ -83,6 +87,13 @@ test("exports the required project discovery and launch ABI", () => {
       (item) => item.type === "function" && item.name === "predict",
     ),
   );
+});
+
+test("exports the configurable Yield Bank deployment and staged-mint ABI", () => {
+  assert.ok(yieldBankPublicFactoryAbi.some((item) => item.type === "function" && item.name === "beginCollection"));
+  assert.ok(yieldBankCollectionAbi.some((item) => item.type === "function" && item.name === "feeWeightRange"));
+  assert.ok(yieldBankNftAbi.some((item) => item.type === "function" && item.name === "setMintPolicy"));
+  assert.ok(yieldBankMintStagePolicyAbi.some((item) => item.type === "function" && item.name === "stage"));
 });
 
 test("encodes the shared Treasury governance action fixture", () => {
