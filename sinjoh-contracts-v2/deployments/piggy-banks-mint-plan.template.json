@@ -1,0 +1,52 @@
+{
+  "stages": [
+    {
+      "name": "Alpha",
+      "minimumBalance": "10000000",
+      "mintPrice": "500000000000000000",
+      "maxTotalMintableByWallet": "1",
+      "startTime": null,
+      "endTime": null,
+      "dropStageIndex": "1",
+      "maxTokenSupplyForStage": "3",
+      "feeBps": "1000",
+      "restrictFeeRecipients": true
+    },
+    {
+      "name": "Prime",
+      "minimumBalance": "1000000",
+      "mintPrice": "100000000000000000",
+      "maxTotalMintableByWallet": "3",
+      "startTime": null,
+      "endTime": null,
+      "dropStageIndex": "2",
+      "maxTokenSupplyForStage": "33",
+      "feeBps": "1000",
+      "restrictFeeRecipients": true
+    },
+    {
+      "name": "Premium",
+      "minimumBalance": "100000",
+      "mintPrice": "30000000000000000",
+      "maxTotalMintableByWallet": "5",
+      "startTime": null,
+      "endTime": null,
+      "dropStageIndex": "3",
+      "maxTokenSupplyForStage": "333",
+      "feeBps": "1000",
+      "restrictFeeRecipients": true
+    },
+    {
+      "name": "Standard",
+      "minimumBalance": "10000",
+      "mintPrice": "10000000000000000",
+      "maxTotalMintableByWallet": "10",
+      "startTime": null,
+      "endTime": null,
+      "dropStageIndex": "4",
+      "maxTokenSupplyForStage": "3333",
+      "feeBps": "1000",
+      "restrictFeeRecipients": true
+    }
+  ]
+}

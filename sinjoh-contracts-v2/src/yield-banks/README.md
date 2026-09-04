@@ -133,9 +133,12 @@ NFT treasury; holders do not claim primary backing. There is no extra one-percen
 success, refund, deadline, sellout release, or automatic investment transition. Missing
 external integrations fail closed: no address, route, feed, venue, pool, or ABI is inferred.
 SeaDrop public, token-gated, and signed stages must preserve both a positive mint price and a
-positive creator payout. Nonempty SeaDrop Merkle allow lists are rejected because SeaDrop does not
-expose the leaf price or fee basis points to the NFT callback; a signed paid stage must be used for
-address-gated access so an unbacked free mint cannot be authorized.
+positive creator payout. A collection may pin one `YieldBankMintStagePolicy` before its first mint.
+That optional policy keeps collection-specific prices, cumulative supply boundaries, stage-local
+wallet limits, and SeaDrop fee rates outside the generic protocol configuration. Once pinned, it
+allows a Merkle allowlist while independently enforcing those terms during the mint callback and
+requiring the proceeds vault to receive the exact expected net payment. Collections without a
+pinned policy continue to reject nonempty Merkle allowlists.
 
 The ERC-2981 secondary royalty percentage is immutable but configurable per collection and the
 receiver is permanently the collection revenue router. ERC-2981 is a payment signal, not a payment

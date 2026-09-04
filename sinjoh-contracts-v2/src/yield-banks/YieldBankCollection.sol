@@ -18,10 +18,6 @@ import { YieldBankDistributor } from "./YieldBankDistributor.sol";
 import { YieldBankNFT } from "./YieldBankNFT.sol";
 import { YieldBankProceedsVault } from "./YieldBankProceedsVault.sol";
 
-interface IYieldBankBurnableToken is IERC20 {
-    function burnFrom(address account, uint256 amount) external;
-}
-
 interface IYieldBankPortfolioEconomics {
     function coreWeightBps() external view returns (uint16);
     function marketMakingWeightBps() external view returns (uint16);
@@ -36,9 +32,10 @@ contract YieldBankCollection is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint256 public constant MAX_REVENUE_DELIVERY_BATCH = 20;
-    uint256 public constant MAX_FEE_WEIGHT_RANGES = 16;
+    uint256 public constant MAX_FEE_WEIGHT_RANGES = 4;
     uint256 public constant MAX_TOTAL_FEE_WEIGHT = 1e27;
     uint16 public constant BPS = 10_000;
+    address public constant REDEMPTION_BURN_ADDRESS = 0x000000000000000000000000000000000000dEaD;
 
     bytes32 public immutable collectionId;
     uint256 public immutable maxSupply;
@@ -50,7 +47,7 @@ contract YieldBankCollection is ReentrancyGuard {
     uint16 public immutable usdgWeightBps;
     address public immutable creator;
     address public immutable sinjohFeeRecipient;
-    IYieldBankBurnableToken public immutable redemptionToken;
+    IERC20 public immutable redemptionToken;
     uint256 public immutable redemptionTokenAmount;
     bytes32 public immutable redemptionTokenCodeHash;
     address public immutable revenueRouter;
@@ -91,7 +88,7 @@ contract YieldBankCollection is ReentrancyGuard {
     error OnlyDeltaPoolController(address caller);
     error ActiveDeltaPositionRequiresRebalance(uint256 tokenId, address pool);
     error RedemptionTokenBurnMismatch(
-        uint256 expected, uint256 balanceBurned, uint256 supplyBurned
+        uint256 expected, uint256 balanceSpent, uint256 balanceBurned
     );
 
     event CollectionStateChanged(
@@ -127,7 +124,7 @@ contract YieldBankCollection is ReentrancyGuard {
         usdgWeightBps = config.usdgWeightBps;
         creator = config.creator;
         sinjohFeeRecipient = config.sinjohFeeRecipient;
-        redemptionToken = IYieldBankBurnableToken(config.redemptionToken);
+        redemptionToken = IERC20(config.redemptionToken);
         redemptionTokenAmount = config.redemptionTokenAmount;
         redemptionTokenCodeHash = config.redemptionTokenCodeHash;
         revenueRouter = config.revenueRouter;
@@ -187,7 +184,7 @@ contract YieldBankCollection is ReentrancyGuard {
         emit CollectionStateChanged(YieldBankCollectionState.DEPLOYED, state);
     }
 
-    function prepareSeaDropMint(address minter, uint256 quantity)
+    function prepareSeaDropMint(address minter, uint256 quantity, uint256 expectedNetProceeds)
         external
         returns (uint256 firstTokenId)
     {
@@ -222,7 +219,7 @@ contract YieldBankCollection is ReentrancyGuard {
         mintedSupply += quantity;
         liveSupply += quantity;
         totalLiveFeeWeight += addedFeeWeight;
-        proceedsVault.noteMint(firstTokenId, quantity);
+        proceedsVault.noteMint(firstTokenId, quantity, expectedNetProceeds);
     }
 
     function deliverRevenue(uint256 tokenId) external nonReentrant {
@@ -262,7 +259,7 @@ contract YieldBankCollection is ReentrancyGuard {
             state != YieldBankCollectionState.ACTIVE
                 && state != YieldBankCollectionState.INVESTMENT_PAUSED
         ) revert InvalidState(state);
-        (, uint256 pendingMintQuantity) = proceedsVault.pendingMint();
+        (, uint256 pendingMintQuantity,) = proceedsVault.pendingMint();
         if (pendingMintQuantity != 0) revert PrimaryPayoutPending();
         if (nft.ownerOf(tokenId) != msg.sender) revert InvalidTokenOwner(tokenId, msg.sender);
         address activeDeltaPool =
@@ -444,16 +441,18 @@ contract YieldBankCollection is ReentrancyGuard {
     function _burnRedemptionToken(uint256 tokenId, address owner) private {
         uint256 amount = redemptionTokenAmount;
         if (amount == 0) return;
-        IYieldBankBurnableToken token = redemptionToken;
-        uint256 balanceBefore = token.balanceOf(owner);
-        uint256 supplyBefore = token.totalSupply();
-        token.burnFrom(owner, amount);
-        uint256 balanceAfter = token.balanceOf(owner);
-        uint256 supplyAfter = token.totalSupply();
-        uint256 balanceBurned = balanceAfter <= balanceBefore ? balanceBefore - balanceAfter : 0;
-        uint256 supplyBurned = supplyAfter <= supplyBefore ? supplyBefore - supplyAfter : 0;
-        if (balanceBurned != amount || supplyBurned != amount) {
-            revert RedemptionTokenBurnMismatch(amount, balanceBurned, supplyBurned);
+        IERC20 token = redemptionToken;
+        uint256 ownerBalanceBefore = token.balanceOf(owner);
+        uint256 burnBalanceBefore = token.balanceOf(REDEMPTION_BURN_ADDRESS);
+        token.safeTransferFrom(owner, REDEMPTION_BURN_ADDRESS, amount);
+        uint256 ownerBalanceAfter = token.balanceOf(owner);
+        uint256 burnBalanceAfter = token.balanceOf(REDEMPTION_BURN_ADDRESS);
+        uint256 balanceSpent =
+            ownerBalanceAfter <= ownerBalanceBefore ? ownerBalanceBefore - ownerBalanceAfter : 0;
+        uint256 balanceBurned =
+            burnBalanceAfter >= burnBalanceBefore ? burnBalanceAfter - burnBalanceBefore : 0;
+        if (balanceSpent != amount || balanceBurned != amount) {
+            revert RedemptionTokenBurnMismatch(amount, balanceSpent, balanceBurned);
         }
         emit RedemptionTokenBurned(tokenId, owner, address(token), amount);
     }

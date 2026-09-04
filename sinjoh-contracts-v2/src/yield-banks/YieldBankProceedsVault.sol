@@ -31,6 +31,7 @@ contract YieldBankProceedsVault is ReentrancyGuard {
     struct PendingMint {
         uint256 firstTokenId;
         uint256 quantity;
+        uint256 expectedNetProceeds;
     }
 
     struct Receipt {
@@ -78,6 +79,7 @@ contract YieldBankProceedsVault is ReentrancyGuard {
     error InvalidConfiguration();
     error PendingMintExists();
     error NoPendingMint();
+    error UnexpectedNetProceeds(uint256 expected, uint256 received);
     error AllocationIsPaused();
     error InvalidReceipt(uint256 receiptId);
     error InvalidRange(uint256 firstReceiptId, uint256 lastReceiptId);
@@ -165,10 +167,13 @@ contract YieldBankProceedsVault is ReentrancyGuard {
         _;
     }
 
-    function noteMint(uint256 firstTokenId, uint256 quantity) external onlyCollection {
+    function noteMint(uint256 firstTokenId, uint256 quantity, uint256 expectedNetProceeds)
+        external
+        onlyCollection
+    {
         if (pendingMint.quantity != 0) revert PendingMintExists();
         if (firstTokenId == 0 || quantity == 0) revert InvalidConfiguration();
-        pendingMint = PendingMint(firstTokenId, quantity);
+        pendingMint = PendingMint(firstTokenId, quantity, expectedNetProceeds);
         emit MintReceiptNoted(firstTokenId, quantity);
     }
 
@@ -177,6 +182,9 @@ contract YieldBankProceedsVault is ReentrancyGuard {
         PendingMint memory note = pendingMint;
         if (note.quantity == 0) revert NoPendingMint();
         if (msg.value == 0) revert InvalidConfiguration();
+        if (note.expectedNetProceeds != 0 && msg.value != note.expectedNetProceeds) {
+            revert UnexpectedNetProceeds(note.expectedNetProceeds, msg.value);
+        }
         delete pendingMint;
         uint256 backing = Math.mulDiv(msg.value, primaryBackingBps, BPS);
         uint256 creatorCumulative =

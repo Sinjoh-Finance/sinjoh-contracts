@@ -14,18 +14,20 @@ import { PriceHub } from "../../src/yield-banks/PriceHub.sol";
 import { YieldBankAccount } from "../../src/yield-banks/YieldBankAccount.sol";
 import { YieldBankCollection } from "../../src/yield-banks/YieldBankCollection.sol";
 import { YieldBankNFT } from "../../src/yield-banks/YieldBankNFT.sol";
+import { YieldBankMintStagePolicy } from "../../src/yield-banks/YieldBankMintStagePolicy.sol";
 import { YieldBankProtocolRegistry } from "../../src/yield-banks/YieldBankProtocolRegistry.sol";
 import { YieldBankPublicFactory } from "../../src/yield-banks/YieldBankPublicFactory.sol";
 import { YieldBankSupportBundle } from "../../src/yield-banks/YieldBankSupportBundle.sol";
 import {
     YieldBankFeeWeightRange,
+    YieldBankMintStage,
     YieldBankRedemptionMode
 } from "../../src/yield-banks/YieldBankTypes.sol";
 import { YieldBankProceedsVault } from "../../src/yield-banks/YieldBankProceedsVault.sol";
 import { CoreStockTokenSleeve } from "../../src/yield-banks/sleeves/CoreStockTokenSleeve.sol";
 import { MarketMakingSleeve } from "../../src/yield-banks/sleeves/MarketMakingSleeve.sol";
 import { USDGSleeve } from "../../src/yield-banks/sleeves/USDGSleeve.sol";
-import { PublicDrop } from "../../src/yield-banks/interfaces/SeaDropStructs.sol";
+import { AllowListData, PublicDrop } from "../../src/yield-banks/interfaces/SeaDropStructs.sol";
 import { YieldBankIds } from "../../src/yield-banks/libraries/YieldBankIds.sol";
 import {
     MockYieldBankAggregator,
@@ -33,11 +35,31 @@ import {
 } from "../mocks/MockYieldBankIntegrations.sol";
 
 interface ILiveSeaDropMint {
+    struct MintParams {
+        uint256 mintPrice;
+        uint256 maxTotalMintableByWallet;
+        uint256 startTime;
+        uint256 endTime;
+        uint256 dropStageIndex;
+        uint256 maxTokenSupplyForStage;
+        uint256 feeBps;
+        bool restrictFeeRecipients;
+    }
+
     function mintPublic(
         address nftContract,
         address feeRecipient,
         address minterIfNotPayer,
         uint256 quantity
+    ) external payable;
+
+    function mintAllowList(
+        address nftContract,
+        address feeRecipient,
+        address minterIfNotPayer,
+        uint256 quantity,
+        MintParams calldata mintParams,
+        bytes32[] calldata proof
     ) external payable;
 }
 
@@ -51,7 +73,10 @@ contract YieldBankProductionFlowForkTest is Test {
     address private constant BUYER = 0x0000000000000000000000000000000000000B0b;
     address private constant WETH = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
     address private constant USDG = 0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168;
+    address private constant INJOH = 0x2cC0FAC44B8252f6B10208B091aFf2c94B4da77D;
     address private constant SEA_DROP = 0x00005EA00Ac477B1030CE78506496e8C2dE24bf5;
+
+    uint256 private constant INJOH_REDEMPTION_AMOUNT = 10_000e18;
 
     function testProductionFactorySeaDropAllocationTransferAndRedemption() external {
         string memory rpcUrl = vm.envOr("ROBINHOOD_MAINNET_RPC_URL", string(""));
@@ -181,6 +206,182 @@ contract YieldBankProductionFlowForkTest is Test {
         (bool ownerCallOk,) =
             address(nft).staticcall(abi.encodeWithSignature("ownerOf(uint256)", 1));
         assertFalse(ownerCallOk);
+    }
+
+    function testNextProductionFactoryBurnsExactlyTenThousandLiveInjohOnRedemption() external {
+        string memory rpcUrl = vm.envOr("ROBINHOOD_MAINNET_RPC_URL", string(""));
+        if (bytes(rpcUrl).length == 0) vm.skip(true);
+        vm.createSelectFork(rpcUrl);
+        assertEq(block.chainid, CHAIN_ID);
+
+        YieldBankProtocolRegistry registry = YieldBankProtocolRegistry(REGISTRY);
+        YieldBankPublicFactory factory = new YieldBankPublicFactory(
+            REGISTRY,
+            keccak256("SINJOH_YIELD_BANK_PUBLIC_FACTORY_V1_0_4_FORK_PROOF"),
+            WETH,
+            USDG,
+            SEA_DROP,
+            _creationCodeStores(),
+            _creationCodeHashes()
+        );
+        bytes32 factoryVersion = factory.factoryVersion();
+        bytes32 factoryRuntimeCodeHash = address(factory).codehash;
+        vm.prank(GOVERNANCE);
+        registry.registerFactory(address(factory), factoryVersion, factoryRuntimeCodeHash);
+        assertTrue(registry.isFactoryAvailableForNewCollections(address(factory)));
+
+        YieldBankPublicFactory.CollectionRequest memory request = _request();
+        request.redemptionToken = INJOH;
+        request.redemptionTokenAmount = INJOH_REDEMPTION_AMOUNT;
+        request.redemptionTokenCodeHash = INJOH.codehash;
+        bytes32 salt = keccak256("LIVE_INJOH_REDEMPTION_FORK_V1");
+
+        vm.startPrank(SIDE_WALLET);
+        factory.beginCollection(request, salt);
+        factory.deployCollectionSleeves(request, salt);
+        factory.deployCollectionRouting(request, salt);
+        YieldBankPublicFactory.SystemAddresses memory system =
+            factory.finalizeCollection(request, salt);
+        vm.stopPrank();
+
+        YieldBankCollection collection = YieldBankCollection(system.collection);
+        YieldBankNFT nft = collection.nft();
+        YieldBankProceedsVault vault = collection.proceedsVault();
+        assertEq(address(collection.redemptionToken()), INJOH);
+        assertEq(collection.redemptionTokenAmount(), INJOH_REDEMPTION_AMOUNT);
+        assertEq(collection.redemptionTokenCodeHash(), INJOH.codehash);
+
+        PublicDrop memory stage = PublicDrop({
+            mintPrice: 0.001 ether,
+            startTime: 1,
+            endTime: type(uint48).max,
+            maxTotalMintableByWallet: 1,
+            feeBps: 0,
+            restrictFeeRecipients: false
+        });
+        vm.startPrank(SIDE_WALLET);
+        nft.updateCreatorPayoutAddress(SEA_DROP, address(vault));
+        nft.updatePublicDrop(SEA_DROP, stage);
+        vm.stopPrank();
+
+        vm.deal(SIDE_WALLET, 1 ether);
+        vm.prank(SIDE_WALLET);
+        ILiveSeaDropMint(SEA_DROP).mintPublic{ value: 0.001 ether }(
+            address(nft), SIDE_WALLET, address(0), 1
+        );
+        assertEq(nft.ownerOf(1), SIDE_WALLET);
+        assertEq(vault.pendingBackingOf(1), 0.001 ether);
+
+        deal(INJOH, SIDE_WALLET, INJOH_REDEMPTION_AMOUNT);
+        uint256 supplyBefore = IERC20(INJOH).totalSupply();
+        uint256 burnBalanceBefore = IERC20(INJOH).balanceOf(collection.REDEMPTION_BURN_ADDRESS());
+        uint256 wethBefore = IERC20(WETH).balanceOf(SIDE_WALLET);
+
+        vm.prank(SIDE_WALLET);
+        vm.expectRevert();
+        collection.burnToken(1, "");
+        assertEq(nft.ownerOf(1), SIDE_WALLET);
+
+        vm.startPrank(SIDE_WALLET);
+        IERC20(INJOH).approve(address(collection), INJOH_REDEMPTION_AMOUNT);
+        collection.burnToken(1, "");
+        vm.stopPrank();
+
+        assertEq(IERC20(INJOH).balanceOf(SIDE_WALLET), 0);
+        assertEq(IERC20(INJOH).totalSupply(), supplyBefore);
+        assertEq(
+            IERC20(INJOH).balanceOf(collection.REDEMPTION_BURN_ADDRESS()),
+            burnBalanceBefore + INJOH_REDEMPTION_AMOUNT
+        );
+        assertEq(IERC20(INJOH).allowance(SIDE_WALLET, address(collection)), 0);
+        assertEq(IERC20(WETH).balanceOf(SIDE_WALLET), wethBefore + 0.001 ether);
+        assertEq(collection.liveSupply(), 0);
+        (bool ownerCallOk,) =
+            address(nft).staticcall(abi.encodeWithSignature("ownerOf(uint256)", 1));
+        assertFalse(ownerCallOk);
+    }
+
+    function testProductionSeaDropMerkleMintUsesPolicyPriceFeeBoundaryAndWalletCap() external {
+        string memory rpcUrl = vm.envOr("ROBINHOOD_MAINNET_RPC_URL", string(""));
+        if (bytes(rpcUrl).length == 0) vm.skip(true);
+        vm.createSelectFork(rpcUrl);
+        assertEq(block.chainid, CHAIN_ID);
+
+        YieldBankProtocolRegistry registry = YieldBankProtocolRegistry(REGISTRY);
+        YieldBankPublicFactory factory = new YieldBankPublicFactory(
+            REGISTRY,
+            keccak256("SINJOH_YIELD_BANK_PUBLIC_FACTORY_V1_0_5_ALLOWLIST_FORK_PROOF"),
+            WETH,
+            USDG,
+            SEA_DROP,
+            _creationCodeStores(),
+            _creationCodeHashes()
+        );
+        bytes32 factoryVersion = factory.factoryVersion();
+        bytes32 factoryCodeHash = address(factory).codehash;
+        vm.prank(GOVERNANCE);
+        registry.registerFactory(address(factory), factoryVersion, factoryCodeHash);
+
+        bytes32 salt = keccak256("LIVE_SEADROP_ALLOWLIST_POLICY_FORK_V1");
+        YieldBankPublicFactory.CollectionRequest memory request = _request();
+        vm.startPrank(SIDE_WALLET);
+        factory.beginCollection(request, salt);
+        factory.deployCollectionSleeves(request, salt);
+        factory.deployCollectionRouting(request, salt);
+        YieldBankPublicFactory.SystemAddresses memory system =
+            factory.finalizeCollection(request, salt);
+        vm.stopPrank();
+
+        YieldBankCollection collection = YieldBankCollection(system.collection);
+        YieldBankNFT nft = collection.nft();
+        YieldBankProceedsVault vault = collection.proceedsVault();
+        YieldBankMintStage[] memory stages = new YieldBankMintStage[](1);
+        stages[0] = YieldBankMintStage({
+            endTokenId: 3, mintPrice: 0.001 ether, maxMintsPerWallet: 2, feeBps: 1_000
+        });
+        YieldBankMintStagePolicy mintPolicy = new YieldBankMintStagePolicy(address(nft), 3, stages);
+        ILiveSeaDropMint.MintParams memory mintParams = ILiveSeaDropMint.MintParams({
+            mintPrice: 0.001 ether,
+            maxTotalMintableByWallet: 2,
+            startTime: 1,
+            endTime: type(uint48).max,
+            dropStageIndex: 1,
+            maxTokenSupplyForStage: 3,
+            feeBps: 1_000,
+            restrictFeeRecipients: true
+        });
+        bytes32 root = keccak256(abi.encode(SIDE_WALLET, mintParams));
+        string[] memory publicKeyURIs = new string[](0);
+        AllowListData memory allowList = AllowListData({
+            merkleRoot: root, publicKeyURIs: publicKeyURIs, allowListURI: "ipfs://fork-proof"
+        });
+
+        vm.startPrank(SIDE_WALLET);
+        nft.setMintPolicy(address(mintPolicy));
+        nft.updateCreatorPayoutAddress(SEA_DROP, address(vault));
+        nft.updateAllowedFeeRecipient(SEA_DROP, BUYER, true);
+        nft.updateAllowList(SEA_DROP, allowList);
+        vm.stopPrank();
+
+        bytes32[] memory proof = new bytes32[](0);
+        vm.deal(SIDE_WALLET, 1 ether);
+        uint256 feeRecipientBefore = BUYER.balance;
+        vm.prank(SIDE_WALLET);
+        ILiveSeaDropMint(SEA_DROP).mintAllowList{ value: 0.001 ether }(
+            address(nft), BUYER, address(0), 1, mintParams, proof
+        );
+
+        assertEq(nft.ownerOf(1), SIDE_WALLET);
+        assertEq(vault.pendingBackingOf(1), 0.0009 ether);
+        assertEq(BUYER.balance - feeRecipientBefore, 0.0001 ether);
+        assertEq(mintPolicy.numberMintedByStage(0, SIDE_WALLET), 1);
+
+        vm.prank(SIDE_WALLET);
+        vm.expectRevert();
+        ILiveSeaDropMint(SEA_DROP).mintAllowList{ value: 0.002 ether }(
+            address(nft), BUYER, address(0), 2, mintParams, proof
+        );
+        assertEq(nft.totalMinted(), 1);
     }
 
     function _request()

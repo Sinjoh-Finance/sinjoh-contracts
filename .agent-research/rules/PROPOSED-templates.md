@@ -1,4 +1,15 @@
-# Proposed Brainblast Checker Templates
+# Proposed Brainblast rule templates
+
+## SeaDrop paid-stage callback binding
+
+The current bundled rule templates cannot express the critical SeaDrop trap found in the
+2026-09-03 research run. A future checker should detect a SeaDrop-compatible `mintSeaDrop` callback
+paired with nonempty allowlists and verify that the implementation enforces a configured stage
+supply boundary, stage-local wallet count, nonzero expected gross value during the callback, and an
+exact expected net payout in the proceeds receiver.
+
+Suggested checker kind: `seadrop-paid-stage-binding`
+Suggested test kind: `seadrop-free-leaf-rollback`
 
 ## Pons Project graduation custody
 

@@ -59,7 +59,7 @@ interface IYieldBankConfiguredSleeveBindings {
 ///      EIP-3860 while preserving the same checks at the registered protocol entry point.
 library YieldBankConfigValidator {
     uint256 private constant BPS = 10_000;
-    uint256 private constant MAX_FEE_WEIGHT_RANGES = 16;
+    uint256 private constant MAX_FEE_WEIGHT_RANGES = 4;
     uint256 private constant MAX_TOTAL_FEE_WEIGHT = 1e27;
 
     error InvalidConfiguration();

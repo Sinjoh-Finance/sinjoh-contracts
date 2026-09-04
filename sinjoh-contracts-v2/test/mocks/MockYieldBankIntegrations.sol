@@ -25,7 +25,7 @@ import {
     IYieldBankAllocationRoute
 } from "../../src/yield-banks/interfaces/IYieldBankAllocationRoute.sol";
 import { IStrategyAdapter } from "../../src/yield-banks/interfaces/IStrategyAdapter.sol";
-import { PublicDrop } from "../../src/yield-banks/interfaces/SeaDropStructs.sol";
+import { AllowListData, PublicDrop } from "../../src/yield-banks/interfaces/SeaDropStructs.sol";
 import { YieldBankCollectionState } from "../../src/yield-banks/YieldBankTypes.sol";
 
 contract MockYieldBankAsset is ERC20 {
@@ -73,6 +73,7 @@ contract MockYieldBankWETH is ERC20 {
 contract MockYieldBankSeaDrop {
     mapping(address nft => address payout) public creatorPayoutAddress;
     mapping(address nft => PublicDrop stage) private _publicDrops;
+    mapping(address nft => bytes32 root) public allowListMerkleRoot;
 
     function updateCreatorPayoutAddress(address value) external {
         creatorPayoutAddress[msg.sender] = value;
@@ -86,10 +87,32 @@ contract MockYieldBankSeaDrop {
         return _publicDrops[nft];
     }
 
+    function updateAllowList(AllowListData calldata value) external {
+        allowListMerkleRoot[msg.sender] = value.merkleRoot;
+    }
+
     function mint(YieldBankNFT nft, address minter, uint256 quantity) external payable {
         nft.mintSeaDrop(minter, quantity);
-        (bool ok,) = payable(nft.proceedsVault()).call{ value: msg.value }("");
-        require(ok, "payout failed");
+        _pay(nft.proceedsVault(), msg.value);
+    }
+
+    function mintWithFee(YieldBankNFT nft, address minter, uint256 quantity, uint16 feeBps)
+        external
+        payable
+    {
+        nft.mintSeaDrop(minter, quantity);
+        uint256 fee = msg.value * feeBps / 10_000;
+        _pay(nft.proceedsVault(), msg.value - fee);
+    }
+
+    function _pay(address payout, uint256 amount) private {
+        if (amount == 0) return;
+        (bool ok, bytes memory reason) = payable(payout).call{ value: amount }("");
+        if (!ok) {
+            assembly ("memory-safe") {
+                revert(add(reason, 0x20), mload(reason))
+            }
+        }
     }
 }
 

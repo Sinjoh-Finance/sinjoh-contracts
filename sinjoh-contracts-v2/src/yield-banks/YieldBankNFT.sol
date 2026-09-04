@@ -22,9 +22,24 @@ import {
 } from "./interfaces/SeaDropStructs.sol";
 
 interface IYieldBankSeaDropCollection {
-    function prepareSeaDropMint(address minter, uint256 quantity)
+    function prepareSeaDropMint(address minter, uint256 quantity, uint256 expectedNetProceeds)
         external
         returns (uint256 firstTokenId);
+}
+
+interface IYieldBankMintPolicy {
+    function nft() external view returns (address);
+    function maxSupply() external view returns (uint256);
+    function recordMint(
+        address minter,
+        uint256 quantity,
+        uint256 currentTotalMinted,
+        uint256 seaDropBalance
+    ) external returns (uint256 expectedNetProceeds);
+    function mintStats(address minter, uint256 currentTotalMinted)
+        external
+        view
+        returns (uint256 stageMints, uint256 stageSupply);
 }
 
 contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungibleSeaDropToken {
@@ -42,6 +57,7 @@ contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungi
     string private _contractMetadataURI;
     bytes32 public override provenanceHash;
     address public proceedsVault;
+    address public mintPolicy;
 
     error OnlyCollection(address caller);
     error OnlyAllowedSeaDrop(address caller);
@@ -53,6 +69,7 @@ contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungi
     error ProceedsVaultAlreadySet();
     error ProvenanceLocked();
     error ImmutableRoyaltyInfo(address receiver, uint96 bps);
+    error MintPolicyAlreadySet();
 
     event AllowedSeaDropUpdated(address[] allowedSeaDrop);
     event ContractURIUpdated(string newContractURI);
@@ -114,7 +131,14 @@ contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungi
         if (proceedsVault == address(0) || quantity == 0 || quantity > MAX_MINT_QUANTITY) {
             revert InvalidConfiguration();
         }
-        uint256 first = IYieldBankSeaDropCollection(collection).prepareSeaDropMint(minter, quantity);
+        uint256 expectedNetProceeds;
+        address policy = mintPolicy;
+        if (policy != address(0)) {
+            expectedNetProceeds = IYieldBankMintPolicy(policy)
+                .recordMint(minter, quantity, totalMinted, seaDrop.balance);
+        }
+        uint256 first = IYieldBankSeaDropCollection(collection)
+            .prepareSeaDropMint(minter, quantity, expectedNetProceeds);
         numberMinted[minter] += quantity;
         totalMinted += quantity;
         for (uint256 i; i < quantity; ++i) {
@@ -132,7 +156,24 @@ contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungi
         override
         returns (uint256, uint256, uint256)
     {
-        return (numberMinted[minter], totalMinted, maxSupply);
+        address policy = mintPolicy;
+        if (policy == address(0) || totalMinted == maxSupply) {
+            return (numberMinted[minter], totalMinted, maxSupply);
+        }
+        (uint256 stageMints, uint256 stageSupply) =
+            IYieldBankMintPolicy(policy).mintStats(minter, totalMinted);
+        return (stageMints, totalMinted, stageSupply);
+    }
+
+    /// @notice Permanently pins an optional collection-specific mint policy before the first mint.
+    function setMintPolicy(address policy) external onlyOwner {
+        if (mintPolicy != address(0)) revert MintPolicyAlreadySet();
+        if (
+            totalMinted != 0 || policy.code.length == 0
+                || IYieldBankMintPolicy(policy).nft() != address(this)
+                || IYieldBankMintPolicy(policy).maxSupply() != maxSupply
+        ) revert InvalidConfiguration();
+        mintPolicy = policy;
     }
 
     function updateAllowedSeaDrop(address[] calldata values) external override onlyOwner {
@@ -151,13 +192,14 @@ contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungi
         override
         onlyOwner
     {
-        // SeaDrop's allow-list callback does not reveal the leaf's mint price or fee BPS to the
-        // token contract. A non-empty root could therefore authorize a zero-proceeds mint. Paid
-        // gated stages use signed mint validation, whose minimum price and maximum fee are bound
-        // below. Clearing a previously configured root remains possible.
+        // A pinned mint policy independently enforces the active supply boundary, wallet
+        // limit, gross payment present in SeaDrop, and exact net payout. Collections without that
+        // schedule retain the original fail-closed behavior for nonempty allow lists.
         if (
-            value.merkleRoot != bytes32(0) || value.publicKeyURIs.length != 0
-                || bytes(value.allowListURI).length != 0
+            mintPolicy == address(0)
+                && (value.merkleRoot != bytes32(0)
+                    || value.publicKeyURIs.length != 0
+                    || bytes(value.allowListURI).length != 0)
         ) {
             revert PaidMintRequired();
         }
