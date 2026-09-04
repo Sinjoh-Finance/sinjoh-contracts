@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import test from "node:test";
 import { decodeFunctionData, hashTypedData } from "viem";
-import { airdropCommitmentTypedData, buildFundingBandCreationActions, buildAirdropEpoch, buildVerifiedAirdropEpoch, buildLaunchFromPreset, buildProjectLaunchConfig, buildProjectLaunchManifest, encodeAirdropAbortCall, encodeGovernanceAction, encodeAirdropFinalizeCall, encodeAirdropPushCalls, encodeAirdropRetryCreditCall, encodeAirdropClaimCreditToCall, encodeMultisigSubmission, encodeTokenGovernanceProposal, erc4626BasketYieldAdapterFactoryAbi, fundingBandDestination, fundingBandFactoryIntegrationApprovalLeaf, fundingBandPairIntegrationApprovalLeaf, swapIntegrationApprovalLeaf, marketCapUsdE8, projectLaunchManifestHash, projectAirdropV2Abi, projectFundingBandsV2Abi, projectGovernorV2Abi, projectLauncherV2Abi, projectMultisigAccountV2Abi, projectRegistryV2Abi, projectTreasuryVaultV2Abi, simpleFundingBandConfig, launchErrorMessage, launchpadFactoryApprovalLeaf, planAirdropPushBatches, reconstructHolderAirdropSnapshot, reconstructStakerAirdropSnapshot, serializeProjectLaunchManifest, } from "../src/index.js";
+import { airdropCommitmentTypedData, buildFundingBandCreationActions, buildAirdropEpoch, buildVerifiedAirdropEpoch, buildLaunchFromPreset, buildProjectLaunchConfig, buildProjectLaunchManifest, encodeAirdropAbortCall, encodeGovernanceAction, encodeAirdropFinalizeCall, encodeAirdropPushCalls, encodeAirdropRetryCreditCall, encodeAirdropClaimCreditToCall, encodeMultisigSubmission, encodeTokenGovernanceProposal, erc4626BasketYieldAdapterFactoryAbi, fundingBandDestination, fundingBandFactoryIntegrationApprovalLeaf, fundingBandPairIntegrationApprovalLeaf, swapIntegrationApprovalLeaf, marketCapUsdE8, projectLaunchManifestHash, projectAirdropV2Abi, projectFundingBandsV2Abi, projectGovernorV2Abi, projectLauncherV2Abi, projectMultisigAccountV2Abi, projectRegistryV2Abi, projectTreasuryVaultV2Abi, simpleFundingBandConfig, yieldBankCollectionAbi, yieldBankMintStagePolicyAbi, yieldBankNftAbi, yieldBankPublicFactoryAbi, launchErrorMessage, launchpadFactoryApprovalLeaf, planAirdropPushBatches, reconstructHolderAirdropSnapshot, reconstructStakerAirdropSnapshot, serializeProjectLaunchManifest, } from "../src/index.js";
 const fixture = JSON.parse(await readFile(resolve(process.cwd(), "fixtures/treasury-send.json"), "utf8"));
 const airdropFixture = JSON.parse(await readFile(resolve(process.cwd(), "fixtures/airdrop-tree.json"), "utf8"));
 test("exports the required project discovery and launch ABI", () => {
@@ -11,6 +11,12 @@ test("exports the required project discovery and launch ABI", () => {
     assert.ok(projectLauncherV2Abi.some((item) => item.type === "function" && item.name === "validateLaunchConfig"));
     assert.ok(projectRegistryV2Abi.some((item) => item.type === "function" && item.name === "project"));
     assert.ok(erc4626BasketYieldAdapterFactoryAbi.some((item) => item.type === "function" && item.name === "predict"));
+});
+test("exports the configurable Yield Bank deployment and staged-mint ABI", () => {
+    assert.ok(yieldBankPublicFactoryAbi.some((item) => item.type === "function" && item.name === "beginCollection"));
+    assert.ok(yieldBankCollectionAbi.some((item) => item.type === "function" && item.name === "feeWeightRange"));
+    assert.ok(yieldBankNftAbi.some((item) => item.type === "function" && item.name === "setMintPolicy"));
+    assert.ok(yieldBankMintStagePolicyAbi.some((item) => item.type === "function" && item.name === "stage"));
 });
 test("encodes the shared Treasury governance action fixture", () => {
     const action = encodeGovernanceAction({

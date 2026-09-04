@@ -1,7 +1,7 @@
 # Robinhood Chain
 
-Version: chain ID 4663  
-Disposition: MISS-unversioned  
+Version: chain ID 4663
+Disposition: MISS-unversioned
 Primary source: repository production deployment configuration and live RPC verification at release.
 
 ## Verified facts

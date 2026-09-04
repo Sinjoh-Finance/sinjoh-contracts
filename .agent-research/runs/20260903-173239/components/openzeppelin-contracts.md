@@ -1,8 +1,8 @@
 <!-- BRAINBLAST:CACHE slug=openzeppelin-contracts version=5.6.1 fetched=2026-08-27 -->
 # OpenZeppelin Contracts
 
-Version: 5.6.1  
-Disposition: HIT  
+Version: 5.6.1
+Disposition: HIT
 Primary sources: https://docs.openzeppelin.com/contracts/5.x/ and
 https://github.com/OpenZeppelin/openzeppelin-contracts/releases/tag/v5.6.1
 

@@ -1,7 +1,7 @@
 # OpenSea SeaDrop
 
-Version: unversioned canonical deployment  
-Disposition: MISS-unversioned  
+Version: unversioned canonical deployment
+Disposition: MISS-unversioned
 Primary sources: https://github.com/ProjectOpenSea/seadrop/blob/main/src/SeaDrop.sol and
 https://github.com/ProjectOpenSea/seadrop/blob/main/docs/SeaDropTokenDeployment.md
 

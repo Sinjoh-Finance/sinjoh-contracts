@@ -1,7 +1,7 @@
 # OpenSea Drops
 
-Version: unversioned  
-Disposition: MISS-unversioned  
+Version: unversioned
+Disposition: MISS-unversioned
 Primary sources: https://docs.opensea.io/llms.txt,
 https://docs.opensea.io/docs/part-4-edit-drop-settings, and
 https://docs.opensea.io/docs/part-5-publish-your-drop, plus the live official
