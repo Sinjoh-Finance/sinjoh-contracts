@@ -184,10 +184,12 @@ contract YieldBankCollection is ReentrancyGuard {
         emit CollectionStateChanged(YieldBankCollectionState.DEPLOYED, state);
     }
 
-    function prepareSeaDropMint(address minter, uint256 quantity, uint256 expectedNetProceeds)
-        external
-        returns (uint256 firstTokenId)
-    {
+    function prepareSeaDropMint(
+        address minter,
+        uint256 quantity,
+        uint256 expectedNetProceeds,
+        uint256 selectedFirstTokenId
+    ) external returns (uint256 firstTokenId) {
         if (msg.sender != address(nft)) revert OnlyNFT(msg.sender);
         if (
             state != YieldBankCollectionState.ACTIVE
@@ -195,10 +197,14 @@ contract YieldBankCollection is ReentrancyGuard {
         ) revert InvalidState(state);
         if (!eligibilityPolicy.canMint(minter, "")) revert Ineligible(minter);
         if (quantity == 0 || mintedSupply + quantity > maxSupply) revert InvalidConfiguration();
-        firstTokenId = mintedSupply + 1;
+        firstTokenId = selectedFirstTokenId == 0 ? mintedSupply + 1 : selectedFirstTokenId;
+        if (firstTokenId + quantity - 1 > maxSupply) revert InvalidConfiguration();
         uint256 addedFeeWeight;
         for (uint256 i; i < quantity; ++i) {
             uint256 tokenId = firstTokenId + i;
+            if (_tokenStates[tokenId] != YieldBankTokenState.UNMINTED) {
+                revert InvalidTokenState(tokenId, _tokenStates[tokenId]);
+            }
             uint96 feeWeight = feeWeightOf(tokenId);
             address account =
                 Clones.cloneDeterministic(accountImplementation, _accountSalt(tokenId));

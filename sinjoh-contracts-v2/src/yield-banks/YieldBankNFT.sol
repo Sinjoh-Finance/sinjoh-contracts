@@ -22,9 +22,12 @@ import {
 } from "./interfaces/SeaDropStructs.sol";
 
 interface IYieldBankSeaDropCollection {
-    function prepareSeaDropMint(address minter, uint256 quantity, uint256 expectedNetProceeds)
-        external
-        returns (uint256 firstTokenId);
+    function prepareSeaDropMint(
+        address minter,
+        uint256 quantity,
+        uint256 expectedNetProceeds,
+        uint256 firstTokenId
+    ) external returns (uint256 assignedFirstTokenId);
 }
 
 interface IYieldBankMintPolicy {
@@ -35,11 +38,11 @@ interface IYieldBankMintPolicy {
         uint256 quantity,
         uint256 currentTotalMinted,
         uint256 seaDropBalance
-    ) external returns (uint256 expectedNetProceeds);
+    ) external returns (uint256 expectedNetProceeds, uint256 firstTokenId);
     function mintStats(address minter, uint256 currentTotalMinted)
         external
         view
-        returns (uint256 stageMints, uint256 stageSupply);
+        returns (uint256 stageMints, uint256 stageMinted, uint256 stageSupply);
 }
 
 contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungibleSeaDropToken {
@@ -132,13 +135,14 @@ contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungi
             revert InvalidConfiguration();
         }
         uint256 expectedNetProceeds;
+        uint256 firstTokenId;
         address policy = mintPolicy;
         if (policy != address(0)) {
-            expectedNetProceeds = IYieldBankMintPolicy(policy)
+            (expectedNetProceeds, firstTokenId) = IYieldBankMintPolicy(policy)
                 .recordMint(minter, quantity, totalMinted, seaDrop.balance);
         }
         uint256 first = IYieldBankSeaDropCollection(collection)
-            .prepareSeaDropMint(minter, quantity, expectedNetProceeds);
+            .prepareSeaDropMint(minter, quantity, expectedNetProceeds, firstTokenId);
         numberMinted[minter] += quantity;
         totalMinted += quantity;
         for (uint256 i; i < quantity; ++i) {
@@ -160,9 +164,7 @@ contract YieldBankNFT is ERC721Royalty, Ownable2Step, ReentrancyGuard, INonFungi
         if (policy == address(0) || totalMinted == maxSupply) {
             return (numberMinted[minter], totalMinted, maxSupply);
         }
-        (uint256 stageMints, uint256 stageSupply) =
-            IYieldBankMintPolicy(policy).mintStats(minter, totalMinted);
-        return (stageMints, totalMinted, stageSupply);
+        return IYieldBankMintPolicy(policy).mintStats(minter, totalMinted);
     }
 
     /// @notice Permanently pins an optional collection-specific mint policy before the first mint.

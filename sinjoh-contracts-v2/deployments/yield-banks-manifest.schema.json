@@ -266,8 +266,9 @@
     "allowListStage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mintPrice", "maxTotalMintableByWallet", "startTime", "endTime", "dropStageIndex", "maxTokenSupplyForStage", "feeBps", "restrictFeeRecipients"],
+      "required": ["endTokenId", "mintPrice", "maxTotalMintableByWallet", "startTime", "endTime", "dropStageIndex", "maxTokenSupplyForStage", "feeBps", "restrictFeeRecipients"],
       "properties": {
+        "endTokenId": { "type": "integer", "minimum": 1, "maximum": 18446744073709551615 },
         "mintPrice": { "type": "string", "pattern": "^[1-9][0-9]*$" },
         "maxTotalMintableByWallet": { "type": "integer", "minimum": 1, "maximum": 65535 },
         "startTime": { "type": "integer", "minimum": 0, "maximum": 281474976710655 },

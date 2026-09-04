@@ -134,11 +134,15 @@ success, refund, deadline, sellout release, or automatic investment transition. 
 external integrations fail closed: no address, route, feed, venue, pool, or ABI is inferred.
 SeaDrop public, token-gated, and signed stages must preserve both a positive mint price and a
 positive creator payout. A collection may pin one `YieldBankMintStagePolicy` before its first mint.
-That optional policy keeps collection-specific prices, cumulative supply boundaries, stage-local
-wallet limits, and SeaDrop fee rates outside the generic protocol configuration. Once pinned, it
-allows a Merkle allowlist while independently enforcing those terms during the mint callback and
-requiring the proceeds vault to receive the exact expected net payment. Collections without a
-pinned policy continue to reject nonempty Merkle allowlists.
+That optional policy keeps collection-specific prices, token-id ranges, stage-local wallet limits,
+and SeaDrop fee rates outside the generic protocol configuration. Initial OpenSea allowlist windows
+must not overlap. After they end, OpenSea's single public stage can rotate among unsold tiers; the
+policy recognizes a public tier only when its live price, wallet cap, fee, and fee-recipient rule
+match that tier exactly. This preserves each tier's inventory and original price without a custom
+mint site. When this policy is used, payer, token-gated, and signed-mint sets must remain empty so
+the callback has exactly one valid route; the release verifier enforces that production invariant.
+The proceeds vault requires the exact expected net payment. Collections without a pinned
+policy continue to reject nonempty Merkle allowlists.
 
 The ERC-2981 secondary royalty percentage is immutable but configurable per collection and the
 receiver is permanently the collection revenue router. ERC-2981 is a payment signal, not a payment

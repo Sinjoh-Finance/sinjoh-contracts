@@ -33,14 +33,20 @@ struct YieldBankFeeWeightRange {
     uint96 feeWeight;
 }
 
-/// @notice One ordered paid-mint stage for a collection.
-/// @dev `endTokenId` is cumulative and inclusive. Prices and fees are denominated in the chain's
+/// @notice One independently mintable, fixed-price token-id tier for a collection.
+/// @dev Tiers are ordered by their inclusive `endTokenId`; a tier starts one token after the prior
+///      tier. Initial allowlist windows are nonoverlapping and later public windows select a tier
+///      by matching its immutable economic terms. Prices and fees are denominated in the chain's
 ///      native token and basis points. An empty schedule preserves unrestricted SeaDrop behavior.
 struct YieldBankMintStage {
     uint64 endTokenId;
     uint80 mintPrice;
+    uint48 startTime;
+    uint48 endTime;
     uint16 maxMintsPerWallet;
     uint16 feeBps;
+    uint8 dropStageIndex;
+    bool restrictFeeRecipients;
 }
 
 struct YieldBankConfig {

@@ -25,7 +25,11 @@ import {
     IYieldBankAllocationRoute
 } from "../../src/yield-banks/interfaces/IYieldBankAllocationRoute.sol";
 import { IStrategyAdapter } from "../../src/yield-banks/interfaces/IStrategyAdapter.sol";
-import { AllowListData, PublicDrop } from "../../src/yield-banks/interfaces/SeaDropStructs.sol";
+import {
+    AllowListData,
+    MintParams,
+    PublicDrop
+} from "../../src/yield-banks/interfaces/SeaDropStructs.sol";
 import { YieldBankCollectionState } from "../../src/yield-banks/YieldBankTypes.sol";
 
 contract MockYieldBankAsset is ERC20 {
@@ -74,6 +78,7 @@ contract MockYieldBankSeaDrop {
     mapping(address nft => address payout) public creatorPayoutAddress;
     mapping(address nft => PublicDrop stage) private _publicDrops;
     mapping(address nft => bytes32 root) public allowListMerkleRoot;
+    mapping(address nft => mapping(address payer => bool allowed)) public allowedPayer;
 
     function updateCreatorPayoutAddress(address value) external {
         creatorPayoutAddress[msg.sender] = value;
@@ -89,6 +94,50 @@ contract MockYieldBankSeaDrop {
 
     function updateAllowList(AllowListData calldata value) external {
         allowListMerkleRoot[msg.sender] = value.merkleRoot;
+    }
+
+    function updatePayer(address payer, bool allowed) external {
+        allowedPayer[msg.sender][payer] = allowed;
+    }
+
+    function mintAllowList(
+        address nftContract,
+        address,
+        address minterIfNotPayer,
+        uint256 quantity,
+        MintParams calldata mintParams,
+        bytes32[] calldata
+    ) external payable {
+        address minter = minterIfNotPayer == address(0) ? msg.sender : minterIfNotPayer;
+        if (minter != msg.sender) require(allowedPayer[nftContract][msg.sender], "payer");
+        require(msg.value == quantity * mintParams.mintPrice, "payment");
+        require(
+            block.timestamp >= mintParams.startTime && block.timestamp <= mintParams.endTime,
+            "inactive"
+        );
+        (uint256 walletMints, uint256 stageMints, uint256 stageSupply) =
+            YieldBankNFT(nftContract).getMintStats(minter);
+        require(walletMints + quantity <= mintParams.maxTotalMintableByWallet, "wallet limit");
+        require(stageMints + quantity <= stageSupply, "stage limit");
+        YieldBankNFT(nftContract).mintSeaDrop(minter, quantity);
+        uint256 fee = msg.value * mintParams.feeBps / 10_000;
+        _pay(YieldBankNFT(nftContract).proceedsVault(), msg.value - fee);
+    }
+
+    function mintPublic(address nftContract, address, address minterIfNotPayer, uint256 quantity)
+        external
+        payable
+    {
+        PublicDrop memory value = _publicDrops[nftContract];
+        address minter = minterIfNotPayer == address(0) ? msg.sender : minterIfNotPayer;
+        require(msg.value == quantity * value.mintPrice, "payment");
+        (uint256 walletMints, uint256 stageMints, uint256 stageSupply) =
+            YieldBankNFT(nftContract).getMintStats(minter);
+        require(walletMints + quantity <= value.maxTotalMintableByWallet, "wallet limit");
+        require(stageMints + quantity <= stageSupply, "stage limit");
+        YieldBankNFT(nftContract).mintSeaDrop(minter, quantity);
+        uint256 fee = msg.value * value.feeBps / 10_000;
+        _pay(YieldBankNFT(nftContract).proceedsVault(), msg.value - fee);
     }
 
     function mint(YieldBankNFT nft, address minter, uint256 quantity) external payable {

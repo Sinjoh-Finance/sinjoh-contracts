@@ -189,10 +189,16 @@ tuple, allowlist root and stages, fee recipients, payers, token-gated assets and
 signers and validation bounds. The verifier reads these values from
 `0x00005EA00Ac477B1030CE78506496e8C2dE24bf5`, recomputes `mintStagesHash`, and rejects any payout,
 price, time window, supply or wallet cap, fee, restriction, payer, signer, gate-token, or allowlist
-drift. A nonempty allowlist requires an immutable, NFT-bound `YieldBankMintStagePolicy`. The
-verifier checks every policy stage against the recorded allowlist price, cumulative supply cap,
-stage-local wallet limit, and fee rate. The proceeds vault also rejects a payout that differs from
-the policy's exact expected net amount.
+drift. A nonempty allowlist requires an immutable, NFT-bound `YieldBankMintStagePolicy`. Each policy
+stage owns an independent token-id range, price, allowlist time window, supply cap, and wallet cap.
+Initial allowlist windows do not overlap, so the policy can identify SeaDrop's otherwise omitted
+stage from the current time. After the last allowlist window, OpenSea's single public stage can be
+rotated among unsold tiers. A public configuration is accepted only when its price, wallet cap, fee,
+and fee-recipient restriction uniquely match one immutable tier. This keeps every unsold tier at its
+original price without a custom mint site. A staged-policy manifest must have empty payer,
+token-gated, and signed-mint sets so SeaDrop cannot enter the parameter-less NFT callback through an
+ambiguous route. The verifier checks all policy terms and the proceeds
+vault rejects any payout that differs from the policy's exact expected net amount.
 The configured eligibility policy is separately codehash-pinned and read back from the collection
 and all three sleeves.
 Because Seaport supplies no eligibility proof, `canReceiveNFT(recipient, "")` must decide NFT

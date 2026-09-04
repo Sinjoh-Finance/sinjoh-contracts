@@ -17,6 +17,7 @@ import {
 } from "../../src/yield-banks/CollectionPortfolioAllocator.sol";
 import {
     AllowListData,
+    MintParams,
     PublicDrop,
     SignedMintValidationParams,
     TokenGatedDropStage
@@ -244,6 +245,157 @@ contract YieldBankCollectionTest is Test {
         assertEq(piggyBanks.feeWeightOf(333), 5);
         assertEq(piggyBanks.feeWeightOf(334), 2);
         assertEq(piggyBanks.feeWeightOf(3_333), 2);
+    }
+
+    function testProductionPiggyBankMintTermsKeepEveryTierIndependent() public {
+        YieldBankCollection piggyBanks = new YieldBankCollection(_config(3_333));
+        YieldBankNFT piggyBankNft = piggyBanks.nft();
+        YieldBankMintStage[] memory stages = new YieldBankMintStage[](4);
+        stages[0] = YieldBankMintStage({
+            endTokenId: 3,
+            mintPrice: 0.5 ether,
+            startTime: 100,
+            endTime: 109,
+            maxMintsPerWallet: 1,
+            feeBps: 1_000,
+            dropStageIndex: 1,
+            restrictFeeRecipients: true
+        });
+        stages[1] = YieldBankMintStage({
+            endTokenId: 33,
+            mintPrice: 0.1 ether,
+            startTime: 110,
+            endTime: 119,
+            maxMintsPerWallet: 3,
+            feeBps: 1_000,
+            dropStageIndex: 2,
+            restrictFeeRecipients: true
+        });
+        stages[2] = YieldBankMintStage({
+            endTokenId: 333,
+            mintPrice: 0.03 ether,
+            startTime: 120,
+            endTime: 129,
+            maxMintsPerWallet: 5,
+            feeBps: 1_000,
+            dropStageIndex: 3,
+            restrictFeeRecipients: true
+        });
+        stages[3] = YieldBankMintStage({
+            endTokenId: 3_333,
+            mintPrice: 0.01 ether,
+            startTime: 130,
+            endTime: 139,
+            maxMintsPerWallet: 10,
+            feeBps: 1_000,
+            dropStageIndex: 4,
+            restrictFeeRecipients: true
+        });
+        YieldBankMintStagePolicy mintPolicy =
+            new YieldBankMintStagePolicy(address(piggyBankNft), 3_333, stages);
+        vm.startPrank(CREATOR);
+        piggyBankNft.setMintPolicy(address(mintPolicy));
+        vm.stopPrank();
+
+        bytes32[] memory proof = new bytes32[](0);
+        vm.deal(ALICE, 2 ether);
+        vm.warp(130);
+        MintParams memory standardAllowList = mintPolicy.mintParams(3);
+        vm.prank(ALICE);
+        seaDrop.mintAllowList{ value: 0.01 ether }(
+            address(piggyBankNft), ALICE, address(0), 1, standardAllowList, proof
+        );
+
+        PublicDrop memory publicDrop = mintPolicy.publicDropForStage(0, 140, 149);
+        vm.prank(CREATOR);
+        piggyBankNft.updatePublicDrop(address(seaDrop), publicDrop);
+        vm.warp(140);
+        seaDrop.mintPublic{ value: 0.5 ether }(address(piggyBankNft), ALICE, ALICE, 1);
+        // The wrong value is rejected before it can discount an Alpha.
+        vm.expectRevert();
+        seaDrop.mintPublic{ value: 0.01 ether }(address(piggyBankNft), ALICE, ALICE, 1);
+
+        _configurePublicStage(piggyBankNft, mintPolicy, 1, 150, 159);
+        vm.warp(150);
+        seaDrop.mintPublic{ value: 0.1 ether }(address(piggyBankNft), ALICE, ALICE, 1);
+
+        _configurePublicStage(piggyBankNft, mintPolicy, 2, 160, 169);
+        vm.warp(160);
+        seaDrop.mintPublic{ value: 0.03 ether }(address(piggyBankNft), ALICE, ALICE, 1);
+
+        _configurePublicStage(piggyBankNft, mintPolicy, 3, 170, type(uint48).max);
+        vm.warp(170);
+        seaDrop.mintPublic{ value: 0.09 ether }(address(piggyBankNft), ALICE, ALICE, 9);
+        vm.expectRevert();
+        seaDrop.mintPublic{ value: 0.01 ether }(address(piggyBankNft), ALICE, ALICE, 1);
+
+        assertEq(piggyBankNft.ownerOf(334), ALICE);
+        assertEq(piggyBankNft.ownerOf(1), ALICE);
+        assertEq(piggyBankNft.ownerOf(4), ALICE);
+        assertEq(piggyBankNft.ownerOf(34), ALICE);
+        assertEq(mintPolicy.stageCapacity(0), 3);
+        assertEq(mintPolicy.stageCapacity(1), 30);
+        assertEq(mintPolicy.stageCapacity(2), 300);
+        assertEq(mintPolicy.stageCapacity(3), 3_000);
+        assertEq(mintPolicy.numberMintedByStage(0, ALICE), 1);
+        assertEq(mintPolicy.numberMintedByStage(1, ALICE), 1);
+        assertEq(mintPolicy.numberMintedByStage(2, ALICE), 1);
+        assertEq(mintPolicy.numberMintedByStage(3, ALICE), 10);
+        assertEq(piggyBankNft.totalMinted(), 13);
+
+        (,, uint256 standardNet,,,,) = piggyBanks.proceedsVault().receipts(1);
+        (,, uint256 alphaNet,,,,) = piggyBanks.proceedsVault().receipts(2);
+        (,, uint256 primeNet,,,,) = piggyBanks.proceedsVault().receipts(3);
+        (,, uint256 premiumNet,,,,) = piggyBanks.proceedsVault().receipts(4);
+        (,, uint256 finalStandardNet,,,,) = piggyBanks.proceedsVault().receipts(5);
+        assertEq(standardNet, 0.009 ether);
+        assertEq(alphaNet, 0.45 ether);
+        assertEq(primeNet, 0.09 ether);
+        assertEq(premiumNet, 0.027 ether);
+        assertEq(finalStandardNet, 0.081 ether);
+    }
+
+    function testMintPolicyRejectsInvalidTierDefinitions() public {
+        YieldBankCollection stagedCollection = new YieldBankCollection(_config(10));
+        YieldBankNFT stagedNft = stagedCollection.nft();
+        YieldBankMintStage[] memory stages = new YieldBankMintStage[](2);
+        stages[0] = YieldBankMintStage({
+            endTokenId: 5,
+            mintPrice: 1 ether,
+            startTime: 1,
+            endTime: 10,
+            maxMintsPerWallet: 1,
+            feeBps: 1_000,
+            dropStageIndex: 1,
+            restrictFeeRecipients: true
+        });
+        stages[1] = YieldBankMintStage({
+            endTokenId: 10,
+            mintPrice: 0.5 ether,
+            startTime: 11,
+            endTime: 20,
+            maxMintsPerWallet: 2,
+            feeBps: 1_000,
+            dropStageIndex: 1,
+            restrictFeeRecipients: true
+        });
+        vm.expectRevert(YieldBankMintStagePolicy.InvalidConfiguration.selector);
+        new YieldBankMintStagePolicy(address(stagedNft), 10, stages);
+
+        stages[1].dropStageIndex = 2;
+        stages[1].endTokenId = 4;
+        vm.expectRevert(YieldBankMintStagePolicy.InvalidConfiguration.selector);
+        new YieldBankMintStagePolicy(address(stagedNft), 10, stages);
+
+        stages[1].endTokenId = 10;
+        stages[1].maxMintsPerWallet = 6;
+        vm.expectRevert(YieldBankMintStagePolicy.InvalidConfiguration.selector);
+        new YieldBankMintStagePolicy(address(stagedNft), 10, stages);
+
+        stages[1].maxMintsPerWallet = 2;
+        stages[1].startTime = 10;
+        vm.expectRevert(YieldBankMintStagePolicy.InvalidConfiguration.selector);
+        new YieldBankMintStagePolicy(address(stagedNft), 10, stages);
     }
 
     function testGenericFactoryRejectsComponentsBoundToAnotherCollection() public {
@@ -788,10 +940,10 @@ contract YieldBankCollectionTest is Test {
         nft.updateSignedMintValidationParams(address(seaDrop), ALICE, signed);
     }
 
-    function testConfiguredMintStagesAllowMerkleRootAndEnforceStageLocalLimits() public {
+    function testConfiguredMintTiersUseIndependentInventoryPricesAndWalletLimits() public {
         YieldBankCollection stagedCollection = new YieldBankCollection(_config(10));
         YieldBankNFT nft = stagedCollection.nft();
-        YieldBankMintStagePolicy mintStagePolicy = _configureFourPaidStages(nft);
+        YieldBankMintStagePolicy mintPolicy = _configureFourPaidStages(nft);
 
         string[] memory uris = new string[](0);
         bytes32 root = keccak256("audited-holder-snapshot");
@@ -802,70 +954,123 @@ contract YieldBankCollectionTest is Test {
         nft.updateAllowList(address(seaDrop), allowList);
         assertEq(seaDrop.allowListMerkleRoot(address(nft)), root);
 
+        bytes32[] memory proof = new bytes32[](0);
         vm.deal(ALICE, 30 ether);
-        seaDrop.mintWithFee{ value: 4 ether }(nft, ALICE, 1, 1_000);
-        assertEq(mintStagePolicy.numberMintedByStage(0, ALICE), 1);
+        vm.warp(11);
+        MintParams memory primeAllowList = mintPolicy.mintParams(1);
+        vm.prank(ALICE);
+        seaDrop.mintAllowList{ value: 9 ether }(
+            address(nft), ALICE, address(0), 3, primeAllowList, proof
+        );
+        assertEq(nft.ownerOf(2), ALICE);
+        assertEq(nft.ownerOf(4), ALICE);
+        assertEq(mintPolicy.numberMintedByStage(1, ALICE), 3);
+        assertEq(mintPolicy.mintedByStage(0), 0);
+        assertEq(mintPolicy.mintedByStage(1), 3);
+
+        vm.expectRevert();
+        vm.prank(ALICE);
+        seaDrop.mintAllowList{ value: 3 ether }(
+            address(nft), ALICE, address(0), 1, primeAllowList, proof
+        );
+
         (uint256 firstTokenId,, uint256 netProceeds,,,,) =
             stagedCollection.proceedsVault().receipts(1);
-        assertEq(firstTokenId, 1);
-        assertEq(netProceeds, 3.6 ether);
-
-        seaDrop.mintWithFee{ value: 9 ether }(nft, ALICE, 3, 1_000);
-        assertEq(mintStagePolicy.numberMintedByStage(1, ALICE), 3);
-        (uint256 activeMints, uint256 totalSupply, uint256 stageSupply) = nft.getMintStats(ALICE);
-        assertEq(activeMints, 3);
-        assertEq(totalSupply, 4);
-        assertEq(stageSupply, 6);
-
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                YieldBankMintStagePolicy.StageWalletLimit.selector, 1, ALICE, 4, 3
-            )
-        );
-        seaDrop.mintWithFee{ value: 3 ether }(nft, ALICE, 1, 1_000);
-
-        vm.deal(BOB, 10 ether);
-        seaDrop.mintWithFee{ value: 6 ether }(nft, BOB, 2, 1_000);
-        (activeMints, totalSupply, stageSupply) = nft.getMintStats(ALICE);
-        assertEq(activeMints, 0);
-        assertEq(totalSupply, 6);
-        assertEq(stageSupply, 8);
+        assertEq(firstTokenId, 2);
+        assertEq(netProceeds, 8.1 ether);
     }
 
-    function testConfiguredMintStagesRejectCrossBoundaryFreeUnderpricedAndWrongFeeMints() public {
+    function testConfiguredMintTiersRejectUnderpaymentInactiveTierAndInvalidPublicTerms() public {
         YieldBankCollection stagedCollection = new YieldBankCollection(_config(10));
         YieldBankNFT nft = stagedCollection.nft();
-        _configureFourPaidStages(nft);
+        YieldBankMintStagePolicy mintPolicy = _configureFourPaidStages(nft);
+        bytes32[] memory proof = new bytes32[](0);
         vm.deal(ALICE, 30 ether);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                YieldBankMintStagePolicy.InsufficientSeaDropPayment.selector, 4 ether, 0
-            )
+        MintParams memory alphaAllowList = mintPolicy.mintParams(0);
+        vm.expectRevert();
+        vm.prank(ALICE);
+        seaDrop.mintAllowList{ value: 3 ether }(
+            address(nft), ALICE, address(0), 1, alphaAllowList, proof
         );
-        seaDrop.mintWithFee(nft, ALICE, 1, 1_000);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                YieldBankMintStagePolicy.InsufficientSeaDropPayment.selector, 4 ether, 3 ether
-            )
+        MintParams memory primeAllowList = mintPolicy.mintParams(1);
+        vm.expectRevert();
+        vm.prank(ALICE);
+        seaDrop.mintAllowList{ value: 3 ether }(
+            address(nft), ALICE, address(0), 1, primeAllowList, proof
         );
-        seaDrop.mintWithFee{ value: 3 ether }(nft, ALICE, 1, 1_000);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                YieldBankProceedsVault.UnexpectedNetProceeds.selector, 3.6 ether, 3.2 ether
-            )
-        );
-        seaDrop.mintWithFee{ value: 4 ether }(nft, ALICE, 1, 2_000);
+        vm.warp(41);
+        PublicDrop memory invalidPublic = PublicDrop({
+            mintPrice: 2 ether,
+            startTime: 41,
+            endTime: type(uint48).max,
+            maxTotalMintableByWallet: 1,
+            feeBps: 1_000,
+            restrictFeeRecipients: true
+        });
+        vm.prank(CREATOR);
+        nft.updatePublicDrop(address(seaDrop), invalidPublic);
+        vm.expectRevert(YieldBankMintStagePolicy.InvalidPublicDrop.selector);
+        seaDrop.mintPublic{ value: 2 ether }(address(nft), ALICE, address(0), 1);
+
         assertEq(nft.totalMinted(), 0);
         assertEq(stagedCollection.mintedSupply(), 0);
+    }
 
-        seaDrop.mintWithFee{ value: 4 ether }(nft, ALICE, 1, 1_000);
-        vm.expectRevert(
-            abi.encodeWithSelector(YieldBankMintStagePolicy.StageBoundary.selector, 1, 7, 6)
+    function testLaterTierOpensWithoutSelloutAndEveryUnsoldTierKeepsItsPrice() public {
+        YieldBankCollection stagedCollection = new YieldBankCollection(_config(10));
+        YieldBankNFT nft = stagedCollection.nft();
+        YieldBankMintStagePolicy mintPolicy = _configureFourPaidStages(nft);
+        bytes32[] memory proof = new bytes32[](0);
+        vm.deal(ALICE, 20 ether);
+
+        vm.warp(31);
+        MintParams memory standardAllowList = mintPolicy.mintParams(3);
+        vm.prank(ALICE);
+        seaDrop.mintAllowList{ value: 1 ether }(
+            address(nft), ALICE, address(0), 1, standardAllowList, proof
         );
-        seaDrop.mintWithFee{ value: 18 ether }(nft, BOB, 6, 1_000);
+        assertEq(nft.ownerOf(9), ALICE);
+
+        _configurePublicStage(nft, mintPolicy, 0, 41, 50);
+        vm.warp(41);
+        seaDrop.mintPublic{ value: 4 ether }(address(nft), ALICE, ALICE, 1);
+        assertEq(nft.ownerOf(1), ALICE);
+
+        _configurePublicStage(nft, mintPolicy, 1, 51, 60);
+        vm.warp(51);
+        seaDrop.mintPublic{ value: 3 ether }(address(nft), ALICE, ALICE, 1);
+        assertEq(nft.ownerOf(2), ALICE);
+
+        _configurePublicStage(nft, mintPolicy, 2, 61, 70);
+        vm.warp(61);
+        seaDrop.mintPublic{ value: 2 ether }(address(nft), ALICE, ALICE, 1);
+        assertEq(nft.ownerOf(7), ALICE);
+
+        _configurePublicStage(nft, mintPolicy, 3, 71, type(uint48).max);
+        vm.warp(71);
+        seaDrop.mintPublic{ value: 1 ether }(address(nft), ALICE, ALICE, 1);
+        assertEq(nft.ownerOf(10), ALICE);
+
+        assertEq(nft.ownerOf(1), ALICE);
+        assertEq(nft.ownerOf(2), ALICE);
+        assertEq(nft.ownerOf(7), ALICE);
+        assertEq(nft.ownerOf(9), ALICE);
+        assertEq(mintPolicy.mintedByStage(0), 1);
+        assertEq(mintPolicy.mintedByStage(1), 1);
+        assertEq(mintPolicy.mintedByStage(2), 1);
+        assertEq(mintPolicy.mintedByStage(3), 2);
+        assertEq(nft.totalMinted(), 5);
+        assertEq(stagedCollection.mintedSupply(), 5);
+
+        (,, uint256 alphaNet,,,,) = stagedCollection.proceedsVault().receipts(2);
+        (,, uint256 primeNet,,,,) = stagedCollection.proceedsVault().receipts(3);
+        (,, uint256 premiumNet,,,,) = stagedCollection.proceedsVault().receipts(4);
+        assertEq(alphaNet, 3.6 ether);
+        assertEq(primeNet, 2.7 ether);
+        assertEq(premiumNet, 1.8 ether);
     }
 
     function testMintPolicyIsImmutableAndBoundToTheNftAndSupply() public {
@@ -877,7 +1082,14 @@ contract YieldBankCollectionTest is Test {
 
         YieldBankMintStage[] memory replacement = new YieldBankMintStage[](1);
         replacement[0] = YieldBankMintStage({
-            endTokenId: 10, mintPrice: 1 ether, maxMintsPerWallet: 1, feeBps: 1_000
+            endTokenId: 10,
+            mintPrice: 1 ether,
+            startTime: 1,
+            endTime: 10,
+            maxMintsPerWallet: 1,
+            feeBps: 1_000,
+            dropStageIndex: 1,
+            restrictFeeRecipients: true
         });
         YieldBankMintStagePolicy second =
             new YieldBankMintStagePolicy(address(nft), 10, replacement);
@@ -1019,26 +1231,67 @@ contract YieldBankCollectionTest is Test {
         vm.stopPrank();
     }
 
+    function _configurePublicStage(
+        YieldBankNFT nft,
+        YieldBankMintStagePolicy mintPolicy,
+        uint256 stageIndex,
+        uint48 startTime,
+        uint48 endTime
+    ) private {
+        PublicDrop memory publicDrop = mintPolicy.publicDropForStage(stageIndex, startTime, endTime);
+        vm.prank(CREATOR);
+        nft.updatePublicDrop(address(seaDrop), publicDrop);
+    }
+
     function _configureFourPaidStages(YieldBankNFT nft)
         private
         returns (YieldBankMintStagePolicy mintStagePolicy)
     {
         YieldBankMintStage[] memory stages = new YieldBankMintStage[](4);
         stages[0] = YieldBankMintStage({
-            endTokenId: 1, mintPrice: 4 ether, maxMintsPerWallet: 1, feeBps: 1_000
+            endTokenId: 1,
+            mintPrice: 4 ether,
+            startTime: 1,
+            endTime: 10,
+            maxMintsPerWallet: 1,
+            feeBps: 1_000,
+            dropStageIndex: 1,
+            restrictFeeRecipients: true
         });
         stages[1] = YieldBankMintStage({
-            endTokenId: 6, mintPrice: 3 ether, maxMintsPerWallet: 3, feeBps: 1_000
+            endTokenId: 6,
+            mintPrice: 3 ether,
+            startTime: 11,
+            endTime: 20,
+            maxMintsPerWallet: 3,
+            feeBps: 1_000,
+            dropStageIndex: 2,
+            restrictFeeRecipients: true
         });
         stages[2] = YieldBankMintStage({
-            endTokenId: 8, mintPrice: 2 ether, maxMintsPerWallet: 5, feeBps: 1_000
+            endTokenId: 8,
+            mintPrice: 2 ether,
+            startTime: 21,
+            endTime: 30,
+            maxMintsPerWallet: 2,
+            feeBps: 1_000,
+            dropStageIndex: 3,
+            restrictFeeRecipients: true
         });
         stages[3] = YieldBankMintStage({
-            endTokenId: 10, mintPrice: 1 ether, maxMintsPerWallet: 10, feeBps: 1_000
+            endTokenId: 10,
+            mintPrice: 1 ether,
+            startTime: 31,
+            endTime: 40,
+            maxMintsPerWallet: 2,
+            feeBps: 1_000,
+            dropStageIndex: 4,
+            restrictFeeRecipients: true
         });
         mintStagePolicy = new YieldBankMintStagePolicy(address(nft), 10, stages);
-        vm.prank(CREATOR);
+        vm.startPrank(CREATOR);
         nft.setMintPolicy(address(mintStagePolicy));
+        vm.stopPrank();
     }
 
     function _config(uint256 supply) private view returns (YieldBankConfig memory c) {

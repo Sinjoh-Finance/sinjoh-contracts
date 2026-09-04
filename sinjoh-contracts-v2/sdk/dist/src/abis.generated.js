@@ -37874,6 +37874,11 @@ export const yieldBankCollectionAbi = [
                 "name": "expectedNetProceeds",
                 "type": "uint256",
                 "internalType": "uint256"
+            },
+            {
+                "name": "selectedFirstTokenId",
+                "type": "uint256",
+                "internalType": "uint256"
             }
         ],
         "outputs": [
@@ -40086,6 +40091,16 @@ export const yieldBankMintStagePolicyAbi = [
                         "internalType": "uint80"
                     },
                     {
+                        "name": "startTime",
+                        "type": "uint48",
+                        "internalType": "uint48"
+                    },
+                    {
+                        "name": "endTime",
+                        "type": "uint48",
+                        "internalType": "uint48"
+                    },
+                    {
                         "name": "maxMintsPerWallet",
                         "type": "uint16",
                         "internalType": "uint16"
@@ -40094,11 +40109,34 @@ export const yieldBankMintStagePolicyAbi = [
                         "name": "feeBps",
                         "type": "uint16",
                         "internalType": "uint16"
+                    },
+                    {
+                        "name": "dropStageIndex",
+                        "type": "uint8",
+                        "internalType": "uint8"
+                    },
+                    {
+                        "name": "restrictFeeRecipients",
+                        "type": "bool",
+                        "internalType": "bool"
                     }
                 ]
             }
         ],
         "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
+        "name": "activeStage",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "view"
     },
     {
         "type": "function",
@@ -40115,6 +40153,67 @@ export const yieldBankMintStagePolicyAbi = [
     },
     {
         "type": "function",
+        "name": "mintParams",
+        "inputs": [
+            {
+                "name": "stageIndex",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "params",
+                "type": "tuple",
+                "internalType": "struct MintParams",
+                "components": [
+                    {
+                        "name": "mintPrice",
+                        "type": "uint256",
+                        "internalType": "uint256"
+                    },
+                    {
+                        "name": "maxTotalMintableByWallet",
+                        "type": "uint256",
+                        "internalType": "uint256"
+                    },
+                    {
+                        "name": "startTime",
+                        "type": "uint256",
+                        "internalType": "uint256"
+                    },
+                    {
+                        "name": "endTime",
+                        "type": "uint256",
+                        "internalType": "uint256"
+                    },
+                    {
+                        "name": "dropStageIndex",
+                        "type": "uint256",
+                        "internalType": "uint256"
+                    },
+                    {
+                        "name": "maxTokenSupplyForStage",
+                        "type": "uint256",
+                        "internalType": "uint256"
+                    },
+                    {
+                        "name": "feeBps",
+                        "type": "uint256",
+                        "internalType": "uint256"
+                    },
+                    {
+                        "name": "restrictFeeRecipients",
+                        "type": "bool",
+                        "internalType": "bool"
+                    }
+                ]
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
         "name": "mintStats",
         "inputs": [
             {
@@ -40123,7 +40222,7 @@ export const yieldBankMintStagePolicyAbi = [
                 "internalType": "address"
             },
             {
-                "name": "currentTotalMinted",
+                "name": "",
                 "type": "uint256",
                 "internalType": "uint256"
             }
@@ -40135,7 +40234,31 @@ export const yieldBankMintStagePolicyAbi = [
                 "internalType": "uint256"
             },
             {
+                "name": "stageMinted",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
                 "name": "stageSupply",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "mintedByStage",
+        "inputs": [
+            {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "",
                 "type": "uint256",
                 "internalType": "uint256"
             }
@@ -40181,6 +40304,80 @@ export const yieldBankMintStagePolicyAbi = [
     },
     {
         "type": "function",
+        "name": "publicDropForStage",
+        "inputs": [
+            {
+                "name": "stageIndex",
+                "type": "uint256",
+                "internalType": "uint256"
+            },
+            {
+                "name": "startTime",
+                "type": "uint48",
+                "internalType": "uint48"
+            },
+            {
+                "name": "endTime",
+                "type": "uint48",
+                "internalType": "uint48"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "publicDrop",
+                "type": "tuple",
+                "internalType": "struct PublicDrop",
+                "components": [
+                    {
+                        "name": "mintPrice",
+                        "type": "uint80",
+                        "internalType": "uint80"
+                    },
+                    {
+                        "name": "startTime",
+                        "type": "uint48",
+                        "internalType": "uint48"
+                    },
+                    {
+                        "name": "endTime",
+                        "type": "uint48",
+                        "internalType": "uint48"
+                    },
+                    {
+                        "name": "maxTotalMintableByWallet",
+                        "type": "uint16",
+                        "internalType": "uint16"
+                    },
+                    {
+                        "name": "feeBps",
+                        "type": "uint16",
+                        "internalType": "uint16"
+                    },
+                    {
+                        "name": "restrictFeeRecipients",
+                        "type": "bool",
+                        "internalType": "bool"
+                    }
+                ]
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "publicSaleStart",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
         "name": "recordMint",
         "inputs": [
             {
@@ -40194,7 +40391,7 @@ export const yieldBankMintStagePolicyAbi = [
                 "internalType": "uint256"
             },
             {
-                "name": "currentTotalMinted",
+                "name": "",
                 "type": "uint256",
                 "internalType": "uint256"
             },
@@ -40209,9 +40406,27 @@ export const yieldBankMintStagePolicyAbi = [
                 "name": "expectedNetProceeds",
                 "type": "uint256",
                 "internalType": "uint256"
+            },
+            {
+                "name": "firstTokenId",
+                "type": "uint256",
+                "internalType": "uint256"
             }
         ],
         "stateMutability": "nonpayable"
+    },
+    {
+        "type": "function",
+        "name": "seaDrop",
+        "inputs": [],
+        "outputs": [
+            {
+                "name": "",
+                "type": "address",
+                "internalType": "address"
+            }
+        ],
+        "stateMutability": "view"
     },
     {
         "type": "function",
@@ -40240,6 +40455,16 @@ export const yieldBankMintStagePolicyAbi = [
                         "internalType": "uint80"
                     },
                     {
+                        "name": "startTime",
+                        "type": "uint48",
+                        "internalType": "uint48"
+                    },
+                    {
+                        "name": "endTime",
+                        "type": "uint48",
+                        "internalType": "uint48"
+                    },
+                    {
                         "name": "maxMintsPerWallet",
                         "type": "uint16",
                         "internalType": "uint16"
@@ -40248,8 +40473,37 @@ export const yieldBankMintStagePolicyAbi = [
                         "name": "feeBps",
                         "type": "uint16",
                         "internalType": "uint16"
+                    },
+                    {
+                        "name": "dropStageIndex",
+                        "type": "uint8",
+                        "internalType": "uint8"
+                    },
+                    {
+                        "name": "restrictFeeRecipients",
+                        "type": "bool",
+                        "internalType": "bool"
                     }
                 ]
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "stageCapacity",
+        "inputs": [
+            {
+                "name": "stageIndex",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
             }
         ],
         "stateMutability": "view"
@@ -40266,6 +40520,56 @@ export const yieldBankMintStagePolicyAbi = [
             }
         ],
         "stateMutability": "view"
+    },
+    {
+        "type": "function",
+        "name": "stageStartTokenId",
+        "inputs": [
+            {
+                "name": "stageIndex",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "outputs": [
+            {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ],
+        "stateMutability": "view"
+    },
+    {
+        "type": "event",
+        "name": "StageMintRecorded",
+        "inputs": [
+            {
+                "name": "stageIndex",
+                "type": "uint256",
+                "indexed": true,
+                "internalType": "uint256"
+            },
+            {
+                "name": "minter",
+                "type": "address",
+                "indexed": true,
+                "internalType": "address"
+            },
+            {
+                "name": "quantity",
+                "type": "uint256",
+                "indexed": false,
+                "internalType": "uint256"
+            },
+            {
+                "name": "firstTokenId",
+                "type": "uint256",
+                "indexed": false,
+                "internalType": "uint256"
+            }
+        ],
+        "anonymous": false
     },
     {
         "type": "error",
@@ -40290,6 +40594,22 @@ export const yieldBankMintStagePolicyAbi = [
     },
     {
         "type": "error",
+        "name": "InvalidPublicDrop",
+        "inputs": []
+    },
+    {
+        "type": "error",
+        "name": "NoActiveStage",
+        "inputs": [
+            {
+                "name": "timestamp",
+                "type": "uint256",
+                "internalType": "uint256"
+            }
+        ]
+    },
+    {
+        "type": "error",
         "name": "OnlyNFT",
         "inputs": [
             {
@@ -40301,7 +40621,7 @@ export const yieldBankMintStagePolicyAbi = [
     },
     {
         "type": "error",
-        "name": "StageBoundary",
+        "name": "StageSoldOut",
         "inputs": [
             {
                 "name": "stageIndex",
@@ -40309,12 +40629,12 @@ export const yieldBankMintStagePolicyAbi = [
                 "internalType": "uint256"
             },
             {
-                "name": "requestedLastTokenId",
+                "name": "requestedTotal",
                 "type": "uint256",
                 "internalType": "uint256"
             },
             {
-                "name": "stageEndTokenId",
+                "name": "stageCapacity",
                 "type": "uint256",
                 "internalType": "uint256"
             }

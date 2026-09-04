@@ -29210,6 +29210,10 @@ export declare const yieldBankCollectionAbi: readonly [{
         readonly name: "expectedNetProceeds";
         readonly type: "uint256";
         readonly internalType: "uint256";
+    }, {
+        readonly name: "selectedFirstTokenId";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
     }];
     readonly outputs: readonly [{
         readonly name: "firstTokenId";
@@ -30909,6 +30913,14 @@ export declare const yieldBankMintStagePolicyAbi: readonly [{
             readonly type: "uint80";
             readonly internalType: "uint80";
         }, {
+            readonly name: "startTime";
+            readonly type: "uint48";
+            readonly internalType: "uint48";
+        }, {
+            readonly name: "endTime";
+            readonly type: "uint48";
+            readonly internalType: "uint48";
+        }, {
             readonly name: "maxMintsPerWallet";
             readonly type: "uint16";
             readonly internalType: "uint16";
@@ -30916,9 +30928,27 @@ export declare const yieldBankMintStagePolicyAbi: readonly [{
             readonly name: "feeBps";
             readonly type: "uint16";
             readonly internalType: "uint16";
+        }, {
+            readonly name: "dropStageIndex";
+            readonly type: "uint8";
+            readonly internalType: "uint8";
+        }, {
+            readonly name: "restrictFeeRecipients";
+            readonly type: "bool";
+            readonly internalType: "bool";
         }];
     }];
     readonly stateMutability: "nonpayable";
+}, {
+    readonly type: "function";
+    readonly name: "activeStage";
+    readonly inputs: readonly [];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly stateMutability: "view";
 }, {
     readonly type: "function";
     readonly name: "maxSupply";
@@ -30931,13 +30961,60 @@ export declare const yieldBankMintStagePolicyAbi: readonly [{
     readonly stateMutability: "view";
 }, {
     readonly type: "function";
+    readonly name: "mintParams";
+    readonly inputs: readonly [{
+        readonly name: "stageIndex";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "params";
+        readonly type: "tuple";
+        readonly internalType: "struct MintParams";
+        readonly components: readonly [{
+            readonly name: "mintPrice";
+            readonly type: "uint256";
+            readonly internalType: "uint256";
+        }, {
+            readonly name: "maxTotalMintableByWallet";
+            readonly type: "uint256";
+            readonly internalType: "uint256";
+        }, {
+            readonly name: "startTime";
+            readonly type: "uint256";
+            readonly internalType: "uint256";
+        }, {
+            readonly name: "endTime";
+            readonly type: "uint256";
+            readonly internalType: "uint256";
+        }, {
+            readonly name: "dropStageIndex";
+            readonly type: "uint256";
+            readonly internalType: "uint256";
+        }, {
+            readonly name: "maxTokenSupplyForStage";
+            readonly type: "uint256";
+            readonly internalType: "uint256";
+        }, {
+            readonly name: "feeBps";
+            readonly type: "uint256";
+            readonly internalType: "uint256";
+        }, {
+            readonly name: "restrictFeeRecipients";
+            readonly type: "bool";
+            readonly internalType: "bool";
+        }];
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
     readonly name: "mintStats";
     readonly inputs: readonly [{
         readonly name: "minter";
         readonly type: "address";
         readonly internalType: "address";
     }, {
-        readonly name: "currentTotalMinted";
+        readonly name: "";
         readonly type: "uint256";
         readonly internalType: "uint256";
     }];
@@ -30946,7 +31023,25 @@ export declare const yieldBankMintStagePolicyAbi: readonly [{
         readonly type: "uint256";
         readonly internalType: "uint256";
     }, {
+        readonly name: "stageMinted";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }, {
         readonly name: "stageSupply";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "mintedByStage";
+    readonly inputs: readonly [{
+        readonly name: "";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "";
         readonly type: "uint256";
         readonly internalType: "uint256";
     }];
@@ -30981,6 +31076,63 @@ export declare const yieldBankMintStagePolicyAbi: readonly [{
     readonly stateMutability: "view";
 }, {
     readonly type: "function";
+    readonly name: "publicDropForStage";
+    readonly inputs: readonly [{
+        readonly name: "stageIndex";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "startTime";
+        readonly type: "uint48";
+        readonly internalType: "uint48";
+    }, {
+        readonly name: "endTime";
+        readonly type: "uint48";
+        readonly internalType: "uint48";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "publicDrop";
+        readonly type: "tuple";
+        readonly internalType: "struct PublicDrop";
+        readonly components: readonly [{
+            readonly name: "mintPrice";
+            readonly type: "uint80";
+            readonly internalType: "uint80";
+        }, {
+            readonly name: "startTime";
+            readonly type: "uint48";
+            readonly internalType: "uint48";
+        }, {
+            readonly name: "endTime";
+            readonly type: "uint48";
+            readonly internalType: "uint48";
+        }, {
+            readonly name: "maxTotalMintableByWallet";
+            readonly type: "uint16";
+            readonly internalType: "uint16";
+        }, {
+            readonly name: "feeBps";
+            readonly type: "uint16";
+            readonly internalType: "uint16";
+        }, {
+            readonly name: "restrictFeeRecipients";
+            readonly type: "bool";
+            readonly internalType: "bool";
+        }];
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "publicSaleStart";
+    readonly inputs: readonly [];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
     readonly name: "recordMint";
     readonly inputs: readonly [{
         readonly name: "minter";
@@ -30991,7 +31143,7 @@ export declare const yieldBankMintStagePolicyAbi: readonly [{
         readonly type: "uint256";
         readonly internalType: "uint256";
     }, {
-        readonly name: "currentTotalMinted";
+        readonly name: "";
         readonly type: "uint256";
         readonly internalType: "uint256";
     }, {
@@ -31003,8 +31155,22 @@ export declare const yieldBankMintStagePolicyAbi: readonly [{
         readonly name: "expectedNetProceeds";
         readonly type: "uint256";
         readonly internalType: "uint256";
+    }, {
+        readonly name: "firstTokenId";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
     }];
     readonly stateMutability: "nonpayable";
+}, {
+    readonly type: "function";
+    readonly name: "seaDrop";
+    readonly inputs: readonly [];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly stateMutability: "view";
 }, {
     readonly type: "function";
     readonly name: "stage";
@@ -31026,6 +31192,14 @@ export declare const yieldBankMintStagePolicyAbi: readonly [{
             readonly type: "uint80";
             readonly internalType: "uint80";
         }, {
+            readonly name: "startTime";
+            readonly type: "uint48";
+            readonly internalType: "uint48";
+        }, {
+            readonly name: "endTime";
+            readonly type: "uint48";
+            readonly internalType: "uint48";
+        }, {
             readonly name: "maxMintsPerWallet";
             readonly type: "uint16";
             readonly internalType: "uint16";
@@ -31033,7 +31207,29 @@ export declare const yieldBankMintStagePolicyAbi: readonly [{
             readonly name: "feeBps";
             readonly type: "uint16";
             readonly internalType: "uint16";
+        }, {
+            readonly name: "dropStageIndex";
+            readonly type: "uint8";
+            readonly internalType: "uint8";
+        }, {
+            readonly name: "restrictFeeRecipients";
+            readonly type: "bool";
+            readonly internalType: "bool";
         }];
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "stageCapacity";
+    readonly inputs: readonly [{
+        readonly name: "stageIndex";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
     }];
     readonly stateMutability: "view";
 }, {
@@ -31046,6 +31242,45 @@ export declare const yieldBankMintStagePolicyAbi: readonly [{
         readonly internalType: "uint256";
     }];
     readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "stageStartTokenId";
+    readonly inputs: readonly [{
+        readonly name: "stageIndex";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "event";
+    readonly name: "StageMintRecorded";
+    readonly inputs: readonly [{
+        readonly name: "stageIndex";
+        readonly type: "uint256";
+        readonly indexed: true;
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "minter";
+        readonly type: "address";
+        readonly indexed: true;
+        readonly internalType: "address";
+    }, {
+        readonly name: "quantity";
+        readonly type: "uint256";
+        readonly indexed: false;
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "firstTokenId";
+        readonly type: "uint256";
+        readonly indexed: false;
+        readonly internalType: "uint256";
+    }];
+    readonly anonymous: false;
 }, {
     readonly type: "error";
     readonly name: "InsufficientSeaDropPayment";
@@ -31064,6 +31299,18 @@ export declare const yieldBankMintStagePolicyAbi: readonly [{
     readonly inputs: readonly [];
 }, {
     readonly type: "error";
+    readonly name: "InvalidPublicDrop";
+    readonly inputs: readonly [];
+}, {
+    readonly type: "error";
+    readonly name: "NoActiveStage";
+    readonly inputs: readonly [{
+        readonly name: "timestamp";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+}, {
+    readonly type: "error";
     readonly name: "OnlyNFT";
     readonly inputs: readonly [{
         readonly name: "caller";
@@ -31072,17 +31319,17 @@ export declare const yieldBankMintStagePolicyAbi: readonly [{
     }];
 }, {
     readonly type: "error";
-    readonly name: "StageBoundary";
+    readonly name: "StageSoldOut";
     readonly inputs: readonly [{
         readonly name: "stageIndex";
         readonly type: "uint256";
         readonly internalType: "uint256";
     }, {
-        readonly name: "requestedLastTokenId";
+        readonly name: "requestedTotal";
         readonly type: "uint256";
         readonly internalType: "uint256";
     }, {
-        readonly name: "stageEndTokenId";
+        readonly name: "stageCapacity";
         readonly type: "uint256";
         readonly internalType: "uint256";
     }];

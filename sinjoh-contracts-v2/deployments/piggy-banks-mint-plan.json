@@ -1,9 +1,9 @@
 {
   "publicWindows": [
-    { "name": "Alpha Public", "stageIndex": "0", "startTime": null, "endTime": null },
-    { "name": "Prime Public", "stageIndex": "1", "startTime": null, "endTime": null },
-    { "name": "Premium Public", "stageIndex": "2", "startTime": null, "endTime": null },
-    { "name": "Standard Public", "stageIndex": "3", "startTime": null, "endTime": null }
+    { "name": "Alpha Public", "stageIndex": "0", "startTime": "1788541200", "endTime": "1788541499" },
+    { "name": "Prime Public", "stageIndex": "1", "startTime": "1788541500", "endTime": "1788542099" },
+    { "name": "Premium Public", "stageIndex": "2", "startTime": "1788542100", "endTime": "1788542999" },
+    { "name": "Standard Public", "stageIndex": "3", "startTime": "1788543000", "endTime": "1820078999" }
   ],
   "stages": [
     {
@@ -12,8 +12,8 @@
       "minimumBalance": "10000000",
       "mintPrice": "500000000000000000",
       "maxTotalMintableByWallet": "1",
-      "startTime": null,
-      "endTime": null,
+      "startTime": "1788537600",
+      "endTime": "1788537899",
       "dropStageIndex": "1",
       "maxTokenSupplyForStage": "3",
       "feeBps": "1000",
@@ -25,8 +25,8 @@
       "minimumBalance": "1000000",
       "mintPrice": "100000000000000000",
       "maxTotalMintableByWallet": "3",
-      "startTime": null,
-      "endTime": null,
+      "startTime": "1788537900",
+      "endTime": "1788538499",
       "dropStageIndex": "2",
       "maxTokenSupplyForStage": "30",
       "feeBps": "1000",
@@ -38,8 +38,8 @@
       "minimumBalance": "100000",
       "mintPrice": "30000000000000000",
       "maxTotalMintableByWallet": "5",
-      "startTime": null,
-      "endTime": null,
+      "startTime": "1788538500",
+      "endTime": "1788539399",
       "dropStageIndex": "3",
       "maxTokenSupplyForStage": "300",
       "feeBps": "1000",
@@ -51,8 +51,8 @@
       "minimumBalance": "10000",
       "mintPrice": "10000000000000000",
       "maxTotalMintableByWallet": "10",
-      "startTime": null,
-      "endTime": null,
+      "startTime": "1788539400",
+      "endTime": "1788541199",
       "dropStageIndex": "4",
       "maxTokenSupplyForStage": "3000",
       "feeBps": "1000",

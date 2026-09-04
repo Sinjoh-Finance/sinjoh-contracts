@@ -10,6 +10,17 @@ struct PublicDrop {
     bool restrictFeeRecipients;
 }
 
+struct MintParams {
+    uint256 mintPrice;
+    uint256 maxTotalMintableByWallet;
+    uint256 startTime;
+    uint256 endTime;
+    uint256 dropStageIndex;
+    uint256 maxTokenSupplyForStage;
+    uint256 feeBps;
+    bool restrictFeeRecipients;
+}
+
 struct TokenGatedDropStage {
     uint80 mintPrice;
     uint16 maxTotalMintableByWallet;

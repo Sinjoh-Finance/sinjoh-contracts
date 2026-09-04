@@ -353,9 +353,15 @@ assert((allowListStages.length === 0)
   "a nonempty SeaDrop allowlist root and its recorded stages must be present together");
 assert(allowListStages.length === 0 || manifest.contracts.mintPolicy,
   "a nonempty SeaDrop allowlist requires contracts.mintPolicy");
-let previousAllowListSupply = 0;
+let previousAllowListEndTokenId = 0;
+let previousAllowListStartTime = -1;
+let previousAllowListEndTime = -1;
+const allowListDropStageIndexes = new Set();
 for (const [index, stage] of allowListStages.entries()) {
-  assert(/^\d+$/.test(stage.mintPrice) && BigInt(stage.mintPrice) > 0n
+  const stageCapacity = stage.endTokenId - previousAllowListEndTokenId;
+  assert(Number.isSafeInteger(stage.endTokenId)
+    && stage.endTokenId > previousAllowListEndTokenId
+    && /^\d+$/.test(stage.mintPrice) && BigInt(stage.mintPrice) > 0n
     && BigInt(stage.mintPrice) < (1n << 80n)
     && Number.isInteger(stage.maxTotalMintableByWallet)
     && stage.maxTotalMintableByWallet >= 1 && stage.maxTotalMintableByWallet <= 65_535
@@ -363,14 +369,35 @@ for (const [index, stage] of allowListStages.entries()) {
     && Number.isSafeInteger(stage.endTime) && stage.endTime > stage.startTime
     && Number.isInteger(stage.dropStageIndex) && stage.dropStageIndex >= 0
     && stage.dropStageIndex <= 255 && Number.isInteger(stage.maxTokenSupplyForStage)
-    && stage.maxTokenSupplyForStage > previousAllowListSupply
+    && stage.maxTokenSupplyForStage >= stageCapacity
     && stage.maxTokenSupplyForStage <= 4_294_967_295
     && isBps(stage.feeBps) && stage.feeBps < 10_000
     && typeof stage.restrictFeeRecipients === "boolean",
   `invalid SeaDrop allowlist stage ${index}`);
   assert(!stage.restrictFeeRecipients || allowedFeeRecipients.length > 0,
     `restricted allowlist stage ${index} requires an allowed fee recipient`);
-  previousAllowListSupply = stage.maxTokenSupplyForStage;
+  assert(stage.startTime > previousAllowListStartTime,
+    `allowlist stage ${index} start time must be strictly increasing`);
+  assert(stage.startTime > previousAllowListEndTime,
+    `allowlist stage ${index} overlaps the prior stage`);
+  assert(!allowListDropStageIndexes.has(stage.dropStageIndex),
+    `allowlist stage ${index} dropStageIndex must be unique`);
+  allowListDropStageIndexes.add(stage.dropStageIndex);
+  previousAllowListEndTokenId = stage.endTokenId;
+  previousAllowListStartTime = stage.startTime;
+  previousAllowListEndTime = stage.endTime;
+}
+if (allowListStages.length > 0) {
+  assert(previousAllowListEndTokenId === manifest.economics.maxSupply,
+    "final allowlist token range must equal maxSupply");
+  const matchingPublicTiers = allowListStages.filter((tier) =>
+    publicDrop.mintPrice === tier.mintPrice
+      && publicDrop.maxTotalMintableByWallet === tier.maxTotalMintableByWallet
+      && publicDrop.feeBps === tier.feeBps
+      && publicDrop.restrictFeeRecipients === tier.restrictFeeRecipients);
+  assert(!publicDropDisabled && matchingPublicTiers.length === 1
+    && publicDrop.startTime > previousAllowListEndTime,
+  "SeaDrop public drop must uniquely match one tier and begin after every allowlist window");
 }
 const allowedPayers = canonicalAddresses(manifest.openSea.allowedPayers);
 assert(allowedPayers.length === manifest.openSea.allowedPayers.length,
@@ -417,6 +444,14 @@ for (const params of signedMintValidations) {
     && params.minFeeBps <= params.maxFeeBps && params.maxFeeBps < 10_000,
   `invalid SeaDrop signed-mint validation for ${params.signer}`);
 }
+if (allowListStages.length > 0) {
+  assert(allowedPayers.length === 0,
+    "a staged mint policy requires an empty SeaDrop payer set");
+  assert(tokenGatedDrops.length === 0,
+    "a staged mint policy requires an empty SeaDrop token-gated set");
+  assert(signedMintValidations.length === 0,
+    "a staged mint policy requires an empty SeaDrop signer set");
+}
 const mintStagesHash = keccak256(encodeAbiParameters(
   [
     { type: "tuple", components: [
@@ -428,6 +463,7 @@ const mintStagesHash = keccak256(encodeAbiParameters(
     ] },
     { type: "bytes32" },
     { type: "tuple[]", components: [
+      { name: "endTokenId", type: "uint64" },
       { name: "mintPrice", type: "uint80" },
       { name: "maxTotalMintableByWallet", type: "uint16" },
       { name: "startTime", type: "uint48" }, { name: "endTime", type: "uint48" },
@@ -610,9 +646,13 @@ const mintPolicyAbi = [
   { type: "function", name: "nft", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "maxSupply", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "stageCount", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "publicSaleStart", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "stage", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "tuple", components: [
     { name: "endTokenId", type: "uint64" }, { name: "mintPrice", type: "uint80" },
+    { name: "startTime", type: "uint48" }, { name: "endTime", type: "uint48" },
     { name: "maxMintsPerWallet", type: "uint16" }, { name: "feeBps", type: "uint16" },
+    { name: "dropStageIndex", type: "uint8" },
+    { name: "restrictFeeRecipients", type: "bool" },
   ] }] },
 ];
 const vaultAbi = [
@@ -846,7 +886,7 @@ const [predictedFactory, factoryVersion, collectionCodeHash, systemPlanHash,
   collectionTimelock, collectionGuardian,
   collectionSecondaryRoyaltyBps, nftMaxSupply, nftSeaDrop, nftCollection, nftRoyaltyReceiver,
   nftRoyaltyBps, nftOwner, nftMintPolicy, mintPolicyNft, mintPolicyMaxSupply,
-  mintPolicyStageCount, allocationOperator, collectionRecord, seaDropCreatorPayout,
+  mintPolicyStageCount, mintPolicyPublicSaleStart, allocationOperator, collectionRecord, seaDropCreatorPayout,
   seaDropPublicDrop, seaDropAllowListMerkleRoot, seaDropFeeRecipients, seaDropPayers,
   seaDropSigners, seaDropTokenGatedTokens, ...onchainEconomicValues] = await Promise.all([
   read(manifest.contracts.factoryDeployer.address, deployerAbi, "predict", [manifest.deployment.factorySalt]),
@@ -887,6 +927,9 @@ const [predictedFactory, factoryVersion, collectionCodeHash, systemPlanHash,
     : Promise.resolve(0n),
   allowListStages.length
     ? read(manifest.contracts.mintPolicy.address, mintPolicyAbi, "stageCount")
+    : Promise.resolve(0n),
+  allowListStages.length
+    ? read(manifest.contracts.mintPolicy.address, mintPolicyAbi, "publicSaleStart")
     : Promise.resolve(0n),
   read(manifest.contracts.proceedsVault.address, vaultAbi, "allocationOperator"),
   read(manifest.contracts.registry.address, registryAbi, "collections", [manifest.contracts.collection.address]),
@@ -1094,23 +1137,32 @@ if (allowListStages.length === 0) {
   assert(nftMintPolicy === "0x0000000000000000000000000000000000000000",
     "NFT has an unrecorded mint policy");
 } else {
+  const expectedPolicyStages = allowListStages;
+  assert(expectedPolicyStages.length <= 16,
+    "combined allowlist and public mint policy stages exceed 16");
   assert(sameAddress(nftMintPolicy, manifest.contracts.mintPolicy.address),
     "NFT mint policy mismatch");
   assert(sameAddress(mintPolicyNft, manifest.contracts.nft.address),
     "mint policy NFT binding mismatch");
   assert(mintPolicyMaxSupply === BigInt(manifest.economics.maxSupply),
     "mint policy maxSupply mismatch");
-  assert(Number(mintPolicyStageCount) === allowListStages.length,
+  assert(Number(mintPolicyStageCount) === expectedPolicyStages.length,
     "mint policy stage count mismatch");
-  const policyStages = await Promise.all(allowListStages.map((_, index) => read(
+  assert(Number(mintPolicyPublicSaleStart) === previousAllowListEndTime + 1,
+    "mint policy publicSaleStart mismatch");
+  const policyStages = await Promise.all(expectedPolicyStages.map((_, index) => read(
     manifest.contracts.mintPolicy.address, mintPolicyAbi, "stage", [BigInt(index)],
   )));
-  for (const [index, stage] of allowListStages.entries()) {
+  for (const [index, stage] of expectedPolicyStages.entries()) {
     const configured = policyStages[index];
-    assert(Number(configured.endTokenId) === stage.maxTokenSupplyForStage
+    assert(Number(configured.endTokenId) === stage.endTokenId
       && configured.mintPrice === BigInt(stage.mintPrice)
+      && Number(configured.startTime) === stage.startTime
+      && Number(configured.endTime) === stage.endTime
       && Number(configured.maxMintsPerWallet) === stage.maxTotalMintableByWallet
-      && Number(configured.feeBps) === stage.feeBps,
+      && Number(configured.feeBps) === stage.feeBps
+      && Number(configured.dropStageIndex) === stage.dropStageIndex
+      && configured.restrictFeeRecipients === stage.restrictFeeRecipients,
     `mint policy stage ${index} mismatch`);
   }
 }

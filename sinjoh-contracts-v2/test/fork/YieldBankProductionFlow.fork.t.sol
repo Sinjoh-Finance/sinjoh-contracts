@@ -336,15 +336,24 @@ contract YieldBankProductionFlowForkTest is Test {
         YieldBankNFT nft = collection.nft();
         YieldBankProceedsVault vault = collection.proceedsVault();
         YieldBankMintStage[] memory stages = new YieldBankMintStage[](1);
+        uint48 allowListStart = uint48(block.timestamp);
+        uint48 allowListEnd = allowListStart + 1 days;
         stages[0] = YieldBankMintStage({
-            endTokenId: 3, mintPrice: 0.001 ether, maxMintsPerWallet: 2, feeBps: 1_000
+            endTokenId: 3,
+            mintPrice: 0.001 ether,
+            startTime: allowListStart,
+            endTime: allowListEnd,
+            maxMintsPerWallet: 2,
+            feeBps: 1_000,
+            dropStageIndex: 1,
+            restrictFeeRecipients: true
         });
         YieldBankMintStagePolicy mintPolicy = new YieldBankMintStagePolicy(address(nft), 3, stages);
         ILiveSeaDropMint.MintParams memory mintParams = ILiveSeaDropMint.MintParams({
             mintPrice: 0.001 ether,
             maxTotalMintableByWallet: 2,
-            startTime: 1,
-            endTime: type(uint48).max,
+            startTime: allowListStart,
+            endTime: allowListEnd,
             dropStageIndex: 1,
             maxTokenSupplyForStage: 3,
             feeBps: 1_000,

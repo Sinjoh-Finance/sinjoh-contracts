@@ -26,27 +26,39 @@ contract ConfigureYieldBankMintPolicy is Script {
         YieldBankNFT nft = collection.nft();
         uint256[] memory ends = vm.envUint("MINT_STAGE_ENDS", ",");
         uint256[] memory prices = vm.envUint("MINT_STAGE_PRICES_WEI", ",");
+        uint256[] memory starts = vm.envUint("MINT_STAGE_START_TIMES", ",");
+        uint256[] memory timeEnds = vm.envUint("MINT_STAGE_END_TIMES", ",");
         uint256[] memory limits = vm.envUint("MINT_STAGE_WALLET_LIMITS", ",");
         uint256[] memory fees = vm.envUint("MINT_STAGE_FEE_BPS", ",");
+        uint256[] memory dropIndexes = vm.envUint("MINT_STAGE_DROP_INDEXES", ",");
+        bool[] memory restrictFeeRecipients = vm.envBool("MINT_STAGE_RESTRICT_FEE_RECIPIENTS", ",");
         uint256 length = ends.length;
 
         if (
             address(collection).code.length == 0 || address(nft).code.length == 0 || length == 0
-                || length > 16 || prices.length != length || limits.length != length
-                || fees.length != length || nft.mintPolicy() != address(0) || nft.totalMinted() != 0
+                || length > 16 || prices.length != length || starts.length != length
+                || timeEnds.length != length || limits.length != length || fees.length != length
+                || dropIndexes.length != length || restrictFeeRecipients.length != length
+                || nft.mintPolicy() != address(0) || nft.totalMinted() != 0
         ) revert InvalidConfiguration();
 
         YieldBankMintStage[] memory stages = new YieldBankMintStage[](length);
         for (uint256 i; i < length; ++i) {
             if (
                 ends[i] > type(uint64).max || prices[i] > type(uint80).max
+                    || starts[i] > type(uint48).max || timeEnds[i] > type(uint48).max
                     || limits[i] > type(uint16).max || fees[i] > type(uint16).max
+                    || dropIndexes[i] > type(uint8).max
             ) revert InvalidConfiguration();
             stages[i] = YieldBankMintStage({
                 endTokenId: uint64(ends[i]),
                 mintPrice: uint80(prices[i]),
+                startTime: uint48(starts[i]),
+                endTime: uint48(timeEnds[i]),
                 maxMintsPerWallet: uint16(limits[i]),
-                feeBps: uint16(fees[i])
+                feeBps: uint16(fees[i]),
+                dropStageIndex: uint8(dropIndexes[i]),
+                restrictFeeRecipients: restrictFeeRecipients[i]
             });
         }
 
@@ -64,8 +76,12 @@ contract ConfigureYieldBankMintPolicy is Script {
             if (
                 configured.endTokenId != stages[i].endTokenId
                     || configured.mintPrice != stages[i].mintPrice
+                    || configured.startTime != stages[i].startTime
+                    || configured.endTime != stages[i].endTime
                     || configured.maxMintsPerWallet != stages[i].maxMintsPerWallet
                     || configured.feeBps != stages[i].feeBps
+                    || configured.dropStageIndex != stages[i].dropStageIndex
+                    || configured.restrictFeeRecipients != stages[i].restrictFeeRecipients
             ) revert VerificationFailed();
         }
 

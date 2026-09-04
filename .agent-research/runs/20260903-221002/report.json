@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "1.0",
+  "run": {
+    "id": "20260903-221002",
+    "date": "2026-09-03",
+    "requirements": "OpenSea-only sequential fixed-price Piggy Banks launch with public tier rotation"
+  },
+  "summary": {
+    "building": "A configurable fixed-tier mint policy used directly through OpenSea SeaDrop",
+    "verdict": "caution",
+    "topRisk": "OpenSea's single public stage requires correctly timed owner transactions and no concurrent SeaDrop routes",
+    "mustDecideFirst": "Retain launch-manager ownership through rotation or delay enough to use the 24-hour timelock",
+    "watchOutFor": "The existing NFT pins the superseded policy and cannot be reused"
+  },
+  "components": [
+    {
+      "name": "OpenSea SeaDrop",
+      "type": "Blockchain",
+      "version": "1.0",
+      "sourceUrl": "https://github.com/ProjectOpenSea/seadrop/releases/tag/seadrop-1.0",
+      "status": "fresh",
+      "risks": [
+        { "severity": "high", "title": "Ambiguous concurrent routes", "detail": "SeaDrop omits route parameters from the NFT callback, so production must keep mint routes mutually exclusive." },
+        { "severity": "high", "title": "Timed public rotation", "detail": "The single public stage must be updated and verified at every public-tier boundary." },
+        { "severity": "medium", "title": "Tier-scoped counters", "detail": "Global supply counters would recreate an unintended sellout dependency; the policy must return tier-local counts." }
+      ]
+    },
+    {
+      "name": "Robinhood Chain",
+      "type": "Blockchain",
+      "version": "4663",
+      "sourceUrl": "https://docs.robinhood.com/chain/connecting/",
+      "status": "fresh",
+      "risks": [
+        { "severity": "low", "title": "Public RPC throttling", "detail": "The official public RPC is rate-limited and should not be the sole production provider." }
+      ]
+    },
+    {
+      "name": "OpenZeppelin Contracts",
+      "type": "SDK",
+      "version": "5.6.1",
+      "sourceUrl": "https://github.com/OpenZeppelin/openzeppelin-contracts/releases/tag/v5.6.1",
+      "status": "fresh",
+      "risks": [
+        { "severity": "low", "title": "Embedded deployment bytecode size", "detail": "NFT changes increase collection initcode, which must stay below the EIP-3860 limit." }
+      ]
+    }
+  ],
+  "riskTotals": { "critical": 0, "high": 2, "medium": 1, "low": 2 },
+  "preCodingDecisions": [
+    { "title": "OpenSea-only routing", "detail": "Use sequential allowlists followed by one rotating public stage; do not use a custom gateway.", "immutable": true },
+    { "title": "NFT ownership during rotation", "detail": "Choose manager execution or a delayed launch compatible with the 24-hour timelock.", "immutable": false },
+    { "title": "Alternate mint paths", "detail": "Keep token-gated, signed, and payer routes empty in the production manifest.", "immutable": false }
+  ],
+  "requirementsCorrections": [
+    { "kind": "wrong_assumption", "detail": "A custom payer gateway is unnecessary when all mint windows are mutually exclusive." },
+    { "kind": "missing_constraint", "detail": "Public tier rotations require an NFT-owner transaction at every boundary." },
+    { "kind": "immutable_choice", "detail": "Each tier's token-ID range, price, fee terms, inventory, and wallet limit are pinned in the mint policy." }
+  ],
+  "openQuestions": []
+}

@@ -88,9 +88,11 @@ export function buildAllowlist(snapshot, plan) {
   invariant(Array.isArray(plan.stages) && plan.stages.length > 0, "plan.stages is required");
 
   const stages = [];
+  let previousEndTokenId = 0n;
   plan.stages.forEach((stage, index) => {
     const normalized = {
       name: String(stage.name),
+      endTokenId: asBigInt(stage.endTokenId, `stages[${index}].endTokenId`),
       minimumBalance: asBigInt(stage.minimumBalance, `stages[${index}].minimumBalance`),
       mintPrice: asBigInt(stage.mintPrice, `stages[${index}].mintPrice`),
       maxTotalMintableByWallet: asBigInt(
@@ -108,6 +110,7 @@ export function buildAllowlist(snapshot, plan) {
       restrictFeeRecipients: stage.restrictFeeRecipients,
     };
     invariant(normalized.name.length > 0, `stages[${index}].name is required`);
+    invariant(normalized.endTokenId > previousEndTokenId, "stage token ranges must be strictly increasing");
     invariant(normalized.minimumBalance > 0n, `stages[${index}].minimumBalance must be positive`);
     invariant(normalized.mintPrice > 0n, `stages[${index}].mintPrice must be positive`);
     invariant(normalized.maxTotalMintableByWallet > 0n, `stages[${index}] wallet limit must be positive`);
@@ -122,18 +125,62 @@ export function buildAllowlist(snapshot, plan) {
       typeof normalized.restrictFeeRecipients === "boolean",
       `stages[${index}].restrictFeeRecipients must be boolean`,
     );
+    const capacity = normalized.endTokenId - previousEndTokenId;
+    invariant(
+      normalized.maxTokenSupplyForStage === capacity,
+      `stages[${index}].maxTokenSupplyForStage must equal its token-range capacity ${capacity}`,
+    );
+    invariant(
+      normalized.maxTotalMintableByWallet <= capacity,
+      `stages[${index}] wallet limit exceeds its token-range capacity`,
+    );
     if (index > 0) {
       invariant(
         normalized.minimumBalance < stages[index - 1].minimumBalance,
         "stage minimum balances must be strictly descending",
       );
       invariant(
-        normalized.maxTokenSupplyForStage > stages[index - 1].maxTokenSupplyForStage,
-        "stage supply boundaries must be strictly increasing",
+        normalized.startTime > stages[index - 1].endTime,
+        "allowlist stage time ranges must not overlap",
+      );
+      invariant(
+        normalized.dropStageIndex > stages[index - 1].dropStageIndex,
+        "drop stage indexes must be strictly increasing",
       );
     }
     stages.push(normalized);
+    previousEndTokenId = normalized.endTokenId;
   });
+
+  invariant(
+    Array.isArray(plan.publicWindows) && plan.publicWindows.length > 0,
+    "plan.publicWindows is required",
+  );
+  const publicWindows = [];
+  let previousPublicEnd = stages.at(-1).endTime;
+  for (const [index, window] of plan.publicWindows.entries()) {
+    const stageIndex = Number(asBigInt(window.stageIndex, `publicWindows[${index}].stageIndex`));
+    invariant(
+      Number.isSafeInteger(stageIndex) && stageIndex >= 0 && stageIndex < stages.length,
+      `publicWindows[${index}].stageIndex must identify a tier`,
+    );
+    const tier = stages[stageIndex];
+    const startTime = asBigInt(window.startTime, `publicWindows[${index}].startTime`);
+    const endTime = asBigInt(window.endTime, `publicWindows[${index}].endTime`);
+    invariant(startTime > previousPublicEnd, "public mint windows must be sequential and nonoverlapping");
+    invariant(endTime >= startTime, `publicWindows[${index}] time range is invalid`);
+    publicWindows.push({
+      name: String(window.name ?? `${tier.name} Public`),
+      stageIndex,
+      mintPrice: tier.mintPrice,
+      maxTotalMintableByWallet: tier.maxTotalMintableByWallet,
+      startTime,
+      endTime,
+      feeBps: tier.feeBps,
+      restrictFeeRecipients: tier.restrictFeeRecipients,
+    });
+    previousPublicEnd = endTime;
+  }
 
   const entries = [];
   for (const holder of snapshot.holders) {
@@ -172,11 +219,15 @@ export function buildAllowlist(snapshot, plan) {
     entry.proof = proofFor(tree, entry.leaf);
     invariant(verifyProof(entry.leaf, entry.proof, tree.root), `invalid proof for ${entry.address}`);
   }
-  return { entries, root: tree.root, stages };
+  return { entries, root: tree.root, stages, publicWindows };
 }
 
 function stringify(value) {
   return `${JSON.stringify(value, (_, item) => typeof item === "bigint" ? item.toString() : item, 2)}\n`;
+}
+
+function fileSlug(value) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
 async function main() {
@@ -193,8 +244,10 @@ async function main() {
     merkleRoot: artifact.root,
     eligibleWallets: new Set(artifact.entries.map((entry) => entry.address)).size,
     leafCount: artifact.entries.length,
+    publicWindows: artifact.publicWindows,
     tiers: artifact.stages.map((stage) => ({
       name: stage.name,
+      endTokenId: stage.endTokenId,
       minimumBalance: stage.minimumBalance,
       eligibleWallets: artifact.entries.filter((entry) => entry.stage === stage.name).length,
     })),
@@ -202,6 +255,30 @@ async function main() {
   };
   await mkdir(dirname(resolve(outputPath)), { recursive: true });
   await writeFile(resolve(outputPath), stringify(output));
+  const allowListUriEntries = artifact.entries.map((entry) => ({
+    address: entry.address,
+    mintPrice: entry.mintPrice,
+    maxTotalMintableByWallet: entry.maxTotalMintableByWallet,
+    startTime: entry.startTime,
+    endTime: entry.endTime,
+    dropStageIndex: entry.dropStageIndex,
+    maxTokenSupplyForStage: entry.maxTokenSupplyForStage,
+    feeBps: entry.feeBps,
+    restrictFeeRecipients: entry.restrictFeeRecipients,
+  }));
+  await writeFile(
+    resolve(dirname(resolve(outputPath)), "allowlist-uri.json"),
+    stringify(allowListUriEntries),
+  );
+  for (const stage of artifact.stages) {
+    const addresses = artifact.entries
+      .filter((entry) => entry.stage === stage.name)
+      .map((entry) => entry.address);
+    await writeFile(
+      resolve(dirname(resolve(outputPath)), `${fileSlug(stage.name)}-opensea-allowlist.csv`),
+      `${addresses.join("\n")}\n`,
+    );
+  }
   process.stdout.write(`${artifact.root}\n`);
 }
 
