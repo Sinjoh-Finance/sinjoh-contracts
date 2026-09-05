@@ -174,10 +174,62 @@ contract SinjohRaffleRewardsTest is TestBase {
             _deploy(_stockConfigWithCount(64, adapter, guard), bytes32("stocks-64"));
         assertEq(sixtyFour.MAX_STOCK_REWARDS(), 64);
         assertEq(sixtyFour.stockRewardCount(), 64);
+        vm.prank(CREATOR);
+        sixtyFour.bind(address(subject));
+        assertEq(sixtyFour.subject(), address(subject));
 
         RaffleTypes.Config memory sixtyFive = _stockConfigWithCount(65, adapter, guard);
         vm.expectPartialRevert(SinjohRaffleRewardsFactory.InitializationFailed.selector);
         factory.deployRaffle(bytes32("stocks-65"), sixtyFive);
+    }
+
+    function testHighIndexStockRouteCanBeSelectedAndPaid() public {
+        MockStockSwapAdapter adapter = new MockStockSwapAdapter();
+        MockStockPriceGuard guard = new MockStockPriceGuard();
+        SinjohRaffleRewards stockRaffle =
+            _deploy(_stockConfigWithCount(64, adapter, guard), bytes32("stocks-high-index"));
+        vm.prank(CREATOR);
+        stockRaffle.bind(address(subject));
+
+        asset.approve(address(stockRaffle), 1_000_000);
+        stockRaffle.fund(address(subject), address(asset), 1_000_000, "");
+        RaffleTypes.Leaf[] memory leaves = _leaves();
+        (bytes32 root, uint256 totalTickets, RaffleTypes.ProofElement[][] memory proofs) =
+            _treeFor(stockRaffle, 1, FIRST_SNAPSHOT, leaves);
+        _arm(FIRST_SNAPSHOT);
+        vm.prank(ATTESTOR);
+        stockRaffle.commitRound(1, FIRST_SNAPSHOT, _hashFor(FIRST_SNAPSHOT), root, totalTickets);
+        (, bytes32 requestId,,,,,,,,,) = stockRaffle.rounds(1);
+
+        uint256 word = 1;
+        uint256 selectedIndex;
+        while (true) {
+            uint256 seed = randomness.seedFor(requestId, word);
+            selectedIndex = uint256(
+                keccak256(
+                    abi.encode(
+                        stockRaffle.STOCK_DOMAIN(),
+                        block.chainid,
+                        address(stockRaffle),
+                        uint64(1),
+                        uint8(0),
+                        seed
+                    )
+                )
+            ) % 64;
+            if (selectedIndex >= 53) break;
+            ++word;
+        }
+        randomness.deliver(requestId, word);
+
+        (uint256 actualIndex, address selectedAsset) = stockRaffle.selectedStock(1, 0);
+        assertEq(actualIndex, selectedIndex);
+        assertTrue(actualIndex >= 53);
+        assertEq(selectedAsset, address(uint160(0x1000 + actualIndex)));
+        uint256 winnerIndex = _winnerIndexOf(stockRaffle, 1, 0, leaves);
+        uint256 paid = stockRaffle.claim(1, 0, leaves[winnerIndex], proofs[winnerIndex]);
+        assertTrue(paid > 0);
+        assertEq(MockERC20(selectedAsset).balanceOf(leaves[winnerIndex].holder), paid);
     }
 
     function testVrfSelectsAndAutomaticallyPaysStockPerSlot() public {

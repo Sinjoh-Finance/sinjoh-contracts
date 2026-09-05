@@ -286,7 +286,7 @@ contract SinjohRaffleRewards {
             RaffleTypes.StockReward calldata reward = config.stockRewards[i];
             _stockRewards.push(reward);
             emit StockRewardConfigured(
-                // The list is validated at no more than 16 entries.
+                // The list is validated at no more than 64 entries.
                 // forge-lint: disable-next-line(unsafe-typecast)
                 uint8(i),
                 reward.asset,
