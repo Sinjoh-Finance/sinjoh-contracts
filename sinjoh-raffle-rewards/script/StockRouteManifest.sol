@@ -76,7 +76,7 @@ library StockRouteManifest {
     /// in the ascending asset order the raffle requires. With the production tax defaults, the
     /// largest single swap input exercised by that preflight was 0.009 WETH.
     function routes() internal pure returns (Route[] memory list) {
-        list = new Route[](26);
+        list = new Route[](25);
         list[0] = Route("AMC", 0x05a3d1Cd21d0C88145E82600E62e7E496e0F222B, 10_000, 0.009 ether);
         list[1] = Route("RDDT", 0x05b37Fb53A299a1b874A619e1c4C404D52C36F4C, 10_000, 0.009 ether);
         list[2] = Route("SPY", 0x117cc2133c37B721F49dE2A7a74833232B3B4C0C, 500, 0.009 ether);
@@ -95,14 +95,13 @@ library StockRouteManifest {
         list[15] = Route("AAPL", 0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9, 500, 0.009 ether);
         list[16] = Route("SNDK", 0xB90A19fF0Af67f7779afF50A882A9CfF42446400, 3_000, 0.009 ether);
         list[17] = Route("META", 0xc0D6457C16Cc70d6790Dd43521C899C87ce02f35, 3_000, 0.009 ether);
-        list[18] = Route("GLD", 0xC9a981FEE1F9DEc688bb123ccDeCc63D0deBFC4e, 500, 0.009 ether);
-        list[19] = Route("HIMS", 0xCceE82fE024c36fA15E1005edE3E9e4787e23D09, 3_000, 0.009 ether);
-        list[20] = Route("NVDA", 0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC, 500, 0.009 ether);
-        list[21] = Route("QQQ", 0xD5f3879160bc7c32ebb4dC785F8a4F505888de68, 3_000, 0.009 ether);
-        list[22] = Route("CRCL", 0xdF0992E440dD0be65BD8439b609d6D4366bf1CB5, 10_000, 0.009 ether);
-        list[23] = Route("MSTR", 0xec262a75e413fAfD0dF80480274532C79D42da09, 10_000, 0.009 ether);
-        list[24] = Route("RBLX", 0xF0C4BF4C582cb3836e98394b1d4e7B7281101bE8, 3_000, 0.009 ether);
-        list[25] = Route("MU", 0xfF080c8ce2E5feadaCa0Da81314Ae59D232d4afD, 10_000, 0.009 ether);
+        list[18] = Route("HIMS", 0xCceE82fE024c36fA15E1005edE3E9e4787e23D09, 3_000, 0.009 ether);
+        list[19] = Route("NVDA", 0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC, 500, 0.009 ether);
+        list[20] = Route("QQQ", 0xD5f3879160bc7c32ebb4dC785F8a4F505888de68, 3_000, 0.009 ether);
+        list[21] = Route("CRCL", 0xdF0992E440dD0be65BD8439b609d6D4366bf1CB5, 10_000, 0.009 ether);
+        list[22] = Route("MSTR", 0xec262a75e413fAfD0dF80480274532C79D42da09, 10_000, 0.009 ether);
+        list[23] = Route("RBLX", 0xF0C4BF4C582cb3836e98394b1d4e7B7281101bE8, 3_000, 0.009 ether);
+        list[24] = Route("MU", 0xfF080c8ce2E5feadaCa0Da81314Ae59D232d4afD, 10_000, 0.009 ether);
     }
 
     function guardFor(uint24 fee) internal pure returns (address) {

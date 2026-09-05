@@ -1,6 +1,6 @@
 # Robinhood Chain mainnet stock routes
 
-`script/StockRouteManifest.sol` is the source of truth. On 2026-09-05, the following 26
+`script/StockRouteManifest.sol` is the source of truth. On 2026-09-05, the following 25
 address-sorted routes passed the full five-minute guard, quote, buy, sell, beacon-integrity, and
 exact-transfer preflight for a 0.01 WETH maximum prize. With the production tax defaults, that
 exercised a maximum single swap input of 0.009 WETH.
@@ -25,14 +25,13 @@ exercised a maximum single swap input of 0.009 WETH.
 | 15 | AAPL | `0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9` | 500 | `0x8bb3514e2204E1cDF3Ac149EFEe7Ff04D91B719f` |
 | 16 | SNDK | `0xB90A19fF0Af67f7779afF50A882A9CfF42446400` | 3000 | `0x995c1Ad5Eb998b1BdD89F515C4BB64760c411b62` |
 | 17 | META | `0xc0D6457C16Cc70d6790Dd43521C899C87ce02f35` | 3000 | `0xa4BdB396a69617eb7F70E2cc1EF526f7340b1B0d` |
-| 18 | GLD | `0xC9a981FEE1F9DEc688bb123ccDeCc63D0deBFC4e` | 500 | `0x26250bA84465454bc731F710E46F1f32b167d66B` |
-| 19 | HIMS | `0xCceE82fE024c36fA15E1005edE3E9e4787e23D09` | 3000 | `0xeB576c467d69E084A0fDc6dDf744467804634650` |
-| 20 | NVDA | `0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC` | 500 | `0x62AB521f71431f78ac374CdbadC6cda3c8916b6C` |
-| 21 | QQQ | `0xD5f3879160bc7c32ebb4dC785F8a4F505888de68` | 3000 | `0xA40D00a55d43bA2d188039DCF88bD68f4F133E78` |
-| 22 | CRCL | `0xdF0992E440dD0be65BD8439b609d6D4366bf1CB5` | 10000 | `0x754DdD4bF8E8635B4301a7f4Af2Ea7A82AB6cEA7` |
-| 23 | MSTR | `0xec262a75e413fAfD0dF80480274532C79D42da09` | 10000 | `0x70504a6FafdbfB75fE971FAA4dD716e79aC5624c` |
-| 24 | RBLX | `0xF0C4BF4C582cb3836e98394b1d4e7B7281101bE8` | 3000 | `0x6d25417718A8D6c529130a8ccC4BfBf0a18219D3` |
-| 25 | MU | `0xfF080c8ce2E5feadaCa0Da81314Ae59D232d4afD` | 10000 | `0x301F48EC369BB3bfA0bC04d44A79037aa0EE2340` |
+| 18 | HIMS | `0xCceE82fE024c36fA15E1005edE3E9e4787e23D09` | 3000 | `0xeB576c467d69E084A0fDc6dDf744467804634650` |
+| 19 | NVDA | `0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC` | 500 | `0x62AB521f71431f78ac374CdbadC6cda3c8916b6C` |
+| 20 | QQQ | `0xD5f3879160bc7c32ebb4dC785F8a4F505888de68` | 3000 | `0xA40D00a55d43bA2d188039DCF88bD68f4F133E78` |
+| 21 | CRCL | `0xdF0992E440dD0be65BD8439b609d6D4366bf1CB5` | 10000 | `0x754DdD4bF8E8635B4301a7f4Af2Ea7A82AB6cEA7` |
+| 22 | MSTR | `0xec262a75e413fAfD0dF80480274532C79D42da09` | 10000 | `0x70504a6FafdbfB75fE971FAA4dD716e79aC5624c` |
+| 23 | RBLX | `0xF0C4BF4C582cb3836e98394b1d4e7B7281101bE8` | 3000 | `0x6d25417718A8D6c529130a8ccC4BfBf0a18219D3` |
+| 24 | MU | `0xfF080c8ce2E5feadaCa0Da81314Ae59D232d4afD` | 10000 | `0x301F48EC369BB3bfA0bC04d44A79037aa0EE2340` |
 
 Every route uses WETH `0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73`, factory
 `0x1f7d7550B1b028f7571E69A784071F0205FD2EfA`, and the reviewed swap adapter
@@ -70,7 +69,10 @@ The preflight pins the adapter and guard runtimes, stock beacon implementation, 
 state, pool fee, observation history, guard configuration, output floor, and real swap execution.
 It never broadcasts. A pass is time-bound evidence, not permanent certification.
 
-GOOGL `0x2e0847E8910a9732eB3fb1bb4b70a580ADAD4FE3` has a funded fee-100 pool at
+GLD `0xC9a981FEE1F9DEc688bb123ccDeCc63D0deBFC4e` is excluded because pool
+`0x26250bA84465454bc731F710E46F1f32b167d66B` did not hold the required 300 seconds of
+observations during the final 2026-09-05 release preflight. GOOGL
+`0x2e0847E8910a9732eB3fb1bb4b70a580ADAD4FE3` has a funded fee-100 pool at
 `0x8fB9301586f27e2cff85312F7c1d0F16C6167cdE`, but is excluded until a fee-100 guard is deployed and
 the same preflight passes. JNJ `0x03DfbBE0AC4E7bCDaFd08eD41A400326B77D8c80`, MRNA
 `0x43B07D15cE533bEc5476d70C22a78a1B2B662155`, MRVL

@@ -10,7 +10,7 @@ import { StockRouteManifest } from "../script/StockRouteManifest.sol";
 /// @dev These run the gate against a compliant guard on a route whose pool is genuinely ready,
 /// and against deliberately invalid guard inputs, and require the outcomes to differ.
 contract PreflightStockRoutesForkTest is TestBase {
-    uint256 internal constant MSTR_INDEX = 23;
+    uint256 internal constant MSTR_INDEX = 22;
     uint24 internal constant MSTR_FEE = 10_000;
 
     bool internal forked;
