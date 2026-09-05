@@ -166,6 +166,20 @@ contract SinjohRaffleRewardsTest is TestBase {
         factory.deployRaffle(bytes32("stocks-route-size"), config);
     }
 
+    function testStockRewardCeilingAccepts64AndRejects65() public {
+        MockStockSwapAdapter adapter = new MockStockSwapAdapter();
+        MockStockPriceGuard guard = new MockStockPriceGuard();
+
+        SinjohRaffleRewards sixtyFour =
+            _deploy(_stockConfigWithCount(64, adapter, guard), bytes32("stocks-64"));
+        assertEq(sixtyFour.MAX_STOCK_REWARDS(), 64);
+        assertEq(sixtyFour.stockRewardCount(), 64);
+
+        RaffleTypes.Config memory sixtyFive = _stockConfigWithCount(65, adapter, guard);
+        vm.expectPartialRevert(SinjohRaffleRewardsFactory.InitializationFailed.selector);
+        factory.deployRaffle(bytes32("stocks-65"), sixtyFive);
+    }
+
     function testVrfSelectsAndAutomaticallyPaysStockPerSlot() public {
         (
             SinjohRaffleRewards stockRaffle,
@@ -1022,6 +1036,30 @@ contract SinjohRaffleRewardsTest is TestBase {
             routeData: abi.encode(uint24(10_000)),
             guardData: ""
         });
+    }
+
+    function _stockConfigWithCount(
+        uint256 count,
+        MockStockSwapAdapter adapter,
+        MockStockPriceGuard guard
+    ) internal returns (RaffleTypes.Config memory config) {
+        config = _baseConfig();
+        config.stockRewards = new RaffleTypes.StockReward[](count);
+        MockERC20 stockTemplate = new MockERC20("Stock", "STOCK");
+        bytes memory stockCode = address(stockTemplate).code;
+        for (uint256 i; i < count; ++i) {
+            // Test fixtures use at most 65 low addresses, so this cannot truncate.
+            // forge-lint: disable-next-line(unsafe-typecast)
+            address stock = address(uint160(0x1000 + i));
+            vm.etch(stock, stockCode);
+            config.stockRewards[i] = RaffleTypes.StockReward({
+                asset: stock,
+                swapAdapter: address(adapter),
+                priceGuard: address(guard),
+                routeData: abi.encode(uint24(3_000)),
+                guardData: ""
+            });
+        }
     }
 
     function _deployStockRaffle(bytes32 salt)

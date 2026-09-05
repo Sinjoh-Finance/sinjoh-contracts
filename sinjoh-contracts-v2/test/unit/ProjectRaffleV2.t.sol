@@ -268,6 +268,22 @@ contract ProjectRaffleV2Test is Test {
         assertEq(prizeAsset.allowance(address(stockRaffle), address(adapter)), 0);
     }
 
+    function testStockRewardCeilingAccepts64AndRejects65() public {
+        MockRaffleStockAdapter adapter = new MockRaffleStockAdapter();
+        MockRaffleStockGuard guard = new MockRaffleStockGuard();
+
+        ProjectRaffleV2 sixtyFour = _deploy(_stockConfigWithCount(64, adapter, guard));
+        assertEq(sixtyFour.MAX_STOCK_REWARDS(), 64);
+        assertEq(sixtyFour.stockRewardCount(), 64);
+
+        RaffleTypes.Config memory sixtyFive = _stockConfigWithCount(65, adapter, guard);
+        ProjectRaffleV2 candidate = ProjectRaffleV2(payable(Clones.clone(address(implementation))));
+        vm.expectRevert(ProjectRaffleV2.InvalidConfiguration.selector);
+        candidate.initialize(
+            address(registry), address(subject), _approvalRoot(sixtyFive), sixtyFive
+        );
+    }
+
     function _deploy(RaffleTypes.Config memory config) private returns (ProjectRaffleV2 deployed) {
         deployed = ProjectRaffleV2(payable(Clones.clone(address(implementation))));
         deployed.initialize(address(registry), address(subject), _approvalRoot(config), config);
@@ -316,6 +332,31 @@ contract ProjectRaffleV2Test is Test {
             exclusions: exclusions,
             stockRewards: new RaffleTypes.StockReward[](0)
         });
+    }
+
+    function _stockConfigWithCount(
+        uint256 count,
+        MockRaffleStockAdapter adapter,
+        MockRaffleStockGuard guard
+    ) private returns (RaffleTypes.Config memory config) {
+        config = _baseConfig();
+        config.stockRewards = new RaffleTypes.StockReward[](count);
+        MockRaffleERC20 stockTemplate = new MockRaffleERC20("Stock", "STOCK");
+        bytes memory stockCode = address(stockTemplate).code;
+        for (uint256 i; i < count; ++i) {
+            // Test fixtures use at most 65 low addresses, so this cannot truncate.
+            // forge-lint: disable-next-line(unsafe-typecast)
+            address stock = address(uint160(0x1000 + i));
+            vm.etch(stock, stockCode);
+            config.stockRewards[i] = RaffleTypes.StockReward({
+                asset: stock,
+                swapAdapter: address(adapter),
+                priceGuard: address(guard),
+                routeData: abi.encode(uint24(3_000)),
+                guardData: "",
+                approvalProof: new bytes32[](0)
+            });
+        }
     }
 
     function _fund(uint256 amount) private {

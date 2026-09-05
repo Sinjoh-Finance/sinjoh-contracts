@@ -736,16 +736,35 @@
       }
     },
     "raffleFactory": {
-      "address": "0xd030064fb83d14c97c22a6b63bf376552eba7112",
-      "deploymentTransaction": "0x515680dc28784964c518ed5e491d1a7d2da5224404a11220d09b9fc71ac4f9e1",
-      "deploymentBlock": 28821627,
-      "runtimeCodeHash": "0x35a31cf01b7c0f2ade47c6228f984e0d984f0fcb24214c031efebc38f92a4a5a",
-      "implementation": "0x982F8B6612146E0963DFd18D74e1ffe4E110b47D",
-      "implementationRuntimeCodeHash": "0xde10e2dbff2714101c98b24ab7320e0b1038a370a72b96f84e63626ec156cf98",
-      "purpose": "SinjohRaffleRewardsFactory. Implementation initialization-locked; deploymentChainId 4663 verified on-chain.",
+      "address": "0x9931324D98137b9D567B6ec32e1a10f148E6e9e3",
+      "deploymentTransaction": "0x971945c8fd30fb0d1050d7e61f9987422b2270da2a703239b0fc308991e20fe3",
+      "deploymentBlock": 55412336,
+      "runtimeCodeHash": "0x15194bfe6828174ba04ce5aab8742a607cecec777996b55ae92d4aaed2d4c2c8",
+      "implementation": "0x9FFF9412B4Bf8CcF1351739839a8B5836faa7cD3",
+      "implementationRuntimeCodeHash": "0xb73797b1f7b75c6f369d66aa658902589efac961491f2c56c86f2db5105e7679",
+      "purpose": "SinjohRaffleRewardsFactory generation with a 64-route stock-reward ceiling. Implementation initialization-locked; deploymentChainId 4663 verified on-chain.",
       "verified": {
         "deploymentChainId": 4663,
-        "implementationLocked": true
+        "implementationLocked": true,
+        "maxStockRewards": 64,
+        "sourceVerification": {
+          "provider": "Sourcify",
+          "status": "match",
+          "factoryJobId": "e5bba727-b789-4ac1-8c22-d5b45395364c",
+          "implementationJobId": "cd3966fd-d7f3-4c90-aaa1-2b1a0eac6277"
+        }
+      }
+    },
+    "raffleFactoryHistoricalGenerations": {
+      "raffle-v1-max-16": {
+        "address": "0xD030064fB83d14C97c22A6B63bF376552eBA7112",
+        "deploymentTransaction": "0x515680dc28784964c518ed5e491d1a7d2da5224404a11220d09b9fc71ac4f9e1",
+        "deploymentBlock": 28821627,
+        "runtimeCodeHash": "0x35a31cf01b7c0f2ade47c6228f984e0d984f0fcb24214c031efebc38f92a4a5a",
+        "implementation": "0x982F8B6612146E0963DFd18D74e1ffe4E110b47D",
+        "implementationRuntimeCodeHash": "0xde10e2dbff2714101c98b24ab7320e0b1038a370a72b96f84e63626ec156cf98",
+        "supersededAtBlock": 55412336,
+        "supersededBy": "0x9931324D98137b9D567B6ec32e1a10f148E6e9e3"
       }
     },
     "raffleOperations": {
@@ -769,21 +788,40 @@
       "twapWindowSeconds": 300,
       "deployedAt": "2026-08-05",
       "preflight": {
-        "date": "2026-08-05",
+        "date": "2026-09-05",
         "certified": [
+          "AMC",
+          "RDDT",
+          "SPY",
           "GME",
+          "DJT",
           "TSLA",
+          "BB",
+          "SPCX",
+          "COST",
+          "TSM",
           "COIN",
+          "LLY",
+          "BE",
+          "SGOV",
+          "INDA",
+          "AAPL",
+          "SNDK",
+          "META",
+          "HIMS",
           "NVDA",
+          "QQQ",
+          "CRCL",
           "MSTR",
-          "GOOGL",
-          "AAPL"
+          "RBLX",
+          "MU"
         ],
         "certifiedProbeWeth": "0.01",
         "excluded": {
-          "RDDT": "pool 0xA541…b531 holds 3.4e16 liquidity — about 105,000x less than MSTR's — and cannot absorb any probe size inside the guard's 7.5% slippage bound. Oracle is primed and healthy; the pool needs real LP depth before RDDT can be a deliverable prize. Re-run the preflight after liquidity arrives; per-launch stock lists are immutable, so later launches can add RDDT once it certifies."
+          "GLD": "Stock 0xC9a981FEE1F9DEc688bb123ccDeCc63D0deBFC4e was excluded because pool 0x26250bA84465454bc731F710E46F1f32b167d66B did not hold the required 300 seconds of observations during the final release preflight.",
+          "GOOGL": "Stock 0x2e0847E8910a9732eB3fb1bb4b70a580ADAD4FE3 was excluded because funded pool 0x8fB9301586f27e2cff85312F7c1d0F16C6167cdE uses fee tier 100 and no reviewed fee-100 guard is deployed."
         },
-        "note": "Seven routes passed real guarded swaps at the full 0.01 WETH probe. UI: read `certified` as the live Mystery Stock set."
+        "note": "Twenty-five routes passed the full guard, quote, buy, sell, beacon-integrity, and exact-transfer preflight at the 0.01 WETH maximum prize immediately before release."
       },
       "runtimeCodeHashes": {
         "guard500": "0xd0d2cf2912d6344ddfaf657911a1fb2a9a4e74ecd6e829d835c18dd342f9801e",
