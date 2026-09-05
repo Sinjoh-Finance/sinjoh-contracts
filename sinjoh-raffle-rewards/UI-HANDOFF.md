@@ -196,7 +196,7 @@ core loop. Optional user-facing actions, all permissionless unless noted:
 cd sinjoh-integration && RH_RPC_URL=https://rpc.mainnet.chain.robinhood.com forge test --match-contract Production -vv
 
 # Stock-route readiness (must pass before any stock raffle is deployed):
-cd sinjoh-raffle-rewards && RAFFLE_GUARD_500=… RAFFLE_GUARD_3000=… RAFFLE_GUARD_10000=… MAX_PRIZE=… forge script script/PreflightStockRoutes.s.sol:PreflightStockRoutes --rpc-url https://rpc.mainnet.chain.robinhood.com
+cd sinjoh-raffle-rewards && forge script script/PreflightStockRoutes.s.sol:PreflightStockRoutes --rpc-url https://rpc.mainnet.chain.robinhood.com
 ```
 
 ABIs: build each package with `forge build` and read `out/<Name>.sol/<Name>.json`,
