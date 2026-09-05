@@ -1,0 +1,63 @@
+{
+  "schemaVersion": "1.0",
+  "run": {
+    "id": "20260905-135248",
+    "date": "2026-09-05",
+    "requirements": ".agent-research/runs/20260905-135248/requirements.md"
+  },
+  "summary": {
+    "building": "All-current Pons stock launch support and the maximum safely executable stock-raffle set",
+    "verdict": "caution",
+    "topRisk": "An immutable raffle can permanently promise a stock route that no longer quotes or executes",
+    "mustDecideFirst": "Freeze only assets whose exact stock output is covered by a passing route or reserved inventory",
+    "watchOutFor": "The current deployed raffle generation accepts at most 16 stock rewards"
+  },
+  "components": [
+    {
+      "name": "Pons V2 Factory",
+      "type": "Blockchain",
+      "version": "0x89a27da6f703e0a7cdd4f233e7cb57604ff75b164530962d3ff7cf8483a67d84",
+      "sourceUrl": "https://explorer.mainnet.chain.robinhood.com/address/0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+      "status": "fresh",
+      "risks": [
+        {"severity":"high","title":"Stale launch inventory","detail":"A hand-maintained UI list silently hides valid factory-approved pairs."},
+        {"severity":"medium","title":"Ticker identity collision","detail":"Address and factory approval, not a display ticker, must identify the pair asset."}
+      ]
+    },
+    {
+      "name": "Robinhood Chain asset registry",
+      "type": "API",
+      "version": "unversioned",
+      "sourceUrl": "https://api.robinhood.com/rhj/assets",
+      "status": "fresh",
+      "risks": [
+        {"severity":"high","title":"Upgradeable stock implementation","detail":"One beacon upgrade can change behavior for every immutable stock payout."},
+        {"severity":"medium","title":"Restricted replenishment","detail":"Reserve acquisition depends on jurisdiction and authorized market access."}
+      ]
+    },
+    {
+      "name": "Pons V3 route stack",
+      "type": "Blockchain",
+      "version": "0xec72b1abd1f2faee020cfea9c646bd8994f9fb389054f6e574f103a895091739",
+      "sourceUrl": "https://explorer.mainnet.chain.robinhood.com/address/0x1f7d7550B1b028f7571E69A784071F0205FD2EfA",
+      "status": "fresh",
+      "risks": [
+        {"severity":"high","title":"Immutable dead route","detail":"An unexecutable stock route permanently degrades the affected raffle slots."},
+        {"severity":"high","title":"Guard and adapter pool mismatch","detail":"A fee-tier mismatch prices a different pool from the one used for execution."},
+        {"severity":"medium","title":"Time-dependent route readiness","detail":"Liquidity and TWAP readiness must be rechecked at the real prize size before deployment."}
+      ]
+    }
+  ],
+  "riskTotals": {"critical":0,"high":4,"medium":3,"low":0},
+  "preCodingDecisions": [
+    {"title":"Raffle route ceiling","detail":"Raise both immutable raffle implementations from 16 to 64 stock rewards in a new generation.","immutable":true},
+    {"title":"Availability rule","detail":"Accept a stock when exact output is covered by a passing market route or reserved protocol inventory.","immutable":false}
+  ],
+  "requirementsCorrections": [
+    {"kind":"wrong_assumption","detail":"Pons pair approval proves launch support, not the existence of a WETH/stock pool."},
+    {"kind":"missing_constraint","detail":"Raffle creation must reserve stock or pass a live route preflight at maximum slot size."},
+    {"kind":"underspecified","detail":"The deployed raffle generation supports only 16 stock routes while 26 are executable and 53 must be representable."},
+    {"kind":"immutable_choice","detail":"Stock assets, adapters, guards, and route bytes are frozen for each raffle."}
+  ],
+  "openQuestions": []
+}

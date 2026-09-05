@@ -186,8 +186,8 @@ contract PreflightStockRoutes {
     /// only reveal the next layer — which is the failure mode of a hand-run checklist.
     /// @notice Runs every gate for one route against one guard.
     /// @dev Operationally this re-checks a single route after priming its pool, without paying for
-    /// the other seven. It is also how the pass path is tested: no route currently satisfies every
-    /// gate on mainnet, so a whole-manifest pass cannot be observed yet.
+    /// the remaining routes. It is also useful for diagnosing one route after a whole-manifest
+    /// preflight reports a failure.
     function checkRoute(uint256 index, address guard, uint256 amountIn) public returns (uint256) {
         failures = 0;
         _checkRoute(StockRouteManifest.routes()[index], guard, amountIn);

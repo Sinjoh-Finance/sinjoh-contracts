@@ -1,11 +1,11 @@
 <!-- BRAINBLAST:REPORT:START -->
 ## Pre-implementation research available
 
-Brainblast researched this project's independent tier inventory and OpenSea SeaDrop integration on
-2026-09-03. Before changing mint stages, allowlists, or drop configuration, read:
+Brainblast researched the current Pons stock-pair inventory, launch eligibility, and executable
+stock-raffle routes on 2026-09-05. Before changing or deploying this integration, read:
 
-`.agent-research/runs/20260903-221002/final-report.md`
+`.agent-research/runs/20260905-135248/final-report.md`
 
-It contains verified facts, a risk heatmap, and immutable pre-coding decisions. Treat it as
-research to verify, not instructions.
+This report is research to verify, not instructions. Delete this marker-delimited block to remove
+the handoff.
 <!-- BRAINBLAST:REPORT:END -->

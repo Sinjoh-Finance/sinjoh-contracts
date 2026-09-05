@@ -7,12 +7,10 @@ import { PreflightStockRoutes } from "../script/PreflightStockRoutes.s.sol";
 import { StockRouteManifest } from "../script/StockRouteManifest.sol";
 
 /// @notice Proves the deployment gate both passes and fails for the right reasons.
-/// @dev The gate currently fails every route on mainnet, which is the correct answer but leaves
-/// it indistinguishable from a gate that fails unconditionally. These run it against a compliant
-/// guard on a route whose pool is genuinely ready, and against the real non-compliant guard, and
-/// require the two outcomes to differ.
+/// @dev These run the gate against a compliant guard on a route whose pool is genuinely ready,
+/// and against deliberately invalid guard inputs, and require the outcomes to differ.
 contract PreflightStockRoutesForkTest is TestBase {
-    uint256 internal constant MSTR_INDEX = 7;
+    uint256 internal constant MSTR_INDEX = 23;
     uint24 internal constant MSTR_FEE = 10_000;
     address internal constant DEPLOYED_900_SECOND_GUARD =
         0xfdd4f594A9f7cD17fEE0BBF2859F4eEA3265F328;
@@ -51,11 +49,8 @@ contract PreflightStockRoutesForkTest is TestBase {
         assertTrue(preflight.checkRoute(MSTR_INDEX, address(wrongTier), 0.01 ether) != 0);
     }
 
-    /// A pool at cardinality 1 can never quote, whatever guard points at it.
-    function testForkPreflightRejectsAnUnprimedPool() public {
+    function testForkPreflightRejectsAMissingGuard() public {
         if (!forked) return;
-        MockCompliantGuard guard = new MockCompliantGuard(StockRouteManifest.V3_FACTORY, 500);
-        // GOOGL: cardinality 1 at the recorded block, and its own fee tier is 500.
-        assertTrue(preflight.checkRoute(2, address(guard), 0.01 ether) != 0);
+        assertTrue(preflight.checkRoute(MSTR_INDEX, address(0), 0.01 ether) != 0);
     }
 }

@@ -49,7 +49,7 @@ contract SinjohRaffleRewards {
     uint8 public constant MAX_WINNERS_PER_ROUND = 16;
     uint8 public constant MAX_PENDING_ROUNDS = 4;
     uint8 public constant MAX_EXCLUSIONS = 32;
-    uint8 public constant MAX_STOCK_REWARDS = 16;
+    uint8 public constant MAX_STOCK_REWARDS = 64;
     uint8 public constant MAX_PROOF_LENGTH = 64;
     uint16 public constant MAX_ROUTE_DATA_LENGTH = 1_024;
     uint32 public constant MIN_ROUND_INTERVAL = 600;

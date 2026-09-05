@@ -1,126 +1,77 @@
-# Robinhood Chain mainnet approved stock routes
+# Robinhood Chain mainnet stock routes
 
-The testnet-first rollout and controlled-mirror requirements are in
-[`TESTNET_STOCK_REWARDS.md`](./TESTNET_STOCK_REWARDS.md). Nothing in this file authorizes a mainnet
-broadcast.
+`script/StockRouteManifest.sol` is the source of truth. On 2026-09-05, the following 26
+address-sorted routes passed the full five-minute guard, quote, buy, sell, beacon-integrity, and
+exact-transfer preflight at 0.01 WETH.
 
-Production mystery-stock raffles use WETH
-`0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73` as their accounting asset and the
-following immutable, address-sorted `stockRewards` list. The pool observations below were read
-from the canonical V3 factory at Robinhood Chain block `25200376` on 2026-08-01.
-
-| Index order | Symbol | Asset | V3 fee | Canonical WETH pool |
+| Index | Symbol | Stock token | Fee | Canonical WETH pool |
 |---:|---|---|---:|---|
-| 0 | RDDT | `0x05b37Fb53A299a1b874A619e1c4C404D52C36F4C` | 10000 | `0xA541143F20D7b0643123064aBF25F423E375b531` |
-| 1 | GME | `0x1b0E319c6A659F002271B69dB8A7df2F911c153E` | 500 | `0xc6BCC95043DC48C204bB2D57fb264a10Efe0a607` |
-| 2 | GOOGL | `0x2e0847E8910a9732eB3fb1bb4b70a580ADAD4FE3` | 500 | `0x778f2a0cF24E8D12fE3730C87Fe1448d47E66Add` |
-| 3 | TSLA | `0x322F0929c4625eD5bAd873c95208D54E1c003b2d` | 3000 | `0xA953CA88ff430e9487c60cA34d757414f4efdA07` |
-| 4 | COIN | `0x6330D8C3178a418788dF01a47479c0ce7CCF450b` | 3000 | `0x6707aeAc7D0e519B083219d27BB427364363183A` |
-| 5 | AAPL | `0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9` | 500 | `0x8bb3514e2204E1cDF3Ac149EFEe7Ff04D91B719f` |
-| 6 | NVDA | `0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC` | 3000 | `0xC0Be1cb0f674D9737C72B2A63fC542361185b807` |
-| 7 | MSTR | `0xec262a75e413fAfD0dF80480274532C79D42da09` | 10000 | `0x70504a6FafdbfB75fE971FAA4dD716e79aC5624c` |
+| 0 | AMC | `0x05a3d1Cd21d0C88145E82600E62e7E496e0F222B` | 10000 | `0xcF38764Ae8c92222Af4358A701871A6235Cfc7b7` |
+| 1 | RDDT | `0x05b37Fb53A299a1b874A619e1c4C404D52C36F4C` | 10000 | `0xA541143F20D7b0643123064aBF25F423E375b531` |
+| 2 | SPY | `0x117cc2133c37B721F49dE2A7a74833232B3B4C0C` | 500 | `0xDDCBBa3666f578E3F09516f21Ff85BFee859AB5e` |
+| 3 | GME | `0x1b0E319c6A659F002271B69dB8A7df2F911c153E` | 500 | `0xc6BCC95043DC48C204bB2D57fb264a10Efe0a607` |
+| 4 | DJT | `0x1D11f0496982706C5e14A514D4E79F2e6BdE4516` | 500 | `0x95DEF4ea143630d64CAA8F55F7570D8023f20265` |
+| 5 | TSLA | `0x322F0929c4625eD5bAd873c95208D54E1c003b2d` | 3000 | `0xA953CA88ff430e9487c60cA34d757414f4efdA07` |
+| 6 | BB | `0x48E39E56aCdbA37b09020C0b734A613C9a2f100A` | 10000 | `0x183304567485e97e68835708f572aAA0e0E71d08` |
+| 7 | SPCX | `0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa` | 500 | `0xC3c9F0171490Ef0F4536fe493F3b0EbB5ee0CB5e` |
+| 8 | COST | `0x4EA005168D7F09a7A0Ba9D1DEf21a479950E44C2` | 10000 | `0xc478A811a0002BE4321A142D5446247456b1cB05` |
+| 9 | TSM | `0x58FfE4a942d3885bAa22D7520691F611EF09e7AA` | 3000 | `0x91280dB3392EA92C08d8134b5760Fb4798B69547` |
+| 10 | COIN | `0x6330D8C3178a418788dF01a47479c0ce7CCF450b` | 3000 | `0x6707aeAc7D0e519B083219d27BB427364363183A` |
+| 11 | LLY | `0x8005d266423c7ea827372c9c864491e5786600ea` | 3000 | `0x666bA98aB094793e276215448F2485FD8e3c3CE5` |
+| 12 | BE | `0x822CC93fFD030293E9842c30BBD678F530701867` | 3000 | `0xe3ECA0Fa4A9Bd2C90852c94FE4A756dA11300489` |
+| 13 | SGOV | `0x92FD66527192E3e61d4DDd13322Aa222DE86F9B5` | 10000 | `0x7F310e3D05E575Bd449E4484eF5Da15863ea43B1` |
+| 14 | INDA | `0xACEF2e09adb47aD6aBeBAD9fF06689E60615C2B6` | 3000 | `0xF5b37a305E7304a70067be356EE611ac29f706EB` |
+| 15 | AAPL | `0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9` | 500 | `0x8bb3514e2204E1cDF3Ac149EFEe7Ff04D91B719f` |
+| 16 | SNDK | `0xB90A19fF0Af67f7779afF50A882A9CfF42446400` | 3000 | `0x995c1Ad5Eb998b1BdD89F515C4BB64760c411b62` |
+| 17 | META | `0xc0D6457C16Cc70d6790Dd43521C899C87ce02f35` | 3000 | `0xa4BdB396a69617eb7F70E2cc1EF526f7340b1B0d` |
+| 18 | GLD | `0xC9a981FEE1F9DEc688bb123ccDeCc63D0deBFC4e` | 500 | `0x26250bA84465454bc731F710E46F1f32b167d66B` |
+| 19 | HIMS | `0xCceE82fE024c36fA15E1005edE3E9e4787e23D09` | 3000 | `0xeB576c467d69E084A0fDc6dDf744467804634650` |
+| 20 | NVDA | `0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC` | 500 | `0x62AB521f71431f78ac374CdbadC6cda3c8916b6C` |
+| 21 | QQQ | `0xD5f3879160bc7c32ebb4dC785F8a4F505888de68` | 3000 | `0xA40D00a55d43bA2d188039DCF88bD68f4F133E78` |
+| 22 | CRCL | `0xdF0992E440dD0be65BD8439b609d6D4366bf1CB5` | 10000 | `0x754DdD4bF8E8635B4301a7f4Af2Ea7A82AB6cEA7` |
+| 23 | MSTR | `0xec262a75e413fAfD0dF80480274532C79D42da09` | 10000 | `0x70504a6FafdbfB75fE971FAA4dD716e79aC5624c` |
+| 24 | RBLX | `0xF0C4BF4C582cb3836e98394b1d4e7B7281101bE8` | 3000 | `0x6d25417718A8D6c529130a8ccC4BfBf0a18219D3` |
+| 25 | MU | `0xfF080c8ce2E5feadaCa0Da81314Ae59D232d4afD` | 10000 | `0x301F48EC369BB3bfA0bC04d44A79037aa0EE2340` |
 
-Every route uses the reviewed mainnet `SinjohSimpleSwapAdapter` deployment
-`0xc9F600ebaf9EE1F4a24568D2e4Af9E8df1e07D7B` (runtime code hash
-`0x17b8eecc60ff9af5768240b0384e96c4e54fd8611355297e45146303294c6ac6`) with
-`routeData = abi.encode(uint24(fee))` and empty guard data. Do not use its superseded v1-router
-deployment. The route's price guard must be a `SinjohSharedV3TwapPriceGuard` deployed for the same
-fee tier with `twapWindow = 300` seconds. The existing mainnet guard
-`0xfdd4f594a9f7cd17fee0bbf2859f4eea3265f328` is an immutable 10000-fee, 900-second guard and is not
-valid for this five-minute configuration. Fresh 500, 3000, and 10000 guards must be deployed with
-the reviewed bounds only after the full testnet gate passes.
+Every route uses WETH `0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73`, factory
+`0x1f7d7550B1b028f7571E69A784071F0205FD2EfA`, and swap adapter
+`0xc9F600ebaf9EE1F4a24568D2e4Af9E8df1e07D7B`. The fee-matched guards are:
 
-## Asset integrity: the stocks are upgradeable proxies
+- fee 500: `0xDad51edC925D4CCd46c1229763F40d1F32c7480C`
+- fee 3000: `0xd01273Fa749BF16e333cFB85D27fD11A82D1515D`
+- fee 10000: `0xf81d21e0b51A7DD815f44682B63b7e732E0b4803`
 
-Every approved stock is the same `BeaconProxy` bytecode behind one shared beacon
-(`0xe10b6f6B275de231345c20D14Ab812db62151b00`); Robinhood can upgrade the implementation for
-all eight at once. The reviewed implementation (`0xb35490…5aE2`, codehash pinned in
-`StockRouteManifest`) has three properties the raffle depends on, all verified from source:
+All use a 300-second TWAP, 1,000 bps maximum spot deviation, 750 bps output
+slippage, 300-second quote validity, and 1 WETH comparison amount.
 
-- **Raw balances, 18 decimals.** `balanceOf`/`transfer` move raw units; stock splits change a
-  separate `uiMultiplier()` and never touch balances, so the raffle's exact-delta delivery
-  and all on-chain accounting are split-proof. Display layers must show
-  `raw × uiMultiplier()`.
-- **No transfer fee.** Exact-amount transfers, which `_sendExactAsset` requires; a skimming
-  upgrade would strand stock payouts in undeliverable credits.
-- **Discretionary pause** (`paused()`, role-set, not automatic market hours). While paused,
-  swaps and deliveries revert: claims stay retryable, deferred credits wait, and the
-  winner's `claimFunding` WETH fallback remains available in the window tail. Nothing is
-  lost; delivery is delayed.
+## Deployment gate
 
-The preflight enforces all of this every run: beacon identity, implementation codehash
-(an upstream upgrade fails the gate and forces re-review), decimals, live pause state, and
-a real post-swap exact-transfer probe.
-
-## The gate is a command, not a checklist
-
-Every mechanical precondition below is checked by `script/PreflightStockRoutes.s.sol` against live
-chain state. Run it; do not re-derive it by hand.
+Run immediately before freezing any raffle configuration, setting `MAX_PRIZE` to the raffle's real
+maximum funding-asset prize:
 
 ```bash
-RAFFLE_GUARD_500=0x… RAFFLE_GUARD_3000=0x… RAFFLE_GUARD_10000=0x… MAX_PRIZE=… forge script script/PreflightStockRoutes.s.sol:PreflightStockRoutes --rpc-url https://rpc.mainnet.chain.robinhood.com
+RAFFLE_GUARD_500=<fee-500-guard> \
+RAFFLE_GUARD_3000=<fee-3000-guard> \
+RAFFLE_GUARD_10000=<fee-10000-guard> \
+MAX_PRIZE=<maximum-prize-in-wei> \
+forge script script/PreflightStockRoutes.s.sol:PreflightStockRoutes \
+  --rpc-url https://rpc.mainnet.chain.robinhood.com
 ```
 
-It never broadcasts. For each of the eight routes it resolves the canonical pool, requires
-observation cardinality at or above the guard's minimum and a full five-minute window of history,
-requires the guard's immutable parameters to match the reviewed values, requires the guard's fee
-tier to equal the fee the adapter will actually swap in, takes a real quote at the largest slot
-the configured `MAX_PRIZE` can produce, and then executes that swap through the real adapter
-against the real pool and requires the guard's own minimum to clear. It reports every failure in
-one run rather than stopping at the first, and exits non-zero if any route fails.
+The preflight pins the adapter runtime, stock beacon implementation, decimals, pause state, pool
+fee, observation history, guard configuration, output floor, and real swap execution. A pass is
+time-bound evidence, not permanent certification.
 
-`checkRoute(index, guard, amountIn)` re-checks a single route after priming, without paying for
-the other seven.
+GOOGL `0x2e0847E8910a9732eB3fb1bb4b70a580ADAD4FE3` has a funded fee-100 pool at
+`0x8fB9301586f27e2cff85312F7c1d0F16C6167cdE`, but is excluded until a fee-100 guard is deployed and
+the same preflight passes. JNJ `0x03DfbBE0AC4E7bCDaFd08eD41A400326B77D8c80`, MRNA
+`0x43B07D15cE533bEc5476d70C22a78a1B2B662155`, MRVL
+`0x62fd0668e10D8B72339BE2DCF7643001688ff13B`, and SLV
+`0x411eFb0E7f985935DAec3D4C3ebaEa0d0AD7D89f` have funded pools that did not pass current guarded
+readiness. They must not be added optimistically.
 
-The route table above is generated from `script/StockRouteManifest.sol`, which is the source of
-truth. Changing a route is a reviewed code change that the preflight re-checks.
-
-### What the preflight cannot establish
-
-- **Asset identity.** That `0xec26…da09` is the approved MSTR deployment and not a lookalike is a
-  registry question. Verify it against the official Robinhood asset registry, once, by hand.
-- **Sustained liquidity.** It proves one swap clears the guard's bound at one block. It says
-  nothing about depth an hour later.
-- **Authorization.** A pass is a mechanical result. It is not permission to deploy.
-
-As of the recorded block the preflight fails: AAPL, GOOGL, and RDDT sit at observation cardinality
-1, which the guard rejects outright, and no five-minute guard exists yet for any fee tier. With
-`claimFunding` a dead route degrades to a WETH payout rather than a lost prize, but it is still a
-permanently degraded product on a fixed share of every future round.
-
-## Remediation
-
-Both failures are fixed by one broadcast, fork-tested end to end in
-`sinjoh-liquidity-manager/test/DeployRafflePriceGuardsMainnet.fork.t.sol`:
-
-```bash
-cd sinjoh-liquidity-manager
-forge script script/DeployRafflePriceGuardsMainnet.s.sol:DeployRafflePriceGuardsMainnet --rpc-url https://rpc.mainnet.chain.robinhood.com --account sinjoh-deployer --sender 0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49 --broadcast
-```
-
-It deploys the three five-minute guards, primes every route pool below the target capacity, and
-seeds an observation into each pool stuck at cardinality 1 — with escalating swap sizes, because a
-V3 pool only writes an observation when a swap moves its tick, and it verifies the write happened
-rather than assuming it. Re-running against healthy pools deploys fresh guards and spends nothing
-else. Wait five minutes for the TWAP window to fill, then run the preflight with the three
-returned guard addresses.
-
-Priming is monotonic and normally happens once per pool and target cardinality. A new guard or a
-shorter window does not require another `prime` transaction when the pool's existing
-`observationCardinalityNext` is already large enough. A new/replaced pool or a later decision to
-raise the target capacity does. Priming reserves capacity but does not backfill observations;
-swaps must populate the buffer and the pool must still retain a full five minutes of history.
-
-## Prize sizing
-
-Set the raffle's immutable `maxPrize` from the shallowest selected pool, not the average pool. Pass
-the candidate value as `MAX_PRIZE`: the preflight derives the largest slot share the raffle can
-produce — `maxPrize` split by `winnersPerRound` plus the division remainder, less both floored tax
-shares — and probes every route at exactly that size. A `MAX_PRIZE` that no route can absorb fails
-the gate rather than surviving to an immutable deployment.
-
-This is also where a guard's hard input bound is caught. `SinjohSharedV3TwapPriceGuard` reverts for
-`amountIn > type(uint128).max`, unreachable for any WETH prize;
-`SinjohV3RouteTwapPriceGuard` reverts above its reviewed per-route `maxAmountIn`, which is
-reachable. Both are immutable, live in a different package from `maxPrize`, and are compared
-nowhere on-chain — the preflight compares them by taking a real quote at the real maximum.
+Every stock is an upgradeable beacon proxy. The reviewed beacon is
+`0xe10b6f6B275de231345c20D14Ab812db62151b00`; its reviewed implementation is
+`0xb35490d6f9163DE4F80d88dc75c3516eb64C5aE2` with runtime codehash
+`0xdc07e86ee482f99641bdafb9a0d772846b167401e094d90a666b94dbdcd1eec7`. A beacon change must fail
+the gate and trigger a new behavior review.
