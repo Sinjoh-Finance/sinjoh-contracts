@@ -3,12 +3,12 @@
   "run": {
     "id": "20260905-023349",
     "date": "2026-09-05",
-    "requirements": "Restore reviewed Flap launches and prove stock-raffle binding and payout on Robinhood Chain."
+    "requirements": "Restore Flap and letscash.fun launches and prove stock-raffle binding and payout on Robinhood Chain."
   },
   "summary": {
-    "building": "A synchronized production pin and live fork canary for Flap-backed stock raffles.",
+    "building": "Synchronized production pins and live fork canaries for stock raffles across launchpads.",
     "verdict": "ready",
-    "topRisk": "Flap's mutable version can invalidate every launch until all reviewed pins are updated together.",
+    "topRisk": "Upgradeable upstream launchpads can retain an address while changing versioned behavior or tuple selectors.",
     "mustDecideFirst": "Retain the fail-closed commitment and approve only the exact v5.21.2 state after the lifecycle proof.",
     "watchOutFor": "CI must expose the protected archive RPC under every environment alias used by registered tests."
   },
@@ -33,6 +33,25 @@
       ]
     },
     {
+      "name": "@letscashfun/sdk",
+      "type": "SDK",
+      "version": "0.5.0",
+      "sourceUrl": "https://registry.npmjs.org/@letscashfun%2Fsdk/0.5.0",
+      "status": "fresh",
+      "risks": [
+        {
+          "severity": "critical",
+          "title": "Proxy upgrade silently changes all launch selectors",
+          "detail": "The stable proxy and its runtime hash remain unchanged while a TokenParams field changes every tuple-taking selector; the active implementation and ABI must be pinned and lifecycle-tested."
+        },
+        {
+          "severity": "high",
+          "title": "A normal salt-search miss can abort a launch",
+          "detail": "Bounded vanity searches can exhaust; the launch path must retry contract-level misses while propagating RPC and transport failures."
+        }
+      ]
+    },
+    {
       "name": "Robinhood Chain",
       "type": "Blockchain",
       "version": "4663",
@@ -48,8 +67,8 @@
     }
   ],
   "riskTotals": {
-    "critical": 1,
-    "high": 0,
+    "critical": 2,
+    "high": 1,
     "medium": 1,
     "low": 1
   },
@@ -68,6 +87,10 @@
     {
       "kind": "underspecified",
       "detail": "Stock-raffle readiness includes exact route readback, launch, mandatory binding, revenue conversion, draw, and payout."
+    },
+    {
+      "kind": "wrong_assumption",
+      "detail": "A stable proxy address and proxy runtime do not prove that launch tuple selectors remain callable after an implementation upgrade."
     }
   ],
   "openQuestions": []

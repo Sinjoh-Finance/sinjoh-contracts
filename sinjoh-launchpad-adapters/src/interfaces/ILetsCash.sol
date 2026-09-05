@@ -21,6 +21,7 @@ interface ILetsCashFactory {
         string metadataURI;
         Socials socials;
         address creator;
+        uint256 supply;
     }
 
     struct LaunchConfig {
