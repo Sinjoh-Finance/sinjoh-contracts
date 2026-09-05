@@ -8,9 +8,8 @@ pragma solidity 0.8.28;
 /// nothing would notice until an immutable raffle was already deployed. Changing a route is now a
 /// reviewed code change that `PreflightStockRoutes` re-checks against live chain state.
 ///
-/// Every address here is pinned. Guard addresses are deliberately absent: the production
-/// five-minute guards do not exist yet, so the preflight takes them from the environment and
-/// verifies their parameters rather than trusting an address.
+/// Every address here is pinned, including the production five-minute guards. The preflight
+/// verifies both their runtime hashes and immutable parameters before exercising every route.
 library StockRouteManifest {
     uint256 internal constant ROBINHOOD_MAINNET_CHAIN_ID = 4_663;
 
@@ -21,6 +20,16 @@ library StockRouteManifest {
     address internal constant SWAP_ADAPTER = 0xc9F600ebaf9EE1F4a24568D2e4Af9E8df1e07D7B;
     bytes32 internal constant SWAP_ADAPTER_CODEHASH =
         0x17b8eecc60ff9af5768240b0384e96c4e54fd8611355297e45146303294c6ac6;
+
+    address internal constant GUARD_500 = 0xDad51edC925D4CCd46c1229763F40d1F32c7480C;
+    bytes32 internal constant GUARD_500_CODEHASH =
+        0xd0d2cf2912d6344ddfaf657911a1fb2a9a4e74ecd6e829d835c18dd342f9801e;
+    address internal constant GUARD_3000 = 0xd01273Fa749BF16e333cFB85D27fD11A82D1515D;
+    bytes32 internal constant GUARD_3000_CODEHASH =
+        0xf3919ec4ce39d29d19e96af0452d1fe53cbb2dfce2a1e7ea053d48ae7f6cfc8f;
+    address internal constant GUARD_10000 = 0xf81d21e0b51A7DD815f44682B63b7e732E0b4803;
+    bytes32 internal constant GUARD_10000_CODEHASH =
+        0xd99afa61854a819bd0adcd593bbc8c3a9a278e5fe29cd2b6f150efe9cdc8b74d;
 
     /// Required immutable guard configuration. A guard that differs on any of these prices a
     /// different risk than the one that was reviewed.
@@ -50,7 +59,7 @@ library StockRouteManifest {
     bytes32 internal constant EIP1967_BEACON_SLOT =
         0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50;
 
-    /// All eight stocks use 18 decimals (verified on-chain 2026-08-04). `payoutAmount` values
+    /// All reviewed stock tokens use 18 decimals (verified on-chain 2026-08-04). `payoutAmount` values
     /// are raw units; a display layer must additionally apply the token's `uiMultiplier()`.
     uint8 internal constant STOCK_DECIMALS = 18;
 
@@ -60,19 +69,34 @@ library StockRouteManifest {
         string symbol;
         address asset;
         uint24 fee;
+        uint256 maxWethInPerCall;
     }
 
-    /// @notice The eight approved routes, in the ascending asset order the raffle requires.
+    /// @notice The seven production-certified routes, in the ascending asset order the raffle
+    /// requires. GOOGL remains excluded because its pool cannot clear the reviewed bound.
     function routes() internal pure returns (Route[] memory list) {
-        list = new Route[](8);
-        list[0] = Route("RDDT", 0x05b37Fb53A299a1b874A619e1c4C404D52C36F4C, 10_000);
-        list[1] = Route("GME", 0x1b0E319c6A659F002271B69dB8A7df2F911c153E, 500);
-        list[2] = Route("GOOGL", 0x2e0847E8910a9732eB3fb1bb4b70a580ADAD4FE3, 500);
-        list[3] = Route("TSLA", 0x322F0929c4625eD5bAd873c95208D54E1c003b2d, 3_000);
-        list[4] = Route("COIN", 0x6330D8C3178a418788dF01a47479c0ce7CCF450b, 3_000);
-        list[5] = Route("AAPL", 0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9, 500);
-        list[6] = Route("NVDA", 0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC, 3_000);
-        list[7] = Route("MSTR", 0xec262a75e413fAfD0dF80480274532C79D42da09, 10_000);
+        list = new Route[](7);
+        list[0] = Route("RDDT", 0x05b37Fb53A299a1b874A619e1c4C404D52C36F4C, 10_000, 0.01 ether);
+        list[1] = Route("GME", 0x1b0E319c6A659F002271B69dB8A7df2F911c153E, 500, 0.0025 ether);
+        list[2] = Route("TSLA", 0x322F0929c4625eD5bAd873c95208D54E1c003b2d, 3_000, 0.01 ether);
+        list[3] = Route("COIN", 0x6330D8C3178a418788dF01a47479c0ce7CCF450b, 3_000, 0.01 ether);
+        list[4] = Route("AAPL", 0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9, 500, 0.01 ether);
+        list[5] = Route("NVDA", 0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC, 3_000, 0.01 ether);
+        list[6] = Route("MSTR", 0xec262a75e413fAfD0dF80480274532C79D42da09, 10_000, 0.01 ether);
+    }
+
+    function guardFor(uint24 fee) internal pure returns (address) {
+        if (fee == 500) return GUARD_500;
+        if (fee == 3_000) return GUARD_3000;
+        if (fee == 10_000) return GUARD_10000;
+        return address(0);
+    }
+
+    function guardCodehashFor(uint24 fee) internal pure returns (bytes32) {
+        if (fee == 500) return GUARD_500_CODEHASH;
+        if (fee == 3_000) return GUARD_3000_CODEHASH;
+        if (fee == 10_000) return GUARD_10000_CODEHASH;
+        return bytes32(0);
     }
 
     /// @notice `routeData` for the swap adapter. It decodes exactly one `uint24` fee, and that fee

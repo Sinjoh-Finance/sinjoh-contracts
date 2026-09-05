@@ -5,8 +5,6 @@ import { StockRouteManifest } from "./StockRouteManifest.sol";
 
 interface Vm {
     function load(address target, bytes32 slot) external view returns (bytes32);
-    function envAddress(string calldata name) external view returns (address);
-    function envOr(string calldata name, uint256 defaultValue) external view returns (uint256);
     function deal(address account, uint256 newBalance) external;
     function prank(address sender) external;
     function toString(uint256 value) external pure returns (string memory);
@@ -83,8 +81,7 @@ interface IStockIntegrity {
 /// It never broadcasts. It only reads, and simulates swaps locally against forked state:
 ///
 /// ```sh
-/// RAFFLE_GUARD_500=0x... RAFFLE_GUARD_3000=0x... RAFFLE_GUARD_10000=0x... MAX_PRIZE=... \
-///   forge script script/PreflightStockRoutes.s.sol:PreflightStockRoutes \
+/// forge script script/PreflightStockRoutes.s.sol:PreflightStockRoutes \
 ///   --rpc-url https://rpc.mainnet.chain.robinhood.com
 /// ```
 ///
@@ -101,34 +98,37 @@ contract PreflightStockRoutes {
     error RoutesNotReady(uint256 failed, uint256 total);
 
     uint256 internal failures;
-    address internal _guard500;
-    address internal _guard3000;
-    address internal _guard10000;
 
     function run() external {
         if (block.chainid != StockRouteManifest.ROBINHOOD_MAINNET_CHAIN_ID) {
             revert WrongChain(block.chainid);
         }
+        uint256 failed = checkProduction();
+        if (failed != 0) revert RoutesNotReady(failed, StockRouteManifest.routes().length);
+    }
 
-        uint256 maxPrize = vm.envOr("MAX_PRIZE", uint256(0));
-        uint8 winners = uint8(vm.envOr("WINNERS_PER_ROUND", uint256(1)));
-        uint16 recipientTaxBps = uint16(vm.envOr("RECIPIENT_TAX_BPS", uint256(700)));
-        uint16 recycleTaxBps = uint16(vm.envOr("RECYCLE_TAX_BPS", uint256(300)));
+    /// @notice Exercises every launchable route with its pinned production guard and the largest
+    /// WETH input the UI permits for that route.
+    function checkProduction() public returns (uint256) {
+        failures = 0;
+        _log("=== Sinjoh production stock-route preflight ===");
+        _checkSharedDependencies();
+        _checkProductionGuards();
+        _log("Probing every certified route at its launch-time cap");
+        _log("");
 
-        uint256 probeAmount = maxPrize == 0
-            ? 0.01 ether
-            : StockRouteManifest.maxSlotNet(maxPrize, winners, recipientTaxBps, recycleTaxBps);
-        if (maxPrize == 0) {
-            _log("MAX_PRIZE unset: probing at 0.01 WETH. Set it to gate real prize sizing.");
+        StockRouteManifest.Route[] memory list = StockRouteManifest.routes();
+        address previous;
+        for (uint256 i; i < list.length; ++i) {
+            if (list[i].asset <= previous) {
+                _fail(list[i].symbol, "manifest is not in strictly ascending asset order");
+            }
+            previous = list[i].asset;
+            _checkRoute(list[i], StockRouteManifest.guardFor(list[i].fee), list[i].maxWethInPerCall);
         }
 
-        uint256 failed = check(
-            vm.envAddress("RAFFLE_GUARD_500"),
-            vm.envAddress("RAFFLE_GUARD_3000"),
-            vm.envAddress("RAFFLE_GUARD_10000"),
-            probeAmount
-        );
-        if (failed != 0) revert RoutesNotReady(failed, StockRouteManifest.routes().length);
+        _finish();
+        return failures;
     }
 
     /// @notice Runs every gate and returns the failure count instead of reverting.
@@ -139,9 +139,6 @@ contract PreflightStockRoutes {
         returns (uint256)
     {
         failures = 0;
-        _guard500 = guard500;
-        _guard3000 = guard3000;
-        _guard10000 = guard10000;
 
         _log("=== Sinjoh mystery-stock route preflight ===");
         _checkSharedDependencies();
@@ -156,16 +153,22 @@ contract PreflightStockRoutes {
                 _fail(list[i].symbol, "manifest is not in strictly ascending asset order");
             }
             previous = list[i].asset;
-            _checkRoute(list[i], _guardFor(list[i].fee), probeAmount);
+            _checkRoute(
+                list[i], _guardFor(list[i].fee, guard500, guard3000, guard10000), probeAmount
+            );
         }
 
+        _finish();
+        return failures;
+    }
+
+    function _finish() private view {
         _log("");
         if (failures != 0) {
             _log(_join("FAILED: ", vm.toString(failures), " check(s). Routes are not deployable."));
         } else {
             _log("All routes passed. A mechanical result, not authorization to deploy.");
         }
-        return failures;
     }
 
     function _checkSharedDependencies() private {
@@ -180,14 +183,30 @@ contract PreflightStockRoutes {
         }
     }
 
+    function _checkProductionGuards() private {
+        _checkProductionGuard(500);
+        _checkProductionGuard(3_000);
+        _checkProductionGuard(10_000);
+    }
+
+    function _checkProductionGuard(uint24 fee) private {
+        address guard = StockRouteManifest.guardFor(fee);
+        if (guard.code.length == 0) {
+            _fail("GUARD", _join("fee tier ", vm.toString(fee), " has no deployed code"));
+            return;
+        }
+        if (guard.codehash != StockRouteManifest.guardCodehashFor(fee)) {
+            _fail("GUARD", _join("fee tier ", vm.toString(fee), " runtime hash changed"));
+        }
+    }
+
     /// @dev Pool readiness is a property of the pool and the route's own fee tier, so it is
     /// checked from the canonical factory and reported even when the guard is wrong. Otherwise a
     /// misconfigured guard would mask every pool problem behind it, and fixing the guard would
     /// only reveal the next layer — which is the failure mode of a hand-run checklist.
     /// @notice Runs every gate for one route against one guard.
-    /// @dev Operationally this re-checks a single route after priming its pool, without paying for
-    /// the other seven. It is also how the pass path is tested: no route currently satisfies every
-    /// gate on mainnet, so a whole-manifest pass cannot be observed yet.
+    /// @dev Operationally this re-checks a single route after priming its pool, without exercising
+    /// the other six. The production fork test separately requires the whole manifest to pass.
     function checkRoute(uint256 index, address guard, uint256 amountIn) public returns (uint256) {
         failures = 0;
         _checkRoute(StockRouteManifest.routes()[index], guard, amountIn);
@@ -430,10 +449,14 @@ contract PreflightStockRoutes {
         }
     }
 
-    function _guardFor(uint24 fee) private view returns (address) {
-        if (fee == 500) return vm.envAddress("RAFFLE_GUARD_500");
-        if (fee == 3_000) return vm.envAddress("RAFFLE_GUARD_3000");
-        if (fee == 10_000) return vm.envAddress("RAFFLE_GUARD_10000");
+    function _guardFor(uint24 fee, address guard500, address guard3000, address guard10000)
+        private
+        pure
+        returns (address)
+    {
+        if (fee == 500) return guard500;
+        if (fee == 3_000) return guard3000;
+        if (fee == 10_000) return guard10000;
         return address(0);
     }
 

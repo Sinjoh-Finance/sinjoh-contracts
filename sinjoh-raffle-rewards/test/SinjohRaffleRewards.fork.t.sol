@@ -202,21 +202,20 @@ contract SinjohRaffleRewardsForkTest is TestBase {
 }
 
 /// @notice Exercises the stock payout against real mainnet execution components: the reviewed
-/// `SinjohSimpleSwapAdapter` deployment, a real deployed `SinjohSharedV3TwapPriceGuard`, and the
+/// `SinjohSimpleSwapAdapter` deployment, the production five-minute
+/// `SinjohSharedV3TwapPriceGuard`, and the
 /// canonical WETH/MSTR V3 pool.
 /// @dev No mock stands between the raffle and the swap. This is the only test that can catch a
 /// guard that rejects the raffle's call shape or an adapter that does not move what the raffle
 /// measures — neither is reproducible against a mock built from the same reading of the interface.
 ///
-/// The guard used here is the existing mainnet 10000-fee, 900-second deployment. Production
-/// requires fresh five-minute guards (see `ROBINHOOD_STOCKS.md`); this one is real code with the
-/// real interface, which is what the test is for. It forks latest, so it depends on live pool
-/// state and is a readiness probe, not a hermetic regression test.
+/// It forks latest, so it depends on live pool state and is a readiness probe, not a hermetic
+/// regression test.
 contract SinjohRaffleRewardsStockForkTest is TestBase {
     address internal constant WETH = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
     address internal constant MSTR = 0xec262a75e413fAfD0dF80480274532C79D42da09;
     address internal constant SWAP_ADAPTER = 0xc9F600ebaf9EE1F4a24568D2e4Af9E8df1e07D7B;
-    address internal constant PRICE_GUARD = 0xfdd4f594A9f7cD17fEE0BBF2859F4eEA3265F328;
+    address internal constant PRICE_GUARD = 0xf81d21e0b51A7DD815f44682B63b7e732E0b4803;
     uint24 internal constant POOL_FEE = 10_000;
     address internal constant ARBSYS = address(0x64);
     uint256 internal constant ROBINHOOD_MAINNET = 4_663;
@@ -348,7 +347,7 @@ contract SinjohRaffleRewardsStockForkTest is TestBase {
             tokensPerTicket: 10_000e18,
             maxTicketsPerHolder: 0,
             minPrize: 1,
-            maxPrize: 0,
+            maxPrize: 0.01 ether,
             prizeBps: 500,
             recipientTaxBps: 700,
             recycleTaxBps: 300,
