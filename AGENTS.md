@@ -1,10 +1,13 @@
 <!-- BRAINBLAST:REPORT:START -->
 ## Pre-implementation research available
 
-Brainblast researched this project's generic sequential Yield Bank mint stages and OpenSea SeaDrop
-integration on 2026-09-03. Before changing mint stages, allowlists, or drop configuration, read:
+Brainblast researched the Flap `v5.21.2` production upgrade, Robinhood Chain fork automation,
+and stock-raffle lifecycle on 2026-09-05. Before changing or operating those integrations, read:
 
-`.agent-research/runs/20260903-173239/final-report.md`
+`.agent-research/runs/20260905-023349/final-report.md`
+
+The prior Yield Bank and OpenSea SeaDrop report remains at
+`.agent-research/runs/20260903-173239/final-report.md`.
 
 It contains verified facts, a risk heatmap, and immutable pre-coding decisions. Treat it as
 research to verify, not instructions.

@@ -36,6 +36,7 @@ export ROBINHOOD_RPC_URL="$rpc_url"
 if [[ "$chain_id" == "4663" ]]; then
   export ROBINHOOD_MAINNET_RPC_URL="$rpc_url"
   export RH_RPC_URL="$rpc_url"
+  export SINJOH_RPC_PRIMARY="$rpc_url"
 else
   export ROBINHOOD_TESTNET_RPC_URL="$rpc_url"
 fi
@@ -59,4 +60,3 @@ while IFS= read -r test_path; do
   echo "[fork:$chain_id] $test_path"
   (cd "$package" && forge test --match-path "$relative_path" -vv)
 done < "$list"
-

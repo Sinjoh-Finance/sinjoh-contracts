@@ -91,7 +91,8 @@ contract SinjohLetsCashAdapterTest is TestBase {
                 website: "https://sinjoh.example",
                 extra: ""
             }),
-            creator: creator
+            creator: creator,
+            supply: 0
         });
     }
 

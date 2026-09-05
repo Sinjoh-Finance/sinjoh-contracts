@@ -191,8 +191,7 @@ contract ProductionLetsCashRaffleForkTest {
         _require(adapter == predictedAdapter, "adapter prediction failed");
 
         ILetsCashFactory.TokenParams memory params = _tokenParams();
-        (bytes32 tokenSalt, address predictedToken) =
-            ILetsCashFactory(FACTORY).mineSalt(params, CONFIG_ID, address(this), 1, 200_000);
+        (bytes32 tokenSalt, address predictedToken) = _mineSalt(params);
         _require(predictedToken != address(0), "token salt mining failed");
         address[] memory recipients = new address[](1);
         recipients[0] = adapter;
@@ -256,6 +255,25 @@ contract ProductionLetsCashRaffleForkTest {
             IERC20LetsCashFork(WETH).balanceOf(address(this)) - beforeBalance == paid, "reward balance delta mismatch"
         );
         _require(IERC20LetsCashFork(WETH).balanceOf(address(raffle)) >= raffle.liabilities(), "raffle became insolvent");
+    }
+
+    /// @dev The upstream miner reverts when a bounded search contains no vanity
+    /// address. Production advances to the next range instead of treating that
+    /// expected miss as a launch failure.
+    function _mineSalt(ILetsCashFactory.TokenParams memory params)
+        private
+        view
+        returns (bytes32 tokenSalt, address predictedToken)
+    {
+        uint256 start = uint64(bytes8(USER_SALT));
+        for (uint256 attempt; attempt < 12; ++attempt) {
+            try ILetsCashFactory(FACTORY).mineSalt(params, CONFIG_ID, address(this), start, 25_000) returns (
+                bytes32 salt, address token
+            ) {
+                if (token != address(0)) return (salt, token);
+            } catch {}
+            start += 25_000;
+        }
     }
 
     function _exclusions(address adapter, address router) private pure returns (address[] memory sorted) {
@@ -370,7 +388,8 @@ contract ProductionLetsCashRaffleForkTest {
             socials: ILetsCashFactory.Socials({
                 telegram: "", twitter: "sinjoh", discord: "", website: "https://sinjoh.com", extra: ""
             }),
-            creator: address(this)
+            creator: address(this),
+            supply: 0
         });
     }
 

@@ -57,7 +57,8 @@ contract LetsCashMainnetForkTest is TestBase {
                 website: "https://sinjoh.example",
                 extra: ""
             }),
-            creator: CREATOR
+            creator: CREATOR,
+            supply: 0
         });
     }
 
