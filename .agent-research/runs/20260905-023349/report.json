@@ -1,0 +1,74 @@
+{
+  "schemaVersion": "1.0",
+  "run": {
+    "id": "20260905-023349",
+    "date": "2026-09-05",
+    "requirements": "Restore reviewed Flap launches and prove stock-raffle binding and payout on Robinhood Chain."
+  },
+  "summary": {
+    "building": "A synchronized production pin and live fork canary for Flap-backed stock raffles.",
+    "verdict": "ready",
+    "topRisk": "Flap's mutable version can invalidate every launch until all reviewed pins are updated together.",
+    "mustDecideFirst": "Retain the fail-closed commitment and approve only the exact v5.21.2 state after the lifecycle proof.",
+    "watchOutFor": "CI must expose the protected archive RPC under every environment alias used by registered tests."
+  },
+  "components": [
+    {
+      "name": "Flap Portal",
+      "type": "API",
+      "version": "v5.21.2",
+      "sourceUrl": "https://docs.flap.sh/flap/developers/token-launcher-developers/robinhood-integration-guide.md",
+      "status": "fresh",
+      "risks": [
+        {
+          "severity": "critical",
+          "title": "Mutable upstream version can stop every Flap launch",
+          "detail": "A legitimate Portal upgrade invalidates Sinjoh's reviewed commitment; compatibility must be lifecycle-tested and every pin updated together without removing the guard."
+        },
+        {
+          "severity": "low",
+          "title": "Public version documentation can lag live state",
+          "detail": "Production approval must use live onchain state plus an end-to-end fork rather than static version text alone."
+        }
+      ]
+    },
+    {
+      "name": "Robinhood Chain",
+      "type": "Blockchain",
+      "version": "4663",
+      "sourceUrl": "https://docs.robinhood.com/chain/connecting/",
+      "status": "fresh",
+      "risks": [
+        {
+          "severity": "medium",
+          "title": "A missing RPC environment alias can prevent registered canaries from running",
+          "detail": "The runner must expose the validated protected RPC under every alias consumed by the registered fork tests."
+        }
+      ]
+    }
+  ],
+  "riskTotals": {
+    "critical": 1,
+    "high": 0,
+    "medium": 1,
+    "low": 1
+  },
+  "preCodingDecisions": [
+    {
+      "title": "Approve exact Portal commitment",
+      "detail": "Use 0xd11206f76d4086d0aab6f96707b25806347b07d7ef45197bf15699765ef975d3 only after the full v5.21.2 lifecycle proof passes.",
+      "immutable": true
+    }
+  ],
+  "requirementsCorrections": [
+    {
+      "kind": "missing_constraint",
+      "detail": "Every mutable upstream commitment used by production launch must have a current-state fork canary."
+    },
+    {
+      "kind": "underspecified",
+      "detail": "Stock-raffle readiness includes exact route readback, launch, mandatory binding, revenue conversion, draw, and payout."
+    }
+  ],
+  "openQuestions": []
+}

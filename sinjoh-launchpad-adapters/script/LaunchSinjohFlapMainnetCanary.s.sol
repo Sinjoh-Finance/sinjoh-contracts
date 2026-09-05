@@ -58,7 +58,7 @@ contract LaunchSinjohFlapMainnetCanary {
     bytes32 private constant ROUTER_IMPLEMENTATION_CODEHASH =
         0x00eecc775b2dff40c52bdd038cdccc19b5812a527aa811b359a55249c6987276;
     bytes32 private constant REVIEWED_PORTAL_CONFIG_HASH =
-        0xb789978b5db7d4d20b60a96ac19d9b9f4a667f2182a2d833a3dfb02459fbb713;
+        0xd11206f76d4086d0aab6f96707b25806347b07d7ef45197bf15699765ef975d3;
     uint16 private constant FLAP_FEE_RATE = 300;
     bytes4 private constant VERSION_SELECTOR = bytes4(keccak256("version()"));
     bytes4 private constant QUOTE_CONFIG_SELECTOR =

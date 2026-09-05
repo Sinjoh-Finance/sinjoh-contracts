@@ -200,7 +200,7 @@ contract ProductionFlapRaffleForkTest {
     bytes32 internal constant V2_PAIR_INIT_CODE_HASH =
         0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f;
     bytes32 internal constant REVIEWED_PORTAL_CONFIG_HASH =
-        0xb789978b5db7d4d20b60a96ac19d9b9f4a667f2182a2d833a3dfb02459fbb713;
+        0xd11206f76d4086d0aab6f96707b25806347b07d7ef45197bf15699765ef975d3;
     uint16 internal constant FLAP_FEE_RATE = 300;
     address internal constant ARBSYS = address(0x64);
 

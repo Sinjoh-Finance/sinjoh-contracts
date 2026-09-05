@@ -53,7 +53,7 @@ contract DeploySinjohFlapExecutionInfrastructure {
     bytes32 private constant V2_ROUTER_CODEHASH =
         0xbd55ea26b2f8d42a8ff151511cef92a326a9817686899fe96a8a8f81ee7fc55e;
     bytes32 private constant REVIEWED_PORTAL_CONFIG_HASH =
-        0xb789978b5db7d4d20b60a96ac19d9b9f4a667f2182a2d833a3dfb02459fbb713;
+        0xd11206f76d4086d0aab6f96707b25806347b07d7ef45197bf15699765ef975d3;
 
     VmSinjohFlapExecutionInfrastructure private constant vm = VmSinjohFlapExecutionInfrastructure(
         address(uint160(uint256(keccak256("hevm cheat code"))))

@@ -18,10 +18,15 @@ to the deployed Sinjoh revenue collector.
 | Mainnet WETH | `0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73` | `0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353` |
 | Sinjoh revenue collector | `0x5Bb7582557F5be30b62c335Ad3ccf4bA79E138c5` | `0x2a2605aed6c20353f19ea155b13605c9730f53b8b0fc9f2c1aea78433654789b` |
 
-The Portal reported `v5.15.2`. The reviewed Portal commitment is
+The Portal reported `v5.15.2` at that snapshot. The reviewed historical Portal commitment is
 `0xb789978b5db7d4d20b60a96ac19d9b9f4a667f2182a2d833a3dfb02459fbb713`;
 it commits to the proxy runtime, encoded version response, and native-quote
 configuration response.
+
+The current-state launch and execution scripts separately pin the live `v5.21.2`
+commitment `0xd11206f76d4086d0aab6f96707b25806347b07d7ef45197bf15699765ef975d3`,
+reviewed on 2026-09-05 after confirming the same proxy runtime and native-quote
+configuration and passing the complete current-state launch lifecycle.
 
 The TaxProcessor created by the live mainnet Portal reported `feeRate = 300`.
 This was established by deliberately trying the alternative assumption in the
