@@ -166,6 +166,10 @@ contract SinjohRaffleRewardsTest is TestBase {
         factory.deployRaffle(bytes32("stocks-route-size"), config);
     }
 
+    function testStockRewardCeilingCoversCurrentPonsInventory() public view {
+        assertEq(raffle.MAX_STOCK_REWARDS(), 64);
+    }
+
     function testVrfSelectsAndAutomaticallyPaysStockPerSlot() public {
         (
             SinjohRaffleRewards stockRaffle,

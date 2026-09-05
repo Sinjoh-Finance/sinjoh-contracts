@@ -6,10 +6,11 @@ import { MockCompliantGuard } from "./mocks/MockCompliantGuard.sol";
 import { PreflightStockRoutes } from "../script/PreflightStockRoutes.s.sol";
 import { StockRouteManifest } from "../script/StockRouteManifest.sol";
 
-/// @notice Proves the production deployment gate passes every launchable route and still fails
-/// closed for a mismatched guard.
+/// @notice Proves the deployment gate both passes and fails for the right reasons.
+/// @dev These run the gate against a compliant guard on a route whose pool is genuinely ready,
+/// and against deliberately invalid guard inputs, and require the outcomes to differ.
 contract PreflightStockRoutesForkTest is TestBase {
-    uint256 internal constant MSTR_INDEX = 6;
+    uint256 internal constant MSTR_INDEX = 23;
     uint24 internal constant MSTR_FEE = 10_000;
 
     bool internal forked;
@@ -36,5 +37,10 @@ contract PreflightStockRoutesForkTest is TestBase {
         if (!forked) return;
         MockCompliantGuard wrongTier = new MockCompliantGuard(StockRouteManifest.V3_FACTORY, 500);
         assertTrue(preflight.checkRoute(MSTR_INDEX, address(wrongTier), 0.01 ether) != 0);
+    }
+
+    function testForkPreflightRejectsAMissingGuard() public {
+        if (!forked) return;
+        assertTrue(preflight.checkRoute(MSTR_INDEX, address(0), 0.01 ether) != 0);
     }
 }

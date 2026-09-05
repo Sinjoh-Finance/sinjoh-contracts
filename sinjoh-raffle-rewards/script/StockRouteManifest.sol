@@ -59,7 +59,7 @@ library StockRouteManifest {
     bytes32 internal constant EIP1967_BEACON_SLOT =
         0xa3f0ad74e5423aebfd80d3ef4346578335a9a72aeaee59ff6cb3582b35133d50;
 
-    /// All reviewed stock tokens use 18 decimals (verified on-chain 2026-08-04). `payoutAmount` values
+    /// All reviewed stock tokens use 18 decimals (verified on-chain 2026-09-05). `payoutAmount` values
     /// are raw units; a display layer must additionally apply the token's `uiMultiplier()`.
     uint8 internal constant STOCK_DECIMALS = 18;
 
@@ -72,17 +72,37 @@ library StockRouteManifest {
         uint256 maxWethInPerCall;
     }
 
-    /// @notice The seven production-certified routes, in the ascending asset order the raffle
-    /// requires. GOOGL remains excluded because its pool cannot clear the reviewed bound.
+    /// @notice The routes that passed the live 0.01 WETH maximum-prize preflight on 2026-09-05,
+    /// in the ascending asset order the raffle requires. With the production tax defaults, the
+    /// largest single swap input exercised by that preflight was 0.009 WETH.
     function routes() internal pure returns (Route[] memory list) {
-        list = new Route[](7);
-        list[0] = Route("RDDT", 0x05b37Fb53A299a1b874A619e1c4C404D52C36F4C, 10_000, 0.01 ether);
-        list[1] = Route("GME", 0x1b0E319c6A659F002271B69dB8A7df2F911c153E, 500, 0.0025 ether);
-        list[2] = Route("TSLA", 0x322F0929c4625eD5bAd873c95208D54E1c003b2d, 3_000, 0.01 ether);
-        list[3] = Route("COIN", 0x6330D8C3178a418788dF01a47479c0ce7CCF450b, 3_000, 0.01 ether);
-        list[4] = Route("AAPL", 0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9, 500, 0.01 ether);
-        list[5] = Route("NVDA", 0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC, 3_000, 0.01 ether);
-        list[6] = Route("MSTR", 0xec262a75e413fAfD0dF80480274532C79D42da09, 10_000, 0.01 ether);
+        list = new Route[](26);
+        list[0] = Route("AMC", 0x05a3d1Cd21d0C88145E82600E62e7E496e0F222B, 10_000, 0.009 ether);
+        list[1] = Route("RDDT", 0x05b37Fb53A299a1b874A619e1c4C404D52C36F4C, 10_000, 0.009 ether);
+        list[2] = Route("SPY", 0x117cc2133c37B721F49dE2A7a74833232B3B4C0C, 500, 0.009 ether);
+        list[3] = Route("GME", 0x1b0E319c6A659F002271B69dB8A7df2F911c153E, 500, 0.009 ether);
+        list[4] = Route("DJT", 0x1D11f0496982706C5e14A514D4E79F2e6BdE4516, 500, 0.009 ether);
+        list[5] = Route("TSLA", 0x322F0929c4625eD5bAd873c95208D54E1c003b2d, 3_000, 0.009 ether);
+        list[6] = Route("BB", 0x48E39E56aCdbA37b09020C0b734A613C9a2f100A, 10_000, 0.009 ether);
+        list[7] = Route("SPCX", 0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa, 500, 0.009 ether);
+        list[8] = Route("COST", 0x4EA005168D7F09a7A0Ba9D1DEf21a479950E44C2, 10_000, 0.009 ether);
+        list[9] = Route("TSM", 0x58FfE4a942d3885bAa22D7520691F611EF09e7AA, 3_000, 0.009 ether);
+        list[10] = Route("COIN", 0x6330D8C3178a418788dF01a47479c0ce7CCF450b, 3_000, 0.009 ether);
+        list[11] = Route("LLY", 0x8005d266423c7ea827372c9c864491e5786600ea, 3_000, 0.009 ether);
+        list[12] = Route("BE", 0x822CC93fFD030293E9842c30BBD678F530701867, 3_000, 0.009 ether);
+        list[13] = Route("SGOV", 0x92FD66527192E3e61d4DDd13322Aa222DE86F9B5, 10_000, 0.009 ether);
+        list[14] = Route("INDA", 0xACEF2e09adb47aD6aBeBAD9fF06689E60615C2B6, 3_000, 0.009 ether);
+        list[15] = Route("AAPL", 0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9, 500, 0.009 ether);
+        list[16] = Route("SNDK", 0xB90A19fF0Af67f7779afF50A882A9CfF42446400, 3_000, 0.009 ether);
+        list[17] = Route("META", 0xc0D6457C16Cc70d6790Dd43521C899C87ce02f35, 3_000, 0.009 ether);
+        list[18] = Route("GLD", 0xC9a981FEE1F9DEc688bb123ccDeCc63D0deBFC4e, 500, 0.009 ether);
+        list[19] = Route("HIMS", 0xCceE82fE024c36fA15E1005edE3E9e4787e23D09, 3_000, 0.009 ether);
+        list[20] = Route("NVDA", 0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC, 500, 0.009 ether);
+        list[21] = Route("QQQ", 0xD5f3879160bc7c32ebb4dC785F8a4F505888de68, 3_000, 0.009 ether);
+        list[22] = Route("CRCL", 0xdF0992E440dD0be65BD8439b609d6D4366bf1CB5, 10_000, 0.009 ether);
+        list[23] = Route("MSTR", 0xec262a75e413fAfD0dF80480274532C79D42da09, 10_000, 0.009 ether);
+        list[24] = Route("RBLX", 0xF0C4BF4C582cb3836e98394b1d4e7B7281101bE8, 3_000, 0.009 ether);
+        list[25] = Route("MU", 0xfF080c8ce2E5feadaCa0Da81314Ae59D232d4afD, 10_000, 0.009 ether);
     }
 
     function guardFor(uint24 fee) internal pure returns (address) {

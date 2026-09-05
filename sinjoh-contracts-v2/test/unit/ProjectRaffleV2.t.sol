@@ -268,6 +268,10 @@ contract ProjectRaffleV2Test is Test {
         assertEq(prizeAsset.allowance(address(stockRaffle), address(adapter)), 0);
     }
 
+    function testStockRewardCeilingCoversCurrentPonsInventory() public view {
+        assertEq(raffle.MAX_STOCK_REWARDS(), 64);
+    }
+
     function _deploy(RaffleTypes.Config memory config) private returns (ProjectRaffleV2 deployed) {
         deployed = ProjectRaffleV2(payable(Clones.clone(address(implementation))));
         deployed.initialize(address(registry), address(subject), _approvalRoot(config), config);

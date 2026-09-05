@@ -205,8 +205,9 @@ contract PreflightStockRoutes {
     /// misconfigured guard would mask every pool problem behind it, and fixing the guard would
     /// only reveal the next layer — which is the failure mode of a hand-run checklist.
     /// @notice Runs every gate for one route against one guard.
-    /// @dev Operationally this re-checks a single route after priming its pool, without exercising
-    /// the other six. The production fork test separately requires the whole manifest to pass.
+    /// @dev Operationally this re-checks a single route after priming its pool, without paying for
+    /// the remaining routes. It is also useful for diagnosing one route after a whole-manifest
+    /// preflight reports a failure.
     function checkRoute(uint256 index, address guard, uint256 amountIn) public returns (uint256) {
         failures = 0;
         _checkRoute(StockRouteManifest.routes()[index], guard, amountIn);
