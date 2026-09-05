@@ -746,7 +746,13 @@
       "verified": {
         "deploymentChainId": 4663,
         "implementationLocked": true,
-        "maxStockRewards": 64
+        "maxStockRewards": 64,
+        "sourceVerification": {
+          "provider": "Sourcify",
+          "status": "match",
+          "factoryJobId": "e5bba727-b789-4ac1-8c22-d5b45395364c",
+          "implementationJobId": "cd3966fd-d7f3-4c90-aaa1-2b1a0eac6277"
+        }
       }
     },
     "raffleFactoryHistoricalGenerations": {
