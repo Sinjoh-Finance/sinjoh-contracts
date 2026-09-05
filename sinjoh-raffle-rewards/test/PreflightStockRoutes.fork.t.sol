@@ -16,6 +16,7 @@ import { SinjohRaffleRewardsFactory } from "../src/SinjohRaffleRewardsFactory.so
 contract PreflightStockRoutesForkTest is TestBase {
     address internal constant PRODUCTION_FACTORY = 0x9931324D98137b9D567B6ec32e1a10f148E6e9e3;
     address internal constant PRODUCTION_RANDOMNESS = 0xD16BCD59ca33C1e85578Aa5d60a02C4E2231c491;
+    uint256 internal constant EXPECTED_CERTIFIED_ROUTE_COUNT = 25;
     uint256 internal constant MSTR_INDEX = 22;
     uint24 internal constant MSTR_FEE = 10_000;
 
@@ -43,6 +44,7 @@ contract PreflightStockRoutesForkTest is TestBase {
         if (!forked) return;
 
         StockRouteManifest.Route[] memory routes = StockRouteManifest.routes();
+        assertEq(routes.length, EXPECTED_CERTIFIED_ROUTE_COUNT);
         RaffleTypes.StockReward[] memory rewards = new RaffleTypes.StockReward[](routes.length);
         for (uint256 i; i < routes.length; ++i) {
             rewards[i] = RaffleTypes.StockReward({
