@@ -11,7 +11,7 @@
       "libraries": []
     }
   ],
-  "verifiedAt": "2026-09-06T06:28:06.843Z",
+  "verifiedAt": "2026-09-06T07:01:43.000Z",
   "results": [
     {
       "address": "0xC6ED5445e582bf6F68eC0d17ae55791e074875d8",
@@ -22,8 +22,10 @@
       "forgeCompilerVersion": "0.8.28",
       "license": "apache_2_0",
       "libraries": [],
-      "action": "failed",
-      "error": "Error: HTTP 403 https://robinhoodchain.blockscout.com/api/v2/smart-contracts/0xC6ED5445e582bf6F68eC0d17ae55791e074875d8: <!DOCTYPE html><html lang=\"en-US\"><head><title>Just a moment...</title><meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\"><meta http-equiv=\"X-UA-Compatible\" content=\"IE=Edge\"><meta name=\"robots\" content=\"noindex,nofollow\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><meta http-equiv=\"content-security-policy\" content=\"default-src &#39;none&#39;; script-src &#39;nonce-JzBeezrJFlknhQ8iLmUBqZ&#39; &#39;unsafe-eval&#39; https://challenges.cloudflare.com; script-s"
+      "action": "verified",
+      "verifier": "sourcify",
+      "verificationJobId": "4c5c66a8-7c4a-4548-bc78-d711344cd430",
+      "status": "match"
     }
   ]
 }
