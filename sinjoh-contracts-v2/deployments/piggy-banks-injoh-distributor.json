@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "1.0",
+  "chainId": 4663,
+  "name": "PiggyBanksINJOHDistributor",
+  "address": "0x5f607c1A4377d191Ca7198F92760E4a5a24d8d71",
+  "deploymentTransaction": "0xaa3efb9508c7b87771ec986deea1f01f0c3174f83509f5dd97695fa4706bedab",
+  "deploymentBlock": 55647785,
+  "deployer": "0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49",
+  "runtimeCodeHash": "0x4742c950ad4a87c50036b7fb33f793f4fa747944e0555596d65d238952fa2642",
+  "sourceCommit": "7d73d2973e18f408abe7ffb73ddbf1df3aaf26d9",
+  "verification": {
+    "provider": "Sourcify",
+    "status": "match",
+    "jobId": "2930ecdc-ffc6-4469-bdb0-152f8baf7479"
+  },
+  "configuration": {
+    "collection": "0xc275fa302Cd53DFa42D41b1C5b770661d923ba43",
+    "nft": "0xF39D4C50a08E0FdafC51d37FC92Bd2c25191DA6a",
+    "injoh": "0x2cC0FAC44B8252f6B10208B091aFf2c94B4da77D",
+    "operator": "0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49",
+    "targetAmount": "6000000000000000000000000",
+    "tokenCount": 3333,
+    "totalWeight": 8130,
+    "maximumBatchSize": 64,
+    "feeWeightRanges": [
+      { "endTokenId": 3, "weight": 60 },
+      { "endTokenId": 33, "weight": 15 },
+      { "endTokenId": 333, "weight": 5 },
+      { "endTokenId": 3333, "weight": 2 }
+    ]
+  },
+  "postDeploymentState": {
+    "remainingFunding": "6000000000000000000000000",
+    "injohBalance": "0",
+    "nextTokenId": 1,
+    "cumulativeWeight": 0,
+    "totalDistributed": "0"
+  },
+  "rehearsal": {
+    "rpcProvider": "Chainstack",
+    "testsPassed": 4,
+    "testsFailed": 0,
+    "all3333AccountsVerified": true,
+    "exactTargetDistributed": true,
+    "zeroContributionResidue": true
+  }
+}
