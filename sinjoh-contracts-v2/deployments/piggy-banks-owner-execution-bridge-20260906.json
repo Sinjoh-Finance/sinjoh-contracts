@@ -1,0 +1,21 @@
+{
+  "chainId": 4663,
+  "collection": "0xc275fa302Cd53DFa42D41b1C5b770661d923ba43",
+  "nft": "0xF39D4C50a08E0FdafC51d37FC92Bd2c25191DA6a",
+  "allocator": "0x42e14eA9f926ad7b530ce49d433CB6f748f8D0a1",
+  "proceedsVault": "0xa9653463ffdE4e2352b4659334f785159d7525FD",
+  "timelock": "0x7C15804A2d7F5981035895CAb953e5E76393E1B8",
+  "previousOperator": "0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49",
+  "ownerExecutionBridge": "0xC6ED5445e582bf6F68eC0d17ae55791e074875d8",
+  "ownerExecutionBridgeRuntimeCodeHash": "0x6db43264847864e1494c3df09f9b4bdce9f4d15dbadb894200d3cba5a79d2368",
+  "deploymentTransactionHash": "0x6cefed1874851122bdd3eb3e6784cc87ded52e2b2f24e520f5513129321d581d",
+  "activationScheduleTransactionHash": "0x09f6fde7173cfc8f77dd2e68b4af424bffd7319756c0f1f1375e87b0f16d78e3",
+  "activationOperationId": "0x48523cfd2e461ed7acceb93ba1632418b837fa85eb654fc279c30e2604920b27",
+  "activationExecutableAt": 1788761846,
+  "activationExecutableAtEastern": "2026-09-07T02:17:26-04:00",
+  "activationCall": {
+    "target": "0xa9653463ffdE4e2352b4659334f785159d7525FD",
+    "function": "setAllocationOperator(address)",
+    "argument": "0xC6ED5445e582bf6F68eC0d17ae55791e074875d8"
+  }
+}

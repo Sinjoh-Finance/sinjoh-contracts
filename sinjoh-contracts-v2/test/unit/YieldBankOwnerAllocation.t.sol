@@ -8,6 +8,9 @@ import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import {
     CollectionPortfolioAllocator
 } from "../../src/yield-banks/CollectionPortfolioAllocator.sol";
+import {
+    YieldBankOwnerExecutionBridge
+} from "../../src/yield-banks/YieldBankOwnerExecutionBridge.sol";
 import { YieldBankAccount } from "../../src/yield-banks/YieldBankAccount.sol";
 import {
     YieldBankAdapterRedemptionCall
@@ -47,6 +50,10 @@ contract MockOwnerAllocationVault {
 
     function setPrimaryState(uint256 tokenId, uint8 state) external {
         primaryStateOf[tokenId] = state;
+    }
+
+    function setAllocationOperator(address operator_) external {
+        allocationOperator = operator_;
     }
 }
 
@@ -324,6 +331,82 @@ contract YieldBankOwnerAllocationTest is Test {
         allocator.executeTargetAllocation(TOKEN_ID, revision, execution);
     }
 
+    function testCurrentOwnerCanExecuteThroughOwnerExecutionBridge() external {
+        YieldBankOwnerExecutionBridge bridge = new YieldBankOwnerExecutionBridge(address(allocator));
+        vault.setAllocationOperator(address(bridge));
+
+        uint16[3] memory weights = [uint16(0), uint16(0), uint16(10_000)];
+        uint64 revision = _requestTarget(weights);
+        CollectionPortfolioAllocator.RebalanceExecution memory execution = _fullRebalanceToUsdg();
+
+        vm.prank(ALICE);
+        (uint256 recovered, uint256[3] memory shares) =
+            bridge.executeOwnerAllocation(TOKEN_ID, revision, execution);
+
+        assertEq(recovered, 1_000 ether);
+        assertEq(shares[0], 0);
+        assertEq(shares[1], 0);
+        assertEq(shares[2], 1_000 ether);
+        assertEq(core.balanceOf(address(account)), 0);
+        assertEq(market.balanceOf(address(account)), 0);
+        assertEq(usdg.balanceOf(address(account)), 1_000 ether);
+        assertEq(allocator.allocationTargetOf(TOKEN_ID).executedRevision, revision);
+    }
+
+    function testOwnerExecutionBridgeRejectsAnyoneExceptCurrentOwner() external {
+        YieldBankOwnerExecutionBridge bridge = new YieldBankOwnerExecutionBridge(address(allocator));
+        vault.setAllocationOperator(address(bridge));
+        uint16[3] memory weights = [uint16(0), uint16(0), uint16(10_000)];
+        uint64 revision = _requestTarget(weights);
+        CollectionPortfolioAllocator.RebalanceExecution memory execution = _fullRebalanceToUsdg();
+        address bob = address(0xB0B);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                YieldBankOwnerExecutionBridge.OnlyTokenOwner.selector, TOKEN_ID, bob, ALICE
+            )
+        );
+        vm.prank(bob);
+        bridge.executeOwnerAllocation(TOKEN_ID, revision, execution);
+    }
+
+    function testOwnerExecutionBridgeRejectsExecutionBeforeTimelockedActivation() external {
+        YieldBankOwnerExecutionBridge bridge = new YieldBankOwnerExecutionBridge(address(allocator));
+        uint16[3] memory weights = [uint16(0), uint16(0), uint16(10_000)];
+        uint64 revision = _requestTarget(weights);
+        CollectionPortfolioAllocator.RebalanceExecution memory execution = _fullRebalanceToUsdg();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                YieldBankOwnerExecutionBridge.BridgeNotActive.selector, address(this)
+            )
+        );
+        vm.prank(ALICE);
+        bridge.executeOwnerAllocation(TOKEN_ID, revision, execution);
+    }
+
+    function testOnlyTimelockCanForwardCallsToImmutableSystemTargets() external {
+        YieldBankOwnerExecutionBridge bridge = new YieldBankOwnerExecutionBridge(address(allocator));
+        bytes memory data =
+            abi.encodeCall(MockOwnerAllocationVault.setPrimaryState, (TOKEN_ID, uint8(2)));
+
+        vm.expectRevert(
+            abi.encodeWithSelector(YieldBankOwnerExecutionBridge.OnlyTimelock.selector, ALICE)
+        );
+        vm.prank(ALICE);
+        bridge.executeGovernanceCall(address(vault), data);
+
+        bridge.executeGovernanceCall(address(vault), data);
+        assertEq(vault.primaryStateOf(TOKEN_ID), 2);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                YieldBankOwnerExecutionBridge.InvalidGovernanceTarget.selector, address(stock)
+            )
+        );
+        bridge.executeGovernanceCall(address(stock), data);
+    }
+
     function testOwnerLossLimitCoversConversionsAndFinalAllocationValue() external {
         stockExitRoute.setOutputBps(9_000);
         uint16[3] memory weights = [uint16(0), uint16(0), uint16(10_000)];
@@ -570,5 +653,25 @@ contract YieldBankOwnerAllocationTest is Test {
         return allocator.setTargetAllocation(
             TOKEN_ID, weights, address(0), 100, uint48(block.timestamp + 2 hours)
         );
+    }
+
+    function _fullRebalanceToUsdg()
+        private
+        view
+        returns (CollectionPortfolioAllocator.RebalanceExecution memory execution)
+    {
+        uint256[3] memory existing = [uint256(400 ether), 375 ether, 225 ether];
+        for (uint256 i; i < 3; ++i) {
+            execution.redemptions[i].minimumOutputs = new uint256[](1);
+            execution.redemptions[i].minimumOutputs[0] = existing[i];
+        }
+        execution.conversions = new CollectionPortfolioAllocator.ConversionCall[](1);
+        execution.conversions[0] = CollectionPortfolioAllocator.ConversionCall({
+            asset: address(stock), minimumWethOut: 400 ether, routeData: ""
+        });
+        execution.allocations[2].minimumOutput = 1_000 ether;
+        execution.allocations[2].minimumShares = 1_000 ether;
+        execution.minimumWethRecovered = 1_000 ether;
+        execution.deadline = block.timestamp + 1 hours;
     }
 }

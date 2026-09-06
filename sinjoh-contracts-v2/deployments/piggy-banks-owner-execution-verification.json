@@ -1,0 +1,14 @@
+{
+  "contracts": [
+    {
+      "address": "0xC6ED5445e582bf6F68eC0d17ae55791e074875d8",
+      "package": "sinjoh-contracts-v2",
+      "source": "src/yield-banks/YieldBankOwnerExecutionBridge.sol",
+      "contract": "YieldBankOwnerExecutionBridge",
+      "compilerVersion": "v0.8.28+commit.7893614a",
+      "forgeCompilerVersion": "0.8.28",
+      "license": "apache_2_0",
+      "libraries": []
+    }
+  ]
+}
