@@ -1,0 +1,41 @@
+{
+  "chainId": 4663,
+  "deployedAt": "2026-09-06",
+  "piggyBanksFeeSplitter": "0x84D8193E638AB61e51512c4877a39AFCFF722E19",
+  "runtimeCodeHash": "0x732ad06094b275d5124c1f6933aee3e4642d8ffb21d95653588d3424c919d3b3",
+  "deploymentTransaction": "0x7bee85d2b95340392195772aab7d90469cf37294e780e8c7e0b946ce9864a2d1",
+  "creatorRecipient": "0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49",
+  "piggyBanksRevenueRouter": "0x9e4E01d2C3c939d870c040192AA143cB139bcc9F",
+  "sourceFeeRouter": "0x7E97EadeA120321c65CC09B6FDECc6Eb15D55b2f",
+  "sourceToken": "0x2cC0FAC44B8252f6B10208B091aFf2c94B4da77D",
+  "weth": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+  "creatorBps": 5000,
+  "piggyBanksBps": 5000,
+  "sourceAllocation": {
+    "bucketId": 0,
+    "allocationId": 0,
+    "allocationBps": 8000,
+    "repointTransaction": "0x4e0cfa949f8cdf0ddda3fddc2527b446c9cce4b062addda2a212ac27d3d8b5c8"
+  },
+  "activationTransactions": [
+    "0x4e0cfa949f8cdf0ddda3fddc2527b446c9cce4b062addda2a212ac27d3d8b5c8",
+    "0x9642288a994c42910331b1026f6018960760265dee20e5638496467e4ba9d319",
+    "0x918f3168d817206443ae700e6934fdd85a1771e1ac306252047fb76cdb8b0b3b",
+    "0x114ab2cb71f4a5f30876ddd024de63710e0ae395b44760a979f7f534df5b82f6",
+    "0xf6f944b55393a6aca629732306b0f3a7d7beb81c53c40122bc71a966c69f6d8d",
+    "0x2f6f263947c5957fa882241690f72d8c9310530f2d817a27a3b4a8c1fd0b4a02"
+  ],
+  "initialDelivery": {
+    "tokenIdStart": 1,
+    "tokenIdEnd": 3333,
+    "transactionCount": 167,
+    "firstTransaction": "0x5386e95990d2cad32b6143aff761f242b358ef527c72f27a2a6a2356ca876689",
+    "lastTransaction": "0x2c176bccb3e35b15aaadd66df73f86b355b601b905a5e6bcedce20e3618a820e",
+    "failedReceiptCount": 0
+  },
+  "sourceVerification": {
+    "provider": "sourcify",
+    "status": "match",
+    "jobId": "5dde818b-b02c-4783-b85a-b7a15f012501"
+  }
+}
