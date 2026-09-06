@@ -36,6 +36,21 @@
     "cumulativeWeight": 0,
     "totalDistributed": "0"
   },
+  "distribution": {
+    "status": "complete",
+    "batchCount": 53,
+    "firstBatchTransaction": "0x0d0351bb836a2d904999ace4d012484e96cba8c637db995555d57dfa61dc3965",
+    "lastBatchTransaction": "0x3ab5d54ee49b8c457cee4b089cea34854b484c8502f305283e7098be88516755",
+    "firstBatchBlock": 55657868,
+    "lastBatchBlock": 55658310,
+    "tokenIdStart": 1,
+    "tokenIdEnd": 3333,
+    "outgoingTransferEvents": 3333,
+    "amountDistributed": "6000000000000000000000000",
+    "finalCumulativeWeight": 8130,
+    "finalNextTokenId": 3334,
+    "finalDistributorBalance": "0"
+  },
   "rehearsal": {
     "rpcProvider": "Chainstack",
     "testsPassed": 4,
