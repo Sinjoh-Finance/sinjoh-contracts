@@ -8,6 +8,9 @@ import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import {
     CollectionPortfolioAllocator
 } from "../../src/yield-banks/CollectionPortfolioAllocator.sol";
+import {
+    YieldBankSelfServiceExecutionRouter
+} from "../../src/yield-banks/YieldBankSelfServiceExecutionRouter.sol";
 import { YieldBankAccount } from "../../src/yield-banks/YieldBankAccount.sol";
 import {
     YieldBankAdapterRedemptionCall
@@ -47,6 +50,10 @@ contract MockOwnerAllocationVault {
 
     function setPrimaryState(uint256 tokenId, uint8 state) external {
         primaryStateOf[tokenId] = state;
+    }
+
+    function setAllocationOperator(address operator_) external {
+        allocationOperator = operator_;
     }
 }
 
@@ -164,6 +171,18 @@ contract MockOwnerPoolSleeve is MockOwnerAllocationSleeve {
         values = new address[](1);
         values[0] = _adapter;
     }
+
+    function depositToAdapter(address adapter, uint256 assets, uint256 minimumUnits, bytes calldata)
+        external
+        returns (uint256 units)
+    {
+        require(msg.sender == allocator && adapter == _adapter);
+        IERC20(accountingAsset).transfer(adapter, assets);
+        (bool recorded,) = adapter.call(abi.encodeWithSignature("recordDeposit()"));
+        require(recorded);
+        units = assets;
+        require(units >= minimumUnits);
+    }
 }
 
 contract MockOwnerDeltaPoolAdapter {
@@ -173,6 +192,55 @@ contract MockOwnerDeltaPoolAdapter {
     constructor(address sleeve_, address pool_) {
         sleeve = sleeve_;
         pool = pool_;
+    }
+}
+
+contract MockSelfServicePool is ERC20 {
+    int24 public currentTick = 100;
+    int24 public constant tickSpacing = 10;
+
+    constructor() ERC20("Delta Pool Identity", "POOL-ID") { }
+
+    function slot0() external view returns (uint160, int24, uint16, uint16, uint16, uint8, bool) {
+        return (uint160(1 << 96), currentTick, 0, 1, 1, 0, true);
+    }
+}
+
+contract MockSelfServiceDeltaAdapter {
+    address public immutable sleeve;
+    address public immutable pool;
+    address public immutable weth;
+    address public immutable pairedAsset;
+    address public immutable priceHub;
+    uint8 public constant wethDecimals = 18;
+    uint8 public constant pairedAssetDecimals = 18;
+    bool public constant wethIsToken0 = true;
+    uint8 public constant maximumPositions = 8;
+    uint256[] private _positionIds;
+
+    constructor(address sleeve_, address pool_, address weth_, address pairedAsset_) {
+        sleeve = sleeve_;
+        pool = pool_;
+        weth = weth_;
+        pairedAsset = pairedAsset_;
+        priceHub = address(this);
+    }
+
+    function quoteUsd18(address) external view returns (uint256, uint48, IPriceHub.FailureReason) {
+        return (1e18, uint48(block.timestamp), IPriceHub.FailureReason.NONE);
+    }
+
+    function totalManagedAssets() external view returns (uint256) {
+        return IERC20(weth).balanceOf(address(this));
+    }
+
+    function positionIds() external view returns (uint256[] memory) {
+        return _positionIds;
+    }
+
+    function recordDeposit() external {
+        require(msg.sender == sleeve);
+        _positionIds.push(_positionIds.length + 1);
     }
 }
 
@@ -551,6 +619,72 @@ contract YieldBankOwnerAllocationTest is Test {
         allocator.depositToAdapter(address(poolSleeve), address(adapter), 1, 1, "");
     }
 
+    function testOwnerAllocationAndDeltaDeploymentExecuteAtomicallyThroughSelfServiceRouter()
+        external
+    {
+        (
+            YieldBankSelfServiceExecutionRouter router,
+            MockSelfServicePool pool,
+            MockOwnerPoolSleeve poolSleeve,
+            MockSelfServiceDeltaAdapter adapter
+        ) = _activateSelfServiceRouter();
+
+        uint16[3] memory poolWeights = [uint16(0), uint16(10_000), uint16(0)];
+        vm.prank(ALICE);
+        uint64 revision = allocator.setTargetAllocation(
+            TOKEN_ID, poolWeights, address(pool), 100, uint48(block.timestamp + 2 hours)
+        );
+        CollectionPortfolioAllocator.RebalanceExecution memory execution;
+        uint256[3] memory existing = [uint256(400 ether), 375 ether, 225 ether];
+        for (uint256 i; i < 3; ++i) {
+            execution.redemptions[i].minimumOutputs = new uint256[](1);
+            execution.redemptions[i].minimumOutputs[0] = existing[i];
+        }
+        execution.conversions = new CollectionPortfolioAllocator.ConversionCall[](1);
+        execution.conversions[0] = CollectionPortfolioAllocator.ConversionCall({
+            asset: address(stock), minimumWethOut: 400 ether, routeData: ""
+        });
+        execution.allocations[1].minimumOutput = 1_000 ether;
+        execution.allocations[1].minimumShares = 1_000 ether;
+        execution.minimumWethRecovered = 1_000 ether;
+        execution.deadline = block.timestamp + 10 minutes;
+
+        vm.prank(ALICE);
+        (uint256 recovered, uint256[3] memory shares, uint256 units) =
+            router.executeOwnerAllocationAndDeploy(TOKEN_ID, revision, execution, address(pool));
+
+        assertEq(recovered, 1_000 ether);
+        assertEq(shares[1], 1_000 ether);
+        assertEq(units, 950 ether);
+        assertEq(weth.balanceOf(address(poolSleeve)), 50 ether);
+        assertEq(weth.balanceOf(address(adapter)), 950 ether);
+        assertEq(allocator.activeDeltaPoolOf(TOKEN_ID), address(pool));
+    }
+
+    function testAnyoneCanDeployIdleDeltaWithDeterministicOracleBoundParameters() external {
+        (
+            YieldBankSelfServiceExecutionRouter router,
+            MockSelfServicePool pool,
+            MockOwnerPoolSleeve poolSleeve,
+            MockSelfServiceDeltaAdapter adapter
+        ) = _activateSelfServiceRouter();
+        weth.mint(address(poolSleeve), 1 ether);
+
+        YieldBankSelfServiceExecutionRouter.DeltaDeploymentPreview memory preview =
+            router.previewDeltaDeployment(address(pool));
+        assertEq(preview.idleAssets, 1 ether);
+        assertEq(preview.assets, 0.95 ether);
+        assertEq(preview.wethToConvert, 0.475 ether);
+        assertEq(preview.minimumPairedAssetOut, 0.45125 ether);
+        assertEq(preview.tickLower, -9_900);
+        assertEq(preview.tickUpper, 10_100);
+
+        vm.prank(address(0xB0B));
+        uint256 units = router.deployIdleDelta(address(pool));
+        assertEq(units, 0.95 ether);
+        assertEq(weth.balanceOf(address(adapter)), 0.95 ether);
+    }
+
     function testTargetCanBeChangedWhilePausedButExecutionCannotRun() external {
         collection.setState(YieldBankCollectionState.INVESTMENT_PAUSED);
         uint16[3] memory weights = [uint16(0), uint16(10_000), uint16(0)];
@@ -570,5 +704,26 @@ contract YieldBankOwnerAllocationTest is Test {
         return allocator.setTargetAllocation(
             TOKEN_ID, weights, address(0), 100, uint48(block.timestamp + 2 hours)
         );
+    }
+
+    function _activateSelfServiceRouter()
+        private
+        returns (
+            YieldBankSelfServiceExecutionRouter router,
+            MockSelfServicePool pool,
+            MockOwnerPoolSleeve poolSleeve,
+            MockSelfServiceDeltaAdapter adapter
+        )
+    {
+        pool = new MockSelfServicePool();
+        poolSleeve = new MockOwnerPoolSleeve(address(weth), address(allocator));
+        MockYieldBankAsset pairedAsset = new MockYieldBankAsset("Paired Asset", "PAIR");
+        adapter = new MockSelfServiceDeltaAdapter(
+            address(poolSleeve), address(pool), address(weth), address(pairedAsset)
+        );
+        poolSleeve.activate(address(adapter));
+        deltaPoolController.materialize(address(pool), address(poolSleeve), address(adapter));
+        router = new YieldBankSelfServiceExecutionRouter(address(allocator));
+        vault.setAllocationOperator(address(router));
     }
 }

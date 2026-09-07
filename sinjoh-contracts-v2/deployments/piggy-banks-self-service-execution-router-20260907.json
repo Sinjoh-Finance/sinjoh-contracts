@@ -1,0 +1,33 @@
+{
+  "chainId": 4663,
+  "collection": "0xc275fa302Cd53DFa42D41b1C5b770661d923ba43",
+  "nft": "0xF39D4C50a08E0FdafC51d37FC92Bd2c25191DA6a",
+  "allocator": "0x42e14eA9f926ad7b530ce49d433CB6f748f8D0a1",
+  "proceedsVault": "0xa9653463ffdE4e2352b4659334f785159d7525FD",
+  "timelock": "0x7C15804A2d7F5981035895CAb953e5E76393E1B8",
+  "currentOperator": "0xC6ED5445e582bf6F68eC0d17ae55791e074875d8",
+  "selfServiceExecutionRouter": "0xA57B9324699DB8cF39a2918b5Ca1ac15D446EC92",
+  "selfServiceExecutionRouterRuntimeCodeHash": "0xbd867b729b81053d47ea3d06422d9ec991ef06f14a528d67876f4abcbf6b5327",
+  "deploymentTransactionHash": "0x780499aa64edc39dab5dfce2bcf60e0de75c332d2db4ab52226c02e2eb362dde",
+  "deploymentBlock": 57028313,
+  "deployedAt": "2026-09-07T17:54:56Z",
+  "policy": {
+    "wethConversionBps": 5000,
+    "maximumSwapSlippageBps": 500,
+    "idleUtilizationBps": 9500,
+    "minimumRungFillBps": 9000,
+    "rangeHalfWidthSpacings": 1000,
+    "maximumSpotDriftSpacings": 100,
+    "maximumDeadlineWindowSeconds": 900,
+    "minimumDeploymentAssetsWei": "1000000000000000",
+    "subsequentPositionThreshold": "idle capital must be at least current managed capital"
+  },
+  "activation": {
+    "status": "awaiting-final-legacy-delay-removal",
+    "zeroDelayOperationId": "0x83ccfbe286692fb94fe650f2b6c209f50f69612bec2668a76f64099a59a1336b",
+    "zeroDelayExecutableAt": 1788874321,
+    "zeroDelayExecutableAtUtc": "2026-09-08T13:32:01Z",
+    "zeroDelayExecutableAtEastern": "2026-09-08T09:32:01-04:00",
+    "nextStep": "execute zero-delay operation, schedule and execute the router activation with zero delay, then deploy the first Delta LP position"
+  }
+}
