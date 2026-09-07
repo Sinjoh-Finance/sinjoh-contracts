@@ -4,7 +4,7 @@
   "timelock": "0x7C15804A2d7F5981035895CAb953e5E76393E1B8",
   "proposer": "0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49",
   "previousMinimumDelay": 86400,
-  "newMinimumDelay": 0,
+  "requestedMinimumDelay": 0,
   "scheduleTransactionHash": "0xc61cbea3ac5113e3bdc8dab8170ab0ccfa532a51d6c1b71d9a06a3d964c60d04",
   "scheduleBlock": 56871999,
   "operationId": "0x83ccfbe286692fb94fe650f2b6c209f50f69612bec2668a76f64099a59a1336b",
@@ -17,5 +17,8 @@
     "function": "updateDelay(uint256)",
     "argument": "0"
   },
-  "status": "scheduled"
+  "cancelTransactionHash": "0x5edcb741bdb7e42fc28dba21b0db2a825cca855eec42a171e057533e24768c4b",
+  "cancelBlock": 57153563,
+  "status": "canceled-incompatible",
+  "reason": "The deployed CollectionTimelock overrides updateDelay(uint256) and reverts with TimelockConfigurationImmutable(). Holder operations are instead removed from the timelock path by the self-service execution router cutover."
 }

@@ -1,0 +1,39 @@
+{
+  "chainId": 4663,
+  "collection": "0xc275fa302Cd53DFa42D41b1C5b770661d923ba43",
+  "nft": "0xF39D4C50a08E0FdafC51d37FC92Bd2c25191DA6a",
+  "allocator": "0x42e14eA9f926ad7b530ce49d433CB6f748f8D0a1",
+  "proceedsVault": "0xa9653463ffdE4e2352b4659334f785159d7525FD",
+  "timelock": "0x7C15804A2d7F5981035895CAb953e5E76393E1B8",
+  "currentOperator": "0xC6ED5445e582bf6F68eC0d17ae55791e074875d8",
+  "selfServiceExecutionRouter": "0xA57B9324699DB8cF39a2918b5Ca1ac15D446EC92",
+  "selfServiceExecutionRouterRuntimeCodeHash": "0xbd867b729b81053d47ea3d06422d9ec991ef06f14a528d67876f4abcbf6b5327",
+  "deploymentTransactionHash": "0x780499aa64edc39dab5dfce2bcf60e0de75c332d2db4ab52226c02e2eb362dde",
+  "deploymentBlock": 57028313,
+  "deployedAt": "2026-09-07T17:54:56Z",
+  "policy": {
+    "wethConversionBps": 5000,
+    "maximumSwapSlippageBps": 500,
+    "idleUtilizationBps": 9500,
+    "minimumRungFillBps": 9000,
+    "rangeHalfWidthSpacings": 1000,
+    "maximumSpotDriftSpacings": 100,
+    "maximumDeadlineWindowSeconds": 900,
+    "minimumDeploymentAssetsWei": "1000000000000000",
+    "subsequentPositionThreshold": "idle capital must be at least current managed capital"
+  },
+  "activation": {
+    "status": "scheduled-final-cutover",
+    "operationId": "0xbdb1bb5c76f6cd0a2887c390979477f8c62be7a822b4181bd7840dcbb883df3f",
+    "salt": "0x48fdfb914f7f3b213d8aae9d0bf6e915d7bca6c17d52f0571d58262c77d7de03",
+    "calldata": "0xc2f8a36d000000000000000000000000a57b9324699db8cf39a2918b5ca1ac15d446ec92",
+    "scheduleTransactionHash": "0xa22680c9caa51f5812f2652b83057f91afaaf6300cc3889588cd5b58385c16f9",
+    "scheduleBlock": 57153563,
+    "executableAt": 1788902734,
+    "executableAtUtc": "2026-09-08T21:25:34Z",
+    "executableAtEastern": "2026-09-08T17:25:34-04:00",
+    "obsoleteZeroDelayOperationId": "0x83ccfbe286692fb94fe650f2b6c209f50f69612bec2668a76f64099a59a1336b",
+    "obsoleteZeroDelayCancelTransactionHash": "0x5edcb741bdb7e42fc28dba21b0db2a825cca855eec42a171e057533e24768c4b",
+    "nextStep": "execute this already-scheduled operator cutover, verify the router is active, then immediately deploy the first Delta LP position without another governance operation or delay"
+  }
+}

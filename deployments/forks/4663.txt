@@ -22,6 +22,7 @@ sinjoh-liquidity-manager/test/V4HookedSwap.fork.t.sol
 sinjoh-protocol-upgrade/test/ERC4626YieldAdapter.mainnet.fork.t.sol
 sinjoh-contracts-v2/test/fork/ERC4626BasketYieldAdapter.fork.t.sol
 sinjoh-contracts-v2/test/fork/DeltaV3LPAdapter.fork.t.sol
+sinjoh-contracts-v2/test/fork/PiggyBanksSelfServiceExecutionRouter.fork.t.sol
 sinjoh-contracts-v2/test/fork/YieldBankProductionFlow.fork.t.sol
 sinjoh-contracts-v2/test/integration/IssaDaoIntegratedProjectMainnet.fork.t.sol
 sinjoh-raffle-rewards/test/PreflightStockRoutes.fork.t.sol
