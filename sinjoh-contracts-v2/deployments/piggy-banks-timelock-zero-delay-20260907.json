@@ -1,0 +1,21 @@
+{
+  "chainId": 4663,
+  "collection": "0xc275fa302Cd53DFa42D41b1C5b770661d923ba43",
+  "timelock": "0x7C15804A2d7F5981035895CAb953e5E76393E1B8",
+  "proposer": "0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49",
+  "previousMinimumDelay": 86400,
+  "newMinimumDelay": 0,
+  "scheduleTransactionHash": "0xc61cbea3ac5113e3bdc8dab8170ab0ccfa532a51d6c1b71d9a06a3d964c60d04",
+  "scheduleBlock": 56871999,
+  "operationId": "0x83ccfbe286692fb94fe650f2b6c209f50f69612bec2668a76f64099a59a1336b",
+  "salt": "0x942b51c9d4ef723062f0143f608398485dd6a82f1392f9793175e24096e8fdcf",
+  "executableAt": 1788874321,
+  "executableAtUtc": "2026-09-08T13:32:01Z",
+  "execution": {
+    "target": "0x7C15804A2d7F5981035895CAb953e5E76393E1B8",
+    "value": "0",
+    "function": "updateDelay(uint256)",
+    "argument": "0"
+  },
+  "status": "scheduled"
+}
