@@ -23,11 +23,17 @@
     "subsequentPositionThreshold": "idle capital must be at least current managed capital"
   },
   "activation": {
-    "status": "awaiting-final-legacy-delay-removal",
-    "zeroDelayOperationId": "0x83ccfbe286692fb94fe650f2b6c209f50f69612bec2668a76f64099a59a1336b",
-    "zeroDelayExecutableAt": 1788874321,
-    "zeroDelayExecutableAtUtc": "2026-09-08T13:32:01Z",
-    "zeroDelayExecutableAtEastern": "2026-09-08T09:32:01-04:00",
-    "nextStep": "execute zero-delay operation, schedule and execute the router activation with zero delay, then deploy the first Delta LP position"
+    "status": "scheduled-final-cutover",
+    "operationId": "0xbdb1bb5c76f6cd0a2887c390979477f8c62be7a822b4181bd7840dcbb883df3f",
+    "salt": "0x48fdfb914f7f3b213d8aae9d0bf6e915d7bca6c17d52f0571d58262c77d7de03",
+    "calldata": "0xc2f8a36d000000000000000000000000a57b9324699db8cf39a2918b5ca1ac15d446ec92",
+    "scheduleTransactionHash": "0xa22680c9caa51f5812f2652b83057f91afaaf6300cc3889588cd5b58385c16f9",
+    "scheduleBlock": 57153563,
+    "executableAt": 1788902734,
+    "executableAtUtc": "2026-09-08T21:25:34Z",
+    "executableAtEastern": "2026-09-08T17:25:34-04:00",
+    "obsoleteZeroDelayOperationId": "0x83ccfbe286692fb94fe650f2b6c209f50f69612bec2668a76f64099a59a1336b",
+    "obsoleteZeroDelayCancelTransactionHash": "0x5edcb741bdb7e42fc28dba21b0db2a825cca855eec42a171e057533e24768c4b",
+    "nextStep": "execute this already-scheduled operator cutover, verify the router is active, then immediately deploy the first Delta LP position without another governance operation or delay"
   }
 }
