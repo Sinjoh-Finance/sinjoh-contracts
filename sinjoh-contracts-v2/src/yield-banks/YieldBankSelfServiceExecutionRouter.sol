@@ -2,18 +2,33 @@
 pragma solidity 0.8.28;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { TickMath } from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import { CollectionPortfolioAllocator } from "./CollectionPortfolioAllocator.sol";
 import { IPriceHub } from "./interfaces/IPriceHub.sol";
 import { IYieldBankCollection } from "./interfaces/IYieldBankCollection.sol";
+import { IYieldBankSleeve } from "./interfaces/IYieldBankSleeve.sol";
 import { IDeltaPositionBuilder } from "./interfaces/IDeltaPositionBuilder.sol";
 import { IYieldBankV3Pool } from "./interfaces/IYieldBankV3.sol";
 import { DeltaV3LPAdapter } from "./adapters/DeltaV3LPAdapter.sol";
 
 interface IYieldBankSelfServiceOwnerNFT {
     function ownerOf(uint256 tokenId) external view returns (address);
+}
+
+interface IYieldBankSelfServiceRevenueRouter {
+    function royaltyBackingBps() external view returns (uint16);
+    function royaltyCreatorBps() external view returns (uint16);
+    function royaltySinjohBps() external view returns (uint16);
+    function accountedEscrow(address asset) external view returns (uint256);
+    function syncRoyalty(address asset, bytes calldata sourceData) external returns (uint256 amount);
+    function syncNativeRoyalty(bytes calldata sourceData) external returns (uint256 amount);
+}
+
+interface IYieldBankSelfServiceSleeve is IYieldBankSleeve, IERC20 {
+    function priceHub() external view returns (IPriceHub);
 }
 
 /// @notice Lets Piggy Bank owners execute their saved allocations and lets anyone place idle
@@ -25,6 +40,7 @@ contract YieldBankSelfServiceExecutionRouter is ReentrancyGuard {
 
     uint16 public constant WETH_CONVERSION_BPS = 5_000;
     uint16 public constant MAXIMUM_SWAP_SLIPPAGE_BPS = 500;
+    uint16 public constant ROYALTY_SYNC_SLIPPAGE_BPS = 200;
     uint16 public constant IDLE_UTILIZATION_BPS = 9_500;
     uint16 public constant MINIMUM_RUNG_FILL_BPS = 9_000;
     int24 public constant RANGE_HALF_WIDTH_SPACINGS = 1_000;
@@ -46,6 +62,14 @@ contract YieldBankSelfServiceExecutionRouter is ReentrancyGuard {
         bool ready;
     }
 
+    struct RoyaltyConfiguration {
+        address usdg;
+        address usdgSleeve;
+        IPriceHub priceHub;
+        uint8 wethDecimals;
+        uint8 usdgDecimals;
+    }
+
     CollectionPortfolioAllocator public immutable allocator;
     IYieldBankSelfServiceOwnerNFT public immutable nft;
     address public immutable proceedsVault;
@@ -64,6 +88,8 @@ contract YieldBankSelfServiceExecutionRouter is ReentrancyGuard {
     error DeltaPoolMismatch(uint256 tokenId, address expectedPool, address suppliedPool);
     error DeltaDeploymentNotReady(uint256 idleAssets, uint256 managedAssets, uint256 positionCount);
     error UnsafeDeltaParameters();
+    error NoRoyaltiesToSync();
+    error RoyaltyAllocationFailed(address asset, uint256 amount);
 
     event OwnerAllocationExecuted(
         uint256 indexed tokenId,
@@ -82,6 +108,13 @@ contract YieldBankSelfServiceExecutionRouter is ReentrancyGuard {
         uint256 positionUnits
     );
     event GovernanceCallExecuted(address indexed target, bytes4 indexed selector);
+    event RoyaltyBackingSynchronized(
+        address indexed caller,
+        address indexed sourceAsset,
+        uint256 amount,
+        uint256 minimumUsdgOut,
+        uint256 minimumShares
+    );
 
     constructor(address allocator_) {
         if (allocator_.code.length == 0) revert InvalidConfiguration();
@@ -164,6 +197,66 @@ contract YieldBankSelfServiceExecutionRouter is ReentrancyGuard {
         returns (DeltaDeploymentPreview memory preview)
     {
         (preview,) = _buildDeltaDeployment(pool);
+    }
+
+    /// @notice Permissionlessly converts all newly received native and WETH royalties into the
+    ///         collection's immutable default USDG backing sleeve using fresh oracle bounds.
+    /// @dev The caller cannot choose an asset, route, receiver, sleeve, or minimum. If the revenue
+    ///      router escrows either allocation, this transaction reverts and leaves the royalties
+    ///      untouched so a later call can retry from a clean state.
+    function syncRoyaltyBacking()
+        external
+        nonReentrant
+        returns (uint256 nativeAmount, uint256 wethAmount)
+    {
+        _requireActiveRouter();
+        IYieldBankSelfServiceRevenueRouter royaltyRouter =
+            IYieldBankSelfServiceRevenueRouter(revenueRouter);
+
+        uint256 nativeEscrow = royaltyRouter.accountedEscrow(address(0));
+        uint256 nativeBalance = revenueRouter.balance;
+        if (nativeBalance < nativeEscrow) revert InvalidConfiguration();
+        nativeAmount = nativeBalance - nativeEscrow;
+        if (nativeAmount != 0) {
+            (bytes memory sourceData, uint256 minimumUsdgOut, uint256 minimumShares) =
+                _buildRoyaltySourceData(nativeAmount);
+            uint256 wethEscrowBefore = royaltyRouter.accountedEscrow(weth);
+            uint256 synced = royaltyRouter.syncNativeRoyalty(sourceData);
+            if (
+                synced != nativeAmount || royaltyRouter.accountedEscrow(weth) != wethEscrowBefore
+                    || royaltyRouter.accountedEscrow(address(0)) != nativeEscrow
+            ) revert RoyaltyAllocationFailed(address(0), nativeAmount);
+            emit RoyaltyBackingSynchronized(
+                msg.sender, address(0), nativeAmount, minimumUsdgOut, minimumShares
+            );
+        }
+
+        uint256 wethEscrow = royaltyRouter.accountedEscrow(weth);
+        uint256 wethBalance = IERC20(weth).balanceOf(revenueRouter);
+        if (wethBalance < wethEscrow) revert InvalidConfiguration();
+        wethAmount = wethBalance - wethEscrow;
+        if (wethAmount != 0) {
+            (bytes memory sourceData, uint256 minimumUsdgOut, uint256 minimumShares) =
+                _buildRoyaltySourceData(wethAmount);
+            uint256 synced = royaltyRouter.syncRoyalty(weth, sourceData);
+            if (synced != wethAmount || royaltyRouter.accountedEscrow(weth) != wethEscrow) {
+                revert RoyaltyAllocationFailed(weth, wethAmount);
+            }
+            emit RoyaltyBackingSynchronized(
+                msg.sender, weth, wethAmount, minimumUsdgOut, minimumShares
+            );
+        }
+
+        if (nativeAmount == 0 && wethAmount == 0) revert NoRoyaltiesToSync();
+    }
+
+    /// @notice Returns the exact execution-time bounds used for a WETH-denominated royalty amount.
+    function previewRoyaltyBacking(uint256 wethAmount)
+        external
+        view
+        returns (uint256 minimumUsdgOut, uint256 minimumShares)
+    {
+        (, minimumUsdgOut, minimumShares) = _buildRoyaltySourceData(wethAmount);
     }
 
     /// @notice Preserves collection-wide maintenance after this router becomes operator.
@@ -338,6 +431,69 @@ contract YieldBankSelfServiceExecutionRouter is ReentrancyGuard {
             Math.mulDiv(valueUsd18, 10 ** adapter.pairedAssetDecimals(), pairedPrice);
         minimumPairedOut = Math.mulDiv(oraclePairedOut, BPS - MAXIMUM_SWAP_SLIPPAGE_BPS, BPS);
         if (minimumPairedOut == 0) revert UnsafeDeltaParameters();
+    }
+
+    function _buildRoyaltySourceData(uint256 wethAmount)
+        private
+        view
+        returns (bytes memory sourceData, uint256 minimumUsdgOut, uint256 minimumShares)
+    {
+        if (wethAmount == 0) revert NoRoyaltiesToSync();
+        RoyaltyConfiguration memory config = _royaltyConfiguration();
+        (uint256 wethPrice,, IPriceHub.FailureReason wethFailure) = config.priceHub.quoteUsd18(weth);
+        (uint256 usdgPrice,, IPriceHub.FailureReason usdgFailure) =
+            config.priceHub.quoteUsd18(config.usdg);
+        if (
+            wethFailure != IPriceHub.FailureReason.NONE
+                || usdgFailure != IPriceHub.FailureReason.NONE || wethPrice == 0 || usdgPrice == 0
+        ) revert UnsafeDeltaParameters();
+
+        uint256 valueUsd18 = Math.mulDiv(wethAmount, wethPrice, 10 ** config.wethDecimals);
+        uint256 expectedUsdgOut = Math.mulDiv(valueUsd18, 10 ** config.usdgDecimals, usdgPrice);
+        minimumUsdgOut = Math.mulDiv(expectedUsdgOut, BPS - ROYALTY_SYNC_SLIPPAGE_BPS, BPS);
+        if (minimumUsdgOut == 0) revert UnsafeDeltaParameters();
+
+        IYieldBankSelfServiceSleeve sleeve = IYieldBankSelfServiceSleeve(config.usdgSleeve);
+        (uint256 sleeveNav,) = sleeve.totalAssetsUsd18();
+        uint256 minimumAssetValueUsd18 =
+            Math.mulDiv(minimumUsdgOut, usdgPrice, 10 ** config.usdgDecimals);
+        minimumShares = Math.mulDiv(
+            minimumAssetValueUsd18, sleeve.totalSupply() + 1 ether, sleeveNav + 1 ether
+        );
+        if (minimumShares == 0) revert UnsafeDeltaParameters();
+
+        CollectionPortfolioAllocator.AllocationCall[3] memory calls;
+        calls[2] = CollectionPortfolioAllocator.AllocationCall({
+            minimumOutput: minimumUsdgOut,
+            minimumShares: minimumShares,
+            routeData: bytes(""),
+            sleeveData: bytes("")
+        });
+        sourceData = abi.encode(calls);
+    }
+
+    function _royaltyConfiguration() private view returns (RoyaltyConfiguration memory config) {
+        IYieldBankSelfServiceRevenueRouter royaltyRouter =
+            IYieldBankSelfServiceRevenueRouter(revenueRouter);
+        if (
+            allocator.coreWeightBps() != 0 || allocator.marketMakingWeightBps() != 0
+                || allocator.usdgWeightBps() != BPS || royaltyRouter.royaltyBackingBps() != BPS
+                || royaltyRouter.royaltyCreatorBps() != 0 || royaltyRouter.royaltySinjohBps() != 0
+        ) revert InvalidConfiguration();
+
+        config.usdgSleeve = allocator.sleeves(2);
+        if (config.usdgSleeve.code.length == 0) revert InvalidConfiguration();
+        IYieldBankSelfServiceSleeve sleeve = IYieldBankSelfServiceSleeve(config.usdgSleeve);
+        config.usdg = sleeve.accountingAsset();
+        config.priceHub = sleeve.priceHub();
+        if (config.usdg.code.length == 0 || address(config.priceHub).code.length == 0) {
+            revert InvalidConfiguration();
+        }
+        config.wethDecimals = IERC20Metadata(weth).decimals();
+        config.usdgDecimals = IERC20Metadata(config.usdg).decimals();
+        if (config.wethDecimals > 18 || config.usdgDecimals > 18) {
+            revert InvalidConfiguration();
+        }
     }
 
     function _requireActiveRouter() private view {
