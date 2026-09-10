@@ -59,10 +59,6 @@ contract SinjohRaffleRewards {
     uint32 public constant MAX_RANDOMNESS_TIMEOUT = 86_400;
     uint32 public constant MIN_CLAIM_WINDOW = 3_600;
     uint32 public constant MAX_CLAIM_WINDOW = 2_592_000;
-    /// @dev The final `claimWindow / STOCK_FALLBACK_DIVISOR` of a stock raffle's claim window is
-    /// also settleable in the funding asset. See `claimFunding`.
-    uint32 public constant STOCK_FALLBACK_DIVISOR = 4;
-
     address public constant ARBSYS = address(0x64);
     address public constant BURN_ADDRESS = 0x000000000000000000000000000000000000dEaD;
 
@@ -106,7 +102,7 @@ contract SinjohRaffleRewards {
     error UnexpectedBalanceDelta(uint256 expected, uint256 actual);
     error QuoteExpired();
     error InsufficientOutput(uint256 minimum, uint256 actual);
-    error FallbackUnavailable();
+    error NoPendingStockPayout();
     error InvariantViolation();
 
     event RaffleInitialized(
@@ -151,6 +147,7 @@ contract SinjohRaffleRewards {
         address indexed asset,
         address swapAdapter,
         address priceGuard,
+        uint128 maxAmountInPerCall,
         bytes routeData,
         bytes guardData
     );
@@ -176,6 +173,16 @@ contract SinjohRaffleRewards {
         address payoutAsset,
         uint256 payoutAmount,
         bytes reason
+    );
+    event StockPrizeProcessing(
+        uint64 indexed roundId,
+        uint8 indexed slot,
+        address indexed holder,
+        address payoutAsset,
+        uint256 fundingSpent,
+        uint256 payoutReceived,
+        uint256 fundingRemaining,
+        uint256 payoutAccumulated
     );
     event OwedDelivered(address indexed holder, uint256 amount, address indexed caller);
     event StockOwedDelivered(
@@ -212,6 +219,21 @@ contract SinjohRaffleRewards {
     mapping(address holder => uint256 amount) public owed;
     mapping(address holder => mapping(address asset => uint256 amount)) public stockOwed;
     mapping(address asset => uint256 amount) public totalStockOwed;
+
+    struct PendingStockPayout {
+        address holder;
+        uint8 rewardIndex;
+        uint256 gross;
+        uint256 recipientTax;
+        uint256 recycleTax;
+        uint256 remainingFunding;
+        uint256 payoutAccumulated;
+    }
+
+    mapping(uint64 roundId => mapping(uint8 slot => PendingStockPayout payout)) public
+        pendingStockPayouts;
+    uint256 public totalStockFundingPending;
+    mapping(address asset => uint256 amount) public totalStockPayoutPending;
 
     RaffleTypes.StockReward[] private _stockRewards;
 
@@ -292,6 +314,7 @@ contract SinjohRaffleRewards {
                 reward.asset,
                 reward.swapAdapter,
                 reward.priceGuard,
+                reward.maxAmountInPerCall,
                 reward.routeData,
                 reward.guardData
             );
@@ -503,28 +526,18 @@ contract SinjohRaffleRewards {
         _assertSolvent();
     }
 
-    /// @notice Settles a stock slot in the funding asset instead of the selected stock.
-    /// @dev Every route component is immutable, so a route that stops quoting or stops executing
-    /// stops being claimable — permanently, and for a fixed share of every future round. Without
-    /// this the reserve would sit until `expireRound` returned it to the pool and the winner would
-    /// receive nothing. Two properties keep it from degrading the ordinary path: it opens only in
-    /// the final quarter of the claim window, so transient guard failures and genuine slippage are
-    /// retried for stock first; and only the winner may invoke it, so a keeper cannot downgrade a
-    /// payout the winner is still willing to wait for.
-    function claimFunding(
-        uint64 roundId,
-        uint8 slot,
-        RaffleTypes.Leaf calldata leaf,
-        RaffleTypes.ProofElement[] calldata proof
-    ) external nonReentrant returns (uint256 paid) {
-        if (_stockRewards.length == 0) {
-            revert FallbackUnavailable();
-        }
-        if (msg.sender != leaf.holder) revert Unauthorized();
-        _requireWinningClaim(roundId, slot, leaf, proof);
-        // forge-lint: disable-next-line(block-timestamp)
-        if (block.timestamp < fundingFallbackAt(roundId)) revert FallbackUnavailable();
-        paid = _settleSlot(roundId, slot, leaf.holder, true);
+    /// @notice Converts one bounded tranche of an already-claimed stock prize.
+    /// @dev The price guard's per-call limit controls transaction size only. It never changes the
+    /// round prize. Anyone may continue processing until the full funding amount is converted and
+    /// delivered to the winner.
+    function processStockPayout(uint64 roundId, uint8 slot)
+        external
+        nonReentrant
+        returns (uint256 paid)
+    {
+        PendingStockPayout storage pending = pendingStockPayouts[roundId][slot];
+        if (pending.holder == address(0)) revert NoPendingStockPayout();
+        paid = _processStockPayout(roundId, slot, pending);
         _assertSolvent();
     }
 
@@ -542,7 +555,10 @@ contract SinjohRaffleRewards {
             revert ClaimWindowClosed();
         }
         if (slot >= settings.winnersPerRound) revert InvalidSlot();
-        if (round.slotsPaidMask & _slotBit(slot) != 0) revert SlotAlreadyPaid();
+        if (
+            round.slotsPaidMask & _slotBit(slot) != 0
+                || pendingStockPayouts[roundId][slot].holder != address(0)
+        ) revert SlotAlreadyPaid();
         if (leaf.tickets == 0) revert InvalidProof();
         if (isExcluded[leaf.holder]) revert ExcludedHolder();
         if (proof.length > MAX_PROOF_LENGTH) revert InvalidProof();
@@ -555,22 +571,17 @@ contract SinjohRaffleRewards {
         if (index < offset || index >= offset + leaf.tickets) revert NotWinningLeaf();
     }
 
-    /// @dev Consumes the slot's reserve, splits the tax, and attempts payment. `fundingFallback`
-    /// pays the funding asset on a stock raffle; it is gated by `claimFunding`, not here.
-    function _settleSlot(uint64 roundId, uint8 slot, address holder, bool fundingFallback)
+    /// @dev Consumes the slot's reserve, splits the tax, and attempts payment.
+    function _settleSlot(uint64 roundId, uint8 slot, address holder, bool)
         private
         returns (uint256 paid)
     {
         RaffleTypes.Round storage round = rounds[roundId];
         uint8 winners = settings.winnersPerRound;
 
-        round.slotsPaidMask |= _slotBit(slot);
         uint256 share = _slotPrize(round.prize, winners, slot);
         round.paidTotal += share;
         if (round.paidTotal > round.prize) revert InvariantViolation();
-        if (round.slotsPaidMask == _fullMask(winners)) {
-            round.state = RaffleTypes.RoundState.SETTLED;
-        }
 
         totalReserved -= share;
         // Each share is floored independently, so neither can round into the other and any
@@ -581,9 +592,11 @@ contract SinjohRaffleRewards {
         if (recipientTax != 0) taxOwed += recipientTax;
         if (recycleTax != 0) availablePool += recycleTax;
 
-        if (!fundingFallback && _stockRewards.length != 0) {
-            return _settleStockPrize(roundId, slot, holder, share, recipientTax, recycleTax, net);
+        if (_stockRewards.length != 0) {
+            return _startStockPayout(roundId, slot, holder, share, recipientTax, recycleTax, net);
         }
+
+        _markSlotPaid(round, slot, winners);
 
         if (net == 0) {
             emit PrizePaid(roundId, slot, holder, share, recipientTax, recycleTax, 0);
@@ -602,7 +615,7 @@ contract SinjohRaffleRewards {
         }
     }
 
-    function _settleStockPrize(
+    function _startStockPayout(
         uint64 roundId,
         uint8 slot,
         address holder,
@@ -611,13 +624,70 @@ contract SinjohRaffleRewards {
         uint256 recycleTax,
         uint256 fundingAmount
     ) private returns (uint256 paid) {
-        RaffleTypes.StockReward storage reward = _stockRewards[_selectedStockIndex(roundId, slot)];
-        address payoutAsset = reward.asset;
+        uint256 selected = _selectedStockIndex(roundId, slot);
+        PendingStockPayout storage pending = pendingStockPayouts[roundId][slot];
+        pending.holder = holder;
+        // The stock reward list has at most 64 entries.
+        // forge-lint: disable-next-line(unsafe-typecast)
+        pending.rewardIndex = uint8(selected);
+        pending.gross = gross;
+        pending.recipientTax = recipientTax;
+        pending.recycleTax = recycleTax;
+        pending.remainingFunding = fundingAmount;
+        totalStockFundingPending += fundingAmount;
 
-        uint256 payoutAmount;
-        if (fundingAmount != 0) {
-            payoutAmount = _swapStockReward(reward, fundingAmount);
+        if (fundingAmount == 0) return _completeStockPayout(roundId, slot, pending);
+        return _processStockPayout(roundId, slot, pending);
+    }
+
+    function _processStockPayout(uint64 roundId, uint8 slot, PendingStockPayout storage pending)
+        private
+        returns (uint256 paid)
+    {
+        RaffleTypes.StockReward storage reward = _stockRewards[pending.rewardIndex];
+        uint256 routeLimit = reward.maxAmountInPerCall;
+        uint256 amountIn = pending.remainingFunding;
+        if (amountIn > routeLimit) amountIn = routeLimit;
+
+        uint256 amountOut = _swapStockReward(reward, amountIn);
+        pending.remainingFunding -= amountIn;
+        pending.payoutAccumulated += amountOut;
+        totalStockFundingPending -= amountIn;
+        totalStockPayoutPending[reward.asset] += amountOut;
+        _assertStockSolvent(reward.asset);
+
+        emit StockPrizeProcessing(
+            roundId,
+            slot,
+            pending.holder,
+            reward.asset,
+            amountIn,
+            amountOut,
+            pending.remainingFunding,
+            pending.payoutAccumulated
+        );
+
+        if (pending.remainingFunding == 0) {
+            paid = _completeStockPayout(roundId, slot, pending);
         }
+    }
+
+    function _completeStockPayout(uint64 roundId, uint8 slot, PendingStockPayout storage pending)
+        private
+        returns (uint256 paid)
+    {
+        address holder = pending.holder;
+        RaffleTypes.StockReward storage reward = _stockRewards[pending.rewardIndex];
+        address payoutAsset = reward.asset;
+        uint256 gross = pending.gross;
+        uint256 recipientTax = pending.recipientTax;
+        uint256 recycleTax = pending.recycleTax;
+        uint256 fundingAmount = gross - recipientTax - recycleTax;
+        uint256 payoutAmount = pending.payoutAccumulated;
+
+        if (payoutAmount != 0) totalStockPayoutPending[payoutAsset] -= payoutAmount;
+        delete pendingStockPayouts[roundId][slot];
+        _markSlotPaid(rounds[roundId], slot, settings.winnersPerRound);
 
         if (payoutAmount == 0) {
             emit StockPrizePaid(
@@ -664,6 +734,13 @@ contract SinjohRaffleRewards {
                 reason
             );
         }
+    }
+
+    function _markSlotPaid(RaffleTypes.Round storage round, uint8 slot, uint8 winners) private {
+        round.slotsPaidMask |= _slotBit(slot);
+        if (
+            round.state == RaffleTypes.RoundState.DRAWN && round.slotsPaidMask == _fullMask(winners)
+        ) round.state = RaffleTypes.RoundState.SETTLED;
     }
 
     function _swapStockReward(RaffleTypes.StockReward storage reward, uint256 amountIn)
@@ -787,13 +864,6 @@ contract SinjohRaffleRewards {
         ) % round.totalTickets;
     }
 
-    /// @notice The timestamp from which `claimFunding` opens for a drawn round.
-    /// @dev Undrawn rounds report a meaningless early time; `claimFunding` rejects them on state.
-    function fundingFallbackAt(uint64 roundId) public view returns (uint256) {
-        uint32 window = settings.claimWindow;
-        return uint256(rounds[roundId].drawnAt) + window - window / STOCK_FALLBACK_DIVISOR;
-    }
-
     /// @notice The immutable stock route selected by VRF for one winning slot.
     function selectedStock(uint64 roundId, uint8 slot)
         external
@@ -897,9 +967,7 @@ contract SinjohRaffleRewards {
             revert InvalidConfiguration();
         }
         if (config.minPrize == 0) revert InvalidConfiguration();
-        if (config.maxPrize != 0 && config.maxPrize < config.minPrize) {
-            revert InvalidConfiguration();
-        }
+        if (config.maxPrize != 0) revert InvalidConfiguration();
         if (config.winnersPerRound == 0 || config.winnersPerRound > MAX_WINNERS_PER_ROUND) {
             revert InvalidConfiguration();
         }
@@ -951,6 +1019,7 @@ contract SinjohRaffleRewards {
                 reward.routeData.length > MAX_ROUTE_DATA_LENGTH
                     || reward.guardData.length > MAX_ROUTE_DATA_LENGTH
             ) revert InvalidConfiguration();
+            if (reward.maxAmountInPerCall == 0) revert InvalidConfiguration();
             previous = reward.asset;
         }
     }
@@ -973,8 +1042,6 @@ contract SinjohRaffleRewards {
 
     function _prizeFor(uint256 pool) private view returns (uint256 prize) {
         prize = _applyBps(pool, settings.prizeBps);
-        uint256 cap = settings.maxPrize;
-        if (cap != 0 && prize > cap) prize = cap;
     }
 
     /// @dev Computes floor(value * bps / BPS) without overflowing for any uint256 value.
@@ -1043,7 +1110,8 @@ contract SinjohRaffleRewards {
     }
 
     function _liabilities() private view returns (uint256) {
-        return availablePool + totalReserved + totalOwed + protocolOwed + taxOwed;
+        return availablePool + totalReserved + totalOwed + protocolOwed + taxOwed
+            + totalStockFundingPending;
     }
 
     function _sendExactAsset(address asset, address recipient, uint256 amount) private {
@@ -1070,6 +1138,9 @@ contract SinjohRaffleRewards {
     }
 
     function _assertStockSolvent(address asset) private view {
-        if (asset.safeBalanceOf(address(this)) < totalStockOwed[asset]) revert Insolvent();
+        if (
+            asset.safeBalanceOf(address(this))
+                < totalStockOwed[asset] + totalStockPayoutPending[asset]
+        ) revert Insolvent();
     }
 }

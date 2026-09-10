@@ -816,6 +816,11 @@ export const projectLauncherV2Abi = [
                     "internalType": "address"
                   },
                   {
+                    "name": "maxAmountInPerCall",
+                    "type": "uint128",
+                    "internalType": "uint128"
+                  },
+                  {
                     "name": "routeData",
                     "type": "bytes",
                     "internalType": "bytes"
@@ -1446,6 +1451,11 @@ export const projectLauncherV2Abi = [
                     "internalType": "address"
                   },
                   {
+                    "name": "maxAmountInPerCall",
+                    "type": "uint128",
+                    "internalType": "uint128"
+                  },
+                  {
                     "name": "routeData",
                     "type": "bytes",
                     "internalType": "bytes"
@@ -2069,6 +2079,11 @@ export const projectLauncherV2Abi = [
                     "name": "priceGuard",
                     "type": "address",
                     "internalType": "address"
+                  },
+                  {
+                    "name": "maxAmountInPerCall",
+                    "type": "uint128",
+                    "internalType": "uint128"
                   },
                   {
                     "name": "routeData",
@@ -2823,6 +2838,11 @@ export const projectLauncherV2Abi = [
                     "name": "priceGuard",
                     "type": "address",
                     "internalType": "address"
+                  },
+                  {
+                    "name": "maxAmountInPerCall",
+                    "type": "uint128",
+                    "internalType": "uint128"
                   },
                   {
                     "name": "routeData",
@@ -3608,6 +3628,11 @@ export const projectLauncherV2Abi = [
                     "internalType": "address"
                   },
                   {
+                    "name": "maxAmountInPerCall",
+                    "type": "uint128",
+                    "internalType": "uint128"
+                  },
+                  {
                     "name": "routeData",
                     "type": "bytes",
                     "internalType": "bytes"
@@ -4365,6 +4390,11 @@ export const projectLauncherV2Abi = [
                     "name": "priceGuard",
                     "type": "address",
                     "internalType": "address"
+                  },
+                  {
+                    "name": "maxAmountInPerCall",
+                    "type": "uint128",
+                    "internalType": "uint128"
                   },
                   {
                     "name": "routeData",
@@ -5163,6 +5193,11 @@ export const projectLauncherV2Abi = [
                     "internalType": "address"
                   },
                   {
+                    "name": "maxAmountInPerCall",
+                    "type": "uint128",
+                    "internalType": "uint128"
+                  },
+                  {
                     "name": "routeData",
                     "type": "bytes",
                     "internalType": "bytes"
@@ -5791,6 +5826,11 @@ export const projectLauncherV2Abi = [
                     "name": "priceGuard",
                     "type": "address",
                     "internalType": "address"
+                  },
+                  {
+                    "name": "maxAmountInPerCall",
+                    "type": "uint128",
+                    "internalType": "uint128"
                   },
                   {
                     "name": "routeData",
@@ -6550,6 +6590,11 @@ export const projectLauncherV2Abi = [
                     "name": "priceGuard",
                     "type": "address",
                     "internalType": "address"
+                  },
+                  {
+                    "name": "maxAmountInPerCall",
+                    "type": "uint128",
+                    "internalType": "uint128"
                   },
                   {
                     "name": "routeData",
@@ -30377,19 +30422,6 @@ export const projectRaffleV2Abi = [
   },
   {
     "type": "function",
-    "name": "STOCK_FALLBACK_DIVISOR",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint32",
-        "internalType": "uint32"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "abandonRound",
     "inputs": [
       {
@@ -30423,69 +30455,6 @@ export const projectRaffleV2Abi = [
   {
     "type": "function",
     "name": "claim",
-    "inputs": [
-      {
-        "name": "roundId",
-        "type": "uint64",
-        "internalType": "uint64"
-      },
-      {
-        "name": "slot",
-        "type": "uint8",
-        "internalType": "uint8"
-      },
-      {
-        "name": "leaf",
-        "type": "tuple",
-        "internalType": "struct RaffleTypes.Leaf",
-        "components": [
-          {
-            "name": "holder",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "tickets",
-            "type": "uint256",
-            "internalType": "uint256"
-          }
-        ]
-      },
-      {
-        "name": "proof",
-        "type": "tuple[]",
-        "internalType": "struct RaffleTypes.ProofElement[]",
-        "components": [
-          {
-            "name": "siblingHash",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "siblingSum",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "siblingIsLeft",
-            "type": "bool",
-            "internalType": "bool"
-          }
-        ]
-      }
-    ],
-    "outputs": [
-      {
-        "name": "paid",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "claimFunding",
     "inputs": [
       {
         "name": "roundId",
@@ -30925,25 +30894,6 @@ export const projectRaffleV2Abi = [
   },
   {
     "type": "function",
-    "name": "fundingFallbackAt",
-    "inputs": [
-      {
-        "name": "roundId",
-        "type": "uint64",
-        "internalType": "uint64"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "initialize",
     "inputs": [
       {
@@ -31090,6 +31040,11 @@ export const projectRaffleV2Abi = [
                 "name": "priceGuard",
                 "type": "address",
                 "internalType": "address"
+              },
+              {
+                "name": "maxAmountInPerCall",
+                "type": "uint128",
+                "internalType": "uint128"
               },
               {
                 "name": "routeData",
@@ -31377,6 +31332,84 @@ export const projectRaffleV2Abi = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "pendingStockPayouts",
+    "inputs": [
+      {
+        "name": "roundId",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "slot",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "holder",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "rewardIndex",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "gross",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "recipientTax",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "recycleTax",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "remainingFunding",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "payoutAccumulated",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "processStockPayout",
+    "inputs": [
+      {
+        "name": "roundId",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "slot",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "paid",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -31758,6 +31791,11 @@ export const projectRaffleV2Abi = [
             "internalType": "address"
           },
           {
+            "name": "maxAmountInPerCall",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
             "name": "routeData",
             "type": "bytes",
             "internalType": "bytes"
@@ -31894,7 +31932,39 @@ export const projectRaffleV2Abi = [
   },
   {
     "type": "function",
+    "name": "totalStockFundingPending",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "totalStockOwed",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "totalStockPayoutPending",
     "inputs": [
       {
         "name": "asset",
@@ -32613,6 +32683,61 @@ export const projectRaffleV2Abi = [
   },
   {
     "type": "event",
+    "name": "StockPrizeProcessing",
+    "inputs": [
+      {
+        "name": "roundId",
+        "type": "uint64",
+        "indexed": true,
+        "internalType": "uint64"
+      },
+      {
+        "name": "slot",
+        "type": "uint8",
+        "indexed": true,
+        "internalType": "uint8"
+      },
+      {
+        "name": "holder",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "payoutAsset",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      },
+      {
+        "name": "fundingSpent",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "payoutReceived",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "fundingRemaining",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "payoutAccumulated",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "StockRewardConfigured",
     "inputs": [
       {
@@ -32638,6 +32763,12 @@ export const projectRaffleV2Abi = [
         "type": "address",
         "indexed": false,
         "internalType": "address"
+      },
+      {
+        "name": "maxAmountInPerCall",
+        "type": "uint128",
+        "indexed": false,
+        "internalType": "uint128"
       },
       {
         "name": "routeData",
@@ -32712,11 +32843,6 @@ export const projectRaffleV2Abi = [
   {
     "type": "error",
     "name": "ExcludedHolder",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "FallbackUnavailable",
     "inputs": []
   },
   {
@@ -32841,6 +32967,11 @@ export const projectRaffleV2Abi = [
   {
     "type": "error",
     "name": "NativeTransferFailed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NoPendingStockPayout",
     "inputs": []
   },
   {

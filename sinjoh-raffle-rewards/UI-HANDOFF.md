@@ -112,7 +112,7 @@ Notes for the launch form:
 - `slotPrize(roundId, slot)` — a slot's gross share.
 - `owed(holder)` / `stockOwed(holder, asset)` — deferred credits to surface as
   "pending delivery" with a retry button.
-- `fundingFallbackAt(roundId)` — when `claimFunding` opens (see §6).
+- `pendingStockPayouts(roundId, slot)` — remaining funding for a bounded stock conversion.
 - `payoutTaxBps()` — total payout tax to display.
 
 ### Events for live updates
@@ -130,7 +130,7 @@ core loop. Optional user-facing actions, all permissionless unless noted:
 | Action | When to show |
 |---|---|
 | `deliverOwed(holder)` / `deliverStockOwed(holder, asset)` | when the credit view is nonzero — "retry delivery" |
-| `claimFunding(roundId, slot, leaf, proof)` | **winner's wallet only** (contract enforces `msg.sender == leaf.holder`), only after `fundingFallbackAt(roundId)`, only on stock raffles, only for an unpaid slot — "take WETH instead" |
+| `processStockPayout(roundId, slot)` | while `pendingStockPayouts(roundId, slot)` is nonempty — continue the selected stock payout |
 | `claim(...)` | normally the keeper's job; expose only as a fallback "claim now" using the proof from the keeper's published round artifact |
 
 ## 6. Stock prizes — display rules that will bite you
@@ -147,8 +147,7 @@ core loop. Optional user-facing actions, all permissionless unless noted:
 - **Stocks can be paused** (compliance/halts, `paused()` on the token). A claim
   or delivery during a pause reverts and is retried by the keeper; show
   deferred stock credits as "delivery pending", never as failed. Value is never
-  lost: credits are retryable forever, and the winner always has the
-  `claimFunding` WETH exit in the window tail.
+  lost: pending conversions and credits are retryable, and the prize asset is never substituted.
 - A slot whose share is too small to fund a swap settles with
   `payoutAmount = 0` — display as "below minimum prize", not an error.
 
@@ -158,8 +157,8 @@ core loop. Optional user-facing actions, all permissionless unless noted:
 - Each slot's gross share splits into `recipientTax` (to the immutable tax
   recipient), `recycleTax` (returned to the prize pool), and `net` (the
   winner's). Both taxes are shares of gross, floored; dust goes to the winner.
-- The prize each round is `prizeBps` of the available pool (capped by
-  `maxPrize`, floored by `minPrize`) — a share, never a fixed obligation.
+- The prize each round is exactly `prizeBps` of the available pool, subject only to the configured
+  minimum required to open a round. `maxPrize` must be zero for every new raffle.
 - Unclaimed value returns to the pool at `expireRound`; nothing is ever
   redirected to an operator.
 
@@ -170,8 +169,6 @@ core loop. Optional user-facing actions, all permissionless unless noted:
 | `ClaimWindowClosed` | round expired; value returned to the pool |
 | `RandomnessPending` | drawn state not reached; show "drawing…" |
 | `SlotAlreadyPaid` / `InvalidRound` | already settled; refresh state |
-| `FallbackUnavailable` | `claimFunding` before its window or on a non-stock raffle |
-| `Unauthorized` on `claimFunding` | connected wallet is not the winning holder |
 | `QuoteExpired` / `InsufficientOutput` | stock route can't execute right now; keeper retries — show "pending" |
 | `ExcludedHolder` | infrastructure addresses can't win; should never surface for a real user |
 
@@ -183,7 +180,7 @@ core loop. Optional user-facing actions, all permissionless unless noted:
   missing curve exclusion makes the launchpad win every raffle.
 - **Never launch without a pinned `expectedEconomics`.** Zero waives the check
   and an owner retune can land the launch on unpredicted terms and addresses.
-- **Never show `claimFunding` before `fundingFallbackAt`** or to non-winners.
+- **Never offer a WETH or funding-asset substitute for a selected stock prize.**
 - **Never cache `uiMultiplier()`** across sessions (splits), and never display
   raw stock amounts as share counts.
 - **Never treat a skipped fork test or a green suite as chain verification** —

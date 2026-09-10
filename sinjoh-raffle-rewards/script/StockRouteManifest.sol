@@ -63,8 +63,6 @@ library StockRouteManifest {
     /// are raw units; a display layer must additionally apply the token's `uiMultiplier()`.
     uint8 internal constant STOCK_DECIMALS = 18;
 
-    uint16 internal constant BPS = 10_000;
-
     struct Route {
         string symbol;
         address asset;
@@ -72,9 +70,9 @@ library StockRouteManifest {
         uint256 maxWethInPerCall;
     }
 
-    /// @notice The routes that passed the live 0.01 WETH maximum-prize preflight on 2026-09-05,
-    /// in the ascending asset order the raffle requires. With the production tax defaults, the
-    /// largest single swap input exercised by that preflight was 0.009 WETH.
+    /// @notice The routes that passed the live bounded-transaction preflight on 2026-09-05, in
+    /// the ascending asset order the raffle requires. Each 0.009 WETH value is a processing limit
+    /// for one swap transaction, never a limit on a round's prize.
     function routes() internal pure returns (Route[] memory list) {
         list = new Route[](25);
         list[0] = Route("AMC", 0x05a3d1Cd21d0C88145E82600E62e7E496e0F222B, 10_000, 0.009 ether);
@@ -122,19 +120,5 @@ library StockRouteManifest {
     /// selects the pool the swap executes in — which must be the pool the guard prices.
     function routeData(uint24 fee) internal pure returns (bytes memory) {
         return abi.encode(fee);
-    }
-
-    /// @notice The largest net a single slot can ever send through one swap.
-    /// @dev Slot 0 carries the division remainder, so it is the largest share. Both tax shares are
-    /// floored independently, matching `SinjohRaffleRewards._settleSlot`.
-    function maxSlotNet(
-        uint256 maxPrize,
-        uint8 winnersPerRound,
-        uint16 recipientTaxBps,
-        uint16 recycleTaxBps
-    ) internal pure returns (uint256) {
-        uint256 share =
-            maxPrize / winnersPerRound + maxPrize % winnersPerRound;
-        return share - (share * recipientTaxBps) / BPS - (share * recycleTaxBps) / BPS;
     }
 }

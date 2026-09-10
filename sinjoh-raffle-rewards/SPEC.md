@@ -456,38 +456,12 @@ The slot is marked paid before delivery. A stock swap failure reverts the claim 
 unpaid for a safe keeper retry; a post-swap delivery failure settles the slot and creates a durable
 stock-denominated credit.
 
-### 3a. Funding-asset fallback
+### 3a. Stock payout continuity
 
-```solidity
-function claimFunding(
-    uint64 roundId,
-    uint8 slot,
-    Leaf calldata leaf,
-    ProofElement[] calldata proof
-) external returns (uint256 paid);
-
-function fundingFallbackAt(uint64 roundId) external view returns (uint256);
-```
-
-Every route component is immutable. A guard that stops quoting or an adapter that stops executing
-therefore stops being claimable permanently, and because the slot's stock is derived from the VRF
-seed the same fixed share of every future round is affected. Retrying alone does not resolve that
-case: the reserve would sit until `expireRound` returned it to the pool and the winner would
-receive nothing.
-
-`claimFunding` settles such a slot in the funding asset instead. It applies every rule above and
-adds two:
-
-7. the raffle has a nonempty stock list, and `block.timestamp >= fundingFallbackAt(roundId)`,
-   which is `drawnAt + claimWindow - claimWindow / STOCK_FALLBACK_DIVISOR` — the final quarter of
-   the claim window;
-8. `msg.sender == leaf.holder`.
-
-The two additions are what keep it from degrading the ordinary path. The window tail means a
-transient oracle failure or genuine slippage — `InsufficientOutput` is the honest signal that the
-prize is large relative to the pool — is retried for stock across the first three quarters rather
-than immediately downgraded. The sender restriction means the concession is the winner's to make: a
-keeper cannot force a funding-asset payout on a winner who is still willing to wait for stock.
+Every route component is immutable. A stock payout that exceeds the route's per-transaction input
+limit is converted through permissionless, bounded `processStockPayout` calls until the entire
+winner allocation is delivered. A failed route remains pending for retry. The selected prize asset
+is never replaced with WETH or another funding asset.
 
 Settlement is otherwise identical to the direct-payout path, including the deferred-credit
 behavior, and emits `PrizePaid` or `PaymentDeferred` rather than their stock counterparts.
@@ -622,9 +596,6 @@ creator, bound subject, and WETH/prize-asset configuration before deployment.
 Stock credits are recorded as `stockOwed[holder][asset]` and backed separately by
 `totalStockOwed[asset]`. Taxes and recycled value never change denomination: both stay in WETH.
 The claim caller supplies no slippage parameter and therefore cannot weaken the guard.
-
-A slot settled through `claimFunding` skips steps 5 and 6 and pays `net` in the funding asset. Tax
-and recycle shares are unaffected: they were already computed in WETH and never entered the swap.
 
 Both shares apply to the gross slot prize, before the winner's transfer, and each
 is floored independently so neither can round into the other. Any rounding dust
@@ -806,6 +777,7 @@ balance(raffle) >=
     + totalOwed
     + protocolOwed
     + taxOwed
+    + totalStockFundingPending
 ```
 
 Per round:
@@ -818,14 +790,18 @@ Execution maintains constant-time aggregates and never enumerates rounds or
 holders. Every unit held by the raffle belongs to exactly one of: available pool,
 a round reserve, a deferred winner credit, protocol fees, or payout tax.
 
-Each stock additionally satisfies `balance(stock) >= totalStockOwed[stock]`. Stock balances never
-enter WETH liabilities, so mixed decimal units are never summed together.
+Each stock additionally satisfies
+`balance(stock) >= totalStockOwed[stock] + totalStockPayoutPending[stock]`. Stock balances never
+enter WETH liabilities, so mixed decimal units are never summed together. A stock prize is always
+the configured percentage of the available funding pool. `maxAmountInPerCall` only bounds one swap
+transaction; processing continues across transactions until the entire prize funding amount has
+been converted.
 
 ## Events
 
 ```solidity
 event RaffleInitialized(bytes32 indexed configHash, RaffleTypes.Settings configuration, address[] exclusions);
-event StockRewardConfigured(uint8 indexed index, address indexed asset, address swapAdapter, address priceGuard, bytes routeData, bytes guardData);
+event StockRewardConfigured(uint8 indexed index, address indexed asset, address swapAdapter, address priceGuard, uint128 maxAmountInPerCall, bytes routeData, bytes guardData);
 event SubjectBound(address indexed subject);
 event Deposited(address indexed source, uint256 gross, uint256 fee, uint256 net, bool attributed);
 event RoundCommitted(uint64 indexed roundId, uint64 snapshotBlock, bytes32 snapshotBlockHash, bytes32 rootHash, uint256 totalTickets, uint256 prize, uint8 winnersPerRound, bytes32 requestId);
@@ -833,6 +809,7 @@ event RandomnessReceived(uint64 indexed roundId, bytes32 requestId, uint256 seed
 event PrizePaid(uint64 indexed roundId, uint8 indexed slot, address indexed holder, uint256 gross, uint256 recipientTax, uint256 recycleTax, uint256 net);
 event PaymentDeferred(uint64 indexed roundId, uint8 indexed slot, address indexed holder, uint256 gross, uint256 recipientTax, uint256 recycleTax, uint256 net, bytes reason);
 event StockPrizePaid(uint64 indexed roundId, uint8 indexed slot, address indexed holder, uint256 gross, uint256 recipientTax, uint256 recycleTax, uint256 fundingSpent, address payoutAsset, uint256 payoutAmount);
+event StockPrizeProcessing(uint64 indexed roundId, uint8 indexed slot, address indexed holder, address payoutAsset, uint256 fundingSpent, uint256 payoutReceived, uint256 fundingRemaining, uint256 payoutAccumulated);
 event StockPaymentDeferred(uint64 indexed roundId, uint8 indexed slot, address indexed holder, uint256 gross, uint256 recipientTax, uint256 recycleTax, uint256 fundingSpent, address payoutAsset, uint256 payoutAmount, bytes reason);
 event OwedDelivered(address indexed holder, uint256 amount, address indexed caller);
 event StockOwedDelivered(address indexed holder, address indexed asset, uint256 amount, address indexed caller);
@@ -870,7 +847,7 @@ compatibility tests.
 
 ## Security requirements
 
-- Reentrancy guard on `fund`, `sync`, `claim`, `claimFunding`, `deliverOwed`,
+- Reentrancy guard on `fund`, `sync`, `claim`, `processStockPayout`, `deliverOwed`,
   `deliverStockOwed`, `sendProtocolFee`, and `sendTax`.
 - Randomness requested strictly after the root is written, in the same
   transaction, and exactly once per round.

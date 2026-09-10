@@ -333,6 +333,7 @@ contract SinjohRaffleRewardsStockForkTest is TestBase {
             asset: MSTR,
             swapAdapter: SWAP_ADAPTER,
             priceGuard: PRICE_GUARD,
+            maxAmountInPerCall: 0.009 ether,
             routeData: abi.encode(POOL_FEE),
             guardData: ""
         });
@@ -347,7 +348,7 @@ contract SinjohRaffleRewardsStockForkTest is TestBase {
             tokensPerTicket: 10_000e18,
             maxTicketsPerHolder: 0,
             minPrize: 1,
-            maxPrize: 0.01 ether,
+            maxPrize: 0,
             prizeBps: 500,
             recipientTaxBps: 700,
             recycleTaxBps: 300,

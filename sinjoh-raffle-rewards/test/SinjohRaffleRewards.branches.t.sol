@@ -262,17 +262,10 @@ contract SinjohRaffleRewardsBranchesTest is TestBase {
         raffle.commitRound(2, FIRST_SNAPSHOT + 5, _hashFor(FIRST_SNAPSHOT + 5), keccak256("r"), 10);
     }
 
-    function testPrizeIsCappedByMaxPrize() public {
+    function testMaxPrizeIsRejected() public {
         RaffleTypes.Config memory config = _baseConfig();
         config.maxPrize = 100;
-        SinjohRaffleRewards capped = _bindNew(config, bytes32("capped"));
-
-        assertEq(capped.nextPrize(), 100);
-        _arm(FIRST_SNAPSHOT);
-        vm.prank(ATTESTOR);
-        assertEq(
-            capped.commitRound(1, FIRST_SNAPSHOT, _hashFor(FIRST_SNAPSHOT), keccak256("r"), 10), 100
-        );
+        _expectBadConfig(config, bytes32("capped"));
     }
 
     // ------------------------------------------------------------------

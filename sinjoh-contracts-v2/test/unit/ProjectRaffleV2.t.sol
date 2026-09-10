@@ -254,6 +254,33 @@ contract ProjectRaffleV2Test is Test {
             asset: address(stock),
             swapAdapter: address(adapter),
             priceGuard: address(guard),
+            maxAmountInPerCall: type(uint128).max,
+            routeData: hex"1234",
+            guardData: bytes(""),
+            approvalProof: new bytes32[](0)
+        });
+        ProjectRaffleV2 stockRaffle = _deploy(config);
+        assertEq(stockRaffle.stockReward(0).maxAmountInPerCall, type(uint128).max);
+        prizeAsset.approve(address(stockRaffle), type(uint256).max);
+        stockRaffle.fund(subject.projectId(), address(subject), address(prizeAsset), 1_000, "");
+        (RaffleTypes.Leaf memory leaf, RaffleTypes.ProofElement[] memory proof) =
+            _drawOneHolderRoundFor(stockRaffle, 1, SNAPSHOT, HOLDER, 1, 6);
+        assertEq(stockRaffle.claim(1, 0, leaf, proof), 1_980);
+        assertEq(stock.balanceOf(HOLDER), 1_980);
+        assertEq(prizeAsset.allowance(address(stockRaffle), address(adapter)), 0);
+    }
+
+    function testStockPrizeProcessesFullPercentageAcrossBoundedCalls() public {
+        MockRaffleERC20 stock = new MockRaffleERC20("Stock", "STOCK");
+        MockRaffleStockAdapter adapter = new MockRaffleStockAdapter();
+        MockRaffleStockGuard guard = new MockRaffleStockGuard();
+        RaffleTypes.Config memory config = _baseConfig();
+        config.stockRewards = new RaffleTypes.StockReward[](1);
+        config.stockRewards[0] = RaffleTypes.StockReward({
+            asset: address(stock),
+            swapAdapter: address(adapter),
+            priceGuard: address(guard),
+            maxAmountInPerCall: 200,
             routeData: hex"1234",
             guardData: bytes(""),
             approvalProof: new bytes32[](0)
@@ -263,9 +290,47 @@ contract ProjectRaffleV2Test is Test {
         stockRaffle.fund(subject.projectId(), address(subject), address(prizeAsset), 1_000, "");
         (RaffleTypes.Leaf memory leaf, RaffleTypes.ProofElement[] memory proof) =
             _drawOneHolderRoundFor(stockRaffle, 1, SNAPSHOT, HOLDER, 1, 6);
-        assertEq(stockRaffle.claim(1, 0, leaf, proof), 1_980);
+
+        assertEq(stockRaffle.claim(1, 0, leaf, proof), 0);
+        assertEq(stock.balanceOf(HOLDER), 0);
+        (,,,,, uint256 remaining,) = stockRaffle.pendingStockPayouts(1, 0);
+        assertEq(remaining, 790);
+
+        assertEq(stockRaffle.processStockPayout(1, 0), 0);
+        assertEq(stockRaffle.processStockPayout(1, 0), 0);
+        assertEq(stockRaffle.processStockPayout(1, 0), 0);
+        assertEq(stockRaffle.processStockPayout(1, 0), 1_980);
         assertEq(stock.balanceOf(HOLDER), 1_980);
-        assertEq(prizeAsset.allowance(address(stockRaffle), address(adapter)), 0);
+        assertEq(stockRaffle.totalStockFundingPending(), 0);
+        assertEq(stockRaffle.totalStockPayoutPending(address(stock)), 0);
+    }
+
+    function testInitializationRejectsMaximumPrizeCap() public {
+        RaffleTypes.Config memory config = _baseConfig();
+        config.maxPrize = 1;
+        ProjectRaffleV2 candidate = ProjectRaffleV2(payable(Clones.clone(address(implementation))));
+        vm.expectRevert(ProjectRaffleV2.InvalidConfiguration.selector);
+        candidate.initialize(address(registry), address(subject), bytes32(uint256(1)), config);
+    }
+
+    function testInitializationRejectsZeroStockProcessingLimit() public {
+        MockRaffleERC20 stock = new MockRaffleERC20("Stock", "STOCK");
+        MockRaffleStockAdapter adapter = new MockRaffleStockAdapter();
+        MockRaffleStockGuard guard = new MockRaffleStockGuard();
+        RaffleTypes.Config memory config = _baseConfig();
+        config.stockRewards = new RaffleTypes.StockReward[](1);
+        config.stockRewards[0] = RaffleTypes.StockReward({
+            asset: address(stock),
+            swapAdapter: address(adapter),
+            priceGuard: address(guard),
+            maxAmountInPerCall: 0,
+            routeData: hex"1234",
+            guardData: bytes(""),
+            approvalProof: new bytes32[](0)
+        });
+        ProjectRaffleV2 candidate = ProjectRaffleV2(payable(Clones.clone(address(implementation))));
+        vm.expectRevert(ProjectRaffleV2.InvalidConfiguration.selector);
+        candidate.initialize(address(registry), address(subject), _approvalRoot(config), config);
     }
 
     function testStockRewardCeilingAccepts64AndRejects65() public {
@@ -352,6 +417,7 @@ contract ProjectRaffleV2Test is Test {
                 asset: stock,
                 swapAdapter: address(adapter),
                 priceGuard: address(guard),
+                maxAmountInPerCall: type(uint128).max,
                 routeData: abi.encode(uint24(3_000)),
                 guardData: "",
                 approvalProof: new bytes32[](0)

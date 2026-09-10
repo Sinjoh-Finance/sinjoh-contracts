@@ -33,6 +33,7 @@ contract GenerateFixturesTest is TestBase {
             asset: address(0x0000000000000000000000000000000000c0de00),
             swapAdapter: address(0x0000000000000000000000000000000000C0De01),
             priceGuard: address(0x0000000000000000000000000000000000c0De02),
+            maxAmountInPerCall: 10_000,
             routeData: abi.encode(uint24(10_000)),
             guardData: ""
         });

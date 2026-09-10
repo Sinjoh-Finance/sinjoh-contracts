@@ -14,7 +14,6 @@ import { SinjohRaffleRewardsFactory } from "../src/SinjohRaffleRewardsFactory.so
 /// @dev These run the gate against a compliant guard on a route whose pool is genuinely ready,
 /// and against deliberately invalid guard inputs, and require the outcomes to differ.
 contract PreflightStockRoutesForkTest is TestBase {
-    address internal constant PRODUCTION_FACTORY = 0x9931324D98137b9D567B6ec32e1a10f148E6e9e3;
     address internal constant PRODUCTION_RANDOMNESS = 0xD16BCD59ca33C1e85578Aa5d60a02C4E2231c491;
     uint256 internal constant EXPECTED_CERTIFIED_ROUTE_COUNT = 25;
     uint256 internal constant MSTR_INDEX = 22;
@@ -38,9 +37,9 @@ contract PreflightStockRoutesForkTest is TestBase {
         assertEq(preflight.checkProduction(), 0);
     }
 
-    /// The deployed 64-route generation must accept the complete current manifest, preserve every
-    /// immutable tuple exactly, and bind the finished clone to a real contract subject.
-    function testForkProductionFactoryDeploysAndBindsCompleteCertifiedManifest() public {
+    /// The replacement 64-route generation must accept the complete current manifest, preserve
+    /// every immutable tuple exactly, and bind the finished clone to a real contract subject.
+    function testForkReplacementFactoryDeploysAndBindsCompleteCertifiedManifest() public {
         if (!forked) return;
 
         StockRouteManifest.Route[] memory routes = StockRouteManifest.routes();
@@ -51,6 +50,7 @@ contract PreflightStockRoutesForkTest is TestBase {
                 asset: routes[i].asset,
                 swapAdapter: StockRouteManifest.SWAP_ADAPTER,
                 priceGuard: StockRouteManifest.guardFor(routes[i].fee),
+                maxAmountInPerCall: uint128(routes[i].maxWethInPerCall),
                 routeData: StockRouteManifest.routeData(routes[i].fee),
                 guardData: ""
             });
@@ -66,7 +66,7 @@ contract PreflightStockRoutesForkTest is TestBase {
             tokensPerTicket: 1 ether,
             maxTicketsPerHolder: 0,
             minPrize: 0.001 ether,
-            maxPrize: 0.01 ether,
+            maxPrize: 0,
             prizeBps: 10_000,
             recipientTaxBps: 0,
             recycleTaxBps: 0,
@@ -81,9 +81,12 @@ contract PreflightStockRoutesForkTest is TestBase {
             stockRewards: rewards
         });
 
+        SinjohRaffleRewardsFactory replacementFactory =
+            new SinjohRaffleRewardsFactory(block.chainid);
         SinjohRaffleRewards raffle = SinjohRaffleRewards(
-            payable(SinjohRaffleRewardsFactory(PRODUCTION_FACTORY)
-                    .deployRaffle(keccak256("production-full-stock-manifest-bind"), config))
+            payable(replacementFactory.deployRaffle(
+                    keccak256("replacement-full-stock-manifest-bind"), config
+                ))
         );
         assertTrue(raffle.initialized());
         assertEq(raffle.configHash(), keccak256(abi.encode(config)));
@@ -94,6 +97,7 @@ contract PreflightStockRoutesForkTest is TestBase {
             assertEq(actual.asset, routes[i].asset);
             assertEq(actual.swapAdapter, StockRouteManifest.SWAP_ADAPTER);
             assertEq(actual.priceGuard, StockRouteManifest.guardFor(routes[i].fee));
+            assertEq(actual.maxAmountInPerCall, routes[i].maxWethInPerCall);
             assertEq(
                 keccak256(actual.routeData), keccak256(StockRouteManifest.routeData(routes[i].fee))
             );
