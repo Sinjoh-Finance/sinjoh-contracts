@@ -66,8 +66,6 @@ contract ProjectRaffleV2 is IProjectModule, IProjectFundable {
     uint32 public constant MAX_RANDOMNESS_TIMEOUT = 86_400;
     uint32 public constant MIN_CLAIM_WINDOW = 3_600;
     uint32 public constant MAX_CLAIM_WINDOW = 2_592_000;
-    /// @dev Retained for ABI compatibility with historical raffles. Funding fallback is disabled.
-
     address public constant ARBSYS = address(0x64);
     address public constant BURN_ADDRESS = SinjohV2Constants.BURN_ADDRESS;
 

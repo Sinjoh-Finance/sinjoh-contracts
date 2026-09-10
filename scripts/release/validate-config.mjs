@@ -394,6 +394,8 @@ function validateConsumerBindings() {
             "address",
             "runtimeCodeHash",
             "deploymentBlock",
+            "implementation",
+            "implementationRuntimeCodeHash",
             "sourceCommit",
             "buildHash",
             "approvalProof0",

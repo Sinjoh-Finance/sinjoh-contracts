@@ -31,8 +31,8 @@ contract PreflightStockRoutesForkTest is TestBase {
     }
 
     /// Every route the UI can put into a newly deployed raffle clears its real production guard
-    /// and a real swap through the production adapter at that route's launch-time cap.
-    function testForkProductionManifestPassesEveryCertifiedRouteAtItsCap() public {
+    /// and a real swap through the production adapter at that route's transaction limit.
+    function testForkProductionManifestPassesEveryCertifiedRouteAtItsTransactionLimit() public {
         if (!forked) return;
         assertEq(preflight.checkProduction(), 0);
     }

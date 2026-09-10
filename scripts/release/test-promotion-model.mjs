@@ -225,6 +225,30 @@ assert.equal(
   mainnetManifest.currentInfrastructure.raffleOperations.attestor
 );
 assert.equal(
+  generatedConsumers.ui.contracts.raffleFactory.address,
+  mainnetManifest.currentInfrastructure.raffleFactory.address
+);
+assert.equal(
+  generatedConsumers.ui.environment.NEXT_PUBLIC_RAFFLE_FACTORY,
+  mainnetManifest.currentInfrastructure.raffleFactory.address
+);
+assert.equal(
+  generatedConsumers.ui.environment.NEXT_PUBLIC_RAFFLE_FACTORY_CODEHASH,
+  mainnetManifest.currentInfrastructure.raffleFactory.runtimeCodeHash
+);
+assert.equal(
+  generatedConsumers.ui.environment.NEXT_PUBLIC_RAFFLE_FACTORY_DEPLOYMENT_BLOCK,
+  mainnetManifest.currentInfrastructure.raffleFactory.deploymentBlock
+);
+assert.equal(
+  generatedConsumers.ui.environment.NEXT_PUBLIC_RAFFLE_IMPLEMENTATION,
+  mainnetManifest.currentInfrastructure.raffleFactory.implementation
+);
+assert.equal(
+  generatedConsumers.ui.environment.NEXT_PUBLIC_RAFFLE_IMPLEMENTATION_CODEHASH,
+  mainnetManifest.currentInfrastructure.raffleFactory.implementationRuntimeCodeHash
+);
+assert.equal(
   generatedConsumers.ui.contracts.ponsV2PairBuybackAdapter.address,
   "0xfAB57a5fE409B4503A1a09fD7DC80e6ffB85Abb8"
 );

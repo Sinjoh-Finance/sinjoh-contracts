@@ -115,7 +115,7 @@ DEPLOYER_PRIVATE_KEY=... RANDOMNESS_ADAPTER=... forge script \
 ```
 
 [`script/DeployRaffleRewardsFactory.s.sol`](./script/DeployRaffleRewardsFactory.s.sol)
-asserts chain ID `4663`, reads `ArbSys`, and requires `RANDOMNESS_ADAPTER` to have
+asserts chain ID `4663` and requires `RANDOMNESS_ADAPTER` to have
 code as a production smoke check. The raffle also rejects any configured ERC-20
 prize asset or randomness adapter without code. Per-launch raffles are then created through the factory:
 `predictRaffle` → configure the launch against the predicted address → `deployRaffle`

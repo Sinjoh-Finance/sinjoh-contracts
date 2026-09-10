@@ -114,7 +114,7 @@ contract PreflightStockRoutes {
         _log("=== Sinjoh production stock-route preflight ===");
         _checkSharedDependencies();
         _checkProductionGuards();
-        _log("Probing every certified route at its launch-time cap");
+        _log("Probing every certified route at its per-transaction processing limit");
         _log("");
 
         StockRouteManifest.Route[] memory list = StockRouteManifest.routes();

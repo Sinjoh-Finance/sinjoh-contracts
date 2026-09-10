@@ -120,7 +120,7 @@ struct Config {
     uint128 tokensPerTicket;       // raw subject units per ticket
     uint128 maxTicketsPerHolder;   // 0 = uncapped
     uint128 minPrize;              // raw prize units
-    uint128 maxPrize;              // 0 = unbounded
+    uint128 maxPrize;              // must be 0; retained only for ABI compatibility
     uint16  prizeBps;              // share of the available pool per round
     uint16  recipientTaxBps;       // tax share delivered to taxRecipient
     uint16  recycleTaxBps;         // tax share returned to the prize pool
@@ -144,7 +144,7 @@ Bounds, enforced at initialization:
 | `prizeBps` | 1 to 10,000 |
 | `recipientTaxBps + recycleTaxBps` | 0 to `MAX_PAYOUT_TAX_BPS` (5,000) |
 | `minPrize` | nonzero |
-| `maxPrize` | zero, or at least `minPrize` |
+| `maxPrize` | exactly zero; the creator-selected percentage is never capped |
 | `winnersPerRound` | 1 to 16 |
 | `minRoundInterval` | 600 to 604,800 seconds |
 | `minConfirmations` | 1 to 255 |
@@ -339,7 +339,7 @@ Rules:
 The prize is fixed at commit time, before randomness exists:
 
 ```text
-prize = min(maxPrize or infinity, floor(availablePool * prizeBps / 10_000))
+prize = floor(availablePool * prizeBps / 10_000)
 require prize >= minPrize
 availablePool -= prize
 reserved[roundId] = prize
