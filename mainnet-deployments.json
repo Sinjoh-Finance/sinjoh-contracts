@@ -771,15 +771,20 @@
         "maxStockRewards": 64,
         "sourceCommit": "2e01b6e2e9ca08532fac2357420308df39552631",
         "releaseId": "raffle-successor-mainnet-20260911-2e01b6e",
-        "finalized": false,
+        "finalized": true,
         "twoProviderRuntimeMatch": true,
-        "verificationBlock": 60020329,
+        "verificationBlock": 60021025,
         "sourceVerification": {
           "provider": "Sourcify",
           "status": "match",
           "factoryJobId": "78a2d1a3-8ff8-43e4-8064-6bea56086d3f",
           "implementationJobId": "541f64ad-2d20-41a2-9bc7-25a639a2be3c"
-        }
+        },
+        "verificationBlockHash": "0x42e0a01f915f875e923e1d11bd42965905d94447450b958188a05b59a850f555",
+        "independentProviders": [
+          "Chainstack",
+          "BlockReq"
+        ]
       }
     },
     "raffleFactoryHistoricalGenerations": {

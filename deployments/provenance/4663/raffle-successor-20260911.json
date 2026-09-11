@@ -31,9 +31,9 @@
     {
       "provider": "primary",
       "chainId": 4663,
-      "verificationMode": "latest",
-      "verificationBlock": 60020329,
-      "verificationBlockHash": "0x846c9555279c5623afc4ed9033dfcbc11658de3c674e121d9d001a01614fefc0",
+      "verificationMode": "finalized",
+      "verificationBlock": 60021025,
+      "verificationBlockHash": "0x42e0a01f915f875e923e1d11bd42965905d94447450b958188a05b59a850f555",
       "transactionHash": "0x58a20a814d6a864a7846bbdb21c8edf582c3b5b2dafef92767a5251c7e7df284",
       "deploymentBlock": 60018940,
       "deploymentBlockHash": "0xb0a82a6fa970da66e189bbe48bc8a329a5de324bc3578caf57dc2b86075e0e28",
@@ -44,14 +44,15 @@
       "implementationLocked": true,
       "maxStockRewards": 64,
       "gasCostETH": "0.000694103888736",
-      "signer": "0xaB00e78C25713f0aABA9cE4525C101055F045D25"
+      "signer": "0xaB00e78C25713f0aABA9cE4525C101055F045D25",
+      "providerName": "Chainstack"
     },
     {
       "provider": "secondary",
       "chainId": 4663,
-      "verificationMode": "latest",
-      "verificationBlock": 60020329,
-      "verificationBlockHash": "0x846c9555279c5623afc4ed9033dfcbc11658de3c674e121d9d001a01614fefc0",
+      "verificationMode": "finalized",
+      "verificationBlock": 60021025,
+      "verificationBlockHash": "0x42e0a01f915f875e923e1d11bd42965905d94447450b958188a05b59a850f555",
       "transactionHash": "0x58a20a814d6a864a7846bbdb21c8edf582c3b5b2dafef92767a5251c7e7df284",
       "deploymentBlock": 60018940,
       "deploymentBlockHash": "0xb0a82a6fa970da66e189bbe48bc8a329a5de324bc3578caf57dc2b86075e0e28",
@@ -62,7 +63,10 @@
       "implementationLocked": true,
       "maxStockRewards": 64,
       "gasCostETH": "0.000694103888736",
-      "signer": "0xaB00e78C25713f0aABA9cE4525C101055F045D25"
+      "signer": "0xaB00e78C25713f0aABA9cE4525C101055F045D25",
+      "providerName": "BlockReq",
+      "endpoint": "https://robinhood-mainnet-rpc.blockreq.com/v1/rpc/public"
     }
-  ]
+  ],
+  "postdeploymentForkLifecycle": "ProductionLetsCashRaffle.fork.t.sol passed with SINJOH_RAFFLE_FACTORY set to the deployed factory: launch, funding, draw, payout."
 }
