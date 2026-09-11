@@ -120,11 +120,11 @@ const mainnetManifest = JSON.parse(
 );
 assert.equal(
   mainnetManifest.letscashDependencies.factoryProxy.implementation,
-  "0x8E0Ee024c2B547AaE91E6B9b1D3940449B3404F4"
+  "0x40250b4C73FC30f8F6ad077744B0124B3f111C28"
 );
 assert.equal(
   mainnetManifest.letscashDependencies.factoryProxy.implementationRuntimeCodeHash,
-  "0xf2e80731c9679b7869b99b8a3eb0428be9923d93abdce4c73de77e9b7fca0603"
+  "0x606a0bc3d6bac674f4aa28d4cf7b086fd73b84d1ddff69540c6af1128757b353"
 );
 assert.equal(
   mainnetManifest.letscashDependencies.factoryImplementation.address,
@@ -132,7 +132,7 @@ assert.equal(
 );
 assert.deepEqual(
   Object.keys(mainnetManifest.letscashDependencies.factoryHistoricalImplementations),
-  ["cash-cat-factory-vnext-pre-20260825"]
+  ["cash-cat-factory-vnext-pre-20260825", "cash-cat-factory-vnext-pre-20260829"]
 );
 assert.equal(
   mainnetManifest.letscashDependencies.factoryHistoricalImplementations[
