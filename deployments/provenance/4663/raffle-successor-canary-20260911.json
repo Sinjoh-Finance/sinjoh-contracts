@@ -1,0 +1,424 @@
+[
+  {
+    "provider": "Chainstack",
+    "chainId": 4663,
+    "blockNumber": "60130721",
+    "blockHash": "0x1e940495caf8eebbcb8ed42835d3604537b7df9e88f52a1ac12abc255042d2fb",
+    "raffle": "0x9EAA88fd01Be2e2D43eb387467D9F86A37F657E7",
+    "events": [
+      {
+        "event": "RaffleInitialized",
+        "args": {
+          "configHash": "0xbaa47c88dbd2ddcaf0302b09ea83ac721d63077873df178d197c3c5c8125fd2d",
+          "configuration": {
+            "creator": "0xaB00e78C25713f0aABA9cE4525C101055F045D25",
+            "attestor": "0xbd5323053ca81c4fD208874Db73e1484819214d7",
+            "randomness": "0xD16BCD59ca33C1e85578Aa5d60a02C4E2231c491",
+            "prizeAsset": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+            "protocolFeeRecipient": "0x5Bb7582557F5be30b62c335Ad3ccf4bA79E138c5",
+            "taxRecipient": "0xaB00e78C25713f0aABA9cE4525C101055F045D25",
+            "tokensPerTicket": "1000000000000000000",
+            "maxTicketsPerHolder": "0",
+            "minPrize": "100000000000000",
+            "maxPrize": "0",
+            "prizeBps": 10000,
+            "recipientTaxBps": 0,
+            "recycleTaxBps": 0,
+            "minConfirmations": 2,
+            "winnersPerRound": 1,
+            "minRoundInterval": 600,
+            "weightWindowBlocks": 0,
+            "randomnessTimeout": 900,
+            "claimWindow": 3600,
+            "basis": 0
+          },
+          "exclusions": [
+            "0x16022EA083feBA86915D7885F07F9e43CE149db8",
+            "0x42df2a798f82289E177311362e8f5ccC45c1219c",
+            "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+            "0x82B49da73dC59Cd2a7eA386C2fB2d2AC1616D8d7",
+            "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+            "0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044"
+          ]
+        },
+        "transactionHash": "0x58097d03c55465378c1fbbbaa274f60b3d795b2f370b353ef1cee6f332f20f98",
+        "blockNumber": "60052965"
+      },
+      {
+        "event": "SubjectBound",
+        "args": {
+          "subject": "0x57c6ae62b1F64eF8d77Ff65FA887AA53ED783643"
+        },
+        "transactionHash": "0x6262d8d56655ade165e91c80ee5cfda8c518230cbd8f789f64cc5343e1bbb6b0",
+        "blockNumber": "60053025"
+      },
+      {
+        "event": "Deposited",
+        "args": {
+          "source": "0x201D4fD1C9308949C669c6727E7D296C14357eE0",
+          "gross": "8050265153060134",
+          "fee": "80502651530601",
+          "net": "7969762501529533",
+          "attributed": true
+        },
+        "transactionHash": "0x8fec1daad212604a21fad28e2b6b071c2b0faa195f70b1802652266853165ecc",
+        "blockNumber": "60059346"
+      },
+      {
+        "event": "ProtocolFeeSent",
+        "args": {
+          "recipient": "0x5Bb7582557F5be30b62c335Ad3ccf4bA79E138c5",
+          "caller": "0x3afCeD430483023FA308a3c1Ebc79848e446495D",
+          "amount": "80502651530601"
+        },
+        "transactionHash": "0xf42ad1fe05a668036f7ec0b0e4713ccf263833e8a41179693cdefb0c9f058bc6",
+        "blockNumber": "60061300"
+      },
+      {
+        "event": "RoundCommitted",
+        "args": {
+          "roundId": "1",
+          "snapshotBlock": "60061303",
+          "snapshotBlockHash": "0xc2ef02a843fafae1c5bcc5fa34bb4ec9ef8a967335b36ab035491e4344913886",
+          "rootHash": "0xbf5df29f50cc389591c479f2b8758db2b83e8b5fe3ff291d5a5eeff50fe27078",
+          "totalTickets": "15275199",
+          "prize": "7969762501529533",
+          "winnersPerRound": 1,
+          "requestId": "0x366a00541198c61a645b4316abe742fb91b08cab6ddfb3e2fd86c7c50e6be7ec"
+        },
+        "transactionHash": "0xe60fbb46adfe700d45b9710b9a5602a9bf5066ec63008ec4f4ff368e1651ad55",
+        "blockNumber": "60061315"
+      },
+      {
+        "event": "RandomnessReceived",
+        "args": {
+          "roundId": "1",
+          "requestId": "0x366a00541198c61a645b4316abe742fb91b08cab6ddfb3e2fd86c7c50e6be7ec",
+          "seed": "99605956054674975979367263538631298476380229241471908575703042363643633769062"
+        },
+        "transactionHash": "0x798665d841da2f9237ce8a677c9f3e2aed947d2e95d9950a24889c78deb1ab2d",
+        "blockNumber": "60061384"
+      },
+      {
+        "event": "PrizePaid",
+        "args": {
+          "roundId": "1",
+          "slot": 0,
+          "holder": "0x0ED5F491e675e51b337671390AC50D54c0E4139b",
+          "gross": "7969762501529533",
+          "recipientTax": "0",
+          "recycleTax": "0",
+          "net": "7969762501529533"
+        },
+        "transactionHash": "0x122048b010da6b149413dd66e31a88567026787c75523ad7ca0862cfd46825b0",
+        "blockNumber": "60061395"
+      },
+      {
+        "event": "Deposited",
+        "args": {
+          "source": "0x201D4fD1C9308949C669c6727E7D296C14357eE0",
+          "gross": "422103366939856",
+          "fee": "4221033669398",
+          "net": "417882333270458",
+          "attributed": true
+        },
+        "transactionHash": "0x17ee62bfe786ae5179b9955f5b7b2ca945e9c143cf8b8627049e096d1abad35f",
+        "blockNumber": "60068649"
+      },
+      {
+        "event": "ProtocolFeeSent",
+        "args": {
+          "recipient": "0x5Bb7582557F5be30b62c335Ad3ccf4bA79E138c5",
+          "caller": "0x3afCeD430483023FA308a3c1Ebc79848e446495D",
+          "amount": "4221033669398"
+        },
+        "transactionHash": "0x7d4d44b52bcd97666b0c4b607692e452d8a2a37f32c4d3393eac39aa6dc39f79",
+        "blockNumber": "60079184"
+      },
+      {
+        "event": "RoundCommitted",
+        "args": {
+          "roundId": "2",
+          "snapshotBlock": "60079228",
+          "snapshotBlockHash": "0xde2ae64ebf489be3fd2e9a71ed9d4413af980b8d3200efb5e24fa19e3a08e66f",
+          "rootHash": "0xdc94c1d65fa345bf91f456a0da2d904dbc193da3825ec66390b18243abe25603",
+          "totalTickets": "582993",
+          "prize": "417882333270458",
+          "winnersPerRound": 1,
+          "requestId": "0xb10a8d7e726304dc8aa2ce92aee1cf898a63d9b9b587ea8fa4dda82268e1b02d"
+        },
+        "transactionHash": "0x96723fb9a31e1f9bbd292d9e261801f2a1877b4cb2bb00552a3ac4e60f2af10f",
+        "blockNumber": "60079244"
+      },
+      {
+        "event": "RandomnessReceived",
+        "args": {
+          "roundId": "2",
+          "requestId": "0xb10a8d7e726304dc8aa2ce92aee1cf898a63d9b9b587ea8fa4dda82268e1b02d",
+          "seed": "29808689799403437497163450186947594123712378806354097277943158574184878718762"
+        },
+        "transactionHash": "0x7255bc5c4e044a8bf53cd5e617a8f096d86e6dc606f244243a9b1d813faf4c70",
+        "blockNumber": "60079305"
+      },
+      {
+        "event": "PrizePaid",
+        "args": {
+          "roundId": "2",
+          "slot": 0,
+          "holder": "0xaB00e78C25713f0aABA9cE4525C101055F045D25",
+          "gross": "417882333270458",
+          "recipientTax": "0",
+          "recycleTax": "0",
+          "net": "417882333270458"
+        },
+        "transactionHash": "0xe84f76f136d27985858734a063cd68d71f472754bad4f0b6c26da8d5698a36e9",
+        "blockNumber": "60079335"
+      }
+    ],
+    "rounds": [
+      {
+        "id": "1",
+        "value": [
+          "0xbf5df29f50cc389591c479f2b8758db2b83e8b5fe3ff291d5a5eeff50fe27078",
+          "0x366a00541198c61a645b4316abe742fb91b08cab6ddfb3e2fd86c7c50e6be7ec",
+          "15275199",
+          "7969762501529533",
+          "7969762501529533",
+          "99605956054674975979367263538631298476380229241471908575703042363643633769062",
+          "60061303",
+          "1789109799",
+          "1789109806",
+          1,
+          3
+        ]
+      },
+      {
+        "id": "2",
+        "value": [
+          "0xdc94c1d65fa345bf91f456a0da2d904dbc193da3825ec66390b18243abe25603",
+          "0xb10a8d7e726304dc8aa2ce92aee1cf898a63d9b9b587ea8fa4dda82268e1b02d",
+          "582993",
+          "417882333270458",
+          "417882333270458",
+          "29808689799403437497163450186947594123712378806354097277943158574184878718762",
+          "60079228",
+          "1789111616",
+          "1789111622",
+          1,
+          3
+        ]
+      }
+    ]
+  },
+  {
+    "provider": "QuickNode",
+    "chainId": 4663,
+    "blockNumber": "60130721",
+    "blockHash": "0x1e940495caf8eebbcb8ed42835d3604537b7df9e88f52a1ac12abc255042d2fb",
+    "raffle": "0x9EAA88fd01Be2e2D43eb387467D9F86A37F657E7",
+    "events": [
+      {
+        "event": "RaffleInitialized",
+        "args": {
+          "configHash": "0xbaa47c88dbd2ddcaf0302b09ea83ac721d63077873df178d197c3c5c8125fd2d",
+          "configuration": {
+            "creator": "0xaB00e78C25713f0aABA9cE4525C101055F045D25",
+            "attestor": "0xbd5323053ca81c4fD208874Db73e1484819214d7",
+            "randomness": "0xD16BCD59ca33C1e85578Aa5d60a02C4E2231c491",
+            "prizeAsset": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+            "protocolFeeRecipient": "0x5Bb7582557F5be30b62c335Ad3ccf4bA79E138c5",
+            "taxRecipient": "0xaB00e78C25713f0aABA9cE4525C101055F045D25",
+            "tokensPerTicket": "1000000000000000000",
+            "maxTicketsPerHolder": "0",
+            "minPrize": "100000000000000",
+            "maxPrize": "0",
+            "prizeBps": 10000,
+            "recipientTaxBps": 0,
+            "recycleTaxBps": 0,
+            "minConfirmations": 2,
+            "winnersPerRound": 1,
+            "minRoundInterval": 600,
+            "weightWindowBlocks": 0,
+            "randomnessTimeout": 900,
+            "claimWindow": 3600,
+            "basis": 0
+          },
+          "exclusions": [
+            "0x16022EA083feBA86915D7885F07F9e43CE149db8",
+            "0x42df2a798f82289E177311362e8f5ccC45c1219c",
+            "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+            "0x82B49da73dC59Cd2a7eA386C2fB2d2AC1616D8d7",
+            "0x8366a39CC670B4001A1121B8F6A443A643e40951",
+            "0xE5e702641Ea86F4ae6cC3cDaeD2B886f976Be044"
+          ]
+        },
+        "transactionHash": "0x58097d03c55465378c1fbbbaa274f60b3d795b2f370b353ef1cee6f332f20f98",
+        "blockNumber": "60052965"
+      },
+      {
+        "event": "SubjectBound",
+        "args": {
+          "subject": "0x57c6ae62b1F64eF8d77Ff65FA887AA53ED783643"
+        },
+        "transactionHash": "0x6262d8d56655ade165e91c80ee5cfda8c518230cbd8f789f64cc5343e1bbb6b0",
+        "blockNumber": "60053025"
+      },
+      {
+        "event": "Deposited",
+        "args": {
+          "source": "0x201D4fD1C9308949C669c6727E7D296C14357eE0",
+          "gross": "8050265153060134",
+          "fee": "80502651530601",
+          "net": "7969762501529533",
+          "attributed": true
+        },
+        "transactionHash": "0x8fec1daad212604a21fad28e2b6b071c2b0faa195f70b1802652266853165ecc",
+        "blockNumber": "60059346"
+      },
+      {
+        "event": "ProtocolFeeSent",
+        "args": {
+          "recipient": "0x5Bb7582557F5be30b62c335Ad3ccf4bA79E138c5",
+          "caller": "0x3afCeD430483023FA308a3c1Ebc79848e446495D",
+          "amount": "80502651530601"
+        },
+        "transactionHash": "0xf42ad1fe05a668036f7ec0b0e4713ccf263833e8a41179693cdefb0c9f058bc6",
+        "blockNumber": "60061300"
+      },
+      {
+        "event": "RoundCommitted",
+        "args": {
+          "roundId": "1",
+          "snapshotBlock": "60061303",
+          "snapshotBlockHash": "0xc2ef02a843fafae1c5bcc5fa34bb4ec9ef8a967335b36ab035491e4344913886",
+          "rootHash": "0xbf5df29f50cc389591c479f2b8758db2b83e8b5fe3ff291d5a5eeff50fe27078",
+          "totalTickets": "15275199",
+          "prize": "7969762501529533",
+          "winnersPerRound": 1,
+          "requestId": "0x366a00541198c61a645b4316abe742fb91b08cab6ddfb3e2fd86c7c50e6be7ec"
+        },
+        "transactionHash": "0xe60fbb46adfe700d45b9710b9a5602a9bf5066ec63008ec4f4ff368e1651ad55",
+        "blockNumber": "60061315"
+      },
+      {
+        "event": "RandomnessReceived",
+        "args": {
+          "roundId": "1",
+          "requestId": "0x366a00541198c61a645b4316abe742fb91b08cab6ddfb3e2fd86c7c50e6be7ec",
+          "seed": "99605956054674975979367263538631298476380229241471908575703042363643633769062"
+        },
+        "transactionHash": "0x798665d841da2f9237ce8a677c9f3e2aed947d2e95d9950a24889c78deb1ab2d",
+        "blockNumber": "60061384"
+      },
+      {
+        "event": "PrizePaid",
+        "args": {
+          "roundId": "1",
+          "slot": 0,
+          "holder": "0x0ED5F491e675e51b337671390AC50D54c0E4139b",
+          "gross": "7969762501529533",
+          "recipientTax": "0",
+          "recycleTax": "0",
+          "net": "7969762501529533"
+        },
+        "transactionHash": "0x122048b010da6b149413dd66e31a88567026787c75523ad7ca0862cfd46825b0",
+        "blockNumber": "60061395"
+      },
+      {
+        "event": "Deposited",
+        "args": {
+          "source": "0x201D4fD1C9308949C669c6727E7D296C14357eE0",
+          "gross": "422103366939856",
+          "fee": "4221033669398",
+          "net": "417882333270458",
+          "attributed": true
+        },
+        "transactionHash": "0x17ee62bfe786ae5179b9955f5b7b2ca945e9c143cf8b8627049e096d1abad35f",
+        "blockNumber": "60068649"
+      },
+      {
+        "event": "ProtocolFeeSent",
+        "args": {
+          "recipient": "0x5Bb7582557F5be30b62c335Ad3ccf4bA79E138c5",
+          "caller": "0x3afCeD430483023FA308a3c1Ebc79848e446495D",
+          "amount": "4221033669398"
+        },
+        "transactionHash": "0x7d4d44b52bcd97666b0c4b607692e452d8a2a37f32c4d3393eac39aa6dc39f79",
+        "blockNumber": "60079184"
+      },
+      {
+        "event": "RoundCommitted",
+        "args": {
+          "roundId": "2",
+          "snapshotBlock": "60079228",
+          "snapshotBlockHash": "0xde2ae64ebf489be3fd2e9a71ed9d4413af980b8d3200efb5e24fa19e3a08e66f",
+          "rootHash": "0xdc94c1d65fa345bf91f456a0da2d904dbc193da3825ec66390b18243abe25603",
+          "totalTickets": "582993",
+          "prize": "417882333270458",
+          "winnersPerRound": 1,
+          "requestId": "0xb10a8d7e726304dc8aa2ce92aee1cf898a63d9b9b587ea8fa4dda82268e1b02d"
+        },
+        "transactionHash": "0x96723fb9a31e1f9bbd292d9e261801f2a1877b4cb2bb00552a3ac4e60f2af10f",
+        "blockNumber": "60079244"
+      },
+      {
+        "event": "RandomnessReceived",
+        "args": {
+          "roundId": "2",
+          "requestId": "0xb10a8d7e726304dc8aa2ce92aee1cf898a63d9b9b587ea8fa4dda82268e1b02d",
+          "seed": "29808689799403437497163450186947594123712378806354097277943158574184878718762"
+        },
+        "transactionHash": "0x7255bc5c4e044a8bf53cd5e617a8f096d86e6dc606f244243a9b1d813faf4c70",
+        "blockNumber": "60079305"
+      },
+      {
+        "event": "PrizePaid",
+        "args": {
+          "roundId": "2",
+          "slot": 0,
+          "holder": "0xaB00e78C25713f0aABA9cE4525C101055F045D25",
+          "gross": "417882333270458",
+          "recipientTax": "0",
+          "recycleTax": "0",
+          "net": "417882333270458"
+        },
+        "transactionHash": "0xe84f76f136d27985858734a063cd68d71f472754bad4f0b6c26da8d5698a36e9",
+        "blockNumber": "60079335"
+      }
+    ],
+    "rounds": [
+      {
+        "id": "1",
+        "value": [
+          "0xbf5df29f50cc389591c479f2b8758db2b83e8b5fe3ff291d5a5eeff50fe27078",
+          "0x366a00541198c61a645b4316abe742fb91b08cab6ddfb3e2fd86c7c50e6be7ec",
+          "15275199",
+          "7969762501529533",
+          "7969762501529533",
+          "99605956054674975979367263538631298476380229241471908575703042363643633769062",
+          "60061303",
+          "1789109799",
+          "1789109806",
+          1,
+          3
+        ]
+      },
+      {
+        "id": "2",
+        "value": [
+          "0xdc94c1d65fa345bf91f456a0da2d904dbc193da3825ec66390b18243abe25603",
+          "0xb10a8d7e726304dc8aa2ce92aee1cf898a63d9b9b587ea8fa4dda82268e1b02d",
+          "582993",
+          "417882333270458",
+          "417882333270458",
+          "29808689799403437497163450186947594123712378806354097277943158574184878718762",
+          "60079228",
+          "1789111616",
+          "1789111622",
+          1,
+          3
+        ]
+      }
+    ]
+  }
+]

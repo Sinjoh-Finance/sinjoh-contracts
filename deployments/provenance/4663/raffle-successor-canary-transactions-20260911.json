@@ -1,0 +1,60 @@
+{
+  "chainId": 4663,
+  "mode": "live-wallet-signed",
+  "creator": "0xaB00e78C25713f0aABA9cE4525C101055F045D25",
+  "planSha256": "499c86bb63a0fb09644d24dddd559eae06a77054589f2288a673262ab0d1b477",
+  "predicted": {
+    "adapter": "0x82B49da73dC59Cd2a7eA386C2fB2d2AC1616D8d7",
+    "router": "0x201D4fD1C9308949C669c6727E7D296C14357eE0",
+    "token": "0x57c6ae62b1F64eF8d77Ff65FA887AA53ED783643",
+    "curve": "0x16022EA083feBA86915D7885F07F9e43CE149db8",
+    "raffle": "0x9EAA88fd01Be2e2D43eb387467D9F86A37F657E7"
+  },
+  "transactions": [
+    {
+      "id": "deploy-raffle",
+      "hash": "0x58097d03c55465378c1fbbbaa274f60b3d795b2f370b353ef1cee6f332f20f98",
+      "blockNumber": 60052965,
+      "blockHash": "0x43752b3ac8b3c970f24fb43178caa50252bad65a1284134b0d45835fef2e8b5a",
+      "gasUsed": 564408,
+      "effectiveGasPrice": 120012000,
+      "status": "success"
+    },
+    {
+      "id": "deploy-router",
+      "hash": "0xb0c9162bed6a59eb881a7afd8ec40461df3e9a65f7391f985794fd8d9e03f695",
+      "blockNumber": 60052983,
+      "blockHash": "0x5f4fabec0559114384b84f1d9a7eda116d1e21a52139a8c459b48b247c712201",
+      "gasUsed": 359201,
+      "effectiveGasPrice": 120034000,
+      "status": "success"
+    },
+    {
+      "id": "deploy-adapter",
+      "hash": "0x340c80569c0e206e5ca5ae7c7c43fafc99bb611fff635d65e47eab9c39968a25",
+      "blockNumber": 60053000,
+      "blockHash": "0xb3fcf988e325dd8bff33f2b3eb44aeb3808de20f1cfa7975933ae096a354e3c2",
+      "gasUsed": 167826,
+      "effectiveGasPrice": 119802000,
+      "status": "success"
+    },
+    {
+      "id": "launch",
+      "hash": "0x94ff7b9b29c65af165b30187839569eba42f000c377059b3a489b0307124155f",
+      "blockNumber": 60053007,
+      "blockHash": "0xa1463376677b3adf8a15d1a2d169593bb1a991a580494f97485afb42efe37303",
+      "gasUsed": 3830726,
+      "effectiveGasPrice": 118582000,
+      "status": "success"
+    },
+    {
+      "id": "bind-raffle",
+      "hash": "0x6262d8d56655ade165e91c80ee5cfda8c518230cbd8f789f64cc5343e1bbb6b0",
+      "blockNumber": 60053025,
+      "blockHash": "0xf3c68856f0a89ac811d66768f7ab31066343d4adf793e3122f3d1464c0e965c1",
+      "gasUsed": 62621,
+      "effectiveGasPrice": 120524000,
+      "status": "success"
+    }
+  ]
+}
