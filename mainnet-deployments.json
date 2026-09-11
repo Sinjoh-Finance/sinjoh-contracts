@@ -1,6 +1,6 @@
 {
   "status": "core-infrastructure-deployed",
-  "releaseCandidate": true,
+  "releaseCandidate": false,
   "chainId": 4663,
   "rpcUrl": "https://rpc.mainnet.chain.robinhood.com",
   "explorerUrl": "https://robinhoodchain.blockscout.com",
