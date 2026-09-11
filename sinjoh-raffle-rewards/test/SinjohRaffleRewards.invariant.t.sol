@@ -133,6 +133,12 @@ contract RaffleHandler {
         uint8 slot = _firstUnpaidSlot(mask, rawSlot);
         if (slot == type(uint8).max) return;
 
+        (address pendingHolder,,,,,,) = raffle.pendingStockPayouts(roundId, slot);
+        if (pendingHolder != address(0)) {
+            raffle.processStockPayout(roundId, slot);
+            return;
+        }
+
         (,, RaffleTypes.ProofElement[][] memory proofs) = _tree(roundId, snapshot);
         RaffleTypes.Leaf[] memory leaves = _leaves();
         uint256 which = _ownerOf(leaves, raffle.winningIndex(roundId, slot));
@@ -171,29 +177,19 @@ contract RaffleHandler {
         raffle.deliverStockOwed(holder, stock);
     }
 
-    /// @notice Settles a stock slot in the funding asset once the claim window's tail opens,
-    /// warping into it when the round is still early. Only the winner may invoke it.
-    function claimFundingSlot(uint64 rawRoundId, uint8 rawSlot) external {
+    /// @notice Continues one stock payout whose full funding amount exceeded a route's per-call
+    /// execution limit.
+    function processStockSlot(uint64 rawRoundId, uint8 rawSlot) external {
         if (!stockEnabled()) return;
         uint64 roundId = _pick(rawRoundId);
         if (roundId == 0) return;
-
-        (,,,,,, uint64 snapshot,, uint64 drawnAt, uint16 mask, RaffleTypes.RoundState state) =
-            raffle.rounds(roundId);
-        if (state != RaffleTypes.RoundState.DRAWN) return;
-        if (block.timestamp > uint256(drawnAt) + CLAIM_WINDOW) return;
-
-        uint8 slot = _firstUnpaidSlot(mask, rawSlot);
-        if (slot == type(uint8).max) return;
-
-        uint256 opensAt = raffle.fundingFallbackAt(roundId);
-        if (block.timestamp < opensAt) _warpTo(opensAt);
-
-        (,, RaffleTypes.ProofElement[][] memory proofs) = _tree(roundId, snapshot);
-        RaffleTypes.Leaf[] memory leaves = _leaves();
-        uint256 which = _ownerOf(leaves, raffle.winningIndex(roundId, slot));
-        _prank(leaves[which].holder);
-        raffle.claimFunding(roundId, slot, leaves[which], proofs[which]);
+        for (uint8 i; i < WINNERS; ++i) {
+            uint8 slot = uint8((uint256(rawSlot) + i) % WINNERS);
+            (address pendingHolder,,,,,,) = raffle.pendingStockPayouts(roundId, slot);
+            if (pendingHolder == address(0)) continue;
+            raffle.processStockPayout(roundId, slot);
+            return;
+        }
     }
 
     function expireOrAbandon(uint64 rawRoundId, uint32 delay) external {
@@ -437,7 +433,7 @@ abstract contract RaffleInvariantBase is InvariantTestBase {
 contract SinjohRaffleRewardsInvariantTest is RaffleInvariantBase { }
 
 /// @notice The same raffle paying VRF-selected stocks: every slot claim routes through a guarded
-/// swap, deferred credits are denominated per stock, and the funding-asset fallback is reachable.
+/// swap, and deferred credits are denominated per stock.
 contract SinjohRaffleRewardsStockInvariantTest is RaffleInvariantBase {
     MockERC20 internal stockA;
     MockERC20 internal stockB;
@@ -458,6 +454,7 @@ contract SinjohRaffleRewardsStockInvariantTest is RaffleInvariantBase {
             asset: address(stockA),
             swapAdapter: address(adapter),
             priceGuard: address(guard),
+            maxAmountInPerCall: type(uint128).max,
             routeData: abi.encode(uint24(3_000)),
             guardData: ""
         });
@@ -465,6 +462,7 @@ contract SinjohRaffleRewardsStockInvariantTest is RaffleInvariantBase {
             asset: address(stockB),
             swapAdapter: address(adapter),
             priceGuard: address(guard),
+            maxAmountInPerCall: type(uint128).max,
             routeData: abi.encode(uint24(10_000)),
             guardData: ""
         });
@@ -476,8 +474,16 @@ contract SinjohRaffleRewardsStockInvariantTest is RaffleInvariantBase {
 
     /// Required test 27: each stock's balance covers every credit denominated in it.
     function invariantStockBalanceCoversItsCredits() public view {
-        assertTrue(stockA.balanceOf(address(raffle)) >= raffle.totalStockOwed(address(stockA)));
-        assertTrue(stockB.balanceOf(address(raffle)) >= raffle.totalStockOwed(address(stockB)));
+        assertTrue(
+            stockA.balanceOf(address(raffle))
+                >= raffle.totalStockOwed(address(stockA))
+                    + raffle.totalStockPayoutPending(address(stockA))
+        );
+        assertTrue(
+            stockB.balanceOf(address(raffle))
+                >= raffle.totalStockOwed(address(stockB))
+                    + raffle.totalStockPayoutPending(address(stockB))
+        );
     }
 
     /// Per-stock aggregates equal the sum of their per-holder credits, so a deferred stock

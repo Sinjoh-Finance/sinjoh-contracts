@@ -36,10 +36,8 @@ platform fees ──► WETH prize pool ──► hourly round ──► VRF sto
 - An immutable, sorted stock list can enable a mystery prize per winning slot. The pool remains
   WETH; only the winner's net share is swapped through an immutable adapter, with a minimum
   output supplied by an immutable TWAP guard. Empty stock configuration preserves direct payout.
-- A stock claim that cannot execute is retried for stock, not downgraded. Because every route
-  component is immutable, a route that fails permanently would otherwise strand the same share of
-  every future round: in the final quarter of the claim window the winner — and only the winner —
-  can take that slot in WETH instead, via `claimFunding`.
+- A stock claim that cannot execute is retried for stock, not downgraded. The selected prize asset
+  is never replaced with WETH or another funding asset.
 
 The contract has no owner, no upgrade, no rescue role, no arbitrary call, and no
 configuration setter. It imports no other Sinjoh contract.
@@ -117,7 +115,7 @@ DEPLOYER_PRIVATE_KEY=... RANDOMNESS_ADAPTER=... forge script \
 ```
 
 [`script/DeployRaffleRewardsFactory.s.sol`](./script/DeployRaffleRewardsFactory.s.sol)
-asserts chain ID `4663`, reads `ArbSys`, and requires `RANDOMNESS_ADAPTER` to have
+asserts chain ID `4663` and requires `RANDOMNESS_ADAPTER` to have
 code as a production smoke check. The raffle also rejects any configured ERC-20
 prize asset or randomness adapter without code. Per-launch raffles are then created through the factory:
 `predictRaffle` → configure the launch against the predicted address → `deployRaffle`

@@ -25,6 +25,7 @@ library RaffleTypes {
         address asset;
         address swapAdapter;
         address priceGuard;
+        uint128 maxAmountInPerCall;
         bytes routeData;
         bytes guardData;
         bytes32[] approvalProof;

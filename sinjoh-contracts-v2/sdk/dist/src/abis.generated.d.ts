@@ -634,6 +634,10 @@ export declare const projectLauncherV2Abi: readonly [{
                     readonly type: "address";
                     readonly internalType: "address";
                 }, {
+                    readonly name: "maxAmountInPerCall";
+                    readonly type: "uint128";
+                    readonly internalType: "uint128";
+                }, {
                     readonly name: "routeData";
                     readonly type: "bytes";
                     readonly internalType: "bytes";
@@ -1126,6 +1130,10 @@ export declare const projectLauncherV2Abi: readonly [{
                     readonly type: "address";
                     readonly internalType: "address";
                 }, {
+                    readonly name: "maxAmountInPerCall";
+                    readonly type: "uint128";
+                    readonly internalType: "uint128";
+                }, {
                     readonly name: "routeData";
                     readonly type: "bytes";
                     readonly internalType: "bytes";
@@ -1613,6 +1621,10 @@ export declare const projectLauncherV2Abi: readonly [{
                     readonly name: "priceGuard";
                     readonly type: "address";
                     readonly internalType: "address";
+                }, {
+                    readonly name: "maxAmountInPerCall";
+                    readonly type: "uint128";
+                    readonly internalType: "uint128";
                 }, {
                     readonly name: "routeData";
                     readonly type: "bytes";
@@ -2203,6 +2215,10 @@ export declare const projectLauncherV2Abi: readonly [{
                     readonly name: "priceGuard";
                     readonly type: "address";
                     readonly internalType: "address";
+                }, {
+                    readonly name: "maxAmountInPerCall";
+                    readonly type: "uint128";
+                    readonly internalType: "uint128";
                 }, {
                     readonly name: "routeData";
                     readonly type: "bytes";
@@ -2816,6 +2832,10 @@ export declare const projectLauncherV2Abi: readonly [{
                     readonly type: "address";
                     readonly internalType: "address";
                 }, {
+                    readonly name: "maxAmountInPerCall";
+                    readonly type: "uint128";
+                    readonly internalType: "uint128";
+                }, {
                     readonly name: "routeData";
                     readonly type: "bytes";
                     readonly internalType: "bytes";
@@ -3409,6 +3429,10 @@ export declare const projectLauncherV2Abi: readonly [{
                     readonly name: "priceGuard";
                     readonly type: "address";
                     readonly internalType: "address";
+                }, {
+                    readonly name: "maxAmountInPerCall";
+                    readonly type: "uint128";
+                    readonly internalType: "uint128";
                 }, {
                     readonly name: "routeData";
                     readonly type: "bytes";
@@ -4032,6 +4056,10 @@ export declare const projectLauncherV2Abi: readonly [{
                     readonly type: "address";
                     readonly internalType: "address";
                 }, {
+                    readonly name: "maxAmountInPerCall";
+                    readonly type: "uint128";
+                    readonly internalType: "uint128";
+                }, {
                     readonly name: "routeData";
                     readonly type: "bytes";
                     readonly internalType: "bytes";
@@ -4523,6 +4551,10 @@ export declare const projectLauncherV2Abi: readonly [{
                     readonly name: "priceGuard";
                     readonly type: "address";
                     readonly internalType: "address";
+                }, {
+                    readonly name: "maxAmountInPerCall";
+                    readonly type: "uint128";
+                    readonly internalType: "uint128";
                 }, {
                     readonly name: "routeData";
                     readonly type: "bytes";
@@ -5117,6 +5149,10 @@ export declare const projectLauncherV2Abi: readonly [{
                     readonly name: "priceGuard";
                     readonly type: "address";
                     readonly internalType: "address";
+                }, {
+                    readonly name: "maxAmountInPerCall";
+                    readonly type: "uint128";
+                    readonly internalType: "uint128";
                 }, {
                     readonly name: "routeData";
                     readonly type: "bytes";
@@ -23370,16 +23406,6 @@ export declare const projectRaffleV2Abi: readonly [{
     readonly stateMutability: "view";
 }, {
     readonly type: "function";
-    readonly name: "STOCK_FALLBACK_DIVISOR";
-    readonly inputs: readonly [];
-    readonly outputs: readonly [{
-        readonly name: "";
-        readonly type: "uint32";
-        readonly internalType: "uint32";
-    }];
-    readonly stateMutability: "view";
-}, {
-    readonly type: "function";
     readonly name: "abandonRound";
     readonly inputs: readonly [{
         readonly name: "roundId";
@@ -23405,54 +23431,6 @@ export declare const projectRaffleV2Abi: readonly [{
 }, {
     readonly type: "function";
     readonly name: "claim";
-    readonly inputs: readonly [{
-        readonly name: "roundId";
-        readonly type: "uint64";
-        readonly internalType: "uint64";
-    }, {
-        readonly name: "slot";
-        readonly type: "uint8";
-        readonly internalType: "uint8";
-    }, {
-        readonly name: "leaf";
-        readonly type: "tuple";
-        readonly internalType: "struct RaffleTypes.Leaf";
-        readonly components: readonly [{
-            readonly name: "holder";
-            readonly type: "address";
-            readonly internalType: "address";
-        }, {
-            readonly name: "tickets";
-            readonly type: "uint256";
-            readonly internalType: "uint256";
-        }];
-    }, {
-        readonly name: "proof";
-        readonly type: "tuple[]";
-        readonly internalType: "struct RaffleTypes.ProofElement[]";
-        readonly components: readonly [{
-            readonly name: "siblingHash";
-            readonly type: "bytes32";
-            readonly internalType: "bytes32";
-        }, {
-            readonly name: "siblingSum";
-            readonly type: "uint256";
-            readonly internalType: "uint256";
-        }, {
-            readonly name: "siblingIsLeft";
-            readonly type: "bool";
-            readonly internalType: "bool";
-        }];
-    }];
-    readonly outputs: readonly [{
-        readonly name: "paid";
-        readonly type: "uint256";
-        readonly internalType: "uint256";
-    }];
-    readonly stateMutability: "nonpayable";
-}, {
-    readonly type: "function";
-    readonly name: "claimFunding";
     readonly inputs: readonly [{
         readonly name: "roundId";
         readonly type: "uint64";
@@ -23789,20 +23767,6 @@ export declare const projectRaffleV2Abi: readonly [{
     readonly stateMutability: "payable";
 }, {
     readonly type: "function";
-    readonly name: "fundingFallbackAt";
-    readonly inputs: readonly [{
-        readonly name: "roundId";
-        readonly type: "uint64";
-        readonly internalType: "uint64";
-    }];
-    readonly outputs: readonly [{
-        readonly name: "";
-        readonly type: "uint256";
-        readonly internalType: "uint256";
-    }];
-    readonly stateMutability: "view";
-}, {
-    readonly type: "function";
     readonly name: "initialize";
     readonly inputs: readonly [{
         readonly name: "registry_";
@@ -23920,6 +23884,10 @@ export declare const projectRaffleV2Abi: readonly [{
                 readonly name: "priceGuard";
                 readonly type: "address";
                 readonly internalType: "address";
+            }, {
+                readonly name: "maxAmountInPerCall";
+                readonly type: "uint128";
+                readonly internalType: "uint128";
             }, {
                 readonly name: "routeData";
                 readonly type: "bytes";
@@ -24139,6 +24107,66 @@ export declare const projectRaffleV2Abi: readonly [{
         readonly internalType: "uint8";
     }];
     readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "pendingStockPayouts";
+    readonly inputs: readonly [{
+        readonly name: "roundId";
+        readonly type: "uint64";
+        readonly internalType: "uint64";
+    }, {
+        readonly name: "slot";
+        readonly type: "uint8";
+        readonly internalType: "uint8";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "holder";
+        readonly type: "address";
+        readonly internalType: "address";
+    }, {
+        readonly name: "rewardIndex";
+        readonly type: "uint8";
+        readonly internalType: "uint8";
+    }, {
+        readonly name: "gross";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "recipientTax";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "recycleTax";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "remainingFunding";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "payoutAccumulated";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "processStockPayout";
+    readonly inputs: readonly [{
+        readonly name: "roundId";
+        readonly type: "uint64";
+        readonly internalType: "uint64";
+    }, {
+        readonly name: "slot";
+        readonly type: "uint8";
+        readonly internalType: "uint8";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "paid";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly stateMutability: "nonpayable";
 }, {
     readonly type: "function";
     readonly name: "projectId";
@@ -24431,6 +24459,10 @@ export declare const projectRaffleV2Abi: readonly [{
             readonly type: "address";
             readonly internalType: "address";
         }, {
+            readonly name: "maxAmountInPerCall";
+            readonly type: "uint128";
+            readonly internalType: "uint128";
+        }, {
             readonly name: "routeData";
             readonly type: "bytes";
             readonly internalType: "bytes";
@@ -24535,7 +24567,31 @@ export declare const projectRaffleV2Abi: readonly [{
     readonly stateMutability: "view";
 }, {
     readonly type: "function";
+    readonly name: "totalStockFundingPending";
+    readonly inputs: readonly [];
+    readonly outputs: readonly [{
+        readonly name: "";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
     readonly name: "totalStockOwed";
+    readonly inputs: readonly [{
+        readonly name: "asset";
+        readonly type: "address";
+        readonly internalType: "address";
+    }];
+    readonly outputs: readonly [{
+        readonly name: "amount";
+        readonly type: "uint256";
+        readonly internalType: "uint256";
+    }];
+    readonly stateMutability: "view";
+}, {
+    readonly type: "function";
+    readonly name: "totalStockPayoutPending";
     readonly inputs: readonly [{
         readonly name: "asset";
         readonly type: "address";
@@ -25111,6 +25167,51 @@ export declare const projectRaffleV2Abi: readonly [{
     readonly anonymous: false;
 }, {
     readonly type: "event";
+    readonly name: "StockPrizeProcessing";
+    readonly inputs: readonly [{
+        readonly name: "roundId";
+        readonly type: "uint64";
+        readonly indexed: true;
+        readonly internalType: "uint64";
+    }, {
+        readonly name: "slot";
+        readonly type: "uint8";
+        readonly indexed: true;
+        readonly internalType: "uint8";
+    }, {
+        readonly name: "holder";
+        readonly type: "address";
+        readonly indexed: true;
+        readonly internalType: "address";
+    }, {
+        readonly name: "payoutAsset";
+        readonly type: "address";
+        readonly indexed: false;
+        readonly internalType: "address";
+    }, {
+        readonly name: "fundingSpent";
+        readonly type: "uint256";
+        readonly indexed: false;
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "payoutReceived";
+        readonly type: "uint256";
+        readonly indexed: false;
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "fundingRemaining";
+        readonly type: "uint256";
+        readonly indexed: false;
+        readonly internalType: "uint256";
+    }, {
+        readonly name: "payoutAccumulated";
+        readonly type: "uint256";
+        readonly indexed: false;
+        readonly internalType: "uint256";
+    }];
+    readonly anonymous: false;
+}, {
+    readonly type: "event";
     readonly name: "StockRewardConfigured";
     readonly inputs: readonly [{
         readonly name: "index";
@@ -25132,6 +25233,11 @@ export declare const projectRaffleV2Abi: readonly [{
         readonly type: "address";
         readonly indexed: false;
         readonly internalType: "address";
+    }, {
+        readonly name: "maxAmountInPerCall";
+        readonly type: "uint128";
+        readonly indexed: false;
+        readonly internalType: "uint128";
     }, {
         readonly name: "routeData";
         readonly type: "bytes";
@@ -25191,10 +25297,6 @@ export declare const projectRaffleV2Abi: readonly [{
 }, {
     readonly type: "error";
     readonly name: "ExcludedHolder";
-    readonly inputs: readonly [];
-}, {
-    readonly type: "error";
-    readonly name: "FallbackUnavailable";
     readonly inputs: readonly [];
 }, {
     readonly type: "error";
@@ -25291,6 +25393,10 @@ export declare const projectRaffleV2Abi: readonly [{
 }, {
     readonly type: "error";
     readonly name: "NativeTransferFailed";
+    readonly inputs: readonly [];
+}, {
+    readonly type: "error";
+    readonly name: "NoPendingStockPayout";
     readonly inputs: readonly [];
 }, {
     readonly type: "error";

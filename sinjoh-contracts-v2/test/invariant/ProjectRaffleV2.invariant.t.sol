@@ -151,7 +151,7 @@ contract ProjectRaffleV2InvariantTest is Test {
         assertEq(
             raffle.liabilities(),
             raffle.availablePool() + raffle.totalReserved() + raffle.totalOwed()
-                + raffle.protocolOwed() + raffle.taxOwed()
+                + raffle.protocolOwed() + raffle.taxOwed() + raffle.totalStockFundingPending()
         );
     }
 

@@ -63,22 +63,18 @@ contract ProjectRaffleV2FuzzTest is Test {
         assertEq(capped.ticketsFor(weight), expected);
     }
 
-    function testFuzzPrizeShareAndCapNeverReserveMoreThanPool(
-        uint128 rawFunding,
-        uint16 rawPrizeBps,
-        uint128 rawCap
-    ) public {
+    function testFuzzPrizeShareNeverReservesMoreThanPool(uint128 rawFunding, uint16 rawPrizeBps)
+        public
+    {
         uint256 funding = bound(uint256(rawFunding), 1, 1_000_000e18);
         RaffleTypes.Config memory config = _config();
         config.prizeBps = uint16(bound(uint256(rawPrizeBps), 1, 10_000));
-        config.maxPrize = uint128(bound(uint256(rawCap), 1, type(uint128).max));
         config.minPrize = 1;
         ProjectRaffleV2 target = _deploy(config);
         asset.approve(address(target), funding);
         _fund(target, funding);
         uint256 pool = funding - funding * 100 / 10_000;
         uint256 expected = pool * config.prizeBps / 10_000;
-        if (expected > config.maxPrize) expected = config.maxPrize;
         assertEq(target.nextPrize(), expected);
         assertLe(expected, pool);
     }

@@ -2,8 +2,9 @@
 
 `script/StockRouteManifest.sol` is the source of truth. On 2026-09-05, the following 25
 address-sorted routes passed the full five-minute guard, quote, buy, sell, beacon-integrity, and
-exact-transfer preflight for a 0.01 WETH maximum prize. With the production tax defaults, that
-exercised a maximum single swap input of 0.009 WETH.
+exact-transfer preflight using a 0.01 WETH transaction probe. Each production route processes at
+most 0.009 WETH per swap transaction; this is never a cap on the round prize, which remains the
+creator-selected percentage of the available raffle pool.
 
 | Index | Symbol | Stock token | Fee | Canonical WETH pool |
 |---:|---|---|---:|---|
@@ -80,8 +81,9 @@ the same preflight passes. JNJ `0x03DfbBE0AC4E7bCDaFd08eD41A400326B77D8c80`, MRN
 `0x411eFb0E7f985935DAec3D4C3ebaEa0d0AD7D89f` have funded pools that did not pass current guarded
 readiness. They must not be added optimistically.
 
-## Prize sizing
+## Transaction sizing
 
-The UI must keep every selected route's maximum single stock-conversion input at or below the
-route cap in `StockRouteManifest`. Mystery mode inherits the lowest selected route cap. A fresh
-preflight must pass before raising any cap.
+Every selected route processes at most `maxWethInPerCall` from `StockRouteManifest` in one swap
+transaction. Processing repeats until the entire percentage-derived round allocation is converted;
+the UI must never reinterpret this transaction bound as a prize limit. A fresh preflight must pass
+before changing a route's per-transaction bound.

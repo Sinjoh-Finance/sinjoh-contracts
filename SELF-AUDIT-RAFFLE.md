@@ -1,5 +1,11 @@
 # Review record: `sinjoh-raffle-rewards` and `sinjoh-randomness`
 
+> **Historical record.** The funding-asset fallback and economic `maxPrize` design described in
+> parts of this document were subsequently removed. New raffles pay exactly the creator-selected
+> percentage of the available pool, require `maxPrize == 0`, process large stock conversions over
+> bounded transactions, and never substitute WETH or another funding asset for the selected prize.
+> The current normative behavior is defined in `sinjoh-raffle-rewards/SPEC.md`.
+
 This record combines the original author's self-audit with the later independent
 branch takeover review. It records what was checked, fixed, and measured against
 the live chain, and — most importantly — what these exercises cannot establish.

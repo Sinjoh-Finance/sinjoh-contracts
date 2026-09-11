@@ -135,6 +135,7 @@ contract SinjohRaffleRewardsTest is TestBase {
         assertEq(configured.asset, config.stockRewards[0].asset);
         assertEq(configured.swapAdapter, address(adapter));
         assertEq(configured.priceGuard, address(guard));
+        assertEq(configured.maxAmountInPerCall, config.stockRewards[0].maxAmountInPerCall);
 
         RaffleTypes.StockReward memory first = config.stockRewards[0];
         config.stockRewards[0] = config.stockRewards[1];
@@ -149,6 +150,7 @@ contract SinjohRaffleRewardsTest is TestBase {
             asset: address(stockA),
             swapAdapter: address(adapter),
             priceGuard: address(guard),
+            maxAmountInPerCall: type(uint128).max,
             routeData: "",
             guardData: ""
         });
@@ -159,6 +161,11 @@ contract SinjohRaffleRewardsTest is TestBase {
         config.stockRewards[0].swapAdapter = address(0xBEEF);
         vm.expectPartialRevert(SinjohRaffleRewardsFactory.InitializationFailed.selector);
         factory.deployRaffle(bytes32("stocks-adapter"), config);
+
+        config = _stockConfig(stockA, stockB, adapter, guard);
+        config.stockRewards[0].maxAmountInPerCall = 0;
+        vm.expectPartialRevert(SinjohRaffleRewardsFactory.InitializationFailed.selector);
+        factory.deployRaffle(bytes32("stocks-zero-processing-limit"), config);
 
         config = _stockConfig(stockA, stockB, adapter, guard);
         config.stockRewards[0].routeData = new bytes(1_025);
@@ -376,9 +383,7 @@ contract SinjohRaffleRewardsTest is TestBase {
         assertEq(slotsPaidMask, 0);
     }
 
-    /// A route that stops quoting is permanent: every component is immutable. Without the tail
-    /// fallback the reserve would sit unclaimable until `expireRound` returned it to the pool.
-    function testDeadStockRouteStillPaysTheWinnerInTheWindowTail() public {
+    function testStockPrizeNeverFallsBackToFundingAsset() public {
         (SinjohRaffleRewards stockRaffle,,,, MockStockPriceGuard guard) =
             _deployStockRaffle("stocks-fallback");
         asset.approve(address(stockRaffle), 1_000_000);
@@ -394,51 +399,61 @@ contract SinjohRaffleRewardsTest is TestBase {
 
         uint256 winnerIndex = _winnerIndexOf(stockRaffle, 1, 0, leaves);
         address winner = leaves[winnerIndex].holder;
-        uint256 gross = stockRaffle.slotPrize(1, 0);
-        uint256 recipientTax = gross * 700 / 10_000;
-        uint256 net = gross - recipientTax - gross * 300 / 10_000;
 
         // The route is dead for the rest of the raffle's life.
         guard.setExpired(true);
         vm.expectPartialRevert(SinjohRaffleRewards.QuoteExpired.selector);
         stockRaffle.claim(1, 0, leaves[winnerIndex], proofs[winnerIndex]);
 
-        // Stock is retried, not downgraded, for the first three quarters of the window.
-        vm.prank(winner);
-        vm.expectRevert(SinjohRaffleRewards.FallbackUnavailable.selector);
-        stockRaffle.claimFunding(1, 0, leaves[winnerIndex], proofs[winnerIndex]);
+        assertEq(asset.balanceOf(winner), 0);
+    }
 
-        vm.warp(stockRaffle.fundingFallbackAt(1));
+    function testStockPrizeProcessesFullPercentageAcrossBoundedCalls() public {
+        (SinjohRaffleRewards stockRaffle, MockERC20 stockA, MockERC20 stockB,,) =
+            _deployStockRaffleWithLimit("stocks-chunked", 10_000);
 
-        // A keeper cannot choose the downgrade on the winner's behalf.
-        vm.prank(address(0xCAFE));
-        vm.expectRevert(SinjohRaffleRewards.Unauthorized.selector);
-        stockRaffle.claimFunding(1, 0, leaves[winnerIndex], proofs[winnerIndex]);
+        uint256 funded = 1_000_000;
+        asset.approve(address(stockRaffle), funded);
+        stockRaffle.fund(address(subject), address(asset), funded, "");
+        RaffleTypes.Leaf[] memory leaves = _leaves();
+        (bytes32 root, uint256 totalTickets, RaffleTypes.ProofElement[][] memory proofs) =
+            _treeFor(stockRaffle, 1, FIRST_SNAPSHOT, leaves);
+        _arm(FIRST_SNAPSHOT);
+        vm.prank(ATTESTOR);
+        uint256 prize = stockRaffle.commitRound(
+            1, FIRST_SNAPSHOT, _hashFor(FIRST_SNAPSHOT), root, totalTickets
+        );
+        (, bytes32 requestId,,,,,,,,,) = stockRaffle.rounds(1);
+        randomness.deliver(requestId, 777);
 
-        uint256 balanceBefore = asset.balanceOf(winner);
-        vm.prank(winner);
-        assertEq(stockRaffle.claimFunding(1, 0, leaves[winnerIndex], proofs[winnerIndex]), net);
-        assertEq(asset.balanceOf(winner) - balanceBefore, net);
-        assertEq(stockRaffle.taxOwed(), recipientTax);
-        assertTrue(asset.balanceOf(address(stockRaffle)) >= stockRaffle.liabilities());
+        uint256 winnerIndex = _winnerIndexOf(stockRaffle, 1, 0, leaves);
+        address winner = leaves[winnerIndex].holder;
+        (, address selectedAsset) = stockRaffle.selectedStock(1, 0);
+        uint256 expectedFunding = prize - prize * 700 / 10_000 - prize * 300 / 10_000;
 
-        // The round's only slot is consumed, so it settles and rejects any further claim.
+        assertEq(stockRaffle.claim(1, 0, leaves[winnerIndex], proofs[winnerIndex]), 0);
+        (address pendingHolder,,,,, uint256 remaining, uint256 accumulated) =
+            stockRaffle.pendingStockPayouts(1, 0);
+        assertEq(pendingHolder, winner);
+        assertEq(remaining, expectedFunding - 10_000);
+        assertEq(accumulated, 20_000);
+        assertEq(stockRaffle.totalStockFundingPending(), remaining);
+
+        while (remaining != 0) {
+            stockRaffle.processStockPayout(1, 0);
+            (pendingHolder,,,,, remaining, accumulated) = stockRaffle.pendingStockPayouts(1, 0);
+        }
+
+        assertEq(pendingHolder, address(0));
+        assertEq(accumulated, 0);
+        assertEq(stockRaffle.totalStockFundingPending(), 0);
+        assertEq(stockRaffle.totalStockPayoutPending(selectedAsset), 0);
+        MockERC20 selected = selectedAsset == address(stockA) ? stockA : stockB;
+        assertEq(selected.balanceOf(winner), expectedFunding * 2);
         (,,,,,,,,, uint16 slotsPaidMask, RaffleTypes.RoundState state) = stockRaffle.rounds(1);
         assertEq(slotsPaidMask, 1);
         assertTrue(state == RaffleTypes.RoundState.SETTLED);
-        vm.prank(winner);
-        vm.expectRevert(SinjohRaffleRewards.InvalidRound.selector);
-        stockRaffle.claimFunding(1, 0, leaves[winnerIndex], proofs[winnerIndex]);
-    }
-
-    function testFundingFallbackIsRejectedWithoutStockRewards() public {
-        _fundPool(1_000_000);
-        RaffleTypes.Leaf[] memory leaves = _leaves();
-        (,, RaffleTypes.ProofElement[][] memory proofs) = _tree(1, FIRST_SNAPSHOT, leaves);
-        vm.warp(block.timestamp + 604_800);
-        vm.prank(leaves[0].holder);
-        vm.expectRevert(SinjohRaffleRewards.FallbackUnavailable.selector);
-        raffle.claimFunding(1, 0, leaves[0], proofs[0]);
+        assertTrue(asset.balanceOf(address(stockRaffle)) >= stockRaffle.liabilities());
     }
 
     /// A slot share too small to survive the tax split funds no swap at all.
@@ -1078,6 +1093,7 @@ contract SinjohRaffleRewardsTest is TestBase {
             asset: lower,
             swapAdapter: address(adapter),
             priceGuard: address(guard),
+            maxAmountInPerCall: type(uint128).max,
             routeData: abi.encode(uint24(3_000)),
             guardData: ""
         });
@@ -1085,6 +1101,7 @@ contract SinjohRaffleRewardsTest is TestBase {
             asset: upper,
             swapAdapter: address(adapter),
             priceGuard: address(guard),
+            maxAmountInPerCall: type(uint128).max,
             routeData: abi.encode(uint24(10_000)),
             guardData: ""
         });
@@ -1108,6 +1125,7 @@ contract SinjohRaffleRewardsTest is TestBase {
                 asset: stock,
                 swapAdapter: address(adapter),
                 priceGuard: address(guard),
+                maxAmountInPerCall: type(uint128).max,
                 routeData: abi.encode(uint24(3_000)),
                 guardData: ""
             });
@@ -1124,11 +1142,27 @@ contract SinjohRaffleRewardsTest is TestBase {
             MockStockPriceGuard guard
         )
     {
+        return _deployStockRaffleWithLimit(salt, type(uint128).max);
+    }
+
+    function _deployStockRaffleWithLimit(bytes32 salt, uint128 maxAmountInPerCall)
+        internal
+        returns (
+            SinjohRaffleRewards stockRaffle,
+            MockERC20 stockA,
+            MockERC20 stockB,
+            MockStockSwapAdapter adapter,
+            MockStockPriceGuard guard
+        )
+    {
         stockA = new MockERC20("Stock A", "A");
         stockB = new MockERC20("Stock B", "B");
         adapter = new MockStockSwapAdapter();
         guard = new MockStockPriceGuard();
-        stockRaffle = _deploy(_stockConfig(stockA, stockB, adapter, guard), salt);
+        RaffleTypes.Config memory config = _stockConfig(stockA, stockB, adapter, guard);
+        config.stockRewards[0].maxAmountInPerCall = maxAmountInPerCall;
+        config.stockRewards[1].maxAmountInPerCall = maxAmountInPerCall;
+        stockRaffle = _deploy(config, salt);
         vm.prank(CREATOR);
         stockRaffle.bind(address(subject));
     }

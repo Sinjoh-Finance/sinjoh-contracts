@@ -117,6 +117,11 @@ jobs:
           node scripts/release/verify-deployment.mjs \
             --network "$RELEASE_NETWORK" --rpc-url "$primary" \
             --secondary-rpc-url "$secondary" --require-secondary --require-finalized
+          if [[ "$RELEASE_NETWORK" == "4663" ]]; then
+            node scripts/release/verify-raffle-release.mjs \
+              --release-bundle ".release-bundles/${{ inputs.release_id }}" \
+              --rpc-url "$primary" --secondary-rpc-url "$secondary"
+          fi
       - name: Build consumer promotion artifact
         env:
           RELEASE_NETWORK: ${{ inputs.network }}
