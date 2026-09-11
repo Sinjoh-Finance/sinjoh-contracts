@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import {ILetsCashFactory} from "adapters/src/interfaces/ILetsCash.sol";
 import {RaffleTypes} from "raffle/src/RaffleTypes.sol";
 import {SinjohRaffleRewards} from "raffle/src/SinjohRaffleRewards.sol";
+import {SinjohRaffleRewardsFactory} from "raffle/src/SinjohRaffleRewardsFactory.sol";
 import {RaffleTree} from "raffle/test/RaffleTree.sol";
 import {MockArbSys} from "raffle/test/mocks/MockArbSys.sol";
 import {MockRandomness} from "raffle/test/mocks/MockRandomness.sol";
@@ -11,6 +12,7 @@ import {MockRandomness} from "raffle/test/mocks/MockRandomness.sol";
 interface VmLetsCashRaffle {
     function createSelectFork(string calldata urlOrAlias) external returns (uint256);
     function envOr(string calldata name, string calldata defaultValue) external returns (string memory);
+    function envOr(string calldata name, address defaultValue) external returns (address);
     function etch(address target, bytes calldata code) external;
     function deal(address account, uint256 newBalance) external;
 }
@@ -138,7 +140,7 @@ contract ProductionLetsCashRaffleForkTest {
     address internal constant WETH = 0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73;
     address internal constant ROUTER_FACTORY = 0xA1F721a697Dd03a45f264F53bCBFd121212318eD;
     address internal constant ADAPTER_FACTORY = 0x81f50D1695eeB6976b53f5dCc9E785Ff06C183DC;
-    address internal constant RAFFLE_FACTORY = 0xD030064fB83d14C97c22A6B63bF376552eBA7112;
+    address internal raffleFactory;
     address internal constant AIRDROP_DISTRIBUTOR = 0xA1d65242D367501D9A261389a69005e584F4786a;
     address internal constant PROTOCOL_RECIPIENT = address(0xFEE1);
     address internal constant ARBSYS = address(0x64);
@@ -157,6 +159,13 @@ contract ProductionLetsCashRaffleForkTest {
         if (bytes(url).length == 0) return;
         vm.createSelectFork(url);
         forked = true;
+        // Rehearse the successor against production launchpad dependencies. After
+        // deployment, set this address to certify the actual promoted factory.
+        // Never encode the current tuple against a historical factory by default.
+        raffleFactory = vm.envOr("SINJOH_RAFFLE_FACTORY", address(0));
+        if (raffleFactory == address(0)) {
+            raffleFactory = address(new SinjohRaffleRewardsFactory(block.chainid));
+        }
         randomness = new MockRandomness();
         MockArbSys implementation = new MockArbSys();
         vm.etch(ARBSYS, address(implementation).code);
@@ -173,11 +182,11 @@ contract ProductionLetsCashRaffleForkTest {
         address[] memory exclusions = _exclusions(predictedAdapter, predictedRouter);
 
         RaffleTypes.Config memory raffleConfig = _raffleConfig(exclusions);
-        bytes32 raffleHash = ILetsCashRaffleFactoryLive(RAFFLE_FACTORY).hashConfig(raffleConfig);
+        bytes32 raffleHash = ILetsCashRaffleFactoryLive(raffleFactory).hashConfig(raffleConfig);
         address predictedRaffle =
-            ILetsCashRaffleFactoryLive(RAFFLE_FACTORY).predictRaffle(address(this), RAFFLE_SALT, raffleHash);
+            ILetsCashRaffleFactoryLive(raffleFactory).predictRaffle(address(this), RAFFLE_SALT, raffleHash);
         SinjohRaffleRewards raffle = SinjohRaffleRewards(
-            payable(ILetsCashRaffleFactoryLive(RAFFLE_FACTORY).deployRaffle(RAFFLE_SALT, raffleConfig))
+            payable(ILetsCashRaffleFactoryLive(raffleFactory).deployRaffle(RAFFLE_SALT, raffleConfig))
         );
         _require(address(raffle) == predictedRaffle, "raffle prediction failed");
         for (uint256 i; i < exclusions.length; ++i) {

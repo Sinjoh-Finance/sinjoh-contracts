@@ -8,16 +8,16 @@
   "governance": "0x39E2f5eFdFd808F26B98979a06BA11ea82E1C85f",
   "deployedAt": "2026-07-30",
   "letscashDependencies": {
-    "verifiedAtBlock": 46056417,
+    "verifiedAtBlock": 59987000,
     "factoryProxy": {
       "address": "0x5bd1Fbe78a78fe8236fa00CF48fbEBA74ae34661",
       "runtimeCodeHash": "0x51faa3f1aaa267eb4ffb4dd57f07a89edf3ffd618213bf35cf7f8254a07961e5",
-      "implementation": "0x8E0Ee024c2B547AaE91E6B9b1D3940449B3404F4",
-      "implementationRuntimeCodeHash": "0xf2e80731c9679b7869b99b8a3eb0428be9923d93abdce4c73de77e9b7fca0603",
-      "implementationDeploymentTransaction": "0xa58e575486af020528b46aff993f2a549ca594423b8549a89ff91bd24e433bab",
-      "implementationDeploymentBlock": 46051259,
-      "implementationUpgradeTransaction": "0xc4268d9713dc7212e143f5f25ab171ccc409f15aaeb9b89c7a20cd1554544ec6",
-      "implementationUpgradeBlock": 46056417,
+      "implementation": "0x40250b4C73FC30f8F6ad077744B0124B3f111C28",
+      "implementationRuntimeCodeHash": "0x606a0bc3d6bac674f4aa28d4cf7b086fd73b84d1ddff69540c6af1128757b353",
+      "implementationDeploymentTransaction": "0x12ded6362aeede695b33cb9c48f9defa41d2b149b7412b27897f813bcbf7fbb5",
+      "implementationDeploymentBlock": 48863220,
+      "implementationUpgradeTransaction": "0x4bc727b39f25e4979724c3a97743a3526c72a2d852a6a1e9b2a3d92f52276755",
+      "implementationUpgradeBlock": 48878257,
       "owner": "0xD2DeFbd13aFF22D6989E8C14B4517Ec308079E91",
       "implementationBinding": {
         "kind": "eip1967",
@@ -25,17 +25,22 @@
       }
     },
     "factoryImplementation": {
-      "address": "0x8E0Ee024c2B547AaE91E6B9b1D3940449B3404F4",
-      "runtimeCodeHash": "0xf2e80731c9679b7869b99b8a3eb0428be9923d93abdce4c73de77e9b7fca0603",
-      "deploymentTransaction": "0xa58e575486af020528b46aff993f2a549ca594423b8549a89ff91bd24e433bab",
-      "deploymentBlock": 46051259,
+      "address": "0x40250b4C73FC30f8F6ad077744B0124B3f111C28",
+      "runtimeCodeHash": "0x606a0bc3d6bac674f4aa28d4cf7b086fd73b84d1ddff69540c6af1128757b353",
+      "deploymentTransaction": "0x12ded6362aeede695b33cb9c48f9defa41d2b149b7412b27897f813bcbf7fbb5",
+      "deploymentBlock": 48863220,
       "eip1967ImplementationSlot": "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc",
       "verified": {
-        "contractName": "CashCatFactoryVNext",
-        "compilerVersion": "v0.8.28+commit.7893614a",
-        "optimizerRuns": 800,
-        "evmVersion": "cancun",
-        "blockscoutSourceMatch": true
+        "runtimeHashMatchesReviewedTrustRecord": true,
+        "trustRepository": "Sinjoh-Finance/sinjoh-platform",
+        "trustPath": "sinjoh-keeper/config/trust/letscash-factory.json",
+        "reviewCommit": "6a6993dc267b61b4bc460fb2580d401d57b92572",
+        "upgradeTransaction": "0x4bc727b39f25e4979724c3a97743a3526c72a2d852a6a1e9b2a3d92f52276755",
+        "upgradeBlock": 48878257,
+        "owner": "0xD2DeFbd13aFF22D6989E8C14B4517Ec308079E91",
+        "safeThreshold": 2,
+        "blockscoutSourceMatch": false,
+        "sourceVerificationNote": "Blockscout exposes deployed bytecode and the creation transaction; the successor source is not published there. The reviewed trust record, two-provider receipts, runtime identity, owner, and live fork lifecycle were verified."
       }
     },
     "factoryHistoricalImplementations": {
@@ -47,6 +52,23 @@
         "supersededAtBlock": 46056417,
         "supersededBy": "0x8E0Ee024c2B547AaE91E6B9b1D3940449B3404F4",
         "upgradeTransaction": "0xc4268d9713dc7212e143f5f25ab171ccc409f15aaeb9b89c7a20cd1554544ec6"
+      },
+      "cash-cat-factory-vnext-pre-20260829": {
+        "address": "0x8E0Ee024c2B547AaE91E6B9b1D3940449B3404F4",
+        "runtimeCodeHash": "0xf2e80731c9679b7869b99b8a3eb0428be9923d93abdce4c73de77e9b7fca0603",
+        "deploymentTransaction": "0xa58e575486af020528b46aff993f2a549ca594423b8549a89ff91bd24e433bab",
+        "deploymentBlock": 46051259,
+        "eip1967ImplementationSlot": "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc",
+        "verified": {
+          "contractName": "CashCatFactoryVNext",
+          "compilerVersion": "v0.8.28+commit.7893614a",
+          "optimizerRuns": 800,
+          "evmVersion": "cancun",
+          "blockscoutSourceMatch": true
+        },
+        "supersededAtBlock": 48878257,
+        "supersededBy": "0x40250b4C73FC30f8F6ad077744B0124B3f111C28",
+        "upgradeTransaction": "0x4bc727b39f25e4979724c3a97743a3526c72a2d852a6a1e9b2a3d92f52276755"
       }
     },
     "hook": {
