@@ -467,6 +467,9 @@ contract SinjohFeeRouter {
         if (allocationId >= bucket.allocations.length) revert InvalidAllocation();
         AllocationStorage storage allocation = bucket.allocations[allocationId];
         if (!allocation.isSink || amount == 0) revert InvalidAllocation();
+        // Launchpad routers may commit to Project modules before their deployment.
+        // Never approve or send funds until the immutable sink actually exists.
+        if (allocation.destination.code.length == 0) revert NonContract(allocation.destination);
 
         address asset = _resolve(bucket.output);
         uint16 key = allocationKey(bucketId, allocationId);
@@ -749,7 +752,10 @@ contract SinjohFeeRouter {
             if (allocation.isSink && allocation.creatorMayRepoint) {
                 revert InvalidConfiguration();
             }
-            if (allocation.isSink && allocation.destination.code.length == 0) {
+            if (
+                allocation.isSink && allocation.destination.code.length == 0
+                    && launchpadAdapter == address(0)
+            ) {
                 revert NonContract(allocation.destination);
             }
             if (!allocation.isSink && allocation.sinkConfig.length != 0) {

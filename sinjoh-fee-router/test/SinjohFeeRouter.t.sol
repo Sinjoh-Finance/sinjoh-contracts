@@ -864,9 +864,51 @@ contract SinjohFeeRouterTest is TestBase {
 
     function testInitializationRejectsNonContractSink() public {
         RouterTypes.Config memory config = _config();
+        config.launchpadAdapter = address(0);
         config.buckets[0].allocations[1].destination = address(0xBEEF);
         vm.expectPartialRevert(SinjohFeeRouterFactory.InitializationFailed.selector);
         factory.deploy(address(this), bytes32("EOA_SINK"), config);
+    }
+
+    function testLaunchpadCounterfactualSinkRetainsFundsUntilDeployment() public {
+        bytes32 salt = keccak256("PROJECT_AIRDROP");
+        address predictedSink = address(
+            uint160(
+                uint256(
+                    keccak256(
+                        abi.encodePacked(
+                            bytes1(0xff),
+                            address(this),
+                            salt,
+                            keccak256(type(MockSink).creationCode)
+                        )
+                    )
+                )
+            )
+        );
+        RouterTypes.Config memory config = _config();
+        config.launchpadAdapter = LAUNCHPAD_ADAPTER;
+        config.buckets[0].allocations[1].destination = predictedSink;
+        SinjohFeeRouter pendingRouter = SinjohFeeRouter(
+            payable(factory.deployForLaunchpad(address(this), bytes32("PENDING_SINK"), config))
+        );
+        pendingRouter.bind(address(subjectToken));
+        weth.mint(address(pendingRouter), 10_000);
+        pendingRouter.sync(address(weth));
+        pendingRouter.processBucket(0, address(weth), 4_950, 0, "");
+        uint256 liabilityBefore = pendingRouter.totalLiability(address(weth));
+        vm.expectPartialRevert(SinjohFeeRouter.NonContract.selector);
+        pendingRouter.fundSink(0, 1, 2_475);
+        assertEq(pendingRouter.totalLiability(address(weth)), liabilityBefore);
+        assertEq(pendingRouter.sinkOwed(pendingRouter.allocationKey(0, 1), address(weth)), 2_475);
+        assertEq(weth.allowance(address(pendingRouter), predictedSink), 0);
+        assertEq(weth.balanceOf(predictedSink), 0);
+        MockSink deployedSink = new MockSink{ salt: salt }();
+        assertEq(address(deployedSink), predictedSink);
+        pendingRouter.fundSink(0, 1, 2_475);
+        assertEq(deployedSink.totalReceived(), 2_475);
+        assertEq(pendingRouter.sinkOwed(pendingRouter.allocationKey(0, 1), address(weth)), 0);
+        assertEq(weth.allowance(address(pendingRouter), predictedSink), 0);
     }
 
     function testInitializationRejectsZeroNormalizationCap() public {
