@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "chainId": 4663,
+  "releaseId": "raffle-successor-mainnet-20260911-2e01b6e",
+  "sourceCommit": "2e01b6e2e9ca08532fac2357420308df39552631",
+  "sourceTree": "f156c25714132f081968755308a67936c38d6880",
+  "releaseArchiveSha256": "152dba7e0dc3285a60edb67e5aa5e34f240ac28d0214267ea2fdfbc6793c8853",
+  "broadcastSha256": "bd37cef6cf5ef8be5ba783d9455dd91753f4f43e568be9117f03f709b61bae2b",
+  "signer": "0xaB00e78C25713f0aABA9cE4525C101055F045D25",
+  "reviewerWaivedByUser": true,
+  "gasCostETH": "0.000694103888736",
+  "receipts": [
+    {
+      "type": "0x2",
+      "status": "0x1",
+      "cumulativeGasUsed": "0x56a30f",
+      "logs": [],
+      "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "transactionHash": "0x58a20a814d6a864a7846bbdb21c8edf582c3b5b2dafef92767a5251c7e7df284",
+      "transactionIndex": "0x2",
+      "blockHash": "0xb0a82a6fa970da66e189bbe48bc8a329a5de324bc3578caf57dc2b86075e0e28",
+      "blockNumber": "0x393d0fc",
+      "gasUsed": "0x56509e",
+      "effectiveGasPrice": "0x7505080",
+      "from": "0xab00e78c25713f0aaba9ce4525c101055f045d25",
+      "to": null,
+      "contractAddress": "0x1f3f41c97851f0bc9762bc789ed0ac82bff128f5"
+    }
+  ],
+  "verification": [
+    {
+      "provider": "primary",
+      "chainId": 4663,
+      "verificationMode": "finalized",
+      "verificationBlock": 60021025,
+      "verificationBlockHash": "0x42e0a01f915f875e923e1d11bd42965905d94447450b958188a05b59a850f555",
+      "transactionHash": "0x58a20a814d6a864a7846bbdb21c8edf582c3b5b2dafef92767a5251c7e7df284",
+      "deploymentBlock": 60018940,
+      "deploymentBlockHash": "0xb0a82a6fa970da66e189bbe48bc8a329a5de324bc3578caf57dc2b86075e0e28",
+      "factory": "0x1F3F41C97851F0bC9762Bc789eD0Ac82bff128F5",
+      "implementation": "0x8615ECBdeA194CADDcCBeF8D9275dC7e68575474",
+      "factoryRuntimeCodeHash": "0xb3199e074aab138ecb2cf9845910dfce8eb3d7a42649421bdb54be3e66ab1955",
+      "implementationRuntimeCodeHash": "0x9fb2126f3c1372804bcc708b6237d8ebc4baa42c18fd3c21412e7603efc5253c",
+      "implementationLocked": true,
+      "maxStockRewards": 64,
+      "gasCostETH": "0.000694103888736",
+      "signer": "0xaB00e78C25713f0aABA9cE4525C101055F045D25",
+      "providerName": "Chainstack"
+    },
+    {
+      "provider": "secondary",
+      "chainId": 4663,
+      "verificationMode": "finalized",
+      "verificationBlock": 60021025,
+      "verificationBlockHash": "0x42e0a01f915f875e923e1d11bd42965905d94447450b958188a05b59a850f555",
+      "transactionHash": "0x58a20a814d6a864a7846bbdb21c8edf582c3b5b2dafef92767a5251c7e7df284",
+      "deploymentBlock": 60018940,
+      "deploymentBlockHash": "0xb0a82a6fa970da66e189bbe48bc8a329a5de324bc3578caf57dc2b86075e0e28",
+      "factory": "0x1F3F41C97851F0bC9762Bc789eD0Ac82bff128F5",
+      "implementation": "0x8615ECBdeA194CADDcCBeF8D9275dC7e68575474",
+      "factoryRuntimeCodeHash": "0xb3199e074aab138ecb2cf9845910dfce8eb3d7a42649421bdb54be3e66ab1955",
+      "implementationRuntimeCodeHash": "0x9fb2126f3c1372804bcc708b6237d8ebc4baa42c18fd3c21412e7603efc5253c",
+      "implementationLocked": true,
+      "maxStockRewards": 64,
+      "gasCostETH": "0.000694103888736",
+      "signer": "0xaB00e78C25713f0aABA9cE4525C101055F045D25",
+      "providerName": "BlockReq",
+      "endpoint": "https://robinhood-mainnet-rpc.blockreq.com/v1/rpc/public"
+    }
+  ],
+  "postdeploymentForkLifecycle": "ProductionLetsCashRaffle.fork.t.sol passed with SINJOH_RAFFLE_FACTORY set to the deployed factory: launch, funding, draw, payout."
+}
