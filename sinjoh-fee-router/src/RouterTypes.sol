@@ -5,7 +5,7 @@ library RouterTypes {
     /// @dev Audited runtime hash for SinjohFeeRouter under this package's
     /// production compiler settings. Deployment code pins this exact version.
     bytes32 internal constant IMPLEMENTATION_CODEHASH =
-        0x00eecc775b2dff40c52bdd038cdccc19b5812a527aa811b359a55249c6987276;
+        0x3a523728cda4e0f89f27bfd1079a3db9060e051dff9761f326f3cc25ece88792;
 
     enum AssetKind {
         NATIVE,
