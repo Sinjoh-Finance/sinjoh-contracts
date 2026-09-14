@@ -109,6 +109,40 @@ def send(data, to, password, remaining, value=0):
         time.sleep(1)
     raise RuntimeError('Receipt pending; reconcile '+hash_)
 
+def wait_for_activation(preparation, pin, ready_at, common):
+    """Retry read-only waiting after network outages, never a signing/submission action.
+
+    Both independent providers must report the correct chain and a mature block time.
+    The existing submission path remains single-attempt and journaled before broadcast.
+    """
+    degraded = False
+    while True:
+        timestamps = []
+        for endpoint in (primary, secondary):
+            try:
+                chain = int(rpc('eth_chainId', [], endpoint), 16)
+                timestamp = int(rpc('eth_getBlockByNumber', ['latest', False], endpoint)['timestamp'], 16)
+            except (OSError, TimeoutError, RuntimeError):
+                # Do not log endpoint strings or change the preserved schedule evidence.
+                continue
+            if chain != 4663:
+                raise RuntimeError('Wrong chain while waiting for Stock activation.')
+            timestamps.append(timestamp)
+        if len(timestamps) != 2:
+            if not degraded:
+                status('waiting-for-rpc-recovery', **common)
+                degraded = True
+        else:
+            if degraded:
+                status('queued-for-existing-timelock', **common)
+                degraded = False
+            ready = json.loads(READY.read_text()) if READY.exists() else {}
+            if (min(timestamps) >= ready_at
+                    and ready.get('manifestHash') == preparation['manifestHash']
+                    and ready.get('scriptBytecodeSha256') == pin['scriptBytecodeSha256']):
+                return
+        time.sleep(30)
+
 def main():
     if ATTEMPT.exists() and not RESUME: raise RuntimeError('A mainnet attempt already exists. Reconcile its receipts before resuming; this runner will not repeat it.')
     if RESUME and not ATTEMPT.exists(): raise RuntimeError('There is no deployment attempt to reconcile.')
@@ -173,11 +207,7 @@ def main():
     status('queued-for-existing-timelock', **common)
     print('Scheduled. Earliest activation:',time.strftime('%Y-%m-%d %H:%M:%S UTC',time.gmtime(ready_at)),flush=True)
     print('Leave this Terminal open. It will activate only after the delay and production-readiness record both pass.',flush=True)
-    while True:
-        now = int(rpc('eth_getBlockByNumber',['latest',False])['timestamp'],16)
-        ready = json.loads(READY.read_text()) if READY.exists() else {}
-        if now >= ready_at and ready.get('manifestHash') == preparation['manifestHash'] and ready.get('scriptBytecodeSha256') == pin['scriptBytecodeSha256']: break
-        time.sleep(30)
+    wait_for_activation(preparation, pin, ready_at, common)
     verify_pin()
     controller = integer_call('0x42e14eA9f926ad7b530ce49d433CB6f748f8D0a1', 'deltaPoolController()')
     controller_address = '0x' + format(controller,'040x')
