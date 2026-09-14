@@ -7,6 +7,7 @@ import getpass, hashlib, json, os, pathlib, re, subprocess, sys, time, urllib.re
 from keystore_terminal import run_keystore_command
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 RAW_SIGNING = '--interactive-key' in sys.argv
+RESUME = '--resume-activation' in sys.argv
 FORGE = pathlib.Path.home() / '.foundry/bin/forge'
 CAST = pathlib.Path.home() / '.foundry/bin/cast'
 DEPLOYER = '0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49'
@@ -88,12 +89,29 @@ def send(data, to, password, remaining, value=0):
     gas = (int(rpc('eth_estimateGas',[{'from':DEPLOYER,'to':to,'data':data,'value':hex(value)}]),16) * 125 + 99) // 100
     price = fee()
     if value + gas * price > remaining or int(rpc('eth_getBalance',[DEPLOYER,'latest']),16) < value + gas * price: raise RuntimeError('Release gas budget is insufficient.')
-    output = command([CAST,'send',to,'--data',data,'--gas-limit',str(gas),'--gas-price',str(price),'--value',str(value),'--json'],password)
-    receipt = json.loads(output)
-    return verify_receipt(receipt['transactionHash'])
+    nonce = rpc('eth_getTransactionCount',[DEPLOYER,'latest'])
+    if nonce != rpc('eth_getTransactionCount',[DEPLOYER,'pending']): raise RuntimeError('Reconcile the pending signer transaction first.')
+    # Sign locally, then durably record the public signed transaction before RPC submission.
+    # This avoids parsing terminal log output as a receipt and permits exact-hash recovery.
+    output = command([CAST,'mktx',to,data,'--gas-limit',str(gas),'--gas-price',str(price),'--priority-gas-price','0','--nonce',str(int(nonce,16)),'--chain','4663','--value',str(value),'--color','never'],password)
+    candidates = re.findall(r'^0x[0-9a-fA-F]{100,}$', output, re.M)
+    if len(candidates) != 1: raise RuntimeError('Signed transaction output is invalid; nothing was submitted.')
+    raw = candidates[0]
+    hash_ = command([CAST,'keccak',raw]).strip()
+    record = {'transactionHash':hash_,'signedTransaction':raw,'to':to,'valueWei':str(value),'nonce':int(nonce,16),'data':data,'at':time.time()}
+    fd = os.open(ROOT/'deployments/stock-signed-submissions.jsonl', os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+    with os.fdopen(fd,'a') as journal:
+        journal.write(json.dumps(record)+'\n');journal.flush();os.fsync(journal.fileno())
+    submitted = rpc('eth_sendRawTransaction',[raw])
+    if submitted.lower() != hash_.lower(): raise RuntimeError('Submission hash mismatch; reconcile the signed journal.')
+    for _ in range(120):
+        if rpc('eth_getTransactionReceipt',[hash_]): return verify_receipt(hash_)
+        time.sleep(1)
+    raise RuntimeError('Receipt pending; reconcile '+hash_)
 
 def main():
-    if ATTEMPT.exists(): raise RuntimeError('A mainnet attempt already exists. Reconcile its receipts before resuming; this runner will not repeat it.')
+    if ATTEMPT.exists() and not RESUME: raise RuntimeError('A mainnet attempt already exists. Reconcile its receipts before resuming; this runner will not repeat it.')
+    if RESUME and not ATTEMPT.exists(): raise RuntimeError('There is no deployment attempt to reconcile.')
     for endpoint in [primary,secondary]:
         if int(rpc('eth_chainId',[],endpoint),16) != 4663: raise RuntimeError('Wrong signing chain.')
     verify_pin()
@@ -101,27 +119,44 @@ def main():
     status('awaiting-local-signer-input' if RAW_SIGNING else 'awaiting-local-keystore-unlock', deployer=DEPLOYER)
     password = getpass.getpass('Local signer input: ' if RAW_SIGNING else 'Deployer keystore password (local only): ')
     if RAW_SIGNING and not re.fullmatch(r'0x[0-9a-fA-F]{64}', password): raise RuntimeError('Invalid signer input format.')
-    if ATTEMPT.exists(): raise RuntimeError('Another deployment attempt started; reconcile before proceeding.')
+    if ATTEMPT.exists() and not RESUME: raise RuntimeError('Another deployment attempt started; reconcile before proceeding.')
     address = command([CAST,'wallet','address'],password).strip()
     if address.lower() != DEPLOYER.lower(): raise RuntimeError('The signer does not match the reviewed deployer: ' + address)
     if rpc('eth_getTransactionCount',[DEPLOYER,'latest']) != rpc('eth_getTransactionCount',[DEPLOYER,'pending']): raise RuntimeError('The deployer already has pending transactions.')
-    status('checking-mainnet-deployment')
-    command([FORGE,'script','script/PreparePiggyBanksStock.s.sol:PreparePiggyBanksStock','--rpc-url','stock_primary'],stream=True)
+    if not RESUME:
+        status('checking-mainnet-deployment')
+        command([FORGE,'script','script/PreparePiggyBanksStock.s.sol:PreparePiggyBanksStock','--rpc-url','stock_primary'],stream=True)
+        pin = verify_pin()
+        preparation = json.loads(PREPARATION.read_text())
+        gas_price = fee()
+        worker_funding = max(0, WORKER_GAS_TARGET - int(rpc('eth_getBalance',[WORKER,'latest']),16))
+        if 10**16 + worker_funding + 60_000_000 * gas_price > MAX_COST: raise RuntimeError('Deployment estimate exceeds the 0.03 ETH release budget.')
+        if int(rpc('eth_getBalance',[DEPLOYER,'latest']),16) < MAX_COST: raise RuntimeError('Deployer balance is below the release reserve.')
+        ATTEMPT.write_text(json.dumps({'startedAt':time.time(),'manifestHash':preparation['manifestHash'],'sourcePin':pin['scriptBytecodeSha256']},indent=2)+'\n')
+        status('broadcasting-mainnet-infrastructure', manifestHash=preparation['manifestHash'])
+        command([FORGE,'script','script/PreparePiggyBanksStock.s.sol:PreparePiggyBanksStock','--rpc-url','stock_primary','--broadcast','--sender',DEPLOYER,'--with-gas-price',str(gas_price)],password,True)
     pin = verify_pin()
-    preparation = json.loads(PREPARATION.read_text())
-    gas_price = fee()
-    worker_funding = max(0, WORKER_GAS_TARGET - int(rpc('eth_getBalance',[WORKER,'latest']),16))
-    if 10**16 + worker_funding + 60_000_000 * gas_price > MAX_COST: raise RuntimeError('Deployment estimate exceeds the 0.03 ETH release budget.')
-    if int(rpc('eth_getBalance',[DEPLOYER,'latest']),16) < MAX_COST: raise RuntimeError('Deployer balance is below the release reserve.')
-    ATTEMPT.write_text(json.dumps({'startedAt':time.time(),'manifestHash':preparation['manifestHash'],'sourcePin':pin['scriptBytecodeSha256']},indent=2)+'\n')
-    status('broadcasting-mainnet-infrastructure', manifestHash=preparation['manifestHash'])
-    command([FORGE,'script','script/PreparePiggyBanksStock.s.sol:PreparePiggyBanksStock','--rpc-url','stock_primary','--broadcast','--sender',DEPLOYER,'--with-gas-price',str(gas_price)],password,True)
     preparation = json.loads(PREPARATION.read_text())
     broadcast = json.loads((ROOT/'broadcast/mainnet-stock-release/PreparePiggyBanksStock.s.sol/4663/run-latest.json').read_text())
     hashes = [r['transactionHash'] for r in broadcast['receipts']]
     receipts = [verify_receipt(h) for h in hashes]
     spent = 10**16 + sum(int(r['gasUsed'],16) * int(r['effectiveGasPrice'],16) for r in receipts)
-    schedule = send(preparation['scheduleCalldata'], preparation['governance'], password, MAX_COST-spent)
+    if RESUME:
+        reconciliation = json.loads((ROOT/'deployments/stock-reconciliation.json').read_text())
+        hashes_ = reconciliation['scheduleTransactions']
+        if len(hashes_) != 1: raise RuntimeError('Expected exactly one reconciled schedule receipt.')
+        for endpoint in [primary,secondary]:
+            transaction = rpc('eth_getTransactionByHash',[hashes_[0]],endpoint)
+            if not transaction or transaction['from'].lower()!=DEPLOYER.lower() or transaction['to'].lower()!=preparation['governance'].lower() or transaction['input'].lower()!=preparation['scheduleCalldata'].lower(): raise RuntimeError('Schedule transaction does not match this release.')
+        schedule = verify_receipt(hashes_[0])
+        # Any prior signed recovery transaction must be reconciled before another send.
+        journal = ROOT/'deployments/stock-signed-submissions.jsonl'
+        if journal.exists():
+            for line in journal.read_text().splitlines():
+                entry = json.loads(line); receipt = verify_receipt(entry['transactionHash'])
+                spent += int(entry['valueWei']) + int(receipt['gasUsed'],16)*int(receipt['effectiveGasPrice'],16)
+    else:
+        schedule = send(preparation['scheduleCalldata'], preparation['governance'], password, MAX_COST-spent)
     spent += int(schedule['gasUsed'],16) * int(schedule['effectiveGasPrice'],16)
     topic = command([CAST,'keccak','CallScheduled(bytes32,uint256,address,uint256,bytes,bytes32,uint256)']).strip()
     events = [log for log in schedule['logs'] if log['address'].lower()==preparation['governance'].lower() and log['topics'][0].lower()==topic.lower()]
