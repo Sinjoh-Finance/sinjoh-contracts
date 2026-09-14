@@ -1,0 +1,25 @@
+{
+  "purpose": "Canonical source-pinned artifacts for local infrastructure rehearsal; no deployment addresses.",
+  "packageLockSha256": "87159aaccc2bd8df0add6754705c7058f937eea21575cbec30751261c847cde6",
+  "packages": {
+    "@uniswap/v3-core": "1.0.1",
+    "@uniswap/v3-periphery": "1.4.4"
+  },
+  "artifacts": {
+    "UniswapV3Factory": {
+      "source": "@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json",
+      "creationCodeHash": "0xa9cb11ffa1b1bf9a9a2b70b66f6a22db3e8328b37ec44e6ce602749081efdb6d",
+      "runtimeBytesBeforeImmutables": 24535
+    },
+    "UniswapV3Pool": {
+      "source": "@uniswap/v3-core/artifacts/contracts/UniswapV3Pool.sol/UniswapV3Pool.json",
+      "creationCodeHash": "0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54",
+      "runtimeBytesBeforeImmutables": 22142
+    },
+    "NonfungiblePositionManager": {
+      "source": "@uniswap/v3-periphery/artifacts/contracts/NonfungiblePositionManager.sol/NonfungiblePositionManager.json",
+      "creationCodeHash": "0x6d4a795ab08d4b4737c563d58af66cd9c1fe56a4ff3258fec16fd7c5eeade093",
+      "runtimeBytesBeforeImmutables": 24384
+    }
+  }
+}

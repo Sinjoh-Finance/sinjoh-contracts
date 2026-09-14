@@ -49,3 +49,7 @@ runs = 1_000
 runs = 256
 depth = 64
 fail_on_revert = false
+
+[rpc_endpoints]
+stock_primary = "${SINJOH_STOCK_RPC_PRIMARY}"
+stock_verification = "${SINJOH_STOCK_RPC_VERIFICATION}"

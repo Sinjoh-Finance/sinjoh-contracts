@@ -1,0 +1,15 @@
+{
+  "scriptBytecodeSha256": "97b0ad71cc4e45d6e41f3097bfe12e66f4fcc3734dfd1753f78c37ec1cb0c087",
+  "files": {
+    "deployments/stock-infrastructure/execution-manifest.v1.json": "71e30dc3feafe5ded31d5b11a9f1b9b191eb372b8cd7c72b8e85b40563502b9c",
+    "deployments/stock-infrastructure/UniswapV3Factory.json": "66debbd7a40204ec505d7fe01e2e61eefa902997221840b6624966f0b6fb5671",
+    "deployments/stock-infrastructure/NonfungiblePositionManager.json": "73ef30a6c0a8422495848f170e7bcccebc3c79e74b1ea16e566b0afcb20fa431",
+    "deployments/stock-infrastructure/UniswapV3Pool.json": "2fc3e9bf17dd014b58ea76116a380a8d94323a856dbaa9480954d83c6e8824cf",
+    "foundry.toml": "90da7f66ee89190f6ff8805bf73e8f7d217168438aeb2651eec8a920739ee448"
+  },
+  "validated": [
+    "44 Stock unit tests",
+    "3 app-generated local-fork owner round trips",
+    "mainnet deployment dry run"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "sinjoh-stock-infrastructure-build",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Pinned canonical Uniswap V3 artifacts for isolated Stock infrastructure rehearsals.",
+  "dependencies": {
+    "@uniswap/v3-core": "1.0.1",
+    "@uniswap/v3-periphery": "1.4.4"
+  }
+}
