@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Native-terminal signing only. Password stays in memory and inherited anonymous pipes.
+"""Native-terminal signing only. Password stays in memory and an echo-disabled local terminal.
 Deployment is already authorized; the local keystore unlock supplies signing capability.
 A durable attempt marker prevents an ambiguous broadcast from being blindly repeated.
 """
 import getpass, hashlib, json, os, pathlib, re, subprocess, sys, time, urllib.request
+from keystore_terminal import run_keystore_command
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 FORGE = pathlib.Path.home() / '.foundry/bin/forge'
 CAST = pathlib.Path.home() / '.foundry/bin/cast'
@@ -44,21 +45,21 @@ def rpc(method, params, endpoint=primary):
     return response['result']
 
 def command(args, password=None, stream=False):
-    inherited = ()
     if password is not None:
-        read_fd, write_fd = os.pipe(); os.write(write_fd, password.encode() + b'\n'); os.close(write_fd)
-        args += ['--keystore', str(KEYSTORE), '--password-file', '/dev/fd/' + str(read_fd)]
-        inherited = (read_fd,)
-    try:
-        process = subprocess.Popen([str(a) for a in args], cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, pass_fds=inherited)
-        output = []
-        for line in process.stdout:
-            clean = safe(line); output.append(clean)
+        def emit(line):
+            clean = safe(line)
             if stream and ' WARN ' not in clean: print(clean, end='', flush=True)
-        if process.wait() != 0: raise RuntimeError('Command failed. ' + ''.join(output)[-1800:])
-        return ''.join(output)
-    finally:
-        if inherited: os.close(inherited[0])
+        code, output = run_keystore_command([*args, '--keystore', str(KEYSTORE)], password, ROOT, env, emit)
+        output = safe(output)
+        if code != 0: raise RuntimeError('Command failed. ' + output[-1800:])
+        return output
+    process = subprocess.Popen([str(a) for a in args], cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    output = []
+    for line in process.stdout:
+        clean = safe(line); output.append(clean)
+        if stream and ' WARN ' not in clean: print(clean, end='', flush=True)
+    if process.wait() != 0: raise RuntimeError('Command failed. ' + ''.join(output)[-1800:])
+    return ''.join(output)
 
 def verify_pin():
     pin = json.loads(PIN.read_text())
@@ -152,5 +153,6 @@ try: main()
 except KeyboardInterrupt: status('signing-interrupted-reconcile-before-retry')
 except Exception as error:
     status('signing-needs-attention', error=safe(error))
+    print(safe(error), flush=True)
     print('No automatic retry will be attempted.',flush=True)
     sys.exit(1)
