@@ -15,7 +15,9 @@ PIN = ROOT / 'deployments/stock-source-pin.json'
 READY = ROOT / 'deployments/stock-production-ready.json'
 PREPARATION = ROOT / 'deployments/piggy-banks-stock-preparation.json'
 ARTIFACT = ROOT / 'out/PreparePiggyBanksStock.s.sol/PreparePiggyBanksStock.json'
-MAX_COST = 30_000_000_000_000_000  # 0.03 ETH including 0.01 ETH infrastructure seed.
+MAX_COST = 30_000_000_000_000_000  # Includes deployment, activation, pool seed and worker gas.
+WORKER = '0x2456209DA46B127ff2c732cb2F5f0378caA9587e'
+WORKER_GAS_TARGET = 10_000_000_000_000_000  # Dedicated operational gas only.
 config = json.loads(pathlib.Path('/tmp/sinjoh-stock-rpc.json').read_text())
 primary, secondary = config['SINJOH_RPC_PRIMARY'], config['SINJOH_RPC_SECONDARY']
 env = os.environ.copy()
@@ -80,11 +82,11 @@ def verify_receipt(hash_):
         if b and b['blockHash'] == a['blockHash'] and b['status'] == a['status']: return a
         time.sleep(5)
     raise RuntimeError('Independent receipt verification is pending: ' + hash_)
-def send(data, to, password, remaining):
-    gas = (int(rpc('eth_estimateGas',[{'from':DEPLOYER,'to':to,'data':data}]),16) * 125 + 99) // 100
+def send(data, to, password, remaining, value=0):
+    gas = (int(rpc('eth_estimateGas',[{'from':DEPLOYER,'to':to,'data':data,'value':hex(value)}]),16) * 125 + 99) // 100
     price = fee()
-    if gas * price > remaining or int(rpc('eth_getBalance',[DEPLOYER,'latest']),16) < gas * price: raise RuntimeError('Release gas budget is insufficient.')
-    output = command([CAST,'send',to,'--data',data,'--gas-limit',str(gas),'--gas-price',str(price),'--json'],password)
+    if value + gas * price > remaining or int(rpc('eth_getBalance',[DEPLOYER,'latest']),16) < value + gas * price: raise RuntimeError('Release gas budget is insufficient.')
+    output = command([CAST,'send',to,'--data',data,'--gas-limit',str(gas),'--gas-price',str(price),'--value',str(value),'--json'],password)
     receipt = json.loads(output)
     return verify_receipt(receipt['transactionHash'])
 
@@ -93,7 +95,7 @@ def main():
     for endpoint in [primary,secondary]:
         if int(rpc('eth_chainId',[],endpoint),16) != 4663: raise RuntimeError('Wrong signing chain.')
     verify_pin()
-    print('Piggy Banks Stock sleeve · Robinhood mainnet\nSame collection and NFT. Deploy infrastructure and queue its existing 24-hour timelock.\nMaximum combined deployment/activation budget: 0.03 ETH, including the 0.01 ETH pool seed.\nActivation also waits for the local production-readiness record.\nNo NFT-owner rebalance will be signed by this key.\n', flush=True)
+    print('Piggy Banks Stock sleeve · Robinhood mainnet\nSame collection and NFT. Deploy infrastructure and queue its existing 24-hour timelock.\nMaximum combined deployment/activation budget: 0.03 ETH, including the 0.01 ETH pool seed and up to 0.01 ETH for the dedicated dividend worker.\nActivation also waits for the local production-readiness record.\nNo NFT-owner rebalance will be signed by this key.\n', flush=True)
     status('awaiting-local-keystore-unlock', deployer=DEPLOYER, keystore=KEYSTORE.name)
     password = getpass.getpass('Deployer keystore password (local only): ')
     address = command([CAST,'wallet','address'],password).strip()
@@ -104,7 +106,8 @@ def main():
     pin = verify_pin()
     preparation = json.loads(PREPARATION.read_text())
     gas_price = fee()
-    if 10**16 + 60_000_000 * gas_price > MAX_COST: raise RuntimeError('Deployment estimate exceeds the 0.03 ETH release budget.')
+    worker_funding = max(0, WORKER_GAS_TARGET - int(rpc('eth_getBalance',[WORKER,'latest']),16))
+    if 10**16 + worker_funding + 60_000_000 * gas_price > MAX_COST: raise RuntimeError('Deployment estimate exceeds the 0.03 ETH release budget.')
     if int(rpc('eth_getBalance',[DEPLOYER,'latest']),16) < MAX_COST: raise RuntimeError('Deployer balance is below the release reserve.')
     ATTEMPT.write_text(json.dumps({'startedAt':time.time(),'manifestHash':preparation['manifestHash'],'sourcePin':pin['scriptBytecodeSha256']},indent=2)+'\n')
     status('broadcasting-mainnet-infrastructure', manifestHash=preparation['manifestHash'])
@@ -122,6 +125,12 @@ def main():
     operation = events[0]['topics'][1]
     ready_at = integer_call(preparation['governance'],'getTimestamp(bytes32)',operation)
     common = {'manifestHash':preparation['manifestHash'],'deploymentTransactions':hashes,'scheduleTransaction':schedule['transactionHash'],'operationId':operation,'readyAt':ready_at,'spentWei':str(spent)}
+    worker_funding = max(0, WORKER_GAS_TARGET - int(rpc('eth_getBalance',[WORKER,'latest']),16))
+    if worker_funding:
+        status('funding-dedicated-dividend-worker', **common, worker=WORKER, valueWei=str(worker_funding))
+        funding = send('0x', WORKER, password, MAX_COST-spent, worker_funding)
+        spent += worker_funding + int(funding['gasUsed'],16) * int(funding['effectiveGasPrice'],16)
+        common.update(workerFundingTransaction=funding['transactionHash'], worker=WORKER, spentWei=str(spent))
     status('queued-for-existing-timelock', **common)
     print('Scheduled. Earliest activation:',time.strftime('%Y-%m-%d %H:%M:%S UTC',time.gmtime(ready_at)),flush=True)
     print('Leave this Terminal open. It will activate only after the delay and production-readiness record both pass.',flush=True)
