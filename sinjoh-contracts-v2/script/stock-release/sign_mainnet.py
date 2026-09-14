@@ -6,6 +6,7 @@ A durable attempt marker prevents an ambiguous broadcast from being blindly repe
 import getpass, hashlib, json, os, pathlib, re, subprocess, sys, time, urllib.request
 from keystore_terminal import run_keystore_command
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+RAW_SIGNING = '--interactive-key' in sys.argv
 FORGE = pathlib.Path.home() / '.foundry/bin/forge'
 CAST = pathlib.Path.home() / '.foundry/bin/cast'
 DEPLOYER = '0x3d58E42d3a920dE4C1F71EE041c7eBb82ee23f49'
@@ -49,7 +50,7 @@ def command(args, password=None, stream=False):
         def emit(line):
             clean = safe(line)
             if stream and ' WARN ' not in clean: print(clean, end='', flush=True)
-        code, output = run_keystore_command([*args, '--keystore', str(KEYSTORE)], password, ROOT, env, emit)
+        code, output = run_keystore_command([*args, *(['--interactive'] if RAW_SIGNING else ['--keystore', str(KEYSTORE)])], password, ROOT, env, emit)
         output = safe(output)
         if code != 0: raise RuntimeError('Command failed. ' + output[-1800:])
         return output
@@ -97,10 +98,12 @@ def main():
         if int(rpc('eth_chainId',[],endpoint),16) != 4663: raise RuntimeError('Wrong signing chain.')
     verify_pin()
     print('Piggy Banks Stock sleeve · Robinhood mainnet\nSame collection and NFT. Deploy infrastructure and queue its existing 24-hour timelock.\nMaximum combined deployment/activation budget: 0.03 ETH, including the 0.01 ETH pool seed and up to 0.01 ETH for the dedicated dividend worker.\nActivation also waits for the local production-readiness record.\nNo NFT-owner rebalance will be signed by this key.\n', flush=True)
-    status('awaiting-local-keystore-unlock', deployer=DEPLOYER, keystore=KEYSTORE.name)
-    password = getpass.getpass('Deployer keystore password (local only): ')
+    status('awaiting-local-signer-input' if RAW_SIGNING else 'awaiting-local-keystore-unlock', deployer=DEPLOYER)
+    password = getpass.getpass('Local signer input: ' if RAW_SIGNING else 'Deployer keystore password (local only): ')
+    if RAW_SIGNING and not re.fullmatch(r'0x[0-9a-fA-F]{64}', password): raise RuntimeError('Invalid signer input format.')
+    if ATTEMPT.exists(): raise RuntimeError('Another deployment attempt started; reconcile before proceeding.')
     address = command([CAST,'wallet','address'],password).strip()
-    if address.lower() != DEPLOYER.lower(): raise RuntimeError('This keystore is not the reviewed deployer: ' + address)
+    if address.lower() != DEPLOYER.lower(): raise RuntimeError('The signer does not match the reviewed deployer: ' + address)
     if rpc('eth_getTransactionCount',[DEPLOYER,'latest']) != rpc('eth_getTransactionCount',[DEPLOYER,'pending']): raise RuntimeError('The deployer already has pending transactions.')
     status('checking-mainnet-deployment')
     command([FORGE,'script','script/PreparePiggyBanksStock.s.sol:PreparePiggyBanksStock','--rpc-url','stock_primary'],stream=True)

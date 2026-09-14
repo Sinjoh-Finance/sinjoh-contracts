@@ -7,7 +7,7 @@ import select
 import signal
 import termios
 
-PROMPT = re.compile(r'(?:Enter[^\r\n]*password[^\r\n]*:)[ \t]*', re.I)
+PROMPT = re.compile(r'(?:Enter[^\r\n]*(?:password|private key)[^\r\n]*:)[ \t]*', re.I)
 
 def run_keystore_command(args, password, cwd, env, emit=None):
     pid, fd = pty.fork()
