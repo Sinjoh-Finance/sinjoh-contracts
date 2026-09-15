@@ -6,6 +6,7 @@ import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/I
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+import { StockLPLossBounds } from "./StockLPLossBounds.sol";
 import { MarketMakingSleeve } from "../sleeves/MarketMakingSleeve.sol";
 import { DeltaV3LPAdapter } from "../adapters/DeltaV3LPAdapter.sol";
 import { IPriceHub } from "../interfaces/IPriceHub.sol";
@@ -275,21 +276,14 @@ contract StockCompositeLPAdapter is ReentrancyGuard {
                 pairedReturned, pairedPrice, 10 ** IERC20Metadata(lpPairedAsset).decimals()
             );
             uint256 quote = Math.mulDiv(value, 1 ether, wethPrice);
-            // Actual in-kind output includes fees accrued after the owner's quote. Apply
-            // the oracle floor to that exact output; a caller can only strengthen it.
-            // Only the paired half needs a swap. Its route may use twice the LP loss
-            // budget, while minimumWeth still enforces the original limit on the full LP.
-            uint256 conversionMinimum = Math.max(
-                redemption.minimumConvertedWeth,
-                Math.max(
-                    1,
-                    Math.mulDiv(
-                        quote,
-                        10000 - Math.min(uint256(maxLossBps) * 2, 500),
-                        10000,
-                        Math.Rounding.Ceil
-                    )
-                )
+            // LP inventory can be asymmetric. Protect the full LP using its actual
+            // WETH return, rather than assuming the paired asset represents half.
+            // The converted leg also retains an independent 5% oracle loss ceiling.
+            uint256 conversionMinimum = StockLPLossBounds.conversionMinimum(
+                quote,
+                IERC20(weth).balanceOf(address(this)) - beforeWeth,
+                minimumWeth,
+                redemption.minimumConvertedWeth
             );
             IERC20(lpPairedAsset).forceApprove(lpExitRoute, pairedReturned);
             IYieldBankAllocationRoute(lpExitRoute)

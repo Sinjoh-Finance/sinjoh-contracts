@@ -54,7 +54,7 @@ contract AirdropClaimsForkTest is Test {
     }
 
     function testHistoricalPonsProofCollectsToContractAndPaysCurrentNFTOwner() public {
-        vm.createSelectFork("http://127.0.0.1:18664", 62925211);
+        vm.createSelectFork(vm.envString("ROBINHOOD_MAINNET_RPC_URL"), 62925211);
         PonsAirdropClaimAdapter adapter = new PonsAirdropClaimAdapter(DISTRIBUTOR, BEACON);
         AirdropIdentityMock identity = new AirdropIdentityMock();
         address alice = address(0xA11CE);
@@ -63,14 +63,14 @@ contract AirdropClaimsForkTest is Test {
         registry.register(SUBJECT, keccak256("evidence"));
         registry.addClaimRoute(SUBJECT, address(adapter));
         AirdropBankCustody template =
-            new AirdropBankCustody(address(this), address(identity), address(registry), 1, SUBJECT);
+            new AirdropBankCustody(address(this), address(identity), address(registry), 1);
         vm.etch(HOLDER, address(template).code);
         AirdropBankCustody custody = AirdropBankCustody(payable(HOLDER));
         uint256 beforeBalance = IERC20(REWARD).balanceOf(HOLDER);
-        custody.collect(0, _proof());
+        custody.collect(SUBJECT, 0, _proof());
         assertEq(IERC20(REWARD).balanceOf(HOLDER) - beforeBalance, 743824186919858);
         vm.expectRevert();
-        custody.collect(0, _proof());
+        custody.collect(SUBJECT, 0, _proof());
         uint256 owed = custody.available(REWARD);
         vm.prank(alice);
         custody.claim(REWARD);
@@ -79,7 +79,7 @@ contract AirdropClaimsForkTest is Test {
     }
 
     function testHistoricalPonsProofCannotRedirectRecipient() public {
-        vm.createSelectFork("http://127.0.0.1:18664", 62925211);
+        vm.createSelectFork(vm.envString("ROBINHOOD_MAINNET_RPC_URL"), 62925211);
         PonsAirdropClaimAdapter adapter = new PonsAirdropClaimAdapter(DISTRIBUTOR, BEACON);
         (address target, bytes memory callData) = adapter.prepare(address(0xBAD), _proof());
         uint256 beforeBalance = IERC20(REWARD).balanceOf(address(0xBAD));
@@ -88,7 +88,7 @@ contract AirdropClaimsForkTest is Test {
     }
 
     function testExpiredPonsProofRejected() public {
-        vm.createSelectFork("http://127.0.0.1:18664", 62925211);
+        vm.createSelectFork(vm.envString("ROBINHOOD_MAINNET_RPC_URL"), 62925211);
         PonsAirdropClaimAdapter adapter = new PonsAirdropClaimAdapter(DISTRIBUTOR, BEACON);
         vm.warp(block.timestamp + 365 days);
         (address target, bytes memory callData) = adapter.prepare(HOLDER, _proof());
@@ -98,7 +98,7 @@ contract AirdropClaimsForkTest is Test {
     }
 
     function testHistoricalSinjohMerkleSumProofPaysCustodyAndRejectsReplay() public {
-        vm.createSelectFork("http://127.0.0.1:18664", 61849170);
+        vm.createSelectFork(vm.envString("ROBINHOOD_MAINNET_RPC_URL"), 61849170);
         address distributor = 0xA1d65242D367501D9A261389a69005e584F4786a;
         address subject = 0xB40921cb9e3EDE2B3F0EdFb26F652f2739FDb51c;
         address reward = 0x2cC0FAC44B8252f6B10208B091aFf2c94B4da77D;
@@ -113,7 +113,7 @@ contract AirdropClaimsForkTest is Test {
         registry.register(subject, keccak256("evidence"));
         registry.addClaimRoute(subject, address(adapter));
         AirdropBankCustody template =
-            new AirdropBankCustody(address(this), address(identity), address(registry), 1, subject);
+            new AirdropBankCustody(address(this), address(identity), address(registry), 1);
         vm.etch(holder, address(template).code);
         AirdropBankCustody custody = AirdropBankCustody(payable(holder));
         ISinjohHolderAirdrop.ProofElement[] memory proof =
@@ -156,10 +156,10 @@ contract AirdropClaimsForkTest is Test {
         bytes memory payload = abi.encode(uint64(2), uint256(11205987), proof);
         uint256 alreadyPaid = ISinjohClaimPaid(distributor).paid(adapter.accountId(), holder);
         uint256 beforeBalance = IERC20(reward).balanceOf(holder);
-        custody.collect(0, payload);
+        custody.collect(subject, 0, payload);
         assertEq(IERC20(reward).balanceOf(holder) - beforeBalance, 11205987 - alreadyPaid);
         vm.expectRevert(AirdropBankCustody.NoRewardsReceived.selector);
-        custody.collect(0, payload);
+        custody.collect(subject, 0, payload);
         uint256 owed = custody.available(reward);
         vm.prank(alice);
         custody.claim(reward);
@@ -167,7 +167,7 @@ contract AirdropClaimsForkTest is Test {
     }
 
     function testReflectionTrackerRegistersContractHolderOnActualTokenTransfer() public {
-        vm.createSelectFork("http://127.0.0.1:18664", 62925369);
+        vm.createSelectFork(vm.envString("ROBINHOOD_MAINNET_RPC_URL"), 62925369);
         address dist = 0x8d4c92C67baBA4D38f57F65211a7AF8dB92e8ABB;
         ReflectionAirdropClaimAdapter adapter = new ReflectionAirdropClaimAdapter(dist);
         AirdropIdentityMock identity = new AirdropIdentityMock();
@@ -177,7 +177,7 @@ contract AirdropClaimsForkTest is Test {
         registry.register(adapter.subject(), keccak256("evidence"));
         registry.addClaimRoute(adapter.subject(), address(adapter));
         AirdropBankCustody holder = new AirdropBankCustody(
-            address(this), address(identity), address(registry), 1, adapter.subject()
+            address(this), address(identity), address(registry), 1
         );
         IReflectionState tracker = IReflectionState(dist);
         address donor = tracker.shareholders(0);
@@ -191,12 +191,12 @@ contract AirdropClaimsForkTest is Test {
         // First verify no-op protection, then fund the real tracker through an actual WETH
         // transfer on this fork. This tests claim mechanics, not future trading-fee income.
         vm.expectRevert();
-        holder.collect(0, "");
+        holder.collect(subject, 0, "");
         address reward = adapter.rewardAsset();
         vm.deal(address(this), 1 ether);
         IWETHAirdropFixture(reward).deposit{ value: 1 ether }();
         IERC20(reward).transfer(dist, 1 ether);
-        holder.collect(0, "");
+        holder.collect(subject, 0, "");
         uint256 received = holder.available(reward);
         assertGt(received, 0);
         uint256 before = IERC20(reward).balanceOf(address(0xA11CE));
@@ -205,6 +205,6 @@ contract AirdropClaimsForkTest is Test {
         assertEq(IERC20(reward).balanceOf(address(0xA11CE)), before + received);
         assertEq(IERC20(subject).balanceOf(address(holder)), threshold);
         vm.expectRevert();
-        holder.collect(0, "");
+        holder.collect(subject, 0, "");
     }
 }

@@ -1,0 +1,2088 @@
+{
+  "generatedAt": "2026-09-14T23:19:53.131Z",
+  "chainId": 4663,
+  "blockNumber": "63192093",
+  "blockHash": "0x1495a7db250ac1174a6b9cfdeb6411708761a59df48654fa59cfb97c1ac09126",
+  "providerAgreement": true,
+  "accountDirectory": "https://umbwbzylvdjkpbhnrpfb.supabase.co/functions/v1/raffle/v1/airdrops/accounts?limit=100",
+  "rows": [
+    {
+      "symbol": "INJOH",
+      "subject": "0x2cC0FAC44B8252f6B10208B091aFf2c94B4da77D",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x2cC0FAC44B8252f6B10208B091aFf2c94B4da77D",
+          "runtimeCodeHash": "0x7e6ca88b216c0b26c5f8497f3e7106648f4bcd8ed41eedfa1c80787fb407f4e2"
+        },
+        {
+          "address": "0xA1d65242D367501D9A261389a69005e584F4786a",
+          "runtimeCodeHash": "0x75dd6c860a639d0b283f308486fd1c6dafaf9f2e755e078850146cbecea33f7d"
+        },
+        {
+          "address": "0x39dBED3a2bd333467115dE45665cC57F813C4571",
+          "runtimeCodeHash": "0x16c3d3ede897688ddff79262606f13bead398332e65001f192460fbac4e1fb85"
+        },
+        {
+          "address": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "sinjoh",
+          "distributor": "0xA1d65242D367501D9A261389a69005e584F4786a",
+          "subject": "0x2cC0FAC44B8252f6B10208B091aFf2c94B4da77D",
+          "reward": "0x39dBED3a2bd333467115dE45665cC57F813C4571",
+          "funder": "0x7E97EadeA120321c65CC09B6FDECc6Eb15D55b2f",
+          "accountId": "0xfe3f289bc888af6b740d03a7d9df7048363513bd501c30e2e6e1663b5b3b1fc5",
+          "latestEpoch": "48",
+          "configHash": "0x6f240abdfb39bdda76be2182c021cbfc35b9e48446e299d08c76260c190dd0a8",
+          "minPayout": "1",
+          "directoryListed": false
+        },
+        {
+          "kind": "sinjoh",
+          "distributor": "0xA1d65242D367501D9A261389a69005e584F4786a",
+          "subject": "0x2cC0FAC44B8252f6B10208B091aFf2c94B4da77D",
+          "reward": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC",
+          "funder": "0x7E97EadeA120321c65CC09B6FDECc6Eb15D55b2f",
+          "accountId": "0x0935530dd00a5a7ae07a1a0cb34af2f6c3dcc7ff45935da21f5f8592fbca8162",
+          "latestEpoch": "40",
+          "configHash": "0x6f240abdfb39bdda76be2182c021cbfc35b9e48446e299d08c76260c190dd0a8",
+          "minPayout": "1",
+          "directoryListed": false
+        }
+      ]
+    },
+    {
+      "symbol": "microduck",
+      "subject": "0xD5f1afEA47b1A9eab414D2ee740cF1d6d039E725",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xD5f1afEA47b1A9eab414D2ee740cF1d6d039E725",
+          "runtimeCodeHash": "0x0095f88601739ea07ea825c9988b92feed45935a7c5052cc43af8c883319259d"
+        },
+        {
+          "address": "0xe25E9Bc31d24BB652Fb6E2E466d7c9c89701173e",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0xe25E9Bc31d24BB652Fb6E2E466d7c9c89701173e",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0xD5f1afEA47b1A9eab414D2ee740cF1d6d039E725",
+          "reward": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC"
+        }
+      ]
+    },
+    {
+      "symbol": "SHROOM",
+      "subject": "0xab093dEF657F15dF31b33922A95e047aDd645B29",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xab093dEF657F15dF31b33922A95e047aDd645B29",
+          "runtimeCodeHash": "0x99ce70d154c5123cc23896340b4402498b78be3e075e67303da4afc03232125d"
+        },
+        {
+          "address": "0xEa4036B0FccDB5F90421D5b9c35E05758e40Ce18",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0xfF080c8ce2E5feadaCa0Da81314Ae59D232d4afD",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0xEa4036B0FccDB5F90421D5b9c35E05758e40Ce18",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0xab093dEF657F15dF31b33922A95e047aDd645B29",
+          "reward": "0xfF080c8ce2E5feadaCa0Da81314Ae59D232d4afD"
+        }
+      ]
+    },
+    {
+      "symbol": "GG",
+      "subject": "0xcaCB0e9caCcee63ec4d82952E561a291c68Bcb68",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xcaCB0e9caCcee63ec4d82952E561a291c68Bcb68",
+          "runtimeCodeHash": "0x595a7542bd68d5a2e3f6375a43102e1869041aaedf9054a210cb72c3c440fe84"
+        },
+        {
+          "address": "0x44dB4eCd5b0048d55c762E32FF53aFAEcCf75ed7",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0xC9a981FEE1F9DEc688bb123ccDeCc63D0deBFC4e",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x44dB4eCd5b0048d55c762E32FF53aFAEcCf75ed7",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0xcaCB0e9caCcee63ec4d82952E561a291c68Bcb68",
+          "reward": "0xC9a981FEE1F9DEc688bb123ccDeCc63D0deBFC4e"
+        }
+      ]
+    },
+    {
+      "symbol": "MARTIANS",
+      "subject": "0xAc77646bcff9d52e99800534192E0290933F4094",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xAc77646bcff9d52e99800534192E0290933F4094",
+          "runtimeCodeHash": "0xd5264e891e471fbc2c5794d3c08193a9c34bdb2ca17ea991ea487505484e1e24"
+        },
+        {
+          "address": "0x778e344D7e92cAeC1e51e7DB4D4C11cfaDC1008A",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x778e344D7e92cAeC1e51e7DB4D4C11cfaDC1008A",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0xAc77646bcff9d52e99800534192E0290933F4094",
+          "reward": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa"
+        }
+      ]
+    },
+    {
+      "symbol": "GME",
+      "subject": "0xEF67e3064bEf1a27e81925eC7132f23E533bd5f6",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xEF67e3064bEf1a27e81925eC7132f23E533bd5f6",
+          "runtimeCodeHash": "0x30c666e224aac3ed00968ceed7249c7af15fb62577b89507f47a93fd20fac8d4"
+        },
+        {
+          "address": "0x49154EBA8c82EaD309fD1a033F9dA7F040c20A48",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x1b0E319c6A659F002271B69dB8A7df2F911c153E",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x49154EBA8c82EaD309fD1a033F9dA7F040c20A48",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0xEF67e3064bEf1a27e81925eC7132f23E533bd5f6",
+          "reward": "0x1b0E319c6A659F002271B69dB8A7df2F911c153E"
+        }
+      ]
+    },
+    {
+      "symbol": "STONKS",
+      "subject": "0x238239d8Fbec75ebC08acA988447bC1926F615e0",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x238239d8Fbec75ebC08acA988447bC1926F615e0",
+          "runtimeCodeHash": "0xb4aa87a585d4a24dd4f97a01b27695c4c27fa659292a7ddd953ee78e486a2a4e"
+        },
+        {
+          "address": "0x54264C4feE9d994428078F664292DdA11C96b0cf",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x54264C4feE9d994428078F664292DdA11C96b0cf",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x238239d8Fbec75ebC08acA988447bC1926F615e0",
+          "reward": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C"
+        }
+      ]
+    },
+    {
+      "symbol": "CRCL",
+      "subject": "0x51D1aBaB4d1E7B50642A25D3f7B2823067eBF9d7",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x51D1aBaB4d1E7B50642A25D3f7B2823067eBF9d7",
+          "runtimeCodeHash": "0x35184b2ef69f63937858e8c8880875d27bb5916f31878f51a1e993c35e839c56"
+        },
+        {
+          "address": "0x120c0E28fFa71F37215d7c6921e3c0c7CCeEAa5A",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0xdF0992E440dD0be65BD8439b609d6D4366bf1CB5",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x120c0E28fFa71F37215d7c6921e3c0c7CCeEAa5A",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x51D1aBaB4d1E7B50642A25D3f7B2823067eBF9d7",
+          "reward": "0xdF0992E440dD0be65BD8439b609d6D4366bf1CB5"
+        }
+      ]
+    },
+    {
+      "symbol": "18932",
+      "subject": "0x5759A852243A56A48853Af1d28fd4e0f33747C9B",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x5759A852243A56A48853Af1d28fd4e0f33747C9B",
+          "runtimeCodeHash": "0x8bb3b3a7176ecee2461f8630cb95a413a809c136f76d31e55a385c2522bf293e"
+        },
+        {
+          "address": "0xe6fd5e5Aa3d7947303A014EA43E03366e18C396c",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0xe6fd5e5Aa3d7947303A014EA43E03366e18C396c",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x5759A852243A56A48853Af1d28fd4e0f33747C9B",
+          "reward": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa"
+        }
+      ]
+    },
+    {
+      "symbol": "MU",
+      "subject": "0x54e595a3544E8e08f39835F744E356bdA6308184",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x54e595a3544E8e08f39835F744E356bdA6308184",
+          "runtimeCodeHash": "0xe0814c71911a61d662a5b5f3623a6c802e54ea1813c96fba344baba509bce1d6"
+        },
+        {
+          "address": "0xa1853EDCB0f0DEa1ea3Ffa9feC198ADD8D7290aB",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0xfF080c8ce2E5feadaCa0Da81314Ae59D232d4afD",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0xa1853EDCB0f0DEa1ea3Ffa9feC198ADD8D7290aB",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x54e595a3544E8e08f39835F744E356bdA6308184",
+          "reward": "0xfF080c8ce2E5feadaCa0Da81314Ae59D232d4afD"
+        }
+      ]
+    },
+    {
+      "symbol": "DINO",
+      "subject": "0x000b2164a76560323163343431Db8bE550F164B8",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x000b2164a76560323163343431Db8bE550F164B8",
+          "runtimeCodeHash": "0xe9ad301a0ca1b096384751bb3248fd7a9ed3b447542664d75496bf326fea4f50"
+        },
+        {
+          "address": "0xC603C8fb07E1f182aC34c41E176E4244606E734B",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x2e0847E8910a9732eB3fb1bb4b70a580ADAD4FE3",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0xC603C8fb07E1f182aC34c41E176E4244606E734B",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x000b2164a76560323163343431Db8bE550F164B8",
+          "reward": "0x2e0847E8910a9732eB3fb1bb4b70a580ADAD4FE3"
+        }
+      ]
+    },
+    {
+      "symbol": "AGI",
+      "subject": "0xe7534eFB738182D5fF5C3d2aBBE6410047609065",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xe7534eFB738182D5fF5C3d2aBBE6410047609065",
+          "runtimeCodeHash": "0x7979a4f749a3d3b4b6e95fb93c568a8f90cc6e07b7216bb7a5c1dab0b1d7c7ba"
+        },
+        {
+          "address": "0x888D6aa583397F6a39D8acFd2C17bA42efA9901e",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x888D6aa583397F6a39D8acFd2C17bA42efA9901e",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0xe7534eFB738182D5fF5C3d2aBBE6410047609065",
+          "reward": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC"
+        }
+      ]
+    },
+    {
+      "symbol": "HUGCOIN",
+      "subject": "0x2bF78D3dc6b2222BcBfE8C712c9c33120b3058bc",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x2bF78D3dc6b2222BcBfE8C712c9c33120b3058bc",
+          "runtimeCodeHash": "0x317b0f4e7a96378721ebecc760048863056f4e5beab94764797e68cb4230f41b"
+        },
+        {
+          "address": "0x40996361fff75C3029235a530bC003d3d71951fB",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x40996361fff75C3029235a530bC003d3d71951fB",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x2bF78D3dc6b2222BcBfE8C712c9c33120b3058bc",
+          "reward": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC"
+        }
+      ]
+    },
+    {
+      "symbol": "VenusCoin",
+      "subject": "0x8aaA802C942193E1C8ab38B52814ba211d643f9f",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x8aaA802C942193E1C8ab38B52814ba211d643f9f",
+          "runtimeCodeHash": "0x11c6f707febac124f3d45227109a48c973a7d1660d1b5ce81d481181e7676854"
+        },
+        {
+          "address": "0xa95aC2Dc572d43C507695Bf459F90Cc4B91A7D68",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0xa95aC2Dc572d43C507695Bf459F90Cc4B91A7D68",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x8aaA802C942193E1C8ab38B52814ba211d643f9f",
+          "reward": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa"
+        }
+      ]
+    },
+    {
+      "symbol": "BIAO",
+      "subject": "0x46B982C0bC6D3e6155b156217acAb1d84A9aCdB6",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x46B982C0bC6D3e6155b156217acAb1d84A9aCdB6",
+          "runtimeCodeHash": "0xc95f007409b7c8973694026dcc94795f166314642aec65e76f71a3a840b17f8f"
+        },
+        {
+          "address": "0x65C2427cbc4d32973722c1327278844f4f093875",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0xD5f3879160bc7c32ebb4dC785F8a4F505888de68",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x65C2427cbc4d32973722c1327278844f4f093875",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x46B982C0bC6D3e6155b156217acAb1d84A9aCdB6",
+          "reward": "0xD5f3879160bc7c32ebb4dC785F8a4F505888de68"
+        }
+      ]
+    },
+    {
+      "symbol": "OPTIMUS",
+      "subject": "0x0fF9072a1EAD154d92C2d2Fef16AFba6028Ce2B2",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x0fF9072a1EAD154d92C2d2Fef16AFba6028Ce2B2",
+          "runtimeCodeHash": "0x480ed8b5135fc648e7216ff30a943864f905538ca8a890d97756ebba8230f2b0"
+        },
+        {
+          "address": "0x2f2C0Aa37625B0bbeA08bE9009054711a81CA25c",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x322F0929c4625eD5bAd873c95208D54E1c003b2d",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x2f2C0Aa37625B0bbeA08bE9009054711a81CA25c",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x0fF9072a1EAD154d92C2d2Fef16AFba6028Ce2B2",
+          "reward": "0x322F0929c4625eD5bAd873c95208D54E1c003b2d"
+        }
+      ]
+    },
+    {
+      "symbol": "DICKBUTT",
+      "subject": "0x8c894913E6A82DD98771c9D5407B95B1C1C29e89",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x8c894913E6A82DD98771c9D5407B95B1C1C29e89",
+          "runtimeCodeHash": "0x0360f550879fdeb74b5a5fbb8e68ef47f3c23d904a307b302f5e65649e202e1a"
+        },
+        {
+          "address": "0xc4BD6aDc82115c6Cc74F487b39489A3792cb11fe",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0xc4BD6aDc82115c6Cc74F487b39489A3792cb11fe",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x8c894913E6A82DD98771c9D5407B95B1C1C29e89",
+          "reward": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa"
+        }
+      ]
+    },
+    {
+      "symbol": "urmom",
+      "subject": "0x4874845b0d4aCffd896DdE1E42828A543717AF7f",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x4874845b0d4aCffd896DdE1E42828A543717AF7f",
+          "runtimeCodeHash": "0xd01b2d8b76236019935021f7dc9b8cdc15e9de92f2048847f587ffa776dd3205"
+        },
+        {
+          "address": "0x7011dF9aAa295fE1bC212D4E748218Ed8A9bcf8E",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x7011dF9aAa295fE1bC212D4E748218Ed8A9bcf8E",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x4874845b0d4aCffd896DdE1E42828A543717AF7f",
+          "reward": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa"
+        }
+      ]
+    },
+    {
+      "symbol": "BUDDY",
+      "subject": "0x7D8a38c94BaAeAce8E3662D1ED33EaF6Fd581071",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x7D8a38c94BaAeAce8E3662D1ED33EaF6Fd581071",
+          "runtimeCodeHash": "0x0ded200b43333c8df40dd282fc28626079813994a91fb84b9e8e4b8a360b8edd"
+        },
+        {
+          "address": "0x55B600aC3f311354A78b2f6148e9Fc7ACdAe6890",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x55B600aC3f311354A78b2f6148e9Fc7ACdAe6890",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x7D8a38c94BaAeAce8E3662D1ED33EaF6Fd581071",
+          "reward": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C"
+        }
+      ]
+    },
+    {
+      "symbol": "VERITY",
+      "subject": "0x16A49c0896b889B31d00ac1EdF51AD1fFcDF7BC6",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x16A49c0896b889B31d00ac1EdF51AD1fFcDF7BC6",
+          "runtimeCodeHash": "0x1abb66726d448f1683698d9439e0e3b2aad2c4b4d68f07c00386575eaa89d0ff"
+        },
+        {
+          "address": "0xc2778c31bB8ae10EE53808aF7B6603D7809D3b64",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0xe93237C50D904957Cf27E7B1133b510C669c2e74",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0xc2778c31bB8ae10EE53808aF7B6603D7809D3b64",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x16A49c0896b889B31d00ac1EdF51AD1fFcDF7BC6",
+          "reward": "0xe93237C50D904957Cf27E7B1133b510C669c2e74"
+        }
+      ]
+    },
+    {
+      "symbol": "SHIT",
+      "subject": "0xE45CDDdF1AC5715F7e596912e184af0ec93a0fCE",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xE45CDDdF1AC5715F7e596912e184af0ec93a0fCE",
+          "runtimeCodeHash": "0xfd44fd8026444cace404d130f74b7c496a1e31c3c8b087e094c8b64a24b63d5b"
+        },
+        {
+          "address": "0xaE12d26415E826E4166c83f60ff236F15C475df6",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x6330D8C3178a418788dF01a47479c0ce7CCF450b",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0xaE12d26415E826E4166c83f60ff236F15C475df6",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0xE45CDDdF1AC5715F7e596912e184af0ec93a0fCE",
+          "reward": "0x6330D8C3178a418788dF01a47479c0ce7CCF450b"
+        }
+      ]
+    },
+    {
+      "symbol": "MSTR",
+      "subject": "0x99452D7519e103daF9bC9f02311DD164a073A7A2",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x99452D7519e103daF9bC9f02311DD164a073A7A2",
+          "runtimeCodeHash": "0x0b79cec04027241f1aee0617176bc665739f26a80c1cb549f16fffc5bfebf6ed"
+        },
+        {
+          "address": "0x3E6123Ad241C25C47147fBc87AE7c7f893c16053",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0xec262a75e413fAfD0dF80480274532C79D42da09",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x3E6123Ad241C25C47147fBc87AE7c7f893c16053",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x99452D7519e103daF9bC9f02311DD164a073A7A2",
+          "reward": "0xec262a75e413fAfD0dF80480274532C79D42da09"
+        }
+      ]
+    },
+    {
+      "symbol": "SHRUB",
+      "subject": "0xA97005324d607EeF70aC8CB7d864B0Cd0A1B446D",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xA97005324d607EeF70aC8CB7d864B0Cd0A1B446D",
+          "runtimeCodeHash": "0xcfab2088380b40358d5a69c71886fbec349a945b11a2e99595151089b57a8e9a"
+        },
+        {
+          "address": "0xF8e6C6f4D2aF82a8bc9F00086726fC4e399913f6",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x322F0929c4625eD5bAd873c95208D54E1c003b2d",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0xF8e6C6f4D2aF82a8bc9F00086726fC4e399913f6",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0xA97005324d607EeF70aC8CB7d864B0Cd0A1B446D",
+          "reward": "0x322F0929c4625eD5bAd873c95208D54E1c003b2d"
+        }
+      ]
+    },
+    {
+      "symbol": "CHIP",
+      "subject": "0xE38B1C963Afc21f06b9E82A2de36A84FbB9C6E59",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xE38B1C963Afc21f06b9E82A2de36A84FbB9C6E59",
+          "runtimeCodeHash": "0x604a535dd47722c2990cdca68df7b6d1e7347dffaac7b3a5a08f87edefd5d4bd"
+        },
+        {
+          "address": "0x897B3704Fb05c49d5Bf2CdBA1C21520A6F39904A",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x86923f96303D656E4aa86D9d42D1e57ad2023fdC",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x897B3704Fb05c49d5Bf2CdBA1C21520A6F39904A",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0xE38B1C963Afc21f06b9E82A2de36A84FbB9C6E59",
+          "reward": "0x86923f96303D656E4aa86D9d42D1e57ad2023fdC"
+        }
+      ]
+    },
+    {
+      "symbol": "PONZI",
+      "subject": "0xEa98cb2F45F75485DDD95187Bae9F623cf2d74aC",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xEa98cb2F45F75485DDD95187Bae9F623cf2d74aC",
+          "runtimeCodeHash": "0xb9c3f803b0a4d139f455f4941468fd4df3d30f80c7a686519655021fd442526d"
+        },
+        {
+          "address": "0xB9464CcE4e96eeA2e07348dbdC727f42a8816D7C",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0xec262a75e413fAfD0dF80480274532C79D42da09",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0xB9464CcE4e96eeA2e07348dbdC727f42a8816D7C",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0xEa98cb2F45F75485DDD95187Bae9F623cf2d74aC",
+          "reward": "0xec262a75e413fAfD0dF80480274532C79D42da09"
+        }
+      ]
+    },
+    {
+      "symbol": "JOBS",
+      "subject": "0x88952E52cDF3BB14015D9A6499eA3c7F0bEd6453",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x88952E52cDF3BB14015D9A6499eA3c7F0bEd6453",
+          "runtimeCodeHash": "0x2377022a09a35ff829a7e9e20cf542289d1d83360be87f4574f629aa25d148b1"
+        },
+        {
+          "address": "0x9170C8b77Fa5E84e8DaC1a77c2A1ced65a58a45b",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x9170C8b77Fa5E84e8DaC1a77c2A1ced65a58a45b",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x88952E52cDF3BB14015D9A6499eA3c7F0bEd6453",
+          "reward": "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9"
+        }
+      ]
+    },
+    {
+      "symbol": "EARLY",
+      "subject": "0x4D3e09736d50dDc72B7919e81cF5a889207747Df",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x4D3e09736d50dDc72B7919e81cF5a889207747Df",
+          "runtimeCodeHash": "0xcbff4a4b16465f98e2c27d80095ab15122f076d8a3f30e15d3c8e6e2be46a03e"
+        },
+        {
+          "address": "0x49d2675EA20Bd5188Ac30e331Eb6c618F752Ee7B",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x49d2675EA20Bd5188Ac30e331Eb6c618F752Ee7B",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x4D3e09736d50dDc72B7919e81cF5a889207747Df",
+          "reward": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C"
+        }
+      ]
+    },
+    {
+      "symbol": "WADDLES",
+      "subject": "0xbB6Ee7aa6D56266CCEf3B1c0706bCCCE2F9a0CdD",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xbB6Ee7aa6D56266CCEf3B1c0706bCCCE2F9a0CdD",
+          "runtimeCodeHash": "0x4a31174410c3b70db2019c010371b835e268a7fedbabf8eec99f647c5a5fa766"
+        },
+        {
+          "address": "0xF574664C58F37033A6cfB6B092d7d8972FB9a2d2",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x12f190a9F9d7D37a250758b26824B97CE941bF54",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0xF574664C58F37033A6cfB6B092d7d8972FB9a2d2",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0xbB6Ee7aa6D56266CCEf3B1c0706bCCCE2F9a0CdD",
+          "reward": "0x12f190a9F9d7D37a250758b26824B97CE941bF54"
+        }
+      ]
+    },
+    {
+      "symbol": "HI",
+      "subject": "0xFE33976B064Eb945446Ec1B1c5Dba65Ce7B3dDE3",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xFE33976B064Eb945446Ec1B1c5Dba65Ce7B3dDE3",
+          "runtimeCodeHash": "0xbfd747f455b59bbf3487ca570227cea79dbcd3ae995aa6f8f112d50a5fc40f55"
+        },
+        {
+          "address": "0x4d69d9c4d51AFA1B2a075B48aa9394d09A5Df926",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x894E1EC2D74FFE5AEF8Dc8A9e84686acCB964F2A",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x4d69d9c4d51AFA1B2a075B48aa9394d09A5Df926",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0xFE33976B064Eb945446Ec1B1c5Dba65Ce7B3dDE3",
+          "reward": "0x894E1EC2D74FFE5AEF8Dc8A9e84686acCB964F2A"
+        }
+      ]
+    },
+    {
+      "symbol": "NINJA",
+      "subject": "0x57C09A6E007db9BaE23Ec4213f490033a7299e5E",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x57C09A6E007db9BaE23Ec4213f490033a7299e5E",
+          "runtimeCodeHash": "0xe2acbbf74758a30be0d4984bac1b1d3494900edaad85d69dcc0e0108a5c07fb6"
+        },
+        {
+          "address": "0x0Ed3A82E49b0568Fc85DF5Dd1986098c46455CA5",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0xD5f3879160bc7c32ebb4dC785F8a4F505888de68",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x0Ed3A82E49b0568Fc85DF5Dd1986098c46455CA5",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x57C09A6E007db9BaE23Ec4213f490033a7299e5E",
+          "reward": "0xD5f3879160bc7c32ebb4dC785F8a4F505888de68"
+        }
+      ]
+    },
+    {
+      "symbol": "JERK",
+      "subject": "0xb240214Ed38A215Ce3D1a105E4D0D4e84602361C",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xb240214Ed38A215Ce3D1a105E4D0D4e84602361C",
+          "runtimeCodeHash": "0x25015dbb9bc01127061c3b3b6d32ce2303ac25ed62d373d05bec612d9c29457f"
+        },
+        {
+          "address": "0x9d140352bE8F1CE799B7111a27944866C5a2EeF3",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0xdF0992E440dD0be65BD8439b609d6D4366bf1CB5",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x9d140352bE8F1CE799B7111a27944866C5a2EeF3",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0xb240214Ed38A215Ce3D1a105E4D0D4e84602361C",
+          "reward": "0xdF0992E440dD0be65BD8439b609d6D4366bf1CB5"
+        }
+      ]
+    },
+    {
+      "symbol": "PIG",
+      "subject": "0xEaA86c0F9ee8a83Ad303AbE2d3170d223C22C522",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xEaA86c0F9ee8a83Ad303AbE2d3170d223C22C522",
+          "runtimeCodeHash": "0x9e7dd1f707758aff1983cdab5dd72142818d5ed671e4a7fcffe13abb48f5c266"
+        },
+        {
+          "address": "0x77A347B35877eE80230Ca5779CE30730Bf512732",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0xD5f3879160bc7c32ebb4dC785F8a4F505888de68",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x77A347B35877eE80230Ca5779CE30730Bf512732",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0xEaA86c0F9ee8a83Ad303AbE2d3170d223C22C522",
+          "reward": "0xD5f3879160bc7c32ebb4dC785F8a4F505888de68"
+        }
+      ]
+    },
+    {
+      "symbol": "Satori",
+      "subject": "0xbE8C3F764c8788250129b19210026F4A96F78E5e",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xbE8C3F764c8788250129b19210026F4A96F78E5e",
+          "runtimeCodeHash": "0xa387c4efbf4528811592094d23e1987ead3fdcc7cf9bfc5ed5534766f8f8fdfc"
+        },
+        {
+          "address": "0x8c2fcCfabC2C1d7151A6C7e535BCf7e0352a4cD4",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x8c2fcCfabC2C1d7151A6C7e535BCf7e0352a4cD4",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0xbE8C3F764c8788250129b19210026F4A96F78E5e",
+          "reward": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC"
+        }
+      ]
+    },
+    {
+      "symbol": "PECCY",
+      "subject": "0xaE3EA7Cc7E2f2d604F5686E49195F78dC846D6Fe",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xaE3EA7Cc7E2f2d604F5686E49195F78dC846D6Fe",
+          "runtimeCodeHash": "0x13efcf6cee734c1a4108d00c8122bea90bf91f679f548edd509b60c7545c9932"
+        },
+        {
+          "address": "0xC3CEB87B186B687A7a3a8eD475f541352d3ebbCc",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x12f190a9F9d7D37a250758b26824B97CE941bF54",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0xC3CEB87B186B687A7a3a8eD475f541352d3ebbCc",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0xaE3EA7Cc7E2f2d604F5686E49195F78dC846D6Fe",
+          "reward": "0x12f190a9F9d7D37a250758b26824B97CE941bF54"
+        }
+      ]
+    },
+    {
+      "symbol": "IRA",
+      "subject": "0x39802268185C5116085B330F1013c7aB35627460",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x39802268185C5116085B330F1013c7aB35627460",
+          "runtimeCodeHash": "0x71f4f72620e9f3c35e2348360de05930972f5c79a92663d45b743542884dd423"
+        },
+        {
+          "address": "0x5CB2bc1738d240C60F9A7D902Bc533AF2b12d654",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x5CB2bc1738d240C60F9A7D902Bc533AF2b12d654",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x39802268185C5116085B330F1013c7aB35627460",
+          "reward": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C"
+        }
+      ]
+    },
+    {
+      "symbol": "CRC",
+      "subject": "0x446adB118f5F15F2a749E38288D4025b55F3e095",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x446adB118f5F15F2a749E38288D4025b55F3e095",
+          "runtimeCodeHash": "0xc1131f9255245bce443b5058b7b62fa48d8d83e6fbadc0878a37c012141fa24d"
+        },
+        {
+          "address": "0x050fE5f69C57aE9EE2E40dAE2f3fdCFbAc129b8e",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x12f190a9F9d7D37a250758b26824B97CE941bF54",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x050fE5f69C57aE9EE2E40dAE2f3fdCFbAc129b8e",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x446adB118f5F15F2a749E38288D4025b55F3e095",
+          "reward": "0x12f190a9F9d7D37a250758b26824B97CE941bF54"
+        }
+      ]
+    },
+    {
+      "symbol": "CAYENNE",
+      "subject": "0xad6629157a774007E46945bb1B6013C79e7656C9",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xad6629157a774007E46945bb1B6013C79e7656C9",
+          "runtimeCodeHash": "0x53a145d4183156905707c7b5f490182f9b6188e615ccc097a6dfe9e9ba83fb38"
+        },
+        {
+          "address": "0xe4DEA0485D98C3eD0c7dcEa52C4d69017B611FD0",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0xD5f3879160bc7c32ebb4dC785F8a4F505888de68",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0xe4DEA0485D98C3eD0c7dcEa52C4d69017B611FD0",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0xad6629157a774007E46945bb1B6013C79e7656C9",
+          "reward": "0xD5f3879160bc7c32ebb4dC785F8a4F505888de68"
+        }
+      ]
+    },
+    {
+      "symbol": "Figure03",
+      "subject": "0xB05618FE540d0bE2bd193153dE86A9f84dE0D76A",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xB05618FE540d0bE2bd193153dE86A9f84dE0D76A",
+          "runtimeCodeHash": "0x986fa90fb6dc2783edc6e4daab5d47f2ba72d03baf48e866054c6e482a1cefdf"
+        },
+        {
+          "address": "0x4033131Be44F5856fef476165CA2747a65dd807A",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x4033131Be44F5856fef476165CA2747a65dd807A",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0xB05618FE540d0bE2bd193153dE86A9f84dE0D76A",
+          "reward": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC"
+        }
+      ]
+    },
+    {
+      "symbol": "STOCKFATHER",
+      "subject": "0x68CA235239324e8b156e644C9f049090049a573a",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x68CA235239324e8b156e644C9f049090049a573a",
+          "runtimeCodeHash": "0xb74f12b54f383fd908ec344eee1800f0ed0db11e391537663e93d29b74fc9602"
+        },
+        {
+          "address": "0x86a4a4208A2C2aaF083763fBe51E876bf65686e7",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x86a4a4208A2C2aaF083763fBe51E876bf65686e7",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x68CA235239324e8b156e644C9f049090049a573a",
+          "reward": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C"
+        }
+      ]
+    },
+    {
+      "symbol": "STARTUP",
+      "subject": "0x14369612D61e638Be7bF3b0AC302728d579d33AC",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x14369612D61e638Be7bF3b0AC302728d579d33AC",
+          "runtimeCodeHash": "0xb723d19aaca88389983cb9341d16219198a070dc599dfac4fae2db6dad0d28e6"
+        },
+        {
+          "address": "0xD00C7d29384FE690a4c05dd1EbAd4189ebFaeb66",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0xD00C7d29384FE690a4c05dd1EbAd4189ebFaeb66",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x14369612D61e638Be7bF3b0AC302728d579d33AC",
+          "reward": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C"
+        }
+      ]
+    },
+    {
+      "symbol": "KEYCAT",
+      "subject": "0x45Ea1EC5613B20BE000EC62a4443575AD530d8D8",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x45Ea1EC5613B20BE000EC62a4443575AD530d8D8",
+          "runtimeCodeHash": "0xeb18b81b85dd964837bf13721f1acf38b52a7f684c6ef8180a4badc1eb1245d2"
+        },
+        {
+          "address": "0x861a1030aa222Cc3395E9B419dF5ee431CB417e3",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x1b0E319c6A659F002271B69dB8A7df2F911c153E",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x861a1030aa222Cc3395E9B419dF5ee431CB417e3",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x45Ea1EC5613B20BE000EC62a4443575AD530d8D8",
+          "reward": "0x1b0E319c6A659F002271B69dB8A7df2F911c153E"
+        }
+      ]
+    },
+    {
+      "symbol": "Vlad",
+      "subject": "0x133698A17B7b5c2b981555C56c2B00824f517C1b",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x133698A17B7b5c2b981555C56c2B00824f517C1b",
+          "runtimeCodeHash": "0x9f60aa8508f63d8700fbaf5843e869dba6f00ad2e4dda1974a5e34d8c416af23"
+        },
+        {
+          "address": "0xE8b5FAf559033A9515142Fa1CA4d142565de2Bb1",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0xE8b5FAf559033A9515142Fa1CA4d142565de2Bb1",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x133698A17B7b5c2b981555C56c2B00824f517C1b",
+          "reward": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa"
+        }
+      ]
+    },
+    {
+      "symbol": "DIH",
+      "subject": "0x8A3bD7F2ef7b5d2D2a0F6BeF8B9bAaAd5A592B63",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x8A3bD7F2ef7b5d2D2a0F6BeF8B9bAaAd5A592B63",
+          "runtimeCodeHash": "0x1cf0c458f1d67ce70d4e181e4bb16a3ed708deadb89e147d7f0f8e1de0be1083"
+        },
+        {
+          "address": "0x479F1ECd955DFc5Fba4A157F5A2DFf4b751C197C",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0xe93237C50D904957Cf27E7B1133b510C669c2e74",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x479F1ECd955DFc5Fba4A157F5A2DFf4b751C197C",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x8A3bD7F2ef7b5d2D2a0F6BeF8B9bAaAd5A592B63",
+          "reward": "0xe93237C50D904957Cf27E7B1133b510C669c2e74"
+        }
+      ]
+    },
+    {
+      "symbol": "Finance",
+      "subject": "0x447096437c7476413E752DF0b1db3E2c9169e341",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x447096437c7476413E752DF0b1db3E2c9169e341",
+          "runtimeCodeHash": "0x82fa366891be3db3ff77e8b152b445c594bbd45699d417fe02c8bdd15eebd3c1"
+        },
+        {
+          "address": "0xE543e1E5b793503f7f4BFDb468F518436285667D",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0xE543e1E5b793503f7f4BFDb468F518436285667D",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x447096437c7476413E752DF0b1db3E2c9169e341",
+          "reward": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C"
+        }
+      ]
+    },
+    {
+      "symbol": "LOCKIN",
+      "subject": "0xbADA1D162baCBEf87eb166014f2b0fAC506dB18e",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xbADA1D162baCBEf87eb166014f2b0fAC506dB18e",
+          "runtimeCodeHash": "0x610ce9f289151e66f018e2bf18b35feadee82f759a3626524aeb6654708a8e90"
+        },
+        {
+          "address": "0xBe97710Cc792b3037C72caDb72F07f02a09F7285",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x1b0E319c6A659F002271B69dB8A7df2F911c153E",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0xBe97710Cc792b3037C72caDb72F07f02a09F7285",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0xbADA1D162baCBEf87eb166014f2b0fAC506dB18e",
+          "reward": "0x1b0E319c6A659F002271B69dB8A7df2F911c153E"
+        }
+      ]
+    },
+    {
+      "symbol": "PLUTOCOIN",
+      "subject": "0x39d7E739366777B372297E03c92D69205d5BdB4e",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x39d7E739366777B372297E03c92D69205d5BdB4e",
+          "runtimeCodeHash": "0x3bbd97f6f3c8b77ea141a61822bad402ca4522a403b6191f575e41f54249a04e"
+        },
+        {
+          "address": "0x0A0Ab07B1EFbD3030E8428A7a38bDb8ced1B429c",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x0A0Ab07B1EFbD3030E8428A7a38bDb8ced1B429c",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x39d7E739366777B372297E03c92D69205d5BdB4e",
+          "reward": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa"
+        }
+      ]
+    },
+    {
+      "symbol": "007",
+      "subject": "0xE9a5083a49a5eb2c371689777FCb6e086532C49B",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xE9a5083a49a5eb2c371689777FCb6e086532C49B",
+          "runtimeCodeHash": "0x9ae63b337f6d63765c4b50e795f88824972afe4d50762d7ffa3707983e51d899"
+        },
+        {
+          "address": "0x9fAECF127D64E726455684154EbBDa2e496a9586",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x9fAECF127D64E726455684154EbBDa2e496a9586",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0xE9a5083a49a5eb2c371689777FCb6e086532C49B",
+          "reward": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C"
+        }
+      ]
+    },
+    {
+      "symbol": "PONSDAQ",
+      "subject": "0x844FD586514fA776411728aea92f64e305a07238",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x844FD586514fA776411728aea92f64e305a07238",
+          "runtimeCodeHash": "0xe83d807043c2c31e15648f89751698b0c486baa099a3c7b2a19725ba29e98b7a"
+        },
+        {
+          "address": "0xCf28Ea751b05A41285C970cc148b60354f916c0e",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0xD5f3879160bc7c32ebb4dC785F8a4F505888de68",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0xCf28Ea751b05A41285C970cc148b60354f916c0e",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x844FD586514fA776411728aea92f64e305a07238",
+          "reward": "0xD5f3879160bc7c32ebb4dC785F8a4F505888de68"
+        }
+      ]
+    },
+    {
+      "symbol": "CPU",
+      "subject": "0x28BfF607409535285A5392f0b79516673b6072ac",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x28BfF607409535285A5392f0b79516673b6072ac",
+          "runtimeCodeHash": "0xbdb1bc4cab04515c295c960f894cc25c16c6d3cd86e233ac21810c05c6f12b33"
+        },
+        {
+          "address": "0xD782783fa928150950Bbe070fA4C18C85B9427E2",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0xD782783fa928150950Bbe070fA4C18C85B9427E2",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x28BfF607409535285A5392f0b79516673b6072ac",
+          "reward": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC"
+        }
+      ]
+    },
+    {
+      "symbol": "E",
+      "subject": "0x96B4AB04Ef52fe16c1deE87b7f7139e845259C9D",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x96B4AB04Ef52fe16c1deE87b7f7139e845259C9D",
+          "runtimeCodeHash": "0xf2244a9e0a87fd25d4a9ed001e7a0d340373af95174ccaf8ff166825278e5aff"
+        },
+        {
+          "address": "0x61244F9c398838BaE0a7a307418216217eCeb4F8",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x1b0E319c6A659F002271B69dB8A7df2F911c153E",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x61244F9c398838BaE0a7a307418216217eCeb4F8",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x96B4AB04Ef52fe16c1deE87b7f7139e845259C9D",
+          "reward": "0x1b0E319c6A659F002271B69dB8A7df2F911c153E"
+        }
+      ]
+    },
+    {
+      "symbol": "LARP",
+      "subject": "0x43fb250234419A47544091CA1b41DcF1cCe23b00",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x43fb250234419A47544091CA1b41DcF1cCe23b00",
+          "runtimeCodeHash": "0x852dcec6a684129b343b4a2e93f388239a1659de8ecf09fd541fbb884227c8d2"
+        },
+        {
+          "address": "0x7B8c1310eAc40a9b79648AFac14fe0e293b3c3Ac",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0xad25Ac6C84D497db898fa1E8387bf6Af3532a1c4",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0x7B8c1310eAc40a9b79648AFac14fe0e293b3c3Ac",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0x43fb250234419A47544091CA1b41DcF1cCe23b00",
+          "reward": "0xad25Ac6C84D497db898fa1E8387bf6Af3532a1c4"
+        }
+      ]
+    },
+    {
+      "symbol": "ELONGATE",
+      "subject": "0xD708A864E7613bA6732F06975516110AB684CFc9",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xD708A864E7613bA6732F06975516110AB684CFc9",
+          "runtimeCodeHash": "0x4716bfd2cb2a1e660828c6ed22d698ca023059e74303295ff7f01fe1bbbea50c"
+        },
+        {
+          "address": "0xc570f4991D78C3C0FF1b57c21c71A8F806709573",
+          "runtimeCodeHash": "0x136d0329735c6aa40cc19c5de376e6d9bb79bdf3abb869b96958474d9cc535a8"
+        },
+        {
+          "address": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "runtimeCodeHash": "0xf6dbbe067f3ca2da49be00ab3c07770d9a8bd8333dfc395e102a0706671f17c0"
+        },
+        {
+          "address": "0x3b09F732d0919e767B17B97D8D30dB0c624591bc",
+          "runtimeCodeHash": "0x8ac568cf33034dacb25dc93c765e7db7582a404a2667f95b394dfdb85b56889e"
+        },
+        {
+          "address": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "pons",
+          "distributor": "0xc570f4991D78C3C0FF1b57c21c71A8F806709573",
+          "beacon": "0xa125492aca28449D2291f5415A818697345cfA09",
+          "subject": "0xD708A864E7613bA6732F06975516110AB684CFc9",
+          "reward": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa"
+        }
+      ]
+    },
+    {
+      "symbol": "Rewards",
+      "subject": "0xD2E80E1ddA845FaE1Ae93BE2c00b6B62877fFe47",
+      "minimumHoldingUnits": "1000000000000000000000",
+      "bindings": [
+        {
+          "address": "0xD2E80E1ddA845FaE1Ae93BE2c00b6B62877fFe47",
+          "runtimeCodeHash": "0xcd487352e65777238b794639c891db4129f91f784e1b7b629ffae1e39d4bce5c"
+        },
+        {
+          "address": "0x8d4c92C67baBA4D38f57F65211a7AF8dB92e8ABB",
+          "runtimeCodeHash": "0x27ae553304a60ef41d2317ff9d3ce561a56d57369aa245f4f5720ab9c31cbdd8"
+        },
+        {
+          "address": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+          "runtimeCodeHash": "0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "reflection",
+          "distributor": "0x8d4c92C67baBA4D38f57F65211a7AF8dB92e8ABB",
+          "subject": "0xD2E80E1ddA845FaE1Ae93BE2c00b6B62877fFe47",
+          "reward": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+          "minimumHoldingUnits": "1000000000000000000000"
+        }
+      ]
+    },
+    {
+      "symbol": "SHERIFF",
+      "subject": "0xB40921cb9e3EDE2B3F0EdFb26F652f2739FDb51c",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xB40921cb9e3EDE2B3F0EdFb26F652f2739FDb51c",
+          "runtimeCodeHash": "0x41f28ebe87dbe1fccfc6c1162b8bc207b8b79931c37e733edb727d960521b8b7"
+        },
+        {
+          "address": "0xA1d65242D367501D9A261389a69005e584F4786a",
+          "runtimeCodeHash": "0x75dd6c860a639d0b283f308486fd1c6dafaf9f2e755e078850146cbecea33f7d"
+        },
+        {
+          "address": "0x2cC0FAC44B8252f6B10208B091aFf2c94B4da77D",
+          "runtimeCodeHash": "0x7e6ca88b216c0b26c5f8497f3e7106648f4bcd8ed41eedfa1c80787fb407f4e2"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "sinjoh",
+          "distributor": "0xA1d65242D367501D9A261389a69005e584F4786a",
+          "subject": "0xB40921cb9e3EDE2B3F0EdFb26F652f2739FDb51c",
+          "reward": "0x2cC0FAC44B8252f6B10208B091aFf2c94B4da77D",
+          "funder": "0xea0E0125D49CD48DD8E59C6e36898fBa02645bA1",
+          "accountId": "0xc560ed95306c43b5ccede8ef6e5e93684b052e62138b89a8ccbfe261fef4279f",
+          "latestEpoch": "2",
+          "configHash": "0x8d61d82310854c5e4305828fbff9e324e9e5e9dc79f04e539229e4256c6ce460",
+          "minPayout": "1",
+          "directoryListed": true
+        }
+      ]
+    },
+    {
+      "symbol": "VLADCHILL",
+      "subject": "0xD16a98d1481007fDcA46741aAc3f586c5AfD3D11",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xD16a98d1481007fDcA46741aAc3f586c5AfD3D11",
+          "runtimeCodeHash": "0x03d3ed5ef985b3cff7770af43fa13cc0843e5a8b32570bbe52e35fade32960bb"
+        },
+        {
+          "address": "0xA1d65242D367501D9A261389a69005e584F4786a",
+          "runtimeCodeHash": "0x75dd6c860a639d0b283f308486fd1c6dafaf9f2e755e078850146cbecea33f7d"
+        },
+        {
+          "address": "0x1b0E319c6A659F002271B69dB8A7df2F911c153E",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "sinjoh",
+          "distributor": "0xA1d65242D367501D9A261389a69005e584F4786a",
+          "subject": "0xD16a98d1481007fDcA46741aAc3f586c5AfD3D11",
+          "reward": "0x1b0E319c6A659F002271B69dB8A7df2F911c153E",
+          "funder": "0x9db2130b6D0771Da7093Fa1E1Affe619587587A9",
+          "accountId": "0xb252f675c65e830559a3b8728b5a1da09af725d0f7a2b8006c45b1b2d175d79a",
+          "latestEpoch": "6",
+          "configHash": "0x0a65695c992d93678caeda1265bfa29a80b58089dffc75f937ced183e2127c44",
+          "minPayout": "1",
+          "directoryListed": true
+        }
+      ]
+    },
+    {
+      "symbol": "BLACKBERRY",
+      "subject": "0x0D3b5D9d15dD15640B9485e21DbdC24E9922E0A8",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x0D3b5D9d15dD15640B9485e21DbdC24E9922E0A8",
+          "runtimeCodeHash": "0x1ee85025561574d22fad2a3b499485c6d0238453fc5f2d56f4de1362dfe236de"
+        },
+        {
+          "address": "0xA1d65242D367501D9A261389a69005e584F4786a",
+          "runtimeCodeHash": "0x75dd6c860a639d0b283f308486fd1c6dafaf9f2e755e078850146cbecea33f7d"
+        },
+        {
+          "address": "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9",
+          "runtimeCodeHash": "0x6c1fdd40002dcb440c7fff6a84171404d279ccb057803b65826f7546acd65630"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "sinjoh",
+          "distributor": "0xA1d65242D367501D9A261389a69005e584F4786a",
+          "subject": "0x0D3b5D9d15dD15640B9485e21DbdC24E9922E0A8",
+          "reward": "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9",
+          "funder": "0x92e3a5a0Ee95b2C9aB69311246224f2acDedcfEc",
+          "accountId": "0xc43d49d3a4bc9bd73a8152f3221ee6e75392d022bbe93ba7c092d83ae21304d2",
+          "latestEpoch": "5",
+          "configHash": "0x5ba566cd88f7decf02669718606996880ad8b9befcb76d7b88bf8d1d74746aca",
+          "minPayout": "1",
+          "directoryListed": true
+        }
+      ]
+    },
+    {
+      "symbol": "DROP",
+      "subject": "0xA30f5409db5C879737e6e57B4860cC5d95f0aE9C",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0xA30f5409db5C879737e6e57B4860cC5d95f0aE9C",
+          "runtimeCodeHash": "0xab4f9994dde28d84c2e42251a20160ce8dbcfa6b56fb6eb80fb37ca6d02eb575"
+        },
+        {
+          "address": "0xA1d65242D367501D9A261389a69005e584F4786a",
+          "runtimeCodeHash": "0x75dd6c860a639d0b283f308486fd1c6dafaf9f2e755e078850146cbecea33f7d"
+        },
+        {
+          "address": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+          "runtimeCodeHash": "0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "sinjoh",
+          "distributor": "0xA1d65242D367501D9A261389a69005e584F4786a",
+          "subject": "0xA30f5409db5C879737e6e57B4860cC5d95f0aE9C",
+          "reward": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+          "funder": "0xeBFe7c355d92387dEfcCD8e59b5d92F0Eb806b5D",
+          "accountId": "0x9530837793a8bbbf90f75ec308e485f286623ee0ddd9294d826e8b3d4e34b653",
+          "latestEpoch": "1",
+          "configHash": "0x0f4794e38f84d02cd7708bf88e4fd1c6e837dbd2c9c89d2d05839ecf58533a80",
+          "minPayout": "1",
+          "directoryListed": true
+        }
+      ]
+    },
+    {
+      "symbol": "ERECT",
+      "subject": "0x5aC8937ae4D36287318C9EC922A7f398Ad045b80",
+      "minimumHoldingUnits": "1",
+      "bindings": [
+        {
+          "address": "0x5aC8937ae4D36287318C9EC922A7f398Ad045b80",
+          "runtimeCodeHash": "0x51ac5ed6072a8261f46d9d2690e73725aaa3c900a4d39f2039605e6721ebc06f"
+        },
+        {
+          "address": "0xA1d65242D367501D9A261389a69005e584F4786a",
+          "runtimeCodeHash": "0x75dd6c860a639d0b283f308486fd1c6dafaf9f2e755e078850146cbecea33f7d"
+        },
+        {
+          "address": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+          "runtimeCodeHash": "0x5706be52f64875fee65a2cec0d80e47a23d8793cbe85d214b48445e2d05f5353"
+        }
+      ],
+      "programs": [
+        {
+          "kind": "sinjoh",
+          "distributor": "0xA1d65242D367501D9A261389a69005e584F4786a",
+          "subject": "0x5aC8937ae4D36287318C9EC922A7f398Ad045b80",
+          "reward": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+          "funder": "0x808D7504533f1B965b983D8Ee1804df12391B767",
+          "accountId": "0xb5499a3e5e4120748e86aeef10765c4b7f0e80f22eee96f734b0dd3df7f76877",
+          "latestEpoch": "2",
+          "configHash": "0x3ba69c5c5ad9453da091d529608485b72ac15d449ae2f79576b0880cc1177a69",
+          "minPayout": "1",
+          "directoryListed": true
+        }
+      ]
+    }
+  ]
+}

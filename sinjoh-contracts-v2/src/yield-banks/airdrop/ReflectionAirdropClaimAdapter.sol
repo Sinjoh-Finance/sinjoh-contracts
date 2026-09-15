@@ -25,17 +25,21 @@ contract ReflectionAirdropClaimAdapter is IAirdropClaimAdapter {
         if (subject.code.length == 0 || rewardAsset.code.length == 0) revert InvalidClaim();
     }
 
+    function validate() public view {
+        if (
+            distributor.codehash != distributorCodeHash
+                || IReflectionAirdrop(distributor).token() != subject
+                || IReflectionAirdrop(distributor).rewardToken() != rewardAsset
+        ) revert InvalidClaim();
+    }
+
     function prepare(address recipient, bytes calldata payload)
         external
         view
         returns (address, bytes memory)
     {
-        if (
-            recipient == address(0) || payload.length != 0
-                || distributor.codehash != distributorCodeHash
-                || IReflectionAirdrop(distributor).token() != subject
-                || IReflectionAirdrop(distributor).rewardToken() != rewardAsset
-        ) revert InvalidClaim();
+        validate();
+        if (recipient == address(0) || payload.length != 0) revert InvalidClaim();
         return (distributor, abi.encodeCall(IReflectionAirdrop.claimDividend, ()));
     }
 }

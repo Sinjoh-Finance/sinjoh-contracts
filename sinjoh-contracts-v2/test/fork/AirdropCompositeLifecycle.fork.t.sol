@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity 0.8.28;
 
+import { PonsAirdropClaimAdapter } from "../../src/yield-banks/airdrop/PonsAirdropClaimAdapter.sol";
+import { DeltaV3TwapUsdFeed } from "../../src/yield-banks/adapters/DeltaV3TwapUsdFeed.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import {
@@ -46,21 +48,26 @@ import {
 /// @notice Existing bank backing, live stock token/Chainlink proxy, original INJOH LP venue.
 /// Governance calls are simulated only on the fork. No oracle or stock token is mocked.
 contract AirdropCompositeLifecycleForkTest is AirdropCompositeInfrastructureForkTest {
-    address private constant INJOH = 0x2cC0FAC44B8252f6B10208B091aFf2c94B4da77D;
+    address internal constant INJOH = 0x2cC0FAC44B8252f6B10208B091aFf2c94B4da77D;
     address private constant OLD_MANAGER = 0x73991a25C818Bf1f1128dEAaB1492D45638DE0D3;
     address private constant OLD_BUILDER = 0x6235cF6bd8419b34942F4EDDB39C880BD96dD700;
-    address private constant NVDA = 0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC;
+    address internal constant NVDA = 0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC;
     address private constant NVDA_POOL = 0x62AB521f71431f78ac374CdbadC6cda3c8916b6C;
     // Chainlink documentation's reference directory, retrieved 2026-09-14.
     address private constant NVDA_FEED = 0x379EC4f7C378F34a1B47E4F3cbeBCbAC3E8E9F15;
     address private constant AAPL = 0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9;
     address private constant META = 0xc0D6457C16Cc70d6790Dd43521C899C87ce02f35;
-    PriceHub private hub;
-    AirdropTargetBook private book;
-    AirdropVault private airVault;
-    MarketMakingSleeve private lpVault;
-    DeltaV3LPAdapter private lpAdapter;
-    StockDividendVault private stockVault;
+    address constant MICRODUCK=0xD5f1afEA47b1A9eab414D2ee740cF1d6d039E725;
+    address constant GG=0xcaCB0e9caCcee63ec4d82952E561a291c68Bcb68;
+    uint8 internal airCount=1;
+    address[] private chosenAir;
+    uint16[] private chosenAirWeights;
+    PriceHub internal hub;
+    AirdropTargetBook internal book;
+    AirdropVault internal airVault;
+    MarketMakingSleeve internal lpVault;
+    DeltaV3LPAdapter internal lpAdapter;
+    StockDividendVault internal stockVault;
 
     function testExistingBankStockAndRealLPPositionRoundTrip() public {
         _roundTrip(1);
@@ -74,6 +81,10 @@ contract AirdropCompositeLifecycleForkTest is AirdropCompositeInfrastructureFork
         _roundTrip(3);
     }
 
+    function testExistingBankTwoRealAirdropBasketAndThreeStocksRoundTrip() public {airCount=2;_roundTrip(3);}
+    function testExistingBankThreeRealAirdropBasketAndThreeStocksRoundTrip() public {airCount=3;_roundTrip(3);}
+    function _maximumCompositeLoss() internal view override returns(uint16){return airCount>1?500:200;}
+    function _forkBlockNumber() internal view override returns(uint256){return airCount>1?63143073:super._forkBlockNumber();}
     function _roundTrip(uint8 count) private {
         _fork();
         DeltaPoolController controller =
@@ -93,10 +104,11 @@ contract AirdropCompositeLifecycleForkTest is AirdropCompositeInfrastructureFork
             assets[i] = candidates[i];
             weights[i] = uint16(10000 / count + (i == 0 ? 10000 % count : 0));
         }
-        address[] memory airAssets = new address[](1);
-        airAssets[0] = INJOH;
-        uint16[] memory airWeights = new uint16[](1);
-        airWeights[0] = 10000;
+        address[] memory airAssets = new address[](airCount);
+        uint16[] memory airWeights = new uint16[](airCount);
+        address[3] memory candidatesAir=[INJOH,MICRODUCK,GG];
+        for(uint256 i;i<airCount;i++) {airAssets[i]=candidatesAir[i];airWeights[i]=uint16(10000/airCount+(i==airCount-1?10000%airCount:0));}
+        chosenAir=airAssets;chosenAirWeights=airWeights;
         vm.prank(owner);
         book.setTarget(
             334,
@@ -119,7 +131,7 @@ contract AirdropCompositeLifecycleForkTest is AirdropCompositeInfrastructureFork
             uint256 assigned =
                 i == count - 1 ? availableStock - used : availableStock * weights[i] / 10000;
             used += assigned;
-            minima[i] = Math.mulDiv(assigned, _price(WETH), _price(assets[i])) * 9950 / 10000;
+            minima[i] = Math.mulDiv(assigned, _price(WETH), _price(assets[i])) * (airCount>1?9500:9950) / 10000;
         }
         execution.allocations[1].minimumOutput = 1;
         execution.allocations[1].minimumShares = 1;
@@ -128,7 +140,7 @@ contract AirdropCompositeLifecycleForkTest is AirdropCompositeInfrastructureFork
                 bank: 334,
                 targetNonce: book.targetOf(334).nonce,
                 minimumAirdropUnits: _airMinimum(bankWeth),
-                airdropRouteData: new bytes[](1),
+                airdropRouteData: new bytes[](airCount),
                 minimumStockUnits: minima,
                 stockRouteData: new bytes[](count),
                 minimumLPUnits: 1,
@@ -139,7 +151,7 @@ contract AirdropCompositeLifecycleForkTest is AirdropCompositeInfrastructureFork
             YieldBankSelfServiceExecutionRouter(ALLOCATOR.allocationOperator());
         vm.prank(owner);
         uint64 revision = ALLOCATOR.setTargetAllocation(
-            334, [uint16(0), 5000, 5000], registrationPool, 200, uint48(block.timestamp + 1 hours)
+            334, [uint16(0), 5000, 5000], registrationPool, _maximumCompositeLoss(), uint48(block.timestamp + 1 hours)
         );
         vm.prank(owner);
         router.executeOwnerAllocation(334, revision, execution);
@@ -148,6 +160,10 @@ contract AirdropCompositeLifecycleForkTest is AirdropCompositeInfrastructureFork
         assertEq(stockVault.accountedUnits(NVDA), stockUnits);
         assertEq(IERC20(NVDA).balanceOf(address(stockVault)), stockUnits);
         assertGt(composite.lpUnitsOf(334), 0);
+        for(uint256 i;i<airCount;i++) {
+            assertGt(airVault.principalOf(334,chosenAir[i]),0);
+            assertEq(IERC20(chosenAir[i]).balanceOf(address(airVault.custodyOf(334,chosenAir[i]))),airVault.principalOf(334,chosenAir[i]));
+        }
         assertGt(airVault.principalOf(334, INJOH), 0);
         assertEq(
             IERC20(INJOH).balanceOf(address(airVault.custodyOf(334, INJOH))),
@@ -172,12 +188,12 @@ contract AirdropCompositeLifecycleForkTest is AirdropCompositeInfrastructureFork
             (uint256 units,,,) = stockVault.positions(334, assets[i]);
             assertGt(units, 0);
             assertEq(IERC20(assets[i]).balanceOf(address(stockVault)), units);
-            stockExitMin[i] = _minimum(units, assets[i], WETH, 100);
+            stockExitMin[i] = _minimum(units, assets[i], WETH, airCount>1?500:100);
         }
         (uint256 lpPrice,) = facade.lpUnitPriceUsd18();
         uint256 minLP = Math.mulDiv(
             Math.mulDiv(composite.lpUnitsOf(334), lpPrice, _price(WETH)),
-            9800,
+            9900,
             10000,
             Math.Rounding.Ceil
         );
@@ -189,7 +205,7 @@ contract AirdropCompositeLifecycleForkTest is AirdropCompositeInfrastructureFork
                     stockExitMin,
                     new bytes[](count),
                     _airExitMinimum(),
-                    new bytes[](1),
+                    new bytes[](airCount),
                     minLP,
                     _lpExit()
                 )
@@ -204,16 +220,16 @@ contract AirdropCompositeLifecycleForkTest is AirdropCompositeInfrastructureFork
         vm.expectRevert();
         router.executeOwnerAllocation(334, revision, execution);
         assertGt(airVault.principalOf(334, INJOH), 0);
-        execution.deltaPoolRedemption.adapterCalls[0].maxLossBps = 200;
+        execution.deltaPoolRedemption.adapterCalls[0].maxLossBps = _maximumCompositeLoss();
         vm.prank(owner);
         revision = ALLOCATOR.setTargetAllocation(
-            334, [uint16(0), 0, 10000], address(0), 200, uint48(block.timestamp + 1 hours)
+            334, [uint16(0), 0, 10000], address(0), _maximumCompositeLoss(), uint48(block.timestamp + 1 hours)
         );
         vm.prank(owner);
         router.executeOwnerAllocation(334, revision, execution);
         assertEq(composite.balanceOf(bank), 0);
         assertEq(composite.totalSupply(), 0);
-        assertEq(airVault.principalOf(334, INJOH), 0);
+        for(uint256 i;i<airCount;i++) assertEq(airVault.principalOf(334,chosenAir[i]),0);
         for (uint256 i; i < count; ++i) {
             assertEq(stockVault.accountedUnits(assets[i]), 0);
         }
@@ -229,13 +245,16 @@ contract AirdropCompositeLifecycleForkTest is AirdropCompositeInfrastructureFork
     }
 
     function _airMinimum(uint256 bankWeth) private view returns (uint256[] memory values) {
-        values = new uint256[](1);
-        values[0] = _minimum(bankWeth / 10, WETH, INJOH, 100);
+        values = new uint256[](airCount);uint256 used;
+        for(uint256 i;i<airCount;i++){
+            uint256 assigned=i==airCount-1?bankWeth/10-used:bankWeth/10*chosenAirWeights[i]/10000;
+            used+=assigned;values[i]=_minimum(assigned,WETH,chosenAir[i],airCount==1?100:500);
+        }
     }
 
     function _airExitMinimum() private view returns (uint256[] memory values) {
-        values = new uint256[](1);
-        values[0] = _minimum(airVault.principalOf(334, INJOH), INJOH, WETH, 200);
+        values = new uint256[](airCount);
+        for(uint256 i;i<airCount;i++)values[i]=_minimum(airVault.principalOf(334,chosenAir[i]),chosenAir[i],WETH,_maximumCompositeLoss());
     }
 
     function _checkLPMaintenance() private {
@@ -269,7 +288,7 @@ contract AirdropCompositeLifecycleForkTest is AirdropCompositeInfrastructureFork
         assertEq(lpVault.totalSupply(), beforeShares);
     }
 
-    function _configure(DeltaPoolController controller) private {
+    function _configure(DeltaPoolController controller) internal {
         address governance = COLLECTION.collectionTimelock();
         hub = PriceHub(composite.priceHub());
         vm.prank(governance);
@@ -318,7 +337,7 @@ contract AirdropCompositeLifecycleForkTest is AirdropCompositeInfrastructureFork
             composite.eligibilityPolicy(),
             1,
             10000,
-            200
+            100
         );
         address lpEntry = _route(INJOH_POOL, WETH, INJOH);
         address lpExit = _route(INJOH_POOL, INJOH, WETH);
@@ -371,8 +390,21 @@ contract AirdropCompositeLifecycleForkTest is AirdropCompositeInfrastructureFork
         composite.configureTargetBook(address(book));
         vm.prank(governance);
         composite.bindAirdropRoutes(INJOH, lpEntry, lpExit);
+        if(airCount>=2)_addRealAirdrop(airRegistry,MICRODUCK,0xb87C3c63b53d19984f3b4A927e26B667e32087E8,0xe25E9Bc31d24BB652Fb6E2E466d7c9c89701173e);
+        if(airCount>=3)_addRealAirdrop(airRegistry,GG,0xd89F6933a8eF11C2939054c0e287eCb327817242,0x44dB4eCd5b0048d55c762E32FF53aFAEcCf75ed7);
         vm.prank(governance);
         controller.setPoolDepositsPaused(registrationPool, false);
+    }
+
+    function _addRealAirdrop(AirdropAssetRegistry registry,address asset,address pool,address distributor) private {
+        address gov=COLLECTION.collectionTimelock();address wethFeed=hub.feedDetails(WETH).feed;
+        DeltaV3TwapUsdFeed feed=new DeltaV3TwapUsdFeed(asset,WETH,pool,OLD_FACTORY,wethFeed,pool.codehash,OLD_FACTORY.codehash,wethFeed.codehash,1800,300,1e18,uint128(IYieldBankV3Pool(pool).liquidity()/2),"Airdrop V3 TWAP / USD");
+        vm.prank(gov);hub.configureFeed(asset,address(feed),address(0),86400,0,false,false,300);
+        vm.prank(gov);registry.register(asset,keccak256(abi.encode("fork-real-token",asset)));
+        PonsAirdropClaimAdapter adapter=new PonsAirdropClaimAdapter(distributor,0xa125492aca28449D2291f5415A818697345cfA09);
+        vm.prank(gov);registry.addClaimRoute(asset,address(adapter));vm.prank(gov);registry.setEnabled(asset,true);
+        address entry=_route(pool,WETH,asset);address exit=_route(pool,asset,WETH);
+        vm.prank(gov);composite.bindAirdropRoutes(asset,entry,exit);
     }
 
     function _configureStock(
@@ -392,7 +424,7 @@ contract AirdropCompositeLifecycleForkTest is AirdropCompositeInfrastructureFork
         composite.bindStockRoutes(asset, entry, exit);
     }
 
-    function _route(address pool, address input, address output) private returns (address) {
+    function _route(address pool, address input, address output) internal returns (address) {
         return address(
             new DeltaV3SinglePoolRoute(
                 pool, OLD_FACTORY, input, output, pool.codehash, OLD_FACTORY.codehash
@@ -450,7 +482,7 @@ contract AirdropCompositeLifecycleForkTest is AirdropCompositeInfrastructureFork
         YieldBankAdapterRedemptionCall[] memory calls = new YieldBankAdapterRedemptionCall[](1);
         calls[0] = YieldBankAdapterRedemptionCall(
             address(lpAdapter),
-            200,
+            100,
             abi.encode(DeltaV3LPAdapter.ExitParams(actions, block.timestamp + 15 minutes))
         );
         // LP paired output is determined by exact position inventory, including accrued fees.

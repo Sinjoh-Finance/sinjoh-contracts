@@ -88,9 +88,10 @@ contract AirdropCompositeInfrastructureForkTest is Test {
     function _fork() internal {
         string memory rpc = vm.envOr("ROBINHOOD_MAINNET_RPC_URL", string(""));
         if (bytes(rpc).length == 0) vm.skip(true);
-        vm.createSelectFork(rpc, vm.envOr("STOCK_FORK_BLOCK", uint256(62_601_489)));
+        vm.createSelectFork(rpc, _forkBlockNumber());
         assertEq(block.chainid, 4663);
     }
+    function _forkBlockNumber() internal view virtual returns(uint256){return vm.envOr("STOCK_FORK_BLOCK", uint256(62_601_489));}
 
     function _deployInfrastructure() internal {
         factory = _artifact("UniswapV3Factory", "");
@@ -147,7 +148,7 @@ contract AirdropCompositeInfrastructureForkTest is Test {
             (
                 registrationPool,
                 DeltaPoolController.MaterializationConfig(
-                    1, controller.maximumAdapterCapBps(), 200
+                    1, controller.maximumAdapterCapBps(), _maximumCompositeLoss()
                 ),
                 type(DeltaV3SinglePoolRoute).creationCode,
                 type(StockCompositeSleeve).creationCode,
@@ -163,6 +164,8 @@ contract AirdropCompositeInfrastructureForkTest is Test {
         facade = StockCompositeLPAdapter(adapter);
     }
 
+    function _maximumCompositeLoss() internal view virtual returns(uint16){return 200;}
+
     function _artifact(string memory name, bytes memory args) private returns (address deployed) {
         string memory json =
             vm.readFile(string.concat("deployments/stock-infrastructure/", name, ".json"));
@@ -171,7 +174,7 @@ contract AirdropCompositeInfrastructureForkTest is Test {
         require(deployed.code.length != 0, "canonical artifact deployment failed");
     }
 
-    function _infrastructureHash(address controller, address venue) private view returns (bytes32) {
+    function _infrastructureHash(address controller, address venue) internal view returns (bytes32) {
         (bool ok, bytes memory result) = controller.staticcall(
             abi.encodeWithSignature("infrastructureOfFactory(address)", venue)
         );

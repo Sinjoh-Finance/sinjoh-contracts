@@ -67,6 +67,7 @@ contract AirdropPriceMock is IPriceHub {
 /// @dev The LP leg is backed by WETH in this unit fixture. Real Delta deployment and routes
 /// are a separate fork test; this fixture does not pretend to earn actual LP fees.
 contract AirdropLPMock is ERC20 {
+    uint16 public constant maximumOperatorLossBps = 200;
     address public immutable sleeve;
     address public immutable pool;
     IERC20 public immutable weth;
@@ -95,11 +96,11 @@ contract AirdropLPMock is ERC20 {
         return assets;
     }
 
-    function redeemLP(uint256 shares, uint256 minimumWeth, uint16, bytes calldata)
+    function redeemLP(uint256 shares, uint256 minimumWeth, uint16 loss, bytes calldata)
         external
         returns (uint256)
     {
-        require(msg.sender == sleeve && shares >= minimumWeth);
+        require(msg.sender == sleeve && shares >= minimumWeth && loss <= maximumOperatorLossBps);
         _spendAllowance(sleeve, address(this), shares);
         _burn(sleeve, shares);
         weth.transfer(sleeve, shares);

@@ -10,6 +10,10 @@ import { IPriceHub } from "../interfaces/IPriceHub.sol";
 import { IYieldBankAllocationRoute } from "../interfaces/IYieldBankAllocationRoute.sol";
 import { IntegrationBinding } from "../libraries/IntegrationBinding.sol";
 
+interface IAirdropLPLossLimit {
+    function maximumOperatorLossBps() external view returns(uint16);
+}
+
 interface IAirdropLPExecution {
     function lpReceiptToken() external view returns (address);
     function purchaseLP(uint256, uint256, bytes calldata) external returns (uint256);
@@ -113,7 +117,9 @@ library AirdropExecution {
         uint256 beforeLP = token.balanceOf(address(this));
         uint256 beforeWeth = IERC20(weth).balanceOf(address(this));
         token.forceApprove(adapter, units);
-        IAirdropLPExecution(adapter).redeemLP(units, minimum, loss, data);
+        // A broader owner limit for Airdrop trading must not weaken the separate LP vault's cap.
+        uint16 lpLimit=IAirdropLPLossLimit(address(token)).maximumOperatorLossBps();
+        IAirdropLPExecution(adapter).redeemLP(units, minimum, loss < lpLimit ? loss : lpLimit, data);
         token.forceApprove(adapter, 0);
         if (
             token.balanceOf(address(this)) != beforeLP - units

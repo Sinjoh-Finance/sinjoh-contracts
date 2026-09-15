@@ -5,6 +5,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IERC20Metadata } from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 interface IAirdropClaimAdapter {
+    function validate() external view;
     function subject() external view returns (address);
     function rewardAsset() external view returns (address);
     function prepare(address recipient, bytes calldata proof)
@@ -38,6 +39,8 @@ contract AirdropAssetRegistry is Ownable {
     event EntryEnabled(address indexed asset, bool enabled);
     event ClaimRouteAdded(address indexed asset, uint256 index, address adapter, address reward);
 
+    event ClaimRouteReplaced(address indexed asset, uint256 index, address adapter, address reward);
+
     constructor(address governance, bytes32 catalogHash_) Ownable(governance) {
         if (catalogHash_ == bytes32(0)) revert InvalidAsset();
         catalogHash = catalogHash_;
@@ -60,6 +63,7 @@ contract AirdropAssetRegistry is Ownable {
         requireCurrent(asset, false);
         if (adapter.code.length == 0 || _claims[asset].length >= 8) revert InvalidAsset();
         IAirdropClaimAdapter route = IAirdropClaimAdapter(adapter);
+        route.validate();
         address reward = route.rewardAsset();
         if (route.subject() != asset || reward.code.length == 0) revert InvalidAsset();
         for (uint256 i; i < _claims[asset].length; ++i) {
@@ -67,6 +71,21 @@ contract AirdropAssetRegistry is Ownable {
         }
         _claims[asset].push(ClaimRoute(adapter, adapter.codehash, reward));
         emit ClaimRouteAdded(asset, _claims[asset].length - 1, adapter, reward);
+    }
+
+    /// @notice Governance can repair an issuer integration without replacing NFT treasuries.
+    function replaceClaimRoute(address asset, uint256 index, address adapter) external onlyOwner {
+        requireCurrent(asset, false);
+        if (index >= _claims[asset].length || adapter.code.length == 0 || assets[asset].enabled) revert InvalidAsset();
+        IAirdropClaimAdapter next = IAirdropClaimAdapter(adapter);
+        next.validate();
+        address reward = next.rewardAsset();
+        if (next.subject() != asset || reward.code.length == 0) revert InvalidAsset();
+        for (uint256 i; i < _claims[asset].length; ++i) {
+            if (i != index && _claims[asset][i].adapter == adapter) revert InvalidAsset();
+        }
+        _claims[asset][index] = ClaimRoute(adapter, adapter.codehash, reward);
+        emit ClaimRouteReplaced(asset, index, adapter, reward);
     }
 
     function setMinimumHoldingUnits(address asset, uint256 units) external onlyOwner {
@@ -77,7 +96,7 @@ contract AirdropAssetRegistry is Ownable {
 
     function setEnabled(address asset, bool enabled) external onlyOwner {
         requireCurrent(asset, false);
-        if (enabled && _claims[asset].length == 0) revert InvalidAsset();
+        if (enabled) _requireClaimsCurrent(asset);
         assets[asset].enabled = enabled;
         emit EntryEnabled(asset, enabled);
     }
@@ -88,7 +107,17 @@ contract AirdropAssetRegistry is Ownable {
             a.codeHash == bytes32(0) || asset.codehash != a.codeHash || (entering && !a.enabled)
                 || IERC20Metadata(asset).decimals() != a.decimals
         ) revert InvalidAsset();
+        if (entering) _requireClaimsCurrent(asset);
         return a.decimals;
+    }
+
+    function _requireClaimsCurrent(address asset) private view {
+        if (_claims[asset].length == 0) revert InvalidAsset();
+        for (uint256 i; i < _claims[asset].length; ++i) {
+            ClaimRoute memory route = _claims[asset][i];
+            if (route.adapter.codehash != route.codeHash) revert InvalidAsset();
+            IAirdropClaimAdapter(route.adapter).validate();
+        }
     }
 
     function claimRoute(address asset, uint256 index)

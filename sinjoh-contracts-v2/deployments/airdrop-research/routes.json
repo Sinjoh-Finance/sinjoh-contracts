@@ -1,0 +1,527 @@
+{
+  "block": 63143073,
+  "rows": [
+    {
+      "symbol": "INJOH",
+      "subject": "0x2cC0FAC44B8252f6B10208B091aFf2c94B4da77D",
+      "kind": "v3",
+      "quote": "0x0000000000000000000000000000000000000000",
+      "pool": "0xB09fa4f04032b9d9e690ac4a1d29523b5f9A72DC",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 0
+    },
+    {
+      "symbol": "microduck",
+      "subject": "0xd5f1afea47b1a9eab414d2ee740cf1d6d039e725",
+      "kind": "pons",
+      "quote": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC",
+      "pool": "0x62AB521f71431f78ac374CdbadC6cda3c8916b6C",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 200
+    },
+    {
+      "symbol": "SHROOM",
+      "subject": "0xab093def657f15df31b33922a95e047add645b29",
+      "kind": "pons",
+      "quote": "0xfF080c8ce2E5feadaCa0Da81314Ae59D232d4afD",
+      "pool": "0x301F48EC369BB3bfA0bC04d44A79037aa0EE2340",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 433
+    },
+    {
+      "symbol": "GG",
+      "subject": "0xcacb0e9caccee63ec4d82952e561a291c68bcb68",
+      "kind": "pons",
+      "quote": "0xC9a981FEE1F9DEc688bb123ccDeCc63D0deBFC4e",
+      "pool": "0x98996e833EA35EC17c3645Ca7b6Dd40d188564C4",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 200
+    },
+    {
+      "symbol": "MARTIANS",
+      "subject": "0xac77646bcff9d52e99800534192e0290933f4094",
+      "kind": "pons",
+      "quote": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa",
+      "pool": "0xC3c9F0171490Ef0F4536fe493F3b0EbB5ee0CB5e",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 224
+    },
+    {
+      "symbol": "GME",
+      "subject": "0xef67e3064bef1a27e81925ec7132f23e533bd5f6",
+      "kind": "pons",
+      "quote": "0x1b0E319c6A659F002271B69dB8A7df2F911c153E",
+      "pool": "0xc6BCC95043DC48C204bB2D57fb264a10Efe0a607",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "STONKS",
+      "subject": "0x238239d8fbec75ebc08aca988447bc1926f615e0",
+      "kind": "pons",
+      "quote": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C",
+      "pool": "0xDDCBBa3666f578E3F09516f21Ff85BFee859AB5e",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 200
+    },
+    {
+      "symbol": "CRCL",
+      "subject": "0x51d1abab4d1e7b50642a25d3f7b2823067ebf9d7",
+      "kind": "pons",
+      "quote": "0xdF0992E440dD0be65BD8439b609d6D4366bf1CB5",
+      "pool": "0x754DdD4bF8E8635B4301a7f4Af2Ea7A82AB6cEA7",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "18932",
+      "subject": "0x5759a852243a56a48853af1d28fd4e0f33747c9b",
+      "kind": "pons",
+      "quote": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa",
+      "pool": "0xC3c9F0171490Ef0F4536fe493F3b0EbB5ee0CB5e",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "MU",
+      "subject": "0x54e595a3544e8e08f39835f744e356bda6308184",
+      "kind": "pons",
+      "quote": "0xfF080c8ce2E5feadaCa0Da81314Ae59D232d4afD",
+      "pool": "0x301F48EC369BB3bfA0bC04d44A79037aa0EE2340",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 150
+    },
+    {
+      "symbol": "DINO",
+      "subject": "0x000b2164a76560323163343431db8be550f164b8",
+      "kind": "pons",
+      "quote": "0x2e0847E8910a9732eB3fb1bb4b70a580ADAD4FE3",
+      "pool": "0x8c2B4303fA0B99d07A5D3E9411497A277e65b673",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "AGI",
+      "subject": "0xe7534efb738182d5ff5c3d2abbe6410047609065",
+      "kind": "pons",
+      "quote": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC",
+      "pool": "0x62AB521f71431f78ac374CdbadC6cda3c8916b6C",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "HUGCOIN",
+      "subject": "0x2bf78d3dc6b2222bcbfe8c712c9c33120b3058bc",
+      "kind": "pons",
+      "quote": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC",
+      "pool": "0x62AB521f71431f78ac374CdbadC6cda3c8916b6C",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "VenusCoin",
+      "subject": "0x8aaa802c942193e1c8ab38b52814ba211d643f9f",
+      "kind": "pons",
+      "quote": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa",
+      "pool": "0xC3c9F0171490Ef0F4536fe493F3b0EbB5ee0CB5e",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "BIAO",
+      "subject": "0x46b982c0bc6d3e6155b156217acab1d84a9acdb6",
+      "kind": "pons",
+      "quote": "0xD5f3879160bc7c32ebb4dC785F8a4F505888de68",
+      "pool": "0xA40D00a55d43bA2d188039DCF88bD68f4F133E78",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 200
+    },
+    {
+      "symbol": "OPTIMUS",
+      "subject": "0x0ff9072a1ead154d92c2d2fef16afba6028ce2b2",
+      "kind": "pons",
+      "quote": "0x322F0929c4625eD5bAd873c95208D54E1c003b2d",
+      "pool": "0xA953CA88ff430e9487c60cA34d757414f4efdA07",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "DICKBUTT",
+      "subject": "0x8c894913e6a82dd98771c9d5407b95b1c1c29e89",
+      "kind": "pons",
+      "quote": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa",
+      "pool": "0xC3c9F0171490Ef0F4536fe493F3b0EbB5ee0CB5e",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 300
+    },
+    {
+      "symbol": "urmom",
+      "subject": "0x4874845b0d4acffd896dde1e42828a543717af7f",
+      "kind": "pons",
+      "quote": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa",
+      "pool": "0xC3c9F0171490Ef0F4536fe493F3b0EbB5ee0CB5e",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "BUDDY",
+      "subject": "0x7d8a38c94baaeace8e3662d1ed33eaf6fd581071",
+      "kind": "pons",
+      "quote": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C",
+      "pool": "0xDDCBBa3666f578E3F09516f21Ff85BFee859AB5e",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "VERITY",
+      "subject": "0x16a49c0896b889b31d00ac1edf51ad1ffcdf7bc6",
+      "kind": "pons",
+      "quote": "0xe93237C50D904957Cf27E7B1133b510C669c2e74",
+      "pool": "0xeb60bCD1D920ad6E102690CCFC6fB488899E1510",
+      "bridge": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+      "hookFeeBps": 200
+    },
+    {
+      "symbol": "SHIT",
+      "subject": "0xe45cdddf1ac5715f7e596912e184af0ec93a0fce",
+      "kind": "pons",
+      "quote": "0x6330D8C3178a418788dF01a47479c0ce7CCF450b",
+      "pool": "0x6707aeAc7D0e519B083219d27BB427364363183A",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 200
+    },
+    {
+      "symbol": "MSTR",
+      "subject": "0x99452d7519e103daf9bc9f02311dd164a073a7a2",
+      "kind": "pons",
+      "quote": "0xec262a75e413fAfD0dF80480274532C79D42da09",
+      "pool": "0x70504a6FafdbfB75fE971FAA4dD716e79aC5624c",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 150
+    },
+    {
+      "symbol": "SHRUB",
+      "subject": "0xa97005324d607eef70ac8cb7d864b0cd0a1b446d",
+      "kind": "pons",
+      "quote": "0x322F0929c4625eD5bAd873c95208D54E1c003b2d",
+      "pool": "0xA953CA88ff430e9487c60cA34d757414f4efdA07",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "CHIP",
+      "subject": "0xe38b1c963afc21f06b9e82a2de36a84fbb9c6e59",
+      "kind": "pons",
+      "quote": "0x86923f96303D656E4aa86D9d42D1e57ad2023fdC",
+      "pool": "0x5ca1B5e6Cb510b3bf53E7cd8f7d9B5a71b4a4dc0",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 200
+    },
+    {
+      "symbol": "PONZI",
+      "subject": "0xea98cb2f45f75485ddd95187bae9f623cf2d74ac",
+      "kind": "pons",
+      "quote": "0xec262a75e413fAfD0dF80480274532C79D42da09",
+      "pool": "0x70504a6FafdbfB75fE971FAA4dD716e79aC5624c",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 300
+    },
+    {
+      "symbol": "JOBS",
+      "subject": "0x88952e52cdf3bb14015d9a6499ea3c7f0bed6453",
+      "kind": "pons",
+      "quote": "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9",
+      "pool": "0x8bb3514e2204E1cDF3Ac149EFEe7Ff04D91B719f",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 200
+    },
+    {
+      "symbol": "EARLY",
+      "subject": "0x4d3e09736d50ddc72b7919e81cf5a889207747df",
+      "kind": "pons",
+      "quote": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C",
+      "pool": "0xDDCBBa3666f578E3F09516f21Ff85BFee859AB5e",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "WADDLES",
+      "subject": "0xbb6ee7aa6d56266ccef3b1c0706bccce2f9a0cdd",
+      "kind": "pons",
+      "quote": "0x12f190a9F9d7D37a250758b26824B97CE941bF54",
+      "pool": "0x8AC92DA74AB5F3b1d024Dc1943Ad7e15Dc4179Ef",
+      "bridge": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "HI",
+      "subject": "0xfe33976b064eb945446ec1b1c5dba65ce7b3dde3",
+      "kind": "pons",
+      "quote": "0x894E1EC2D74FFE5AEF8Dc8A9e84686acCB964F2A",
+      "pool": "0x851680416A4f4E1c463d45171d61ACDdBc8554c0",
+      "bridge": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "NINJA",
+      "subject": "0x57c09a6e007db9bae23ec4213f490033a7299e5e",
+      "kind": "pons",
+      "quote": "0xD5f3879160bc7c32ebb4dC785F8a4F505888de68",
+      "pool": "0xA40D00a55d43bA2d188039DCF88bD68f4F133E78",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "JERK",
+      "subject": "0xb240214ed38a215ce3d1a105e4d0d4e84602361c",
+      "kind": "pons",
+      "quote": "0xdF0992E440dD0be65BD8439b609d6D4366bf1CB5",
+      "pool": "0x754DdD4bF8E8635B4301a7f4Af2Ea7A82AB6cEA7",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 200
+    },
+    {
+      "symbol": "PIG",
+      "subject": "0xeaa86c0f9ee8a83ad303abe2d3170d223c22c522",
+      "kind": "pons",
+      "quote": "0xD5f3879160bc7c32ebb4dC785F8a4F505888de68",
+      "pool": "0xA40D00a55d43bA2d188039DCF88bD68f4F133E78",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "Satori",
+      "subject": "0xbe8c3f764c8788250129b19210026f4a96f78e5e",
+      "kind": "pons",
+      "quote": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC",
+      "pool": "0x62AB521f71431f78ac374CdbadC6cda3c8916b6C",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "PECCY",
+      "subject": "0xae3ea7cc7e2f2d604f5686e49195f78dc846d6fe",
+      "kind": "pons",
+      "quote": "0x12f190a9F9d7D37a250758b26824B97CE941bF54",
+      "pool": "0x8AC92DA74AB5F3b1d024Dc1943Ad7e15Dc4179Ef",
+      "bridge": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+      "hookFeeBps": 200
+    },
+    {
+      "symbol": "IRA",
+      "subject": "0x39802268185c5116085b330f1013c7ab35627460",
+      "kind": "pons",
+      "quote": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C",
+      "pool": "0xDDCBBa3666f578E3F09516f21Ff85BFee859AB5e",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 1100
+    },
+    {
+      "symbol": "CRC",
+      "subject": "0x446adb118f5f15f2a749e38288d4025b55f3e095",
+      "kind": "pons",
+      "quote": "0x12f190a9F9d7D37a250758b26824B97CE941bF54",
+      "pool": "0x8AC92DA74AB5F3b1d024Dc1943Ad7e15Dc4179Ef",
+      "bridge": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "CAYENNE",
+      "subject": "0xad6629157a774007e46945bb1b6013c79e7656c9",
+      "kind": "pons",
+      "quote": "0xD5f3879160bc7c32ebb4dC785F8a4F505888de68",
+      "pool": "0xA40D00a55d43bA2d188039DCF88bD68f4F133E78",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "Figure03",
+      "subject": "0xb05618fe540d0be2bd193153de86a9f84de0d76a",
+      "kind": "pons",
+      "quote": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC",
+      "pool": "0x62AB521f71431f78ac374CdbadC6cda3c8916b6C",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 200
+    },
+    {
+      "symbol": "STOCKFATHER",
+      "subject": "0x68ca235239324e8b156e644c9f049090049a573a",
+      "kind": "pons",
+      "quote": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C",
+      "pool": "0xDDCBBa3666f578E3F09516f21Ff85BFee859AB5e",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 200
+    },
+    {
+      "symbol": "STARTUP",
+      "subject": "0x14369612d61e638be7bf3b0ac302728d579d33ac",
+      "kind": "pons",
+      "quote": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C",
+      "pool": "0xDDCBBa3666f578E3F09516f21Ff85BFee859AB5e",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "KEYCAT",
+      "subject": "0x45ea1ec5613b20be000ec62a4443575ad530d8d8",
+      "kind": "pons",
+      "quote": "0x1b0E319c6A659F002271B69dB8A7df2F911c153E",
+      "pool": "0xc6BCC95043DC48C204bB2D57fb264a10Efe0a607",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "Vlad",
+      "subject": "0x133698a17b7b5c2b981555c56c2b00824f517c1b",
+      "kind": "pons",
+      "quote": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa",
+      "pool": "0xC3c9F0171490Ef0F4536fe493F3b0EbB5ee0CB5e",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "DIH",
+      "subject": "0x8a3bd7f2ef7b5d2d2a0f6bef8b9baaad5a592b63",
+      "kind": "pons",
+      "quote": "0xe93237C50D904957Cf27E7B1133b510C669c2e74",
+      "pool": "0xeb60bCD1D920ad6E102690CCFC6fB488899E1510",
+      "bridge": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "Finance",
+      "subject": "0x447096437c7476413e752df0b1db3e2c9169e341",
+      "kind": "pons",
+      "quote": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C",
+      "pool": "0xDDCBBa3666f578E3F09516f21Ff85BFee859AB5e",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 200
+    },
+    {
+      "symbol": "LOCKIN",
+      "subject": "0xbada1d162bacbef87eb166014f2b0fac506db18e",
+      "kind": "pons",
+      "quote": "0x1b0E319c6A659F002271B69dB8A7df2F911c153E",
+      "pool": "0xc6BCC95043DC48C204bB2D57fb264a10Efe0a607",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "PLUTOCOIN",
+      "subject": "0x39d7e739366777b372297e03c92d69205d5bdb4e",
+      "kind": "pons",
+      "quote": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa",
+      "pool": "0xC3c9F0171490Ef0F4536fe493F3b0EbB5ee0CB5e",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "007",
+      "subject": "0xe9a5083a49a5eb2c371689777fcb6e086532c49b",
+      "kind": "pons",
+      "quote": "0x117cc2133c37B721F49dE2A7a74833232B3B4C0C",
+      "pool": "0xDDCBBa3666f578E3F09516f21Ff85BFee859AB5e",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 200
+    },
+    {
+      "symbol": "PONSDAQ",
+      "subject": "0x844fd586514fa776411728aea92f64e305a07238",
+      "kind": "pons",
+      "quote": "0xD5f3879160bc7c32ebb4dC785F8a4F505888de68",
+      "pool": "0xA40D00a55d43bA2d188039DCF88bD68f4F133E78",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "CPU",
+      "subject": "0x28bff607409535285a5392f0b79516673b6072ac",
+      "kind": "pons",
+      "quote": "0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC",
+      "pool": "0x62AB521f71431f78ac374CdbadC6cda3c8916b6C",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "E",
+      "subject": "0x96b4ab04ef52fe16c1dee87b7f7139e845259c9d",
+      "kind": "pons",
+      "quote": "0x1b0E319c6A659F002271B69dB8A7df2F911c153E",
+      "pool": "0xc6BCC95043DC48C204bB2D57fb264a10Efe0a607",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 200
+    },
+    {
+      "symbol": "LARP",
+      "subject": "0x43fb250234419a47544091ca1b41dcf1cce23b00",
+      "kind": "pons",
+      "quote": "0xad25Ac6C84D497db898fa1E8387bf6Af3532a1c4",
+      "pool": "0xa57ab582b310dd6f9e934EA1EEEa152741545E6A",
+      "bridge": "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168",
+      "hookFeeBps": 200
+    },
+    {
+      "symbol": "ELONGATE",
+      "subject": "0xd708a864e7613ba6732f06975516110ab684cfc9",
+      "kind": "pons",
+      "quote": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa",
+      "pool": "0xC3c9F0171490Ef0F4536fe493F3b0EbB5ee0CB5e",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 100
+    },
+    {
+      "symbol": "Rewards",
+      "subject": "0xD2E80E1ddA845FaE1Ae93BE2c00b6B62877fFe47",
+      "kind": "rewards",
+      "quote": "0x0000000000000000000000000000000000000000",
+      "pool": "0x0000000000000000000000000000000000000000",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 0
+    },
+    {
+      "symbol": "SHERIFF",
+      "subject": "0xb40921cb9e3ede2b3f0edfb26f652f2739fdb51c",
+      "kind": "pons",
+      "quote": "0x0000000000000000000000000000000000000000",
+      "pool": "0x0000000000000000000000000000000000000000",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 200
+    },
+    {
+      "symbol": "VLADCHILL",
+      "subject": "0xd16a98d1481007fdca46741aac3f586c5afd3d11",
+      "kind": "pons",
+      "quote": "0x0000000000000000000000000000000000000000",
+      "pool": "0x0000000000000000000000000000000000000000",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 0
+    },
+    {
+      "symbol": "BLACKBERRY",
+      "subject": "0x0d3b5d9d15dd15640b9485e21dbdc24e9922e0a8",
+      "kind": "pons",
+      "quote": "0x0000000000000000000000000000000000000000",
+      "pool": "0x0000000000000000000000000000000000000000",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 0
+    },
+    {
+      "symbol": "DROP",
+      "subject": "0xa30f5409db5c879737e6e57b4860cc5d95f0ae9c",
+      "kind": "pons",
+      "quote": "0x0000000000000000000000000000000000000000",
+      "pool": "0x0000000000000000000000000000000000000000",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 0
+    },
+    {
+      "symbol": "ERECT",
+      "subject": "0x5ac8937ae4d36287318c9ec922a7f398ad045b80",
+      "kind": "pons",
+      "quote": "0x4a0E65A3EcceC6dBe60AE065F2e7bb85Fae35eEa",
+      "pool": "0xC3c9F0171490Ef0F4536fe493F3b0EbB5ee0CB5e",
+      "bridge": "0x0000000000000000000000000000000000000000",
+      "hookFeeBps": 0
+    }
+  ]
+}

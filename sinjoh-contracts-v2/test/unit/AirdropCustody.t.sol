@@ -170,9 +170,9 @@ contract AirdropCustodyTest is Test {
         registry.setEnabled(address(token), true);
         vm.expectRevert(AirdropVault.InvalidTransfer.selector);
         vault.deposit(1, address(token), 1 ether);
-        assertEq(c1.principal(), 100 ether);
+        assertEq(c1.principal(address(token)), 100 ether);
         vault.withdraw(1, address(token), 100 ether);
-        assertEq(c1.principal(), 0);
+        assertEq(c1.principal(address(token)), 0);
     }
 
     function testSameTokenRewardOnlyPaysSurplus() public {
@@ -202,7 +202,7 @@ contract AirdropCustodyTest is Test {
         custody(1).claim(address(reward));
         vault.deposit(1, address(token), 20 ether);
         assertEq(address(custody(1)), holder);
-        assertEq(custody(1).principal(), 20 ether);
+        assertEq(custody(1).principal(address(token)), 20 ether);
         assertEq(reward.balanceOf(alice), 7 ether);
     }
 
@@ -235,25 +235,25 @@ contract AirdropCustodyTest is Test {
     function testPermissionlessCollectionPinsRecipientAndRejectsReplay() public {
         distributor.authorize(1, address(custody(1)), 7 ether);
         vm.prank(bob);
-        custody(1).collect(0, payload(7 ether));
+        custody(1).collect(address(token), 0, payload(7 ether));
         assertEq(custody(1).available(address(reward)), 7 ether);
         assertEq(reward.balanceOf(bob), 0);
         vm.expectRevert(AirdropBankCustody.ClaimFailed.selector);
-        custody(1).collect(0, payload(7 ether));
+        custody(1).collect(address(token), 0, payload(7 ether));
     }
 
     function testInvalidProofDoesNotChangeBalances() public {
         vm.expectRevert(AirdropBankCustody.ClaimFailed.selector);
-        custody(1).collect(0, payload(9 ether));
+        custody(1).collect(address(token), 0, payload(9 ether));
         assertEq(custody(1).available(address(reward)), 0);
-        assertEq(custody(1).principal(), 100 ether);
+        assertEq(custody(1).principal(address(token)), 100 ether);
     }
 
     function testUpstreamUpgradeStopsCollectionButNotPaidRewardRecovery() public {
         reward.mint(address(custody(1)), 7 ether);
         beacon.upgrade(address(reward));
         vm.expectRevert(PonsAirdropClaimAdapter.InvalidClaim.selector);
-        custody(1).collect(0, payload(7 ether));
+        custody(1).collect(address(token), 0, payload(7 ether));
         vm.prank(alice);
         custody(1).claim(address(reward));
         assertEq(reward.balanceOf(alice), 7 ether);
@@ -265,7 +265,7 @@ contract AirdropCustodyTest is Test {
         vm.expectRevert(AirdropAssetRegistry.InvalidAsset.selector);
         vault.deposit(1, address(token), 1 ether);
         vault.withdraw(1, address(token), 100 ether);
-        assertEq(custody(1).principal(), 0);
+        assertEq(custody(1).principal(address(token)), 0);
     }
 
     function testOnlyControllerCanChangePrincipal() public {
@@ -274,14 +274,14 @@ contract AirdropCustodyTest is Test {
         vault.withdraw(1, address(token), 1 ether);
         vm.prank(alice);
         vm.expectRevert();
-        custody(1).withdraw(1 ether);
+        custody(1).withdraw(address(token), 1 ether);
     }
 
     function testFuzzPayoutNeverSpendsPrincipal(uint128 incoming) public {
         reward.mint(address(custody(1)), incoming);
         vm.prank(alice);
         custody(1).claim(address(reward));
-        assertEq(custody(1).principal(), 100 ether);
+        assertEq(custody(1).principal(address(token)), 100 ether);
         assertEq(token.balanceOf(address(custody(1))), 100 ether);
         assertEq(reward.balanceOf(alice), incoming);
         assertEq(custody(1).available(address(reward)), 0);
@@ -296,15 +296,15 @@ contract AirdropCustodyTest is Test {
         assertEq(address(receiver).balance, 1 ether);
         assertFalse(receiver.reentrySucceeded());
         assertEq(c1.totalPaid(address(0)), 1 ether);
-        assertEq(c1.principal(), 100 ether);
+        assertEq(c1.principal(address(token)), 100 ether);
     }
 
     function testFuzzPrincipalWithdrawalConservesBankAggregate(uint128 raw) public {
         uint256 amount = bound(uint256(raw), 1, 100 ether);
         uint256 beforeBalance = token.balanceOf(address(this));
         vault.withdraw(1, address(token), amount);
-        assertEq(c1.principal(), 100 ether - amount);
-        assertEq(vault.totalPrincipal(address(token)), c1.principal() + c2.principal());
+        assertEq(c1.principal(address(token)), 100 ether - amount);
+        assertEq(vault.totalPrincipal(address(token)), c1.principal(address(token)) + c2.principal(address(token)));
         assertEq(token.balanceOf(address(this)), beforeBalance + amount);
         assertEq(token.balanceOf(address(c2)), 200 ether);
     }

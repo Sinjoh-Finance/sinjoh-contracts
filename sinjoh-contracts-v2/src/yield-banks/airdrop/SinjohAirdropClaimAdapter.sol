@@ -45,15 +45,17 @@ contract SinjohAirdropClaimAdapter is IAirdropClaimAdapter {
         accountId = keccak256(abi.encode(funder_, subject_, reward_));
     }
 
+    function validate() public view {
+        if (distributor.codehash != distributorCodeHash) revert InvalidClaim();
+    }
+
     function prepare(address recipient, bytes calldata payload)
         external
         view
         returns (address, bytes memory)
     {
-        if (
-            recipient == address(0) || distributor.codehash != distributorCodeHash
-                || payload.length > 8192
-        ) revert InvalidClaim();
+        validate();
+        if (recipient == address(0) || payload.length > 8192) revert InvalidClaim();
         (uint64 epoch, uint256 amount, ISinjohHolderAirdrop.ProofElement[] memory proof) =
             abi.decode(payload, (uint64, uint256, ISinjohHolderAirdrop.ProofElement[]));
         if (epoch == 0 || amount == 0 || proof.length > 64) revert InvalidClaim();

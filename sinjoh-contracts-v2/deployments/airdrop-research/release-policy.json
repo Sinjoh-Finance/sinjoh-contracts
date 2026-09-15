@@ -1,0 +1,7 @@
+{
+  "status": "approved-single-treasury-in-development",
+  "custodyRequirement": "One additional Airdrop treasury per NFT holding the whole basket; user approved",
+  "continuousPricePublication": false,
+  "allowAuxiliaryCustodyDeployment": true,
+  "reason": "Revised single-treasury integration passed exact deployment, activation, owner basket/claim and service recovery verification. Production activation remains gated."
+}

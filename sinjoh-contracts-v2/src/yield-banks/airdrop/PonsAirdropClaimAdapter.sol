@@ -47,19 +47,23 @@ contract PonsAirdropClaimAdapter is IAirdropClaimAdapter {
         if (subject.code.length == 0 || rewardAsset.code.length == 0) revert InvalidClaim();
     }
 
-    function prepare(address recipient, bytes calldata payload)
-        external
-        view
-        returns (address, bytes memory)
-    {
+    function validate() public view {
         if (
-            recipient == address(0) || payload.length > 4096
-                || distributor.codehash != distributorCodeHash || beacon.codehash != beaconCodeHash
+            distributor.codehash != distributorCodeHash || beacon.codehash != beaconCodeHash
                 || IAirdropBeacon(beacon).implementation() != implementation
                 || implementation.codehash != implementationCodeHash
                 || IPonsAirdropDistributor(distributor).token() != subject
                 || IPonsAirdropDistributor(distributor).quoteToken() != rewardAsset
         ) revert InvalidClaim();
+    }
+
+    function prepare(address recipient, bytes calldata payload)
+        external
+        view
+        returns (address, bytes memory)
+    {
+        validate();
+        if (recipient == address(0) || payload.length > 4096) revert InvalidClaim();
         (uint256 epoch, uint256 quoteAmount, uint256 nativeAmount, bytes32[] memory proof) =
             abi.decode(payload, (uint256, uint256, uint256, bytes32[]));
         if (proof.length > 64 || (quoteAmount == 0 && nativeAmount == 0)) revert InvalidClaim();

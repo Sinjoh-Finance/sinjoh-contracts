@@ -13,6 +13,8 @@ contract AirdropVault is ReentrancyGuard {
     address public immutable controller;
     IYieldBankCollection public immutable collection;
     AirdropAssetRegistry public immutable registry;
+    mapping(uint256 => AirdropBankCustody) public treasuryOf;
+    // Retain subject discovery, including exited positions, for delayed issuer claims.
     mapping(uint256 => mapping(address => AirdropBankCustody)) public custodyOf;
     mapping(address => uint256) public totalPrincipal;
     error Unauthorized();
@@ -32,7 +34,7 @@ contract AirdropVault is ReentrancyGuard {
 
     function principalOf(uint256 bank, address asset) external view returns (uint256) {
         AirdropBankCustody custody = custodyOf[bank][asset];
-        return address(custody) == address(0) ? 0 : custody.principal();
+        return address(custody) == address(0) ? 0 : custody.principal(asset);
     }
 
     function deposit(uint256 bank, address asset, uint256 units) external nonReentrant {
@@ -41,15 +43,18 @@ contract AirdropVault is ReentrancyGuard {
                 || collection.accountOf(bank) == address(0)
         ) revert Unauthorized();
         registry.requireCurrent(asset, true);
-        AirdropBankCustody custody = custodyOf[bank][asset];
+        AirdropBankCustody custody = treasuryOf[bank];
         if (address(custody) == address(0)) {
-            custody = new AirdropBankCustody{ salt: keccak256(abi.encode(bank, asset)) }(
-                address(this), address(collection), address(registry), bank, asset
+            custody = new AirdropBankCustody{ salt: keccak256(abi.encode(bank)) }(
+                address(this), address(collection), address(registry), bank
             );
+            treasuryOf[bank] = custody;
+        }
+        if (address(custodyOf[bank][asset]) == address(0)) {
             custodyOf[bank][asset] = custody;
             emit CustodyCreated(bank, asset, address(custody));
         }
-        if (custody.principal() + units < registry.minimumHoldingUnits(asset)) {
+        if (custody.principal(asset) + units < registry.minimumHoldingUnits(asset)) {
             revert InvalidTransfer();
         }
         IERC20 token = IERC20(asset);
@@ -57,11 +62,11 @@ contract AirdropVault is ReentrancyGuard {
         token.safeTransferFrom(controller, address(this), units);
         if (token.balanceOf(address(this)) != beforeBalance + units) revert InvalidTransfer();
         token.forceApprove(address(custody), units);
-        custody.deposit(units);
+        custody.deposit(asset, units);
         token.forceApprove(address(custody), 0);
         if (token.balanceOf(address(this)) != beforeBalance) revert InvalidTransfer();
         totalPrincipal[asset] += units;
-        emit PrincipalChanged(bank, asset, custody.principal());
+        emit PrincipalChanged(bank, asset, custody.principal(asset));
     }
 
     function withdraw(uint256 bank, address asset, uint256 units) external nonReentrant {
@@ -70,13 +75,13 @@ contract AirdropVault is ReentrancyGuard {
         IERC20 token = IERC20(asset);
         uint256 beforeBalance = token.balanceOf(address(this));
         uint256 beforeController = token.balanceOf(controller);
-        custody.withdraw(units);
+        custody.withdraw(asset, units);
         totalPrincipal[asset] -= units;
         token.safeTransfer(controller, units);
         if (
             token.balanceOf(address(this)) != beforeBalance
                 || token.balanceOf(controller) != beforeController + units
         ) revert InvalidTransfer();
-        emit PrincipalChanged(bank, asset, custody.principal());
+        emit PrincipalChanged(bank, asset, custody.principal(asset));
     }
 }

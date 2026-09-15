@@ -441,6 +441,24 @@ contract AirdropCompositeSleeve is StockBankReceipt, ReentrancyGuard {
                 || execution.stockRouteData.length != stocks.length
         ) revert InvalidConfiguration();
         uint256 beforeWeth = IERC20(accountingAsset).balanceOf(address(this));
+        // Exit the LP before token sales move its underlying pool. Its separate
+        // tighter loss cap remains enforced; subsequent token legs keep their
+        // own oracle floors and the allocator checks the total bank proceeds.
+        uint256 lpUnits = lpUnitsOf[bank];
+        if (lpUnits != 0) {
+            AirdropExecution.redeemLP(
+                portfolioAdapter,
+                accountingAsset,
+                lpUnits,
+                execution.minimumLPWeth,
+                calls[0].maxLossBps,
+                execution.lpData
+            );
+            totalLPUnits -= lpUnits;
+            delete lpUnitsOf[bank];
+        } else if (execution.minimumLPWeth != 0 || execution.lpData.length != 0) {
+            revert InvalidConfiguration();
+        }
         AirdropExecution.exit(
             _context(bank, true, calls[0].maxLossBps),
             _legs(
@@ -462,21 +480,6 @@ contract AirdropCompositeSleeve is StockBankReceipt, ReentrancyGuard {
             )
         );
         delete _bankAirdrops[bank];
-        uint256 lpUnits = lpUnitsOf[bank];
-        if (lpUnits != 0) {
-            AirdropExecution.redeemLP(
-                portfolioAdapter,
-                accountingAsset,
-                lpUnits,
-                execution.minimumLPWeth,
-                calls[0].maxLossBps,
-                execution.lpData
-            );
-            totalLPUnits -= lpUnits;
-            delete lpUnitsOf[bank];
-        } else if (execution.minimumLPWeth != 0 || execution.lpData.length != 0) {
-            revert InvalidConfiguration();
-        }
         if (IERC721(collection.nft()).ownerOf(bank) != nftOwner) revert InvalidTarget();
         delete _bankAssets[bank];
         uint256 returned = IERC20(accountingAsset).balanceOf(address(this)) - beforeWeth;

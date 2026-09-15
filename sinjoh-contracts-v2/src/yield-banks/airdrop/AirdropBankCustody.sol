@@ -13,7 +13,7 @@ interface IAirdropClosedBank {
     function redemptionBeneficiary() external view returns (address);
 }
 
-/// @notice A permanent, non-upgradeable holder address for ONE bank and ONE subject.
+/// @notice A permanent, non-upgradeable holder address for one bank and its entire Airdrop basket.
 /// Unclaimed rewards travel with the NFT. Following redemption, the collection's recorded
 /// beneficiary can recover delayed payouts. Principal never enters the reward balance.
 contract AirdropBankCustody is ReentrancyGuard {
@@ -22,8 +22,9 @@ contract AirdropBankCustody is ReentrancyGuard {
     IYieldBankCollection public immutable collection;
     AirdropAssetRegistry public immutable registry;
     uint256 public immutable bank;
-    address public immutable subject;
-    uint256 public principal;
+    mapping(address => uint256) public principal;
+    mapping(address => bool) public hasHeld;
+    address[] private _activeAssets;
     mapping(address => uint256) public totalPaid;
     error Unauthorized();
     error InvalidTransfer();
@@ -32,24 +33,22 @@ contract AirdropBankCustody is ReentrancyGuard {
     event RewardPaid(
         uint256 indexed bank, address indexed asset, address indexed beneficiary, uint256 amount
     );
-    event ExternalClaim(uint256 indexed route, address indexed target);
+    event ExternalClaim(address indexed subject, uint256 indexed route, address indexed target);
 
     constructor(
         address vault_,
         address collection_,
         address registry_,
-        uint256 bank_,
-        address subject_
+        uint256 bank_
     ) {
         if (
             vault_ == address(0) || collection_.code.length == 0 || registry_.code.length == 0
-                || subject_.code.length == 0 || bank_ == 0
+                || bank_ == 0
         ) revert Unauthorized();
         vault = vault_;
         collection = IYieldBankCollection(collection_);
         registry = AirdropAssetRegistry(registry_);
         bank = bank_;
-        subject = subject_;
     }
     receive() external payable { }
 
@@ -64,33 +63,47 @@ contract AirdropBankCustody is ReentrancyGuard {
         if (recipient == address(0) || recipient == address(this)) revert Unauthorized();
     }
 
-    function deposit(uint256 amount) external nonReentrant {
+    function deposit(address asset, uint256 amount) external nonReentrant {
         if (msg.sender != vault || amount == 0) revert Unauthorized();
-        uint256 beforeBalance = IERC20(subject).balanceOf(address(this));
-        IERC20(subject).safeTransferFrom(vault, address(this), amount);
-        if (IERC20(subject).balanceOf(address(this)) != beforeBalance + amount) {
+        registry.requireCurrent(asset, true);
+        if (principal[asset] == 0) {
+            if (_activeAssets.length >= 3) revert Unauthorized();
+            _activeAssets.push(asset);
+        }
+        hasHeld[asset] = true;
+        uint256 beforeBalance = IERC20(asset).balanceOf(address(this));
+        IERC20(asset).safeTransferFrom(vault, address(this), amount);
+        if (IERC20(asset).balanceOf(address(this)) != beforeBalance + amount) {
             revert InvalidTransfer();
         }
-        principal += amount;
+        principal[asset] += amount;
     }
 
-    function withdraw(uint256 amount) external nonReentrant {
-        if (msg.sender != vault || amount == 0 || amount > principal) revert Unauthorized();
-        principal -= amount;
-        _send(subject, vault, amount);
+    function withdraw(address asset, uint256 amount) external nonReentrant {
+        if (msg.sender != vault || amount == 0 || amount > principal[asset]) revert Unauthorized();
+        principal[asset] -= amount;
+        if (principal[asset] == 0) {
+            for (uint256 i; i < _activeAssets.length; ++i) {
+                if (_activeAssets[i] == asset) {
+                    _activeAssets[i] = _activeAssets[_activeAssets.length - 1];
+                    _activeAssets.pop();
+                    break;
+                }
+            }
+        }
+        _send(asset, vault, amount);
     }
 
     function available(address asset) public view returns (uint256) {
         uint256 balance =
             asset == address(0) ? address(this).balance : IERC20(asset).balanceOf(address(this));
-        if (asset != subject) return balance;
-        if (balance < principal) revert InvalidTransfer();
-        return balance - principal;
+        if (balance < principal[asset]) revert InvalidTransfer();
+        return balance - principal[asset];
     }
 
     /// @notice Permissionless collection, recipient fixed to this custody by a typed adapter.
     /// No delegatecall or approvals; published Merkle proofs are verified by the distributor.
-    function collect(uint256 routeIndex, bytes calldata proof) external nonReentrant {
+    function collect(address subject, uint256 routeIndex, bytes calldata proof) external nonReentrant {
         AirdropAssetRegistry.ClaimRoute memory route = registry.claimRoute(subject, routeIndex);
         (address target, bytes memory data) =
             IAirdropClaimAdapter(route.adapter).prepare(address(this), proof);
@@ -98,6 +111,11 @@ contract AirdropBankCustody is ReentrancyGuard {
             target.code.length == 0 || target == subject || target == address(this)
                 || target == vault || target == address(collection)
         ) revert Unauthorized();
+        uint256[] memory beforePrincipal = new uint256[](_activeAssets.length);
+        for (uint256 i; i < _activeAssets.length; ++i) {
+            if (target == _activeAssets[i]) revert Unauthorized();
+            beforePrincipal[i] = IERC20(_activeAssets[i]).balanceOf(address(this));
+        }
         uint256 beforeSubject = IERC20(subject).balanceOf(address(this));
         uint256 beforeReward = IERC20(route.reward).balanceOf(address(this));
         uint256 beforeNative = address(this).balance;
@@ -112,7 +130,12 @@ contract AirdropBankCustody is ReentrancyGuard {
             IERC20(route.reward).balanceOf(address(this)) == beforeReward
                 && address(this).balance == beforeNative
         ) revert NoRewardsReceived();
-        emit ExternalClaim(routeIndex, target);
+        for (uint256 i; i < _activeAssets.length; ++i) {
+            if (IERC20(_activeAssets[i]).balanceOf(address(this)) < beforePrincipal[i]) {
+                revert InvalidTransfer();
+            }
+        }
+        emit ExternalClaim(subject, routeIndex, target);
     }
 
     /// @notice Only the current beneficiary can initiate delivery; no alternate recipient.
