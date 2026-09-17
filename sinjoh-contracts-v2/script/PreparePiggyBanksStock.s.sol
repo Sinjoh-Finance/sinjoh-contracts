@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 import { Script } from "forge-std/Script.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
+import { TickMath } from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import { YieldBankCollection } from "../src/yield-banks/YieldBankCollection.sol";
 import { CollectionPortfolioAllocator } from "../src/yield-banks/CollectionPortfolioAllocator.sol";
 import { DeltaPoolController } from "../src/yield-banks/DeltaPoolController.sol";
@@ -234,14 +235,16 @@ contract PreparePiggyBanksStock is Script {
             wf == IPriceHub.FailureReason.NONE && uf == IPriceHub.FailureReason.NONE,
             "bootstrap price unavailable"
         );
-        uint256 minimum =
-            Math.mulDiv(Math.mulDiv(0.005 ether, wethPrice, 1 ether), 1e6, usdgPrice) * 9900 / 10000;
+        uint256 minimum = Math.mulDiv(Math.mulDiv(0.005 ether, wethPrice, 1 ether), 1e6, usdgPrice)
+            * 9900 / 10000;
         IERC20(WETH).approve(route, 0.005 ether);
         uint256 cash = DeltaV3SinglePoolRoute(route).convert(0.005 ether, minimum, DEPLOYER, "");
         IERC20(WETH).approve(builder, 0.005 ether);
         IERC20(USDG).approve(builder, cash);
         IDeltaPositionBuilder.Rung[] memory rungs = new IDeltaPositionBuilder.Rung[](1);
-        rungs[0] = IDeltaPositionBuilder.Rung(tick - 1000, tick + 1000, 0.005 ether, cash, 1, 1);
+        rungs[0] = IDeltaPositionBuilder.Rung(
+            TickMath.MIN_TICK, TickMath.MAX_TICK, 0.005 ether, cash, 1, 1
+        );
         uint256[] memory ids = StockInfrastructureBuilder(builder)
             .mintLadder(pool, rungs, tick - 1, tick + 1, block.timestamp + 15 minutes);
         IStockPrepareNFT(manager).transferFrom(DEPLOYER, governance, ids[0]);
